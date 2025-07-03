@@ -186,11 +186,13 @@ class ValuesIntAggregator {
                  * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
                  */
                 int total = 0;
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int group = selected.getInt(s);
-                    int count = -selectedCounts[group];
-                    selectedCounts[group] = total;
-                    total += count;
+                if (values.size() > 0) {
+                    for (int s = 0; s < selected.getPositionCount(); s++) {
+                        int group = selected.getInt(s);
+                        int count = -selectedCounts[group];
+                        selectedCounts[group] = total;
+                        total += count;
+                    }
                 }
 
                 /*

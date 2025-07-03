@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Aggregator;
@@ -76,7 +77,7 @@ class ValuesBytesRefAggregator {
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {
-        state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
+        state.addValue(groupId, Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(v))));
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
@@ -90,6 +91,14 @@ class ValuesBytesRefAggregator {
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
         BytesRef scratch = new BytesRef();
+        if (statePosition >= state.firstValues.size()) {
+            return;
+        }
+        int valueOrd = state.firstValues.get(statePosition) - 1;
+        if (valueOrd < 0) {
+            return;
+        }
+        combine(current, currentGroupId, state.bytes.get(valueOrd, scratch));
         for (int id = 0; id < state.values.size(); id++) {
             if (state.values.getKey1(id) == statePosition) {
                 long value = state.values.getKey2(id);
@@ -146,23 +155,29 @@ class ValuesBytesRefAggregator {
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
-        final LongLongHash values;
+        private final BigArrays bigArrays;
+        private final LongLongHash values;
+        private IntArray firstValues; // the first value ordinal+1 collected in each group, 0 means no value
         BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
+            this.bigArrays = bigArrays;
             LongLongHash _values = null;
             BytesRefHash _bytes = null;
+            IntArray _firstValues = null;
             try {
                 _values = new LongLongHash(1, bigArrays);
                 _bytes = new BytesRefHash(1, bigArrays);
-
+                _firstValues = bigArrays.newIntArray(1);
                 values = _values;
                 bytes = _bytes;
+                firstValues = _firstValues;
 
                 _values = null;
                 _bytes = null;
+                _firstValues = null;
             } finally {
-                Releasables.closeExpectNoException(_values, _bytes);
+                Releasables.closeExpectNoException(_values, _bytes, _firstValues);
             }
         }
 
@@ -176,7 +191,7 @@ class ValuesBytesRefAggregator {
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            if (values.size() == 0) {
+            if (bytes.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
 
@@ -220,11 +235,13 @@ class ValuesBytesRefAggregator {
                  * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
                  */
                 int total = 0;
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int group = selected.getInt(s);
-                    int count = -selectedCounts[group];
-                    selectedCounts[group] = total;
-                    total += count;
+                if (values.size() > 0) {
+                    for (int s = 0; s < selected.getPositionCount(); s++) {
+                        int group = selected.getInt(s);
+                        int count = -selectedCounts[group];
+                        selectedCounts[group] = total;
+                        total += count;
+                    }
                 }
 
                 /*
@@ -256,13 +273,27 @@ class ValuesBytesRefAggregator {
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                if (OrdinalBytesRefBlock.isDense(firstValues.size() + values.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, selectedCounts, ids);
                 } else {
                     return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
                 }
             } finally {
                 blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+            }
+        }
+
+        void addValue(int groupId, int valueOrdinal) {
+            if (groupId < firstValues.size()) {
+                final int curr = firstValues.get(groupId) - 1;
+                if (curr == -1) {
+                    firstValues.set(groupId, valueOrdinal + 1);
+                } else if (curr != valueOrdinal) {
+                    values.add(groupId, valueOrdinal);
+                }
+            } else {
+                firstValues = bigArrays.grow(firstValues, groupId + 1);
+                firstValues.set(groupId, valueOrdinal + 1);
             }
         }
 
@@ -275,20 +306,26 @@ class ValuesBytesRefAggregator {
                 int start = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
-                    int end = selectedCounts[group];
-                    int count = end - start;
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> append(builder, ids[start], scratch);
-                        default -> {
+                    int firstValue = group < firstValues.size() ? firstValues.get(group) - 1 : -1;
+                    if (firstValue == -1) {
+                        assert selectedCounts[group] == start : selectedCounts[group] + " != " + start;
+                        builder.appendNull();
+                    } else {
+                        int end = selectedCounts[group];
+                        int count = end - start;
+                        if (count == 0) {
+                            builder.appendBytesRef(bytes.get(firstValue, scratch));
+                        } else {
                             builder.beginPositionEntry();
+                            builder.appendBytesRef(bytes.get(firstValue, scratch));
                             for (int i = start; i < end; i++) {
                                 append(builder, ids[i], scratch);
                             }
                             builder.endPositionEntry();
                         }
+                        start = end;
                     }
-                    start = end;
+
                 }
                 return builder.build();
             }
@@ -304,20 +341,25 @@ class ValuesBytesRefAggregator {
                 int start = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
-                    int end = selectedCounts[group];
-                    int count = end - start;
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.appendInt(Math.toIntExact(values.getKey2(ids[start])));
-                        default -> {
+                    int firstValue = group < firstValues.size() ? firstValues.get(group) - 1 : -1;
+                    if (firstValue == -1) {
+                        assert selectedCounts[group] == start : selectedCounts[group] + " != " + start;
+                        builder.appendNull();
+                    } else {
+                        int end = selectedCounts[group];
+                        int count = end - start;
+                        if (count == 0) {
+                            builder.appendInt(firstValue);
+                        } else {
                             builder.beginPositionEntry();
+                            builder.appendInt(firstValue);
                             for (int i = start; i < end; i++) {
                                 builder.appendInt(Math.toIntExact(values.getKey2(ids[i])));
                             }
                             builder.endPositionEntry();
                         }
+                        start = end;
                     }
-                    start = end;
                 }
                 ordinals = builder.build();
                 dict = blockFactory.newBytesRefArrayVector(dictArray, Math.toIntExact(dictArray.size()));
@@ -343,7 +385,7 @@ class ValuesBytesRefAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(values, bytes);
+            Releasables.closeExpectNoException(values, bytes, firstValues);
         }
     }
 }

@@ -55,7 +55,7 @@ final class ValuesBytesRefAggregators {
                         int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
                         int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
                         for (int v = valuesStart; v < valuesEnd; v++) {
-                            state.values.add(groupId, hashIds.getInt(ordinalIds.getInt(v)));
+                            state.addValue(groupId, hashIds.getInt(ordinalIds.getInt(v)));
                         }
                     }
                 }
@@ -77,7 +77,7 @@ final class ValuesBytesRefAggregators {
                         int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
                         int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
                         for (int v = valuesStart; v < valuesEnd; v++) {
-                            state.values.add(groupId, hashIds.getInt(ordinalIds.getInt(v)));
+                            state.addValue(groupId, hashIds.getInt(ordinalIds.getInt(v)));
                         }
                     }
                 }
@@ -93,7 +93,7 @@ final class ValuesBytesRefAggregators {
                     int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
                     int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
                     for (int v = valuesStart; v < valuesEnd; v++) {
-                        state.values.add(groupId, hashIds.getInt(ordinalIds.getInt(v)));
+                        state.addValue(groupId, hashIds.getInt(ordinalIds.getInt(v)));
                     }
                 }
             }
@@ -135,7 +135,7 @@ final class ValuesBytesRefAggregators {
                     int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
                     for (int g = groupStart; g < groupEnd; g++) {
                         int groupId = groupIds.getInt(g);
-                        state.values.add(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
+                        state.addValue(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
                     }
                 }
             }
@@ -150,7 +150,7 @@ final class ValuesBytesRefAggregators {
                     int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
                     for (int g = groupStart; g < groupEnd; g++) {
                         int groupId = groupIds.getInt(g);
-                        state.values.add(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
+                        state.addValue(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
                     }
                 }
             }
@@ -159,7 +159,7 @@ final class ValuesBytesRefAggregators {
             public void add(int positionOffset, IntVector groupIds) {
                 for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
                     int groupId = groupIds.getInt(groupPosition);
-                    state.values.add(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
+                    state.addValue(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
                 }
             }
 

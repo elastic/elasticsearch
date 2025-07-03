@@ -371,7 +371,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
 
-            boolean dimIsConfigured = dims == null || dims.isConfigured() == false;
+            boolean dimIsConfigured = dims != null && dims.isConfigured();
             if (defaultBBQHnsw && dimIsConfigured == false) {
                 // Delay selecting the default index options until dimensions are configured.
                 // This applies only to indices that are eligible to use BBQ as the default,

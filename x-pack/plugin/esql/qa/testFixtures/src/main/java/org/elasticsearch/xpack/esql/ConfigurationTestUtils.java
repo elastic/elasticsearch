@@ -72,8 +72,7 @@ public class ConfigurationTestUtils {
             profile,
             tables,
             System.nanoTime(),
-            false,
-            true // stringLikeOnIndex, default to true for tests
+            false
         );
     }
 

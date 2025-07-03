@@ -55,8 +55,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
             randomBoolean(),
             Map.of(),
             System.nanoTime(),
-            randomBoolean(),
-            true
+            randomBoolean()
         );
     }
 }

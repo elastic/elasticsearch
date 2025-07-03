@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Objects;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
@@ -88,7 +87,10 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedEncodingException("ExpressionQueryBuilder does not support doXContent");
+        builder.startObject(ENTRY.name); // Use the appropriate query name
+        builder.field("field", fieldName);
+        builder.field("expression", expression.toString());
+        builder.endObject();
     }
 
     @Override

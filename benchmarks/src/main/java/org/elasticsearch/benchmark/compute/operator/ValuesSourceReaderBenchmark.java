@@ -344,7 +344,7 @@ public class ValuesSourceReaderBenchmark {
         );
         long sum = 0;
         for (Page page : pages) {
-            op.addInput(page);
+            op.addInput(page.shallowCopy());
             switch (name) {
                 case "long" -> {
                     LongVector values = op.getOutput().<LongBlock>getBlock(1).asVector();

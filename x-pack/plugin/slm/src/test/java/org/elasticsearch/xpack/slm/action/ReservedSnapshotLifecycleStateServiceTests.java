@@ -290,8 +290,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedRepositoryAction(repositoriesService)),
-            List.of()
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of(new ReservedRepositoryAction(repositoriesService))
         );
 
         String testJSON = """
@@ -362,12 +362,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(
-                new ReservedClusterSettingsAction(clusterSettings),
-                new ReservedSnapshotAction(),
-                new ReservedRepositoryAction(repositoriesService)
-            ),
-            List.of()
+            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedSnapshotAction()),
+            List.of(new ReservedRepositoryAction(repositoriesService))
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {

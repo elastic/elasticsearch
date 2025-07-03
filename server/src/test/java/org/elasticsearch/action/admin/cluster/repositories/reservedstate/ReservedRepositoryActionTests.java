@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +36,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -45,9 +45,10 @@ import static org.mockito.Mockito.spy;
  */
 public class ReservedRepositoryActionTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedRepositoryAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ProjectId projectId, ReservedRepositoryAction action, TransformState prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            return action.transform(projectId, action.fromXContent(parser), prevState);
         }
     }
 
@@ -70,20 +71,24 @@ public class ReservedRepositoryActionTests extends ESTestCase {
 
         assertEquals(
             "[repo] repository type [inter_planetary] does not exist",
-            expectThrows(RepositoryException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            expectThrows(RepositoryException.class, () -> processJSON(randomProjectIdOrDefault(), action, prevState, badPolicyJSON))
+                .getMessage()
         );
     }
 
     public void testAddRepo() throws Exception {
         var repositoriesService = mockRepositoriesService();
+        final var projectId = randomProjectIdOrDefault();
 
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -104,14 +109,17 @@ public class ReservedRepositoryActionTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, settingsJSON);
+        updatedState = processJSON(projectId, action, prevState, settingsJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("repo", "repo1"));
     }
 
     public void testRemoveRepo() {
         var repositoriesService = mockRepositoriesService();
+        final var projectId = randomProjectIdOrDefault();
 
-        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build();
         TransformState prevState = new TransformState(state, Set.of("repo1"));
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
@@ -121,7 +129,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         // missing is sufficient to tell that we attempted to delete that repo
         assertEquals(
             "[repo1] missing",
-            expectThrows(RepositoryMissingException.class, () -> processJSON(action, prevState, emptyJSON)).getMessage()
+            expectThrows(RepositoryMissingException.class, () -> processJSON(projectId, action, prevState, emptyJSON)).getMessage()
         );
     }
 
@@ -155,7 +163,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
                 throw new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist");
             }
             return null;
-        }).when(repositoriesService).validateRepositoryCanBeCreated(eq(ProjectId.DEFAULT), any());
+        }).when(repositoriesService).validateRepositoryCanBeCreated(any(ProjectId.class), any());
 
         return repositoriesService;
     }

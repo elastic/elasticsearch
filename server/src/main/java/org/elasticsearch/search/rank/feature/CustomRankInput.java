@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 public interface CustomRankInput extends Writeable {
 
     /**
-     * @return unique identifier for this type of input 
+     * @return unique identifier for this type of input
      */
     String name();
 }

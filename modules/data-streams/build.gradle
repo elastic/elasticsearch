@@ -87,7 +87,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
 })
 
 configurations {
-  basicRestSpecs {
+  restTests {
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
@@ -95,5 +95,5 @@ configurations {
 }
 
 artifacts {
-  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

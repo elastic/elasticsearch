@@ -9,7 +9,7 @@
 
 package org.elasticsearch.core.internal.provider;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Booleans;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -467,12 +467,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new CodeSource(new URL(baseURL, jarName), (CodeSigner[]) null /*signers*/);
     }
 
-    @SuppressForbidden(reason = "accept lenient manifest attributes")
     private static boolean isMultiRelease(ClassLoader parent, String jarPrefix) throws IOException {
         try (InputStream is = parent.getResourceAsStream(jarPrefix + "/META-INF/MANIFEST.MF")) {
             if (is != null) {
                 Manifest manifest = new Manifest(is);
-                return Boolean.parseBoolean(manifest.getMainAttributes().getValue(MULTI_RELEASE));
+                return Booleans.parseBooleanLenient(manifest.getMainAttributes().getValue(MULTI_RELEASE), false);
             }
         }
         return false;

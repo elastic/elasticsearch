@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
+import org.elasticsearch.xpack.sql.proto.core.Booleans;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -311,7 +311,6 @@ final class TypeConverter {
         throw e != null ? new SQLException(message, e) : new SQLException(message);
     }
 
-    @SuppressForbidden(reason = "allow lenient conversion to boolean")
     private static Boolean asBoolean(Object val, EsType columnType, String typeString) throws SQLException {
         switch (columnType) {
             case BOOLEAN:
@@ -327,7 +326,7 @@ final class TypeConverter {
                 return Boolean.valueOf(((Number) val).doubleValue() != 0);
             case KEYWORD:
             case TEXT:
-                return Boolean.valueOf((String) val);
+                return Booleans.parseBooleanLenient((String) val, false);
             default:
                 return failConversion(val, columnType, typeString, Boolean.class);
         }

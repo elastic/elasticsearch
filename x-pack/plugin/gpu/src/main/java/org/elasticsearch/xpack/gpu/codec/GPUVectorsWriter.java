@@ -25,9 +25,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -130,6 +132,7 @@ public class GPUVectorsWriter extends KnnVectorsWriter {
         }
     }
 
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void buildAndwriteGPUIndex(VectorSimilarityFunction similarityFunction, float[][] vectors) throws Throwable {
         // TODO: should we Lucene HNSW index write here
         if (vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
@@ -139,6 +142,7 @@ public class GPUVectorsWriter extends KnnVectorsWriter {
             return;
         }
 
+        int dimension = vectors[0].length;
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
             case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> CagraIndexParams.CuvsDistanceType.InnerProduct;
@@ -159,16 +163,95 @@ public class GPUVectorsWriter extends KnnVectorsWriter {
         }
 
         // TODO: do serialization through MemorySegment instead of a temp file
-        // serialize index for CPU consumption
+        // serialize index for CPU consumption to hnwslib format
         startTime = System.nanoTime();
-        var gpuIndexOutputStream = new IndexOutputOutputStream(gpuIdx);
+        IndexOutput tempCagraHNSW = null;
+        boolean success = false;
         try {
-            index.serialize(gpuIndexOutputStream);
+            tempCagraHNSW = segmentWriteState.directory.createTempOutput(gpuIdx.getName(), "cagra_hnws_temp", segmentWriteState.context);
+            var tempCagraHNSWOutputStream = new IndexOutputOutputStream(tempCagraHNSW);
+            index.serializeToHNSW(tempCagraHNSWOutputStream);
+            success = true;
             if (logger.isDebugEnabled()) {
-                logger.debug("Carga index serialized in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
+                logger.debug("Carga index serialized to hnswlib format in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
             }
         } finally {
             index.destroyIndex();
+            if (success) {
+                IOUtils.close(tempCagraHNSW);
+            } else {
+                IOUtils.closeWhileHandlingException(tempCagraHNSW);
+                if (tempCagraHNSW != null) {
+                    org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempCagraHNSW.getName());
+                }
+            }
+        }
+
+        // convert hnswlib format to Lucene HNSW format
+        startTime = System.nanoTime();
+        success = false;
+        IndexInput tempCagraHNSWInput = null;
+        try {
+            tempCagraHNSWInput = segmentWriteState.directory.openInput(tempCagraHNSW.getName(), segmentWriteState.context);
+            // read the metadata from the hnlswlib format
+            // some of them are not used in Lucene HNSW format
+            tempCagraHNSWInput.readLong(); // offSetLevel0
+            long maxElementCount = tempCagraHNSWInput.readLong();
+            tempCagraHNSWInput.readLong(); // currElementCount
+            long sizeDataPerElement = tempCagraHNSWInput.readLong();
+            long labelOffset = tempCagraHNSWInput.readLong();
+            long dataOffset = tempCagraHNSWInput.readLong();
+            int maxLevel = tempCagraHNSWInput.readInt();
+            tempCagraHNSWInput.readInt(); // entryPointNode
+            tempCagraHNSWInput.readLong(); // maxM
+            long maxM0 = tempCagraHNSWInput.readLong(); // number of graph connections
+            tempCagraHNSWInput.readLong(); // M
+            tempCagraHNSWInput.readLong(); // mult
+            tempCagraHNSWInput.readLong(); // efConstruction
+
+            assert (maxLevel == 1) : "Cagra index is flat, maxLevel must be: 1, got: " + maxLevel;
+            int maxGraphDegree = (int) maxM0;
+            int[] connections = new int[maxGraphDegree];
+            int dimensionCalculated = (int) ((labelOffset - dataOffset) / Float.BYTES);
+            assert (dimension == dimensionCalculated)
+                : "Cagra index vector dimension must be: " + dimension + ", got: " + dimensionCalculated;
+
+            // read graph from the cagra_hnswlib index and write it to the Lucene HNSW format
+            gpuIdx.writeInt((int) maxElementCount);
+            gpuIdx.writeInt((int) maxM0);
+            for (int i = 0; i < maxElementCount; i++) {
+                // read from the cagra_hnswlib index
+                int graphDegree = tempCagraHNSWInput.readInt();
+                assert (graphDegree == maxGraphDegree)
+                    : "In Cagra graph all nodes must have the same number of connections : " + maxGraphDegree + ", got" + graphDegree;
+                for (int j = 0; j < graphDegree; j++) {
+                    connections[j] = tempCagraHNSWInput.readInt();
+                }
+                // Skip over the vector data
+                tempCagraHNSWInput.seek(tempCagraHNSWInput.getFilePointer() + dimension * Float.BYTES);
+                // Skip over the label/id
+                tempCagraHNSWInput.seek(tempCagraHNSWInput.getFilePointer() + Long.BYTES);
+
+                // write graph
+                gpuIdx.writeVInt(graphDegree);
+                for (int neighbor : connections) {
+                    gpuIdx.writeVInt(neighbor);
+                }
+            }
+
+            success = true;
+            if (logger.isDebugEnabled()) {
+                logger.debug("cagra_hnws index serialized to Lucene HNSW in: {} ms", (System.nanoTime() - startTime) / 1_000_000.0);
+            }
+        } finally {
+            if (success) {
+                IOUtils.close(tempCagraHNSWInput);
+            } else {
+                IOUtils.closeWhileHandlingException(tempCagraHNSWInput);
+            }
+            if (tempCagraHNSW != null) {
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempCagraHNSW.getName());
+            }
         }
     }
 

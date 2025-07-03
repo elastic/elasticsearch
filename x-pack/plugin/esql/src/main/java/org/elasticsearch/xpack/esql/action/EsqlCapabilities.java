@@ -1195,7 +1195,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot()),
+        KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
@@ -1221,7 +1221,17 @@ public class EsqlCapabilities {
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */
-        LIKE_ON_INDEX_FIELDS;
+        LIKE_ON_INDEX_FIELDS,
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot()),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

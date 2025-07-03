@@ -226,6 +226,47 @@ tasks.named("test").configure {
   }
 }
 
+// This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
+// and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
+tasks.named("internalClusterTest").configure {
+  if (buildParams.ci == false) {
+    systemProperty 'generateDocs', true
+    def injected = project.objects.newInstance(Injected)
+    // Define the folder to delete and recreate
+    def tempDir = file("build/testrun/internalClusterTest/temp/esql")
+    doFirst {
+      injected.fs.delete {
+        it.delete(tempDir)
+      }
+      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
+      tempDir.mkdirs() // Recreate the folder
+    }
+    File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
+    def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
+    def snippetsTree = fileTree(snippetsFolder).matching {
+      include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
+
+    doLast {
+      def snippets = snippetsTree.files.collect { it.name }
+      int countSnippets = snippets.size()
+      if (countSnippets == 0) {
+        logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
+      } else {
+        logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets to patch into docs")
+        injected.fs.sync {
+          from snippetsFolder
+          into snippetsDocFolder
+          include '**/*.md'
+          preserve {
+            include '**/*.md'
+          }
+        }
+      }
+    }
+  }
+}
+
 /****************************************************************
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *

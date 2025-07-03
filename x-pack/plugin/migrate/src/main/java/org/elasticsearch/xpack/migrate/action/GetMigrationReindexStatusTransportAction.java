@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
@@ -48,18 +49,21 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public GetMigrationReindexStatusTransportAction(
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(GetMigrationReindexStatusAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,7 +71,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
         String index = request.getIndex();
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state(),
+            projectResolver.getProjectMetadata(clusterService.state()),
             persistentTaskId
         );
         if (persistentTask == null) {

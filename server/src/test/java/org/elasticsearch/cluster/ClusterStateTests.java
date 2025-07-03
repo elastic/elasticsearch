@@ -809,9 +809,11 @@ public class ClusterStateTests extends ESTestCase {
                         "settings": {
                           "project.setting": "42",
                           "project.setting2": "43"
-                        }
+                        },
+                        "marked_for_deletion": true
                       }
-                    ]
+                    ],
+                    "projects_marked_for_deletion_generation": 1
                   }
                 }
                 """,
@@ -927,6 +929,7 @@ public class ClusterStateTests extends ESTestCase {
                         projectId1,
                         Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
                     )
+                    .markProjectForDeletion(projectId1)
                     .build()
             )
             .blocks(
@@ -2226,7 +2229,7 @@ public class ClusterStateTests extends ESTestCase {
                 } else if (custom instanceof SnapshotsInProgress snapshotsInProgress) {
                     chunkCount += 2 + snapshotsInProgress.asStream().count();
                 } else if (custom instanceof ProjectStateRegistry projectStateRegistry) {
-                    chunkCount += 2 + projectStateRegistry.size();
+                    chunkCount += 3 + projectStateRegistry.size();
                 } else {
                     // could be anything, we have to just try it
                     chunkCount += Iterables.size(

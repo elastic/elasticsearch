@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-slowlog.html
 navigation_title: Slow log
+applies_to:
+  stack: all
 ---
 
 # Slow log settings [index-modules-slowlog]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 The slow log records database searching and indexing events that have execution durations above specified thresholds. You can use these logs to investigate analyze or troubleshoot your cluster’s historical search and indexing performance.
 

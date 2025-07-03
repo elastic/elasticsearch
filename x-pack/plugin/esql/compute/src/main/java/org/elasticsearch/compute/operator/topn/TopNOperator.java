@@ -469,51 +469,50 @@ public class TopNOperator implements Operator, Accountable {
                     p = 0;
                 }
 
-                Row row = list.get(i);
-                BytesRef keys = row.keys.bytesRefView();
-                for (SortOrder so : sortOrders) {
-                    if (keys.bytes[keys.offset] == so.nul()) {
+                try (Row row = list.get(i)) {
+                    BytesRef keys = row.keys.bytesRefView();
+                    for (SortOrder so : sortOrders) {
+                        if (keys.bytes[keys.offset] == so.nul()) {
+                            keys.offset++;
+                            keys.length--;
+                            continue;
+                        }
                         keys.offset++;
                         keys.length--;
-                        continue;
+                        builders[so.channel].decodeKey(keys);
                     }
-                    keys.offset++;
-                    keys.length--;
-                    builders[so.channel].decodeKey(keys);
-                }
-                if (keys.length != 0) {
-                    throw new IllegalArgumentException("didn't read all keys");
-                }
-
-                BytesRef values = row.values.bytesRefView();
-                for (ResultBuilder builder : builders) {
-                    builder.setNextRefCounted(row.shardRefCounter);
-                    builder.decodeValue(values);
-                }
-                if (values.length != 0) {
-                    throw new IllegalArgumentException("didn't read all values");
-                }
-
-                list.set(i, null);
-
-                p++;
-                if (p == size) {
-                    Block[] blocks = new Block[builders.length];
-                    try {
-                        for (int b = 0; b < blocks.length; b++) {
-                            blocks[b] = builders[b].build();
-                        }
-                    } finally {
-                        if (blocks[blocks.length - 1] == null) {
-                            Releasables.closeExpectNoException(blocks);
-                        }
+                    if (keys.length != 0) {
+                        throw new IllegalArgumentException("didn't read all keys");
                     }
-                    result.add(new Page(blocks));
-                    Releasables.closeExpectNoException(builders);
-                    builders = null;
+
+                    BytesRef values = row.values.bytesRefView();
+                    for (ResultBuilder builder : builders) {
+                        builder.setNextRefCounted(row.shardRefCounter);
+                        builder.decodeValue(values);
+                    }
+                    if (values.length != 0) {
+                        throw new IllegalArgumentException("didn't read all values");
+                    }
+
+                    list.set(i, null);
+
+                    p++;
+                    if (p == size) {
+                        Block[] blocks = new Block[builders.length];
+                        try {
+                            for (int b = 0; b < blocks.length; b++) {
+                                blocks[b] = builders[b].build();
+                            }
+                        } finally {
+                            if (blocks[blocks.length - 1] == null) {
+                                Releasables.closeExpectNoException(blocks);
+                            }
+                        }
+                        result.add(new Page(blocks));
+                        Releasables.closeExpectNoException(builders);
+                        builders = null;
+                    }
                 }
-                // It's important to close the row only after we build the new block, so we don't pre-release any shard counter.
-                row.close();
             }
             assert builders == null;
             success = true;

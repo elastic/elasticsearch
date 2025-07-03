@@ -2,4 +2,3 @@
 
 ### NOT IN
 The `NOT IN` operator allows testing whether a field or expression does *not* equal any element in a list of literals, fields or expressions.
-

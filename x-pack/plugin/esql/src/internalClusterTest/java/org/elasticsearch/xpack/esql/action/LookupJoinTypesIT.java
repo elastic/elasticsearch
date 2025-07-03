@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -36,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -268,6 +271,22 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private static boolean existingIndex(Collection<TestConfigs> existing, DataType mainType, DataType lookupType) {
         String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
         return existing.stream().anyMatch(c -> c.exists(indexName));
+    }
+
+    /** This test generates documentation for the supported output types of the lookup join. */
+    public void testOutputSupportedTypes() throws Exception {
+        Map<List<DataType>, DataType> signatures = new LinkedHashMap<>();
+        for (TestConfigs configs : testConfigurations.values()) {
+            if (configs.group.equals("unsupported") || configs.group.equals("union-types")) {
+                continue;
+            }
+            for (TestConfig config : configs.configs.values()) {
+                if (config instanceof TestConfigPasses) {
+                    signatures.put(List.of(config.mainType(), config.lookupType()), null);
+                }
+            }
+        }
+        saveJoinTypes(() -> signatures);
     }
 
     public void testLookupJoinStrings() {
@@ -738,5 +757,23 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             );
             assertion().accept(e);
         }
+    }
+
+    private boolean isValidDataType(DataType dataType) {
+        return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
+    }
+
+    private static void saveJoinTypes(Supplier<Map<List<DataType>, DataType>> signatures) throws Exception {
+        ArrayList<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>();
+        args.add(new EsqlFunctionRegistry.ArgSignature("field from the left index", null, null, false, false));
+        args.add(new EsqlFunctionRegistry.ArgSignature("field from the lookup index", null, null, false, false));
+        DocsV3Support.CommandsDocsSupport docs = new DocsV3Support.CommandsDocsSupport(
+            "lookup-join",
+            LookupJoinTypesIT.class,
+            null,
+            args,
+            signatures
+        );
+        docs.renderDocs();
     }
 }

@@ -10,4 +10,3 @@ The following wildcard characters are supported:
 
 * `*` matches zero or more characters.
 * `?` matches one character.
-

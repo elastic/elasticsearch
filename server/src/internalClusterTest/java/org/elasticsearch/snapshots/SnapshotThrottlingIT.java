@@ -141,7 +141,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "repository [test-repo] has a rate limit [max_snapshot_bytes_per_sec=1gb] per second which is above "
+                "repository [default/test-repo] has a rate limit [max_snapshot_bytes_per_sec=1gb] per second which is above "
                     + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );
@@ -152,7 +152,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
                 "snapshot restore speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "repository [test-repo] has a rate limit [max_restore_bytes_per_sec=2gb] per second which is above "
+                "repository [default/test-repo] has a rate limit [max_restore_bytes_per_sec=2gb] per second which is above "
                     + "the effective recovery rate limit [indices.recovery.max_bytes_per_sec=100mb] per second, thus the repository "
                     + "rate limit will be superseded by the recovery rate limit"
             );

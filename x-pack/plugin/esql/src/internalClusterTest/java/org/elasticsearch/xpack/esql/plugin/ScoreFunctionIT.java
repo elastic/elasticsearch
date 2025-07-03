@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
@@ -24,7 +23,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -45,6 +44,22 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id", "first_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
+        }
+    }
+
+    public void testScoreQueryExpressions() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") AND match(content, "brown")
+            | EVAL first_score = score(match(content, CONCAT("brown ", " fox")))
+            | KEEP id, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.4274532794952393), List.of(6, 1.1248724460601807)));
         }
     }
 

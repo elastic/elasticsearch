@@ -5,6 +5,7 @@
 scoreSingle
 required_capability: metadata_score
 required_capability: score_function
+required_capability: match_function
 
 // tag::score-single[]
 FROM books METADATA _score
@@ -25,23 +26,25 @@ book_no:keyword | title:text                                                    
 
 scoreSingleNoMetadata
 required_capability: score_function
+required_capability: match_function
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
 | EVAL first_score = score(match(title, "Return")) 
-| KEEP book_no, author, first_score
+| KEEP book_no, title, first_score
 | SORT book_no
 | LIMIT 5
 ;
 
-book_no:keyword | author:text | first_score:double 
-2714            | J. R. R. Tolkien                                 | 1.9245924949645996
-7350            | [Christopher Tolkien, John Ronald Reuel Tolkien] | 3.5432329177856445
+book_no:keyword | title:text                                                       | first_score:double 
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 3.5432329177856445
 ;
 
 scoreAfterEval
 required_capability: score_function
 required_capability: metadata_score
+required_capability: match_function
 
 FROM books METADATA _score
 | EVAL stars = to_long(ratings / 2.0)
@@ -57,4 +60,67 @@ book_no:keyword | author:text                                        | stars:lon
 2847            | Colleen Faulkner                                   | 3          | 0.0
 2883            | William Faulkner                                   | 2          | 1.9043500423431396
 3293            | Danny Faulkner                                     | 2          | 0.0
+;
+
+scoreWithQueryExpressions
+
+FROM books METADATA _score
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s2 = score(match(title, concat("Return ", "King")))   
+| KEEP book_no, title, _score, s2
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | title:text | _score:double | s2:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings  | 3.1309072971343994 | 3.849184989929199
+7350            | Return of the Shadow  | 4.8434343338012695 | 3.5432329177856445
+;
+
+scoreMatchWithFilterConjunction
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") and ratings > 4.6)
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 0.0
+;
+
+scoreMatchWithDisjunction
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") or match(title, "Shadow"))
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 3.5432329177856445
+;
+
+scoreMatchWithDisjunctionAndFilter
+required_capability: score_function
+required_capability: match_function
+
+FROM books
+| WHERE match(title, "Return") AND match(author, "Tolkien")
+| EVAL s1 = score(match(title, "Rings") or match(title, "Shadow") and ratings > 4.6)
+| KEEP book_no, title, s1
+| SORT book_no
+| LIMIT 5;
+
+book_no:keyword | title:text                                                       | s1:double
+2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
+7350            | Return of the Shadow                                             | 3.5432329177856445
 ;

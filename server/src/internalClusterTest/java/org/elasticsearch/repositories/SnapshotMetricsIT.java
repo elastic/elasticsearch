@@ -138,8 +138,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Work out the maximum amount of concurrency per node
         final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
-        int snapshotThreadPoolSize = tp.info(ThreadPool.Names.SNAPSHOT).getMax();
-        int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
+        final int snapshotThreadPoolSize = tp.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
 
         // sanity check duration values
         final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * maximumPerNodeConcurrency

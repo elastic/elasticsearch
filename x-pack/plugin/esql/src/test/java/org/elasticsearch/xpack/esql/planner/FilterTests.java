@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.TransportVersions.V_8_17_0;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -326,8 +327,8 @@ public class FilterTests extends ESTestCase {
             |WHERE {} LIKE ("a+", "b+")
             """, LAST_NAME);
         var plan = plan(query, null);
-
-        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
+        // test with an older version, so like list is not supported
+        var filter = filterQueryForTransportNodes(V_8_17_0, plan);
         assertNull(filter);
     }
 
@@ -400,7 +401,13 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(TransportVersion minTransportVersion, PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(new EsqlFlags(true), null, minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
+        return PlannerUtils.detectFilter(
+            new EsqlFlags(true),
+            EsqlTestUtils.TEST_CFG,
+            minTransportVersion,
+            plan,
+            Set.of(EMP_NO, LAST_NAME)::contains
+        );
     }
 
     @Override

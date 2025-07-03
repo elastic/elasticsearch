@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
@@ -91,7 +90,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -113,8 +111,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(ParsingContext context, Configuration configuration) {
-        super(context, configuration);
+    public LogicalPlanBuilder(ParsingContext context) {
+        super(context);
     }
 
     private int queryDepth = 0;
@@ -720,8 +718,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
+        return fusePlanFactory(source(ctx), true);
+    }
+
+    @Override
+    public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
+        return fusePlanFactory(source(ctx), false);
+    }
+
+    private PlanFactory fusePlanFactory(Source source, boolean sorted) {
         return input -> {
-            Source source = source(ctx);
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
@@ -732,6 +738,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
             LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
+
+            if (sorted == false) {
+                return dedup;
+            }
 
             List<Order> order = List.of(
                 new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),

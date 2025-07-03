@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -121,13 +120,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final ParsingContext context;
-    private final Configuration configuration; // NOCOMMIT remove me?
 
     public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
 
-    ExpressionBuilder(ParsingContext context, Configuration configuration) {
+    ExpressionBuilder(ParsingContext context) {
         this.context = context;
-        this.configuration = configuration;
     }
 
     protected Expression expression(ParseTree ctx) {

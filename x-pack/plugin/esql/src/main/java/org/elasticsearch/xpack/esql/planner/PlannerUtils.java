@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -279,7 +278,6 @@ public class PlannerUtils {
                 if (matches.isEmpty() == false) {
                     Query qlQuery = TRANSLATOR_HANDLER.asQuery(ctx, Predicates.combineAnd(matches));
                     QueryBuilder builder = qlQuery.toQueryBuilder();
-                    LogManager.getLogger(PlannerUtils.class).error("ASFAFDSAFDSF {} {}", qlQuery, qlQuery.containsPlan());
                     if (qlQuery.containsPlan()) {
                         builder = new PlanStreamWrapperQueryBuilder(configuration, builder);
                     }

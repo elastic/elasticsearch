@@ -122,7 +122,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> metadata = new HashMap<>();
-    private final Map<String, List<String>> headers = new HashMap<>();
+    private final Map<String, List<String>> bodyHeaders = new HashMap<>();
+    private final Map<String, List<String>> httpHeaders = new HashMap<>();
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified cause exception.
@@ -169,14 +170,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        headers.putAll(in.readMapOfLists(StreamInput::readString));
+        bodyHeaders.putAll(in.readMapOfLists(StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
     }
 
     private void maybePutTimeoutHeader() {
         if (isTimeout()) {
             // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
-            headers.put(TIMED_OUT_HEADER, List.of("?1"));
+            bodyHeaders.put(TIMED_OUT_HEADER, List.of("?1"));
         }
     }
 
@@ -220,42 +221,77 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Adds a new header with the given key.
+     * Adds a new header with the given key that is part of the response body and http headers.
      * This method will replace existing header if a header with the same key already exists
      */
-    public void addHeader(String key, List<String> value) {
+    public void addBodyHeader(String key, List<String> value) {
         // we need to enforce this otherwise bw comp doesn't work properly, as "es." was the previous criteria to split headers in two sets
         if (key.startsWith("es.")) {
             throw new IllegalArgumentException("exception headers must not start with [es.], found [" + key + "] instead");
         }
-        this.headers.put(key, value);
+        this.bodyHeaders.put(key, value);
     }
 
     /**
-     * Adds a new header with the given key.
+     * Adds a new header with the given key that is part of the response body and http headers.
      * This method will replace existing header if a header with the same key already exists
      */
-    public void addHeader(String key, String... value) {
-        addHeader(key, Arrays.asList(value));
+    public void addBodyHeader(String key, String... value) {
+        addBodyHeader(key, Arrays.asList(value));
     }
 
     /**
-     * Returns a set of all header keys on this exception
+     * Returns a set of all body header keys on this exception
      */
-    public Set<String> getHeaderKeys() {
-        return headers.keySet();
+    public Set<String> getBodyHeaderKeys() {
+        return bodyHeaders.keySet();
     }
 
     /**
-     * Returns the list of header values for the given key or {@code null} if no header for the
+     * Returns the list of body header values for the given key or {@code null} if no header for the
      * given key exists.
      */
-    public List<String> getHeader(String key) {
-        return headers.get(key);
+    public List<String> getBodyHeader(String key) {
+        return bodyHeaders.get(key);
     }
 
-    protected Map<String, List<String>> getHeaders() {
-        return headers;
+    protected Map<String, List<String>> getBodyHeaders() {
+        return bodyHeaders;
+    }
+
+    /**
+     * Adds a new http header with the given key.
+     * This method will replace existing http header if a header with the same key already exists
+     */
+    public void addHttpHeader(String key, List<String> value) {
+        this.httpHeaders.put(key, value);
+    }
+
+    /**
+     * Adds a new http header with the given key.
+     * This method will replace existing http header if a header with the same key already exists
+     */
+    public void addHttpHeader(String key, String... value) {
+        this.httpHeaders.put(key, List.of(value));
+    }
+
+    /**
+     * Returns a set of all body header keys on this exception
+     */
+    public Set<String> getHttpHeaderKeys() {
+        return httpHeaders.keySet();
+    }
+
+    /**
+     * Returns the list of http header values for the given key or {@code null} if no header for the
+     * given key exists.
+     */
+    public List<String> getHttpHeader(String key) {
+        return httpHeaders.get(key);
+    }
+
+    protected Map<String, List<String>> getHttpHeaders() {
+        return httpHeaders;
     }
 
     /**
@@ -335,7 +371,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
         nestedExceptionsWriter.write(out, this);
-        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(bodyHeaders, StreamOutput::writeStringCollection);
         out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
@@ -384,7 +420,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (ex != this) {
             generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, headers, metadata, getCause(), nestedLevel);
+            innerToXContent(builder, params, this, bodyHeaders, metadata, getCause(), nestedLevel);
         }
         return builder;
     }
@@ -581,7 +617,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             e.addMetadata("es." + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
-            e.addHeader(header.getKey(), header.getValue());
+            e.addBodyHeader(header.getKey(), header.getValue());
         }
 
         // Adds root causes as suppressed exception. This way they are not lost

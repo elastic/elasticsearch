@@ -96,7 +96,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -854,10 +853,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param onFailure A callback executed when a document fails ingestion and does not need to be
      *                  persisted. Accepts the slot in the collection of requests that the document
      *                  occupies, and the exception that the document encountered.
-     * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
-     *                     that ingestion completed on or an exception in the event that the entire operation
-     *                     has failed.
-     * @param executor Which executor the bulk request should be executed on.
+     * @param listener A callback executed once all documents have been processed.
      */
     public void executeBulkRequest(
         final ProjectId projectId,
@@ -867,25 +863,23 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final Executor executor
+        final ActionListener<Void> listener
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         // Adapt handler to ensure node features during ingest logic
         final Function<String, Boolean> adaptedResolveFailureStore = wrapResolverWithFeatureCheck(resolveFailureStore);
 
-        executor.execute(new AbstractRunnable() {
+        new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
+                listener.onFailure(e);
             }
 
             @Override
             protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                try (var refs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                     int i = 0;
                     for (DocWriteRequest<?> actionRequest : actionRequests) {
                         IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
@@ -964,7 +958,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
                 }
             }
-        });
+        }.run();
     }
 
     /**
@@ -1604,8 +1598,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {
-        String tag = e.getHeaderKeys().contains("processor_tag") ? e.getHeader("processor_tag").get(0) : null;
-        String type = e.getHeaderKeys().contains("processor_type") ? e.getHeader("processor_type").get(0) : "unknown";
+        String tag = e.getBodyHeaderKeys().contains("processor_tag") ? e.getBodyHeader("processor_tag").get(0) : null;
+        String type = e.getBodyHeaderKeys().contains("processor_type") ? e.getBodyHeader("processor_type").get(0) : "unknown";
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
         Processor failureProcessor = new AbstractProcessor(tag, "this is a placeholder processor") {
             @Override

@@ -156,11 +156,11 @@ $if(BytesRef)$
         if (statePosition >= state.firstValues.size()) {
             return;
         }
-        int valueOrd = state.firstValues.get(statePosition) - 1;
-        if (valueOrd < 0) {
+        int firstValue = state.firstValues.get(statePosition) - 1;
+        if (firstValue < 0) {
             return;
         }
-        combine(current, currentGroupId, state.bytes.get(valueOrd, scratch));
+        combine(current, currentGroupId, state.bytes.get(firstValue, scratch));
 $endif$
         for (int id = 0; id < state.values.size(); id++) {
 $if(long||BytesRef)$

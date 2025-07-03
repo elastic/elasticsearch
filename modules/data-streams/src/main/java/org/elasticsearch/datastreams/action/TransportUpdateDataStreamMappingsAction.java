@@ -35,7 +35,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +47,6 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
-    private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
 
     @Inject
@@ -61,7 +59,6 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         MetadataDataStreamsService metadataDataStreamsService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        NamedXContentRegistry xContentRegistry,
         IndicesService indicesService
     ) {
         super(
@@ -78,7 +75,6 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
-        this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
     }
 
@@ -170,11 +166,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(
-                                    clusterService.state().metadata().getProject(projectId),
-                                    xContentRegistry,
-                                    indicesService
-                                )
+                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId), indicesService)
                             )
                         );
                     } catch (Exception e) {

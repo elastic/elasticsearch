@@ -38,7 +38,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -57,7 +56,6 @@ public class MetadataDataStreamsService {
     private static final Logger LOGGER = LogManager.getLogger(MetadataDataStreamsService.class);
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final NamedXContentRegistry xContentRegistry;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
@@ -68,12 +66,10 @@ public class MetadataDataStreamsService {
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.xContentRegistry = xContentRegistry;
         this.globalRetentionSettings = globalRetentionSettings;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
@@ -517,12 +513,11 @@ public class MetadataDataStreamsService {
         DataStream dataStream = dataStreamMap.get(dataStreamName);
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
-        ComposableIndexTemplate mergedTemplate = template.mergeMappings(mappingsOverrides);
         CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
             projectMetadata,
-            mergedTemplate,
+            template,
+            mappingsOverrides,
             dataStream.getWriteIndex(),
-            xContentRegistry,
             indicesService
         );
         MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);

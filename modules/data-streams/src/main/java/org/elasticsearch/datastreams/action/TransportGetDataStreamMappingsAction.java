@@ -27,7 +27,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +36,6 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
     GetDataStreamMappingsAction.Request,
     GetDataStreamMappingsAction.Response> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
 
     @Inject
@@ -48,7 +46,6 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NamedXContentRegistry xContentRegistry,
         IndicesService indicesService
     ) {
         super(
@@ -60,7 +57,6 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
             projectResolver
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
     }
 
@@ -89,7 +85,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
                 new GetDataStreamMappingsAction.DataStreamMappingsResponse(
                     dataStreamName,
                     dataStream.getMappings(),
-                    dataStream.getEffectiveMappings(project.metadata(), xContentRegistry, indicesService)
+                    dataStream.getEffectiveMappings(project.metadata(), indicesService)
                 )
             );
         }

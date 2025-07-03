@@ -1,5 +1,5 @@
 pr: 129872
 summary: Run `TransportClusterStateAction` on local node
-area: "Indices APIs, Distributed"
+area: Distributed
 type: enhancement
 issues: []

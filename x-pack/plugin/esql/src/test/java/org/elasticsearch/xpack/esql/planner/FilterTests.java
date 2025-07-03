@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.BeforeClass;
@@ -399,8 +400,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(TransportVersion minTransportVersion, PhysicalPlan plan) {
-        // NOCOMMIT check if null is ok
-        return PlannerUtils.detectFilter(null, minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
+        return PlannerUtils.detectFilter(new EsqlFlags(true), null, minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
     }
 
     @Override

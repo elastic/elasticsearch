@@ -74,7 +74,6 @@ public class QueryPlanningBenchmark {
 
     @Setup
     public void setup() {
-
         this.config = new Configuration(
             DateUtils.UTC,
             Locale.US,
@@ -87,8 +86,7 @@ public class QueryPlanningBenchmark {
             false,
             Map.of(),
             System.nanoTime(),
-            false,
-            true
+            false
         );
 
         var fields = 10_000;

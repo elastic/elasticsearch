@@ -221,6 +221,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        EsqlFlags flags = computeService.createFlags();
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -234,8 +235,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            request.allowPartialResults(),
-            clusterService.getClusterSettings().get(EsqlPlugin.ESQL_STRING_LIKE_ON_INDEX)
+            request.allowPartialResults()
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
@@ -245,6 +245,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
+            flags,
             plan,
             configuration,
             foldCtx,

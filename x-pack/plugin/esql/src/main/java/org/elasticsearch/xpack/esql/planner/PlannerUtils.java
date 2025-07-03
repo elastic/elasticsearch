@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -166,17 +167,26 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(
+        EsqlFlags flags,
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
-    public static PhysicalPlan localPlan(Configuration configuration, FoldContext foldCtx, PhysicalPlan plan, SearchStats searchStats) {
+    public static PhysicalPlan localPlan(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
-        var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
+        );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
     }
@@ -216,8 +226,13 @@ public class PlannerUtils {
     /**
      * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    public static QueryBuilder canMatchFilter(Configuration configuration, TransportVersion minTransportVersion, PhysicalPlan plan) {
-        return detectFilter(configuration, minTransportVersion, plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
+    public static QueryBuilder canMatchFilter(
+        EsqlFlags flags,
+        Configuration configuration,
+        TransportVersion minTransportVersion,
+        PhysicalPlan plan
+    ) {
+        return detectFilter(flags, configuration, minTransportVersion, plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
     }
 
     /**
@@ -226,6 +241,7 @@ public class PlannerUtils {
      * take care to not use it with TEXT fields.
      */
     static QueryBuilder detectFilter(
+        EsqlFlags flags,
         Configuration configuration,
         TransportVersion minTransportVersion,
         PhysicalPlan plan,
@@ -233,7 +249,7 @@ public class PlannerUtils {
     ) {
         // first position is the REST filter, the second the query filter
         final List<QueryBuilder> requestFilters = new ArrayList<>();
-        final LucenePushdownPredicates ctx = LucenePushdownPredicates.forCanMatch(minTransportVersion, configuration);
+        final LucenePushdownPredicates ctx = LucenePushdownPredicates.forCanMatch(minTransportVersion, flags);
         plan.forEachDown(FragmentExec.class, fe -> {
             if (fe.esFilter() != null && fe.esFilter().supportsVersion(minTransportVersion)) {
                 requestFilters.add(fe.esFilter());

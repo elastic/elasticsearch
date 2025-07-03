@@ -620,6 +620,9 @@ tests:
 - class: org.elasticsearch.reindex.ReindexFromRemoteBuildRestClientTests
   method: testBuildRestClient
   issue: https://github.com/elastic/elasticsearch/issues/130588
+- class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
+  method: testRespondAfterServiceCloseWithClientCancel
+  issue: https://github.com/elastic/elasticsearch/issues/130590
 
 # Examples:
 #

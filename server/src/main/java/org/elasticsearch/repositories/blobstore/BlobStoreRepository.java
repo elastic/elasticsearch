@@ -528,7 +528,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
-        this.blobStoreSnapshotMetrics = new BlobStoreSnapshotMetrics(metadata, snapshotMetrics);
+        this.blobStoreSnapshotMetrics = new BlobStoreSnapshotMetrics(projectId, metadata, snapshotMetrics);
     }
 
     @Override
@@ -3215,7 +3215,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void doSnapshotShard(SnapshotShardContext context) {
         blobStoreSnapshotMetrics.shardSnapshotStarted();
-        context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status().getTotalTime())));
+        context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;

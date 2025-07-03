@@ -103,6 +103,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -198,6 +199,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final SystemIndices systemIndices;
 
+    private final SnapshotMetrics snapshotMetrics;
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
@@ -225,7 +228,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         RepositoriesService repositoriesService,
         TransportService transportService,
         ActionFilters actionFilters,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        SnapshotMetrics snapshotMetrics
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -233,6 +237,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
+        this.snapshotMetrics = snapshotMetrics;
+        snapshotMetrics.createSnapshotsInProgressMetric(this::getSnapshotsInProgress);
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(transportService, clusterService, threadPool, actionFilters);
@@ -1597,8 +1603,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
                                 completeListenersIgnoringException(actionListeners, snapshotInfo);
-                                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(repo.getMetadata());
-                                final SnapshotMetrics snapshotMetrics = repositoriesService.getSnapshotMetrics();
+                                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
+                                    snapshot.getProjectId(),
+                                    repo.getMetadata()
+                                );
                                 snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
                                 snapshotMetrics.snapshotsDurationHistogram()
                                     .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributes);
@@ -4329,8 +4337,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var res = snapshotsInProgress.withAddedEntry(newEntry);
             taskContext.success(() -> {
                 logger.info("snapshot [{}] started", snapshot);
-                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(repository.getMetadata());
-                repositoriesService.getSnapshotMetrics().snapshotsStartedCounter().incrementBy(1, attributes);
+                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
+                    snapshot.getProjectId(),
+                    repository.getMetadata()
+                );
+                snapshotMetrics.snapshotsStartedCounter().incrementBy(1, attributes);
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
                     endSnapshot(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);
@@ -4338,6 +4349,24 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             });
             return res;
         }
+    }
+
+    private Collection<LongWithAttributes> getSnapshotsInProgress() {
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+        final List<LongWithAttributes> snapshotsInProgressMetrics = new ArrayList<>();
+        clusterService.state().metadata().projects().forEach((projectId, project) -> {
+            RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                repositoriesMetadata.repositories().forEach(repository -> {
+                    int snapshotCount = snapshotsInProgress.forRepo(projectId, repository.name()).size();
+                    logger.info("Returning snapshot count of {}", snapshotCount);
+                    snapshotsInProgressMetrics.add(
+                        new LongWithAttributes(snapshotCount, SnapshotMetrics.createAttributesMap(projectId, repository))
+                    );
+                });
+            }
+        });
+        return snapshotsInProgressMetrics;
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
@@ -30,9 +32,9 @@ public class BlobStoreSnapshotMetrics {
     private final CounterMetric numberOfShardSnapshotsCompleted = new CounterMetric();
     private final Map<String, Object> metricAttributes;
 
-    public BlobStoreSnapshotMetrics(RepositoryMetadata repositoryMetadata, SnapshotMetrics snapshotMetrics) {
+    public BlobStoreSnapshotMetrics(ProjectId projectId, RepositoryMetadata repositoryMetadata, SnapshotMetrics snapshotMetrics) {
         this.snapshotMetrics = snapshotMetrics;
-        metricAttributes = SnapshotMetrics.createAttributesMap(repositoryMetadata);
+        metricAttributes = SnapshotMetrics.createAttributesMap(projectId, repositoryMetadata);
     }
 
     public void incrementSnapshotRateLimitingTimeInNanos(long throttleTimeNanos) {
@@ -71,10 +73,10 @@ public class BlobStoreSnapshotMetrics {
         shardSnapshotsInProgress.inc();
     }
 
-    public void shardSnapshotCompleted(long durationInMillis) {
+    public void shardSnapshotCompleted(IndexShardSnapshotStatus status) {
         snapshotMetrics.snapshotsShardsCompletedCounter().increment();
-        if (durationInMillis > 0) {
-            snapshotMetrics.snapshotShardsDurationHistogram().record(durationInMillis / 1_000f);
+        if (status.getStage() == IndexShardSnapshotStatus.Stage.DONE) {
+            snapshotMetrics.snapshotShardsDurationHistogram().record(status.getTotalTime() / 1_000f);
         }
         numberOfShardSnapshotsCompleted.inc();
         shardSnapshotsInProgress.dec();

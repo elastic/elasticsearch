@@ -12,6 +12,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -20,6 +21,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -36,11 +39,21 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // Make sanity checking duration histograms possible
+            .put(ESTIMATED_TIME_INTERVAL_SETTING.getKey(), "0s")
+            .build();
     }
 
     public void testSnapshotAPMMetrics() throws Exception {
@@ -61,8 +74,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         final String repositoryName = randomIdentifier();
 
-        // we want to ensure some throttling, but not too much that it slows the test down. 5 seemed a reasonable multiple to ensure that.
-        int shardSizeMultipleToEnsureThrottling = 5;
+        // we want to ensure some throttling, but not too much that it slows the test down. 3 seemed a reasonable multiple to ensure that.
+        int shardSizeMultipleToEnsureThrottling = 3;
         createRepository(
             repositoryName,
             "mock",
@@ -84,9 +97,10 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
             waitForBlockOnAnyDataNode(repositoryName);
             collectMetrics();
+            assertSnapshotsInProgressMetricIs(greaterThan(0L));
             assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
-            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_STARTED), equalTo(1L));
-            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_COMPLETED), equalTo(0L));
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), greaterThan(0L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo(0L));
         } finally {
@@ -103,8 +117,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_STARTED), equalTo(1L));
-        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_COMPLETED), equalTo(1L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(1L));
 
         // Sanity check shard duration observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
@@ -140,6 +154,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo((long) numShards));
 
+        assertSnapshotsInProgressMetricIs(equalTo(0L));
         assertShardsInProgressMetricIs(everyItem(equalTo(0L)));
 
         // Restore the snapshot
@@ -171,6 +186,20 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             return longGaugeMeasurement.getLast().getLong();
         }).toList();
         assertThat(values, matcher);
+    }
+
+    private static void assertSnapshotsInProgressMetricIs(Matcher<Long> matcher) {
+        final List<Long> values = internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .map(testTelemetryPlugin -> {
+                final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
+                    SnapshotMetrics.SNAPSHOTS_IN_PROGRESS
+                );
+                return longGaugeMeasurement.getLast().getLong();
+            })
+            .toList();
+        assertThat(values, hasSize(1));
+        assertThat(values.getFirst(), matcher);
     }
 
     private static void collectMetrics() {

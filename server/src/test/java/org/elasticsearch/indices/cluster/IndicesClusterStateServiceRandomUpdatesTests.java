@@ -47,7 +47,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -551,7 +551,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             threadPool,
             client,
             List.of(),
-            MeterRegistry.NOOP
+            SnapshotMetrics.NOOP
         );
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             client,

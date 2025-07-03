@@ -96,7 +96,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
             recoverySettings,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            SnapshotMetrics.NOOP
         );
     }
 
@@ -133,7 +134,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                SnapshotMetrics.NOOP
             )
         );
 
@@ -159,7 +161,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                SnapshotMetrics.NOOP
             )
         );
 
@@ -192,7 +195,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                SnapshotMetrics.NOOP
             )
         );
 

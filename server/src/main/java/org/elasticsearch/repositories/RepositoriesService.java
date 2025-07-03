@@ -59,7 +59,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -136,7 +135,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         ThreadPool threadPool,
         NodeClient client,
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks,
-        MeterRegistry meterRegistry
+        SnapshotMetrics snapshotMetrics
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -156,7 +155,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
-        this.snapshotMetrics = new SnapshotMetrics(meterRegistry, this::getShardSnapshotsInProgress);
+        this.snapshotMetrics = snapshotMetrics;
+        snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 
     /**
@@ -1267,10 +1267,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return new RepositoryUsageStats(
             statsByType.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Map.copyOf(e.getValue())))
         );
-    }
-
-    public SnapshotMetrics getSnapshotMetrics() {
-        return snapshotMetrics;
     }
 
     @Override

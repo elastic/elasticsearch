@@ -63,11 +63,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
-        Pushable pushable = evaluatePushable(
-            ctx.foldCtx(),
-            topNExec,
-            LucenePushdownPredicates.from(ctx.searchStats(), ctx.configuration())
-        );
+        Pushable pushable = evaluatePushable(ctx.foldCtx(), topNExec, LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags()));
         return pushable.rewrite(topNExec);
     }
 

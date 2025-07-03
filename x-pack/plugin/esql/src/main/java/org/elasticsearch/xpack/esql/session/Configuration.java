@@ -51,7 +51,6 @@ public class Configuration implements Writeable {
 
     private final boolean profile;
     private final boolean allowPartialResults;
-    private final boolean stringLikeOnIndex;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -68,8 +67,7 @@ public class Configuration implements Writeable {
         boolean profile,
         Map<String, Map<String, Column>> tables,
         long queryStartTimeNanos,
-        boolean allowPartialResults,
-        boolean stringLikeOnIndex
+        boolean allowPartialResults
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -85,7 +83,6 @@ public class Configuration implements Writeable {
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
-        this.stringLikeOnIndex = stringLikeOnIndex;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -119,12 +116,6 @@ public class Configuration implements Writeable {
         } else {
             this.allowPartialResults = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
-            this.stringLikeOnIndex = in.readBoolean();
-        } else {
-            this.stringLikeOnIndex = false;
-        }
-
     }
 
     @Override
@@ -152,9 +143,6 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             out.writeBoolean(allowPartialResults);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
-            out.writeBoolean(stringLikeOnIndex);
         }
     }
 
@@ -236,8 +224,7 @@ public class Configuration implements Writeable {
             profile,
             Map.of(),
             queryStartTimeNanos,
-            allowPartialResults,
-            stringLikeOnIndex
+            allowPartialResults
         );
     }
 
@@ -254,10 +241,6 @@ public class Configuration implements Writeable {
      */
     public boolean allowPartialResults() {
         return allowPartialResults;
-    }
-
-    public boolean stringLikeOnIndex() {
-        return stringLikeOnIndex;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {

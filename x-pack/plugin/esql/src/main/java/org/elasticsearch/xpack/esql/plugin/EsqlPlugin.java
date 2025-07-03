@@ -117,13 +117,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> ESQL_STRING_LIKE_ON_INDEX = Setting.boolSetting(
-        "esql.query.string_like_on_index",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
         "esql.querylog.threshold.warn",
         TimeValue.timeValueMillis(-1),
@@ -272,7 +265,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
             DEFAULT_DATA_PARTITIONING,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
-            ESQL_STRING_LIKE_ON_INDEX
+            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX
         );
     }
 

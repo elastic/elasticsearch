@@ -124,7 +124,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         return translateField(
             handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
-            pushdownPredicates.configuration().stringLikeOnIndex()
+            pushdownPredicates.flags().stringLikeOnIndex()
         );
     }
 

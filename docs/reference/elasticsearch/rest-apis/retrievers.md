@@ -1166,7 +1166,7 @@ The score breakdown would change to:
     * `title_semantic`: 33% of semantic fields group score, 16.5% of final score
     * `description_semantic`: 66% of semantic fields group score, 33% of final score
 
-### Wildcard field patterns
+### Wildcard field patterns [multi-field-wildcard-field-patterns]
 
 Field names support the `*` wildcard character to match multiple fields:
 

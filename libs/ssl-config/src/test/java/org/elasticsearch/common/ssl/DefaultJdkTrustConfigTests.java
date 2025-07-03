@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.not;
 
+@ESTestCase.WithoutEntitlements
 public class DefaultJdkTrustConfigTests extends ESTestCase {
 
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
@@ -43,7 +44,8 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
     }
 
     private void assertStandardIssuers(X509ExtendedTrustManager trustManager) {
-        assertThat(trustManager.getAcceptedIssuers(), not(emptyArray()));
+        X509Certificate[] acceptedIssuers = trustManager.getAcceptedIssuers();
+        assertThat(acceptedIssuers, not(emptyArray()));
         // This is a sample of the CAs that we expect on every JRE.
         // We can safely change this list if the JRE's issuer list changes, but we want to assert something useful.
         assertHasTrustedIssuer(trustManager, "DigiCert");

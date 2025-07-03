@@ -279,10 +279,13 @@ Combining `query` and `retrievers` is not supported.
 :   (Optional, String)
 
     The normalizer to use when using the [multi-field query format](#multi-field-query-format).
+    See [normalizers](#linear-retriever-normalizers) for supported values.
     Required when `query` is specified.
 
-    Use `minmax` or `l2_norm` for proper result relevance.
-    Avoid using `none` as that will disable normalization, which will compromise result relevance.
+    ::::{warning}
+    Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
+    See [field grouping](#multi-field-field-grouping) for more information.
+    ::::
 
 `retrievers`
 :   (Optional, array of objects)
@@ -318,18 +321,23 @@ Each entry in the `retrievers` array specifies the following parameters:
 `normalizer`
 :   (Optional, String)
 
-    - Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
-
-    * `none`
-    * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
-
-        ```
-        score = (score - min) / (max - min)
-        ```
-
-    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
+    Specifies how the retriever’s score will be normalized before applying the specified `weight`.
+    See [normalizers](#linear-retriever-normalizers) for supported values.
+    Defaults to `none`.
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
+
+#### Normalizers [linear-retriever-normalizers]
+
+The `linear` retriever supports the following normalizers:
+
+* `none`: No normalization
+* `minmax`: Normalizes scores based on the following formula:
+
+    ```
+    score = (score - min) / (max - min)
+    ```
+* `l2_norm`: Normalizes scores using the L2 norm of the score values
 
 
 ## RRF Retriever [rrf-retriever]

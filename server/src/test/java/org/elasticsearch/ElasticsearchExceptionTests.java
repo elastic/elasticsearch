@@ -1622,10 +1622,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         String expected = """
             {
               "type": "exception5xx",
-              "reason": "some exception",
-              "header": {
-                "X-Elasticsearch-Exception": "Exception5xx"
-              }
+              "reason": "some exception"
             }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }

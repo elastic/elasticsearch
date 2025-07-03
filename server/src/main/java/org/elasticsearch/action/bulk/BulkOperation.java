@@ -295,11 +295,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 String prefix = streamType.getStreamName() + ".";
                 if (req != null && req.index().startsWith(prefix)) {
                     IllegalArgumentException exception = new IllegalArgumentException(
-                        "Bulk requests for streams with type ["
+                        "Writes to child stream ["
+                            + req.index()
+                            + "] are not allowed, use the parent stream instead: ["
                             + streamType.getStreamName()
-                            + "] are not supported, use the ["
-                            + streamType.getStreamName()
-                            + "] API instead."
+                            + "]"
                     );
                     IndexDocFailureStoreStatus failureStoreStatus = processFailure(new BulkItemRequest(i, req), projectMetadata, exception);
                     addFailureAndDiscardRequest(req, i, req.index(), exception, failureStoreStatus);

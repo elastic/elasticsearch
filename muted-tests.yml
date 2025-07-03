@@ -623,6 +623,9 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
   method: testRespondAfterServiceCloseWithClientCancel
   issue: https://github.com/elastic/elasticsearch/issues/130590
+- class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
+  method: testRespondAfterServiceCloseWithServerCancel
+  issue: https://github.com/elastic/elasticsearch/issues/130591
 
 # Examples:
 #

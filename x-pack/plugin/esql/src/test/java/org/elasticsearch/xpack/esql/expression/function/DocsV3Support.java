@@ -62,7 +62,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -310,7 +312,7 @@ public abstract class DocsV3Support {
     protected final String name;
     protected final FunctionDefinition definition;
     protected final Logger logger;
-    private final Supplier<Map<List<DataType>, DataType>> signatures;
+    protected final Supplier<Map<List<DataType>, DataType>> signatures;
     private TempFileWriter tempFileWriter;
     private final LicenseRequirementChecker licenseChecker;
 
@@ -859,9 +861,11 @@ public abstract class DocsV3Support {
     /** Command specific docs generating, currently very empty since we only render kibana definition files */
     public static class CommandsDocsSupport extends DocsV3Support {
         private final LogicalPlan command;
+        private List<EsqlFunctionRegistry.ArgSignature> args;
         private final XPackLicenseState licenseState;
         private final ObservabilityTier observabilityTier;
 
+        /** Used in CommandLicenseTests to generate Kibana docs with licensing information for commands */
         public CommandsDocsSupport(
             String name,
             Class<?> testClass,
@@ -875,6 +879,21 @@ public abstract class DocsV3Support {
             this.observabilityTier = observabilityTier;
         }
 
+        /** Used in LookupJoinTypesIT to generate table of supported types for join field */
+        public CommandsDocsSupport(
+            String name,
+            Class<?> testClass,
+            LogicalPlan command,
+            List<EsqlFunctionRegistry.ArgSignature> args,
+            Supplier<Map<List<DataType>, DataType>> signatures
+        ) {
+            super("commands", name, testClass, signatures);
+            this.command = command;
+            this.args = args;
+            this.licenseState = null;
+            this.observabilityTier = null;
+        }
+
         @Override
         public void renderSignature() throws IOException {
             // Unimplemented until we make command docs dynamically generated
@@ -882,8 +901,14 @@ public abstract class DocsV3Support {
 
         @Override
         public void renderDocs() throws Exception {
-            // Currently we only render kibana definition files, but we could expand to rendering much more if we decide to
-            renderKibanaCommandDefinition();
+            // Currently we only render either signatures or kibana definition files,
+            // but we could expand to rendering much more if we decide to
+            if (args != null) {
+                renderTypes(name, args);
+            }
+            if (licenseState != null) {
+                renderKibanaCommandDefinition();
+            }
         }
 
         void renderKibanaCommandDefinition() throws Exception {
@@ -906,6 +931,47 @@ public abstract class DocsV3Support {
                 writeToTempKibanaDir("definition", "json", rendered);
             }
         }
+
+        @Override
+        void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+            assert args.size() == 2;
+            StringBuilder header = new StringBuilder("| ");
+            StringBuilder separator = new StringBuilder("| ");
+            List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
+            for (String arg : argNames) {
+                header.append(arg).append(" | ");
+                separator.append("---").append(" | ");
+            }
+
+            Map<String, List<String>> compactedTable = new TreeMap<>();
+            for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) {
+                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    continue;
+                }
+                String mainType = sig.getKey().getFirst().esNameIfPossible();
+                String secondaryType = sig.getKey().get(1).esNameIfPossible();
+                List<String> secondaryTypes = compactedTable.computeIfAbsent(mainType, (k) -> new ArrayList<>());
+                secondaryTypes.add(secondaryType);
+            }
+
+            List<String> table = new ArrayList<>();
+            for (Map.Entry<String, List<String>> sig : compactedTable.entrySet()) {
+                String row = "| " + sig.getKey() + " | " + String.join(", ", sig.getValue()) + " |";
+                table.add(row);
+            }
+            Collections.sort(table);
+            if (table.isEmpty()) {
+                logger.info("Warning: No table of types generated for [{}]", name);
+                return;
+            }
+
+            String rendered = DOCS_WARNING + """
+                **Supported types**
+
+                """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
+            logger.info("Writing function types for [{}]:\n{}", name, rendered);
+            writeToTempSnippetsDir("types", rendered);
+        }
     }
 
     protected String buildFunctionSignatureSvg() throws IOException {
@@ -927,6 +993,7 @@ public abstract class DocsV3Support {
     }
 
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+        boolean showResultColumn = signatures.get().values().stream().anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
         StringBuilder separator = new StringBuilder("| ");
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
@@ -934,8 +1001,10 @@ public abstract class DocsV3Support {
             header.append(arg).append(" | ");
             separator.append("---").append(" | ");
         }
-        header.append("result |");
-        separator.append("--- |");
+        if (showResultColumn) {
+            header.append("result |");
+            separator.append("--- |");
+        }
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
@@ -945,7 +1014,7 @@ public abstract class DocsV3Support {
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
-            table.add(getTypeRow(args, sig, argNames));
+            table.add(getTypeRow(args, sig, argNames, showResultColumn));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
@@ -964,7 +1033,8 @@ public abstract class DocsV3Support {
     private static String getTypeRow(
         List<EsqlFunctionRegistry.ArgSignature> args,
         Map.Entry<List<DataType>, DataType> sig,
-        List<String> argNames
+        List<String> argNames,
+        boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
         for (int i = 0; i < sig.getKey().size(); i++) {
@@ -978,8 +1048,10 @@ public abstract class DocsV3Support {
             b.append(" | ");
         }
         b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-        b.append(sig.getValue().esNameIfPossible());
-        b.append(" |");
+        if (showResultColumn) {
+            b.append(sig.getValue().esNameIfPossible());
+            b.append(" |");
+        }
         return b.toString();
     }
 

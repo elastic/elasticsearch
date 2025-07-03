@@ -86,7 +86,14 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         boolQueryBuilder.should(
             createSubQueryForIndices(
                 indexInformation.nonInferenceIndices(),
-                createSubQueryForIndices(indexInformation.nonInferenceIndices(), sparseVectorQueryBuilder)
+                createSubQueryForIndices(indexInformation.nonInferenceIndices(), new SparseVectorQueryBuilder(
+                    sparseVectorQueryBuilder.getFieldName(),
+                    sparseVectorQueryBuilder.getQueryVectors(),
+                    sparseVectorQueryBuilder.getInferenceId(),
+                    sparseVectorQueryBuilder.getQuery(),
+                    sparseVectorQueryBuilder.shouldPruneTokens(),
+                    sparseVectorQueryBuilder.getTokenPruningConfig()
+                ))
             )
         );
         // We always perform nested subqueries on semantic_text fields, to support
@@ -99,6 +106,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 )
             );
         }
+        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
 
@@ -118,7 +127,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 sparseVectorQueryBuilder.getTokenPruningConfig()
             ),
             ScoreMode.Max
-        ).queryName(queryBuilder.queryName()).boost(queryBuilder.boost());
+        );
     }
 
     @Override

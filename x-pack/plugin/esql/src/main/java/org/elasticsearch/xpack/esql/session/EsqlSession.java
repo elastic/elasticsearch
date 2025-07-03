@@ -567,10 +567,6 @@ public class EsqlSession {
         IndexResolution lookupIndexResolution,
         Collection<String> indexNames
     ) {
-        if (lookupIndexResolution.get().indexNameWithModes().size() <= 1) {
-            // Shortcut for single-index case
-            return lookupIndexResolution;
-        }
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
         var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(Collectors.toSet());

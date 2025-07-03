@@ -1119,6 +1119,7 @@ class NodeConstruction {
             transportService,
             actionModule.getActionFilters(),
             systemIndices,
+            projectResolver.supportsMultipleProjects(),
             snapshotMetrics
         );
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(

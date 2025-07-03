@@ -84,7 +84,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             threadPool,
             repositoriesService,
             nodeClient,
-            new ActionFilters(Set.of())
+            new ActionFilters(Set.of()),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
 
@@ -200,6 +201,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
 
         action.buildResponse(
             SnapshotsInProgress.EMPTY,
+            ProjectId.DEFAULT,
             new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
             currentSnapshotEntries,
             nodeSnapshotStatuses,
@@ -359,6 +361,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
 
         action.buildResponse(
             SnapshotsInProgress.EMPTY,
+            ProjectId.DEFAULT,
             new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
             currentSnapshotEntries,
             nodeSnapshotStatuses,

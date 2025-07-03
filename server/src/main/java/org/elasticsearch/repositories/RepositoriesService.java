@@ -78,7 +78,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.repositories.RepositoryOperation.projectRepoString;
+import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 
@@ -458,8 +458,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         logger.info(
             Strings.format(
-                "Registering repository [%s] with repository UUID [%s] and generation [%d]",
-                repositoryName,
+                "Registering repository %s with repository UUID [%s] and generation [%d]",
+                projectRepoString(projectId, repositoryName),
                 repositoryData.getUuid(),
                 repositoryData.getGenId()
             )

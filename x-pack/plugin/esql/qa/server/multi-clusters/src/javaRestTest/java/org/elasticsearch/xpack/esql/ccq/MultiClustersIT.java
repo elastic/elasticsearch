@@ -432,7 +432,7 @@ public class MultiClustersIT extends ESRestTestCase {
 
     public void testLikeIndexLegacySettingNoResults() throws Exception {
         // the feature is completely supported if both local and remote clusters support it
-        assumeTrue("not supported", clusterHasCapability("POST", "/_query", List.of(), List.of("like_on_index_fields")).orElse(false));
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
         try (
             ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
             RestClient remoteClient = remoteClusterClient();
@@ -457,8 +457,12 @@ public class MultiClustersIT extends ESRestTestCase {
         // we require that the admin client supports the like_on_index_fields capability
         // otherwise we will get an error when trying to toggle the setting
         // the remote client does not have to support it
-        assumeTrue("not supported", clusterHasCapability("POST", "/_query", List.of(), List.of("like_on_index_fields")).orElse(false));
-        try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
+        try (
+            ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
+            RestClient remoteClient = remoteClusterClient();
+            ClusterSettingToggle ignored2 = new ClusterSettingToggle(remoteClient, "esql.query.string_like_on_index", false, true)
+        ) {
             boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("""
                 FROM test-local-index,*:test-remote-index METADATA _index

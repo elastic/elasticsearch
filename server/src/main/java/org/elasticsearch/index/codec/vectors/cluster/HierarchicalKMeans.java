@@ -95,13 +95,11 @@ public class HierarchicalKMeans {
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
         int[] centroidVectorCount = new int[centroids.length];
+        int effectiveK = 0;
         for (int assigment : assignments) {
             centroidVectorCount[assigment]++;
-        }
-
-        int effectiveK = 0;
-        for (int j : centroidVectorCount) {
-            if (j > 0) {
+            // this cluster has received an assignment, its now effective, but only count it once
+            if (centroidVectorCount[assigment] == 1) {
                 effectiveK++;
             }
         }

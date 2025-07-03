@@ -1228,7 +1228,7 @@ public class EsqlCapabilities {
         /**
          * Support for the RLIKE operator with a list of regexes.
          */
-        RLIKE_WITH_LIST_OF_PATTERNS
+        RLIKE_WITH_LIST_OF_PATTERNS,
 
         /**
          * FUSE command

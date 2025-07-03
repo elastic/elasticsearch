@@ -1130,7 +1130,8 @@ Note, however, that wildcard field patterns will only resolve to fields that eit
 
 ### Examples
 
-TODO: Link to examples
+- [RRF with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
+- [Linear retriever with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)
 
 ## Common usage guidelines [retriever-common-parameters]
 

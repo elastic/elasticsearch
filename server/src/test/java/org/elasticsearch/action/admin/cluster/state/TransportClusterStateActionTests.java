@@ -33,6 +33,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -203,7 +204,8 @@ public class TransportClusterStateActionTests extends ESTestCase {
             threadPool,
             new ActionFilters(Set.of()),
             indexResolver,
-            projectResolver
+            projectResolver,
+            new NoOpClient(threadPool)
         );
         final PlainActionFuture<ClusterStateResponse> future = new PlainActionFuture<>();
         action.localClusterStateOperation(task, request, state, future);

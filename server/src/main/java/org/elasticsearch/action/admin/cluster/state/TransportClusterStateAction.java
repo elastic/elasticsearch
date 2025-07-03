@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
@@ -65,7 +66,8 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        Client client
     ) {
         super(
             ClusterStateAction.NAME,
@@ -77,6 +79,9 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = threadPool;
+
+        // construct to register with TransportService
+        new TransportRemoteClusterStateAction(transportService, threadPool, actionFilters, client);
     }
 
     @Override

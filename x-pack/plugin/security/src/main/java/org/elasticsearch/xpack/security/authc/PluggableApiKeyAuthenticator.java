@@ -32,7 +32,7 @@ public class PluggableApiKeyAuthenticator implements Authenticator {
 
     @Override
     public AuthenticationToken extractCredentials(Context context) {
-        return authenticator.extractCredentials(context.getApiKeyString());
+        return authenticator.extractCredentials(context.getThreadContext(), context.getApiKeyString());
     }
 
     @Override

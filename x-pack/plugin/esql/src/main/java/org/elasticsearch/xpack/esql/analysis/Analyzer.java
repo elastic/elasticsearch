@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -1851,7 +1852,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression fn = (Expression) convert;
+            List<Expression> children = new ArrayList<>(fn.children());
+            children.set(0, resolvedAttr);
+            Expression e = ((Expression) convert).replaceChildren(children);
             /*
              * Resolve surrogates immediately because these type specific conversions are serialized
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
@@ -1978,146 +1982,98 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class ImplicitCastAggregateMetricDoubles extends Rule<LogicalPlan, LogicalPlan> {
 
-        private List<FieldAttribute> unionFieldAttributes;
-
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            unionFieldAttributes = new ArrayList<>();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan) {
-            int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
-            plan = plan.transformExpressionsOnly(e -> {
-                if (e instanceof Avg avg) {
-                    return substituteSurrogates(avg);
+        private LogicalPlan doRule(Aggregate plan) {
+            Map<String, FieldAttribute> unionFields = new HashMap<>();
+            Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
+            var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                if (aggFunc.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField mtf) {
+                    if (mtf.types().contains(AGGREGATE_METRIC_DOUBLE) == false
+                        || mtf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric()) == false) {
+                        aborted.set(Boolean.TRUE);
+                        return aggFunc;
+                    }
+                    if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
+                        return ((SurrogateExpression) aggFunc).surrogate();
+                    }
+                    Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, mtf);
+                    if (typeConverters == null) {
+                        aborted.set(Boolean.TRUE);
+                        return aggFunc;
+                    }
+                    var newField = unionFields.computeIfAbsent(
+                        Attribute.rawTemporaryName(fa.name(), aggFunc.functionName(), aggFunc.sourceText()),
+                        newName -> new FieldAttribute(
+                            fa.source(),
+                            fa.parentName(),
+                            newName,
+                            MultiTypeEsField.resolveFrom(mtf, typeConverters),
+                            fa.nullable(),
+                            null,
+                            true
+                        )
+                    );
+                    List<Expression> children = new ArrayList<>(aggFunc.children());
+                    children.set(0, newField);
+                    return aggFunc.replaceChildren(children);
                 }
-                AggregateMetricDoubleBlockBuilder.Metric metric = getMetric(e);
-                if (metric == null) {
-                    return e;
-                }
-                return resolveMetricFunction(e, metric);
+                return aggFunc;
             });
-
-            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
+            if (unionFields.isEmpty() || aborted.get()) {
                 return plan;
             }
-            return ResolveUnionTypes.addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+            return ResolveUnionTypes.addGeneratedFieldsToEsRelations(newPlan, unionFields.values().stream().toList());
         }
 
-        private AggregateMetricDoubleBlockBuilder.Metric getMetric(Expression expression) {
-            if (expression instanceof Max || expression instanceof MaxOverTime) {
-                return AggregateMetricDoubleBlockBuilder.Metric.MAX;
+        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf) {
+            var metric = getMetric(aggFunc);
+            if (metric == null) {
+                return null;
             }
-            if (expression instanceof Min || expression instanceof MinOverTime) {
-                return AggregateMetricDoubleBlockBuilder.Metric.MIN;
-            }
-            if (expression instanceof Sum || expression instanceof SumOverTime) {
-                return AggregateMetricDoubleBlockBuilder.Metric.SUM;
-            }
-            if (expression instanceof Count || expression instanceof CountOverTime || expression instanceof AvgOverTime) {
-                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
-            }
-            return null;
-        }
-
-        private Expression resolveMetricFunction(Expression expression, AggregateMetricDoubleBlockBuilder.Metric metric) {
-            AggregateFunction aggregateFunction = (AggregateFunction) expression;
-            if (aggregateFunction.field() instanceof FieldAttribute fa
-                && fa.field() instanceof InvalidMappedField imf
-                && typesShouldBeConverted(imf.types())) {
-                HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                typeResolutions(imf, aggregateFunction, fa, expression, metric, typeResolutions);
-                var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(fa, typeResolutions);
-                var newFieldAttribute = createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes, metric);
-                return expression.replaceChildren(List.of(newFieldAttribute, expression.children().get(1)));
-            }
-            return expression;
-        }
-
-        private Expression substituteSurrogates(Expression expression) {
-            AggregateFunction aggregateFunction = (AggregateFunction) expression;
-            if (aggregateFunction.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                if (typesShouldBeConverted(imf.types()) == false) {
-                    return expression;
-                }
-                return SubstituteSurrogateExpressions.rule(expression);
-            }
-            return expression;
-        }
-
-        private boolean typesShouldBeConverted(Set<DataType> types) {
-            if (types.contains(AGGREGATE_METRIC_DOUBLE) == false) {
-                return false;
-            }
-            for (DataType type : types) {
-                if (type.isNumeric() == false && type != AGGREGATE_METRIC_DOUBLE) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private void typeResolutions(
-            InvalidMappedField imf,
-            AggregateFunction aggregateFunction,
-            FieldAttribute fa,
-            Expression expression,
-            AggregateMetricDoubleBlockBuilder.Metric metric,
-            HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
-        ) {
-            for (DataType type : imf.types()) {
-                // Effectively the contents of ResolveUnionTypes::typeSpecificConvert(...)
-                // except convertFunction is not necessarily a ConvertFunction (as in the case of Sum's FromAggregateMetricDouble)
-                // and we do not substitute surrogates because Count does have a surrogate in the case of aggregate metric double
-                ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fa.name(), type);
-                EsField field = new EsField(imf.getName(), type, imf.getProperties(), imf.isAggregatable());
-                FieldAttribute originalFieldAttr = (FieldAttribute) aggregateFunction.field();
-                FieldAttribute resolved = new FieldAttribute(
-                    fa.source(),
-                    originalFieldAttr.parentName(),
-                    originalFieldAttr.name(),
-                    field,
-                    originalFieldAttr.nullable(),
-                    originalFieldAttr.id(),
-                    true
-                );
-
-                Expression convertExpression;
+            Map<String, Expression> typeConverter = new HashMap<>();
+            for (DataType type : mtf.types()) {
+                final ConvertFunction convert;
                 // Counting on aggregate metric double has unique behavior in that we cannot just provide the number of
                 // documents, instead we have to look inside the aggregate metric double's count field and sum those together.
                 // Grabbing the count value with FromAggregateMetricDouble the same way we do with min/max/sum would result in
                 // a single Int field, and incorrectly be treated as 1 document (instead of however many originally went into
                 // the aggregate metric double).
                 if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT) {
-                    convertExpression = new ToAggregateMetricDouble(fa.source(), resolved);
+                    convert = new ToAggregateMetricDouble(fa.source(), fa);
                 } else if (type == AGGREGATE_METRIC_DOUBLE) {
-                    convertExpression = FromAggregateMetricDouble.withMetric(fa.source(), resolved, metric);
+                    convert = FromAggregateMetricDouble.withMetric(aggFunc.source(), fa, metric);
+                } else if (type.isNumeric()) {
+                    convert = new ToDouble(fa.source(), fa);
                 } else {
-                    convertExpression = new ToDouble(fa.source(), resolved);
+                    return null;
                 }
-                Expression e = expression.replaceChildren(List.of(convertExpression, expression.children().get(1)));
-                typeResolutions.put(key, e.children().getFirst());
+                Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf);
+                typeConverter.put(type.typeName(), expression);
             }
+            return typeConverter;
         }
 
-        private Expression createIfDoesNotAlreadyExist(
-            FieldAttribute fa,
-            MultiTypeEsField resolvedField,
-            List<FieldAttribute> unionFieldAttributes,
-            AggregateMetricDoubleBlockBuilder.Metric metric
-        ) {
-            // Identical to ResolveUnionTypes' except that unionTypedFieldName contains which metric we convert to
-            String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", metric.getLabel());
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parentName(), unionTypedFieldName, resolvedField, true);
-            int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
-            if (existingIndex >= 0) {
-                // Do not generate multiple name/type combinations with different IDs
-                return unionFieldAttributes.get(existingIndex);
-            } else {
-                unionFieldAttributes.add(unionFieldAttribute);
-                return unionFieldAttribute;
+        private static AggregateMetricDoubleBlockBuilder.Metric getMetric(AggregateFunction aggFunc) {
+            if (aggFunc instanceof Max || aggFunc instanceof MaxOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.MAX;
             }
+            if (aggFunc instanceof Min || aggFunc instanceof MinOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.MIN;
+            }
+            if (aggFunc instanceof Sum || aggFunc instanceof SumOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.SUM;
+            }
+            if (aggFunc instanceof Count || aggFunc instanceof CountOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            return null;
         }
     }
 }

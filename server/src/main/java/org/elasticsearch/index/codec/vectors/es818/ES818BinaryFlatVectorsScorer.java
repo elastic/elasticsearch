@@ -66,6 +66,9 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         float[] target
     ) throws IOException {
         if (vectorValues instanceof BinarizedByteVectorValues binarizedVectors) {
+            assert binarizedVectors.getQuantizer() != null
+                : "BinarizedByteVectorValues must have a quantizer for ES816BinaryFlatVectorsScorer";
+            assert binarizedVectors.size() > 0 : "BinarizedByteVectorValues must have at least one vector for ES816BinaryFlatVectorsScorer";
             OptimizedScalarQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
             // We make a copy as the quantization process mutates the input
@@ -74,7 +77,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 VectorUtil.l2normalize(copy);
             }
             target = copy;
-            byte[] initial = new byte[target.length];
+            int[] initial = new int[target.length];
             byte[] quantized = new byte[BQSpaceUtils.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(target, initial, (byte) 4, centroid);
             BQSpaceUtils.transposeHalfByte(initial, quantized);

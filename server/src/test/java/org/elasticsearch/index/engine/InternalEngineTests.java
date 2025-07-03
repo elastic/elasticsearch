@@ -2534,11 +2534,11 @@ public class InternalEngineTests extends EngineTestCase {
         MockAppender mockAppender = new MockAppender("testIndexWriterInfoStream");
         mockAppender.start();
 
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.DEBUG);
-        rootLogger = LogManager.getRootLogger();
+        Logger theLogger = LogManager.getLogger("org.elasticsearch.index");
+        Level savedLevel = theLogger.getLevel();
+        Loggers.addAppender(theLogger, mockAppender);
+        Loggers.setLevel(theLogger, Level.DEBUG);
+        theLogger = LogManager.getLogger("org.elasticsearch.index");
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2548,15 +2548,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
-            Loggers.setLevel(rootLogger, Level.TRACE);
+            Loggers.setLevel(theLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
             engine.close();
         } finally {
-            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(theLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
+            Loggers.setLevel(theLogger, savedLevel);
         }
     }
 
@@ -2596,10 +2596,10 @@ public class InternalEngineTests extends EngineTestCase {
         final MockMergeThreadAppender mockAppender = new MockMergeThreadAppender("testMergeThreadLogging");
         mockAppender.start();
 
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.TRACE);
+        Logger theLogger = LogManager.getLogger("org.elasticsearch.index");
+        Level savedLevel = theLogger.getLevel();
+        Loggers.addAppender(theLogger, mockAppender);
+        Loggers.setLevel(theLogger, Level.TRACE);
         try {
             LogMergePolicy lmp = newLogMergePolicy();
             lmp.setMergeFactor(2);
@@ -2632,12 +2632,12 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(mockAppender.mergeCompleted(), is(true));
                 });
 
-                Loggers.setLevel(rootLogger, savedLevel);
+                Loggers.setLevel(theLogger, savedLevel);
                 engine.close();
             }
         } finally {
-            Loggers.setLevel(rootLogger, savedLevel);
-            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(theLogger, savedLevel);
+            Loggers.removeAppender(theLogger, mockAppender);
             mockAppender.stop();
         }
     }
@@ -3635,7 +3635,8 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             true,
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics()
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -7243,7 +7244,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
-                config.getEngineResetLock()
+                config.getEngineResetLock(),
+                config.getMergeMetrics()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());

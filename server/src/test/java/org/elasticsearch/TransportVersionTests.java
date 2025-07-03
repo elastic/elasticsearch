@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -206,5 +207,17 @@ public class TransportVersionTests extends ESTestCase {
         assertEquals("1000099", TransportVersion.fromId(1_00_00_99).toString());
         assertEquals("2000099", TransportVersion.fromId(2_00_00_99).toString());
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
+    }
+
+    public void testDuplicateConstants() {
+        List<TransportVersion> tvs = TransportVersion.getAllVersions();
+        TransportVersion previous = tvs.get(0);
+        for (int i = 1; i < tvs.size(); i++) {
+            TransportVersion next = tvs.get(i);
+            if (next.id() == previous.id()) {
+                throw new AssertionError("Duplicate transport version id: " + next.id());
+            }
+            previous = next;
+        }
     }
 }

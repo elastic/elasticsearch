@@ -90,6 +90,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * A test that keep a singleton node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
+@ESTestCase.WithoutEntitlements // ES-12042
 public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
@@ -535,5 +536,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 )
             )
         );
+    }
+
+    protected void updateClusterSettings(Settings settings) {
+        safeGet(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).execute());
     }
 }

@@ -749,19 +749,19 @@ public class LocalExecutionPlanner {
                 .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
                 .findFirst();
             entry = maybeEntry.orElseThrow(
-                () -> new IllegalArgumentException(
+                () -> new IllegalStateException(
                     "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
                 )
             );
         }
 
         if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
         String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
         if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
-            throw new IllegalArgumentException(
+            throw new IllegalStateException(
                 "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
             );
         }

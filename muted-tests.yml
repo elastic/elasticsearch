@@ -476,9 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/129296
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -503,9 +500,6 @@ tests:
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/125638
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
-  issue: https://github.com/elastic/elasticsearch/issues/129845
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
@@ -528,9 +522,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunnerThrowing
   issue: https://github.com/elastic/elasticsearch/issues/130145
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/130205
 - class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
   method: testKMeansNeighbors
   issue: https://github.com/elastic/elasticsearch/issues/130258

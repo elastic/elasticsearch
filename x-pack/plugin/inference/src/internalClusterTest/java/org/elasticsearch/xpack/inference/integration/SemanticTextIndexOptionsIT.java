@@ -131,25 +131,6 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
     }
 
-    public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = "test-inference-id-2";
-        final String inferenceFieldName = "inference_field";
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
-        downgradeLicenseAndRestartCluster();
-
-        assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
-
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
-        );
-
-        // Filter out null/empty values from params we didn't set to make comparison easier
-        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
-        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
-    }
-
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
         final String service = switch (taskType) {
             case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;

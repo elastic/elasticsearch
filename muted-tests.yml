@@ -605,6 +605,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/130568
+- class: org.elasticsearch.reindex.ReindexRestClientSslTests
+  method: testClientPassesClientCertificate
+  issue: https://github.com/elastic/elasticsearch/issues/130584
 
 # Examples:
 #

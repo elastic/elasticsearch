@@ -449,7 +449,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         CompressedXContent mappingsOverrides,
         Index writeIndex,
         IndicesService indicesService
-    ) throws Exception {
+    ) throws IOException {
         ComposableIndexTemplate mergedTemplate = composableTemplate.mergeMappings(mappingsOverrides);
         final String requestMappings = null; // We are not using any request mappings
         final NamedXContentRegistry xContentRegistry = null; // This is only used to parse requestMappings if they are not null

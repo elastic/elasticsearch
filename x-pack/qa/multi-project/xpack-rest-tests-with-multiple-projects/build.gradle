@@ -31,7 +31,6 @@ tasks.named("yamlRestTest").configure {
     '^analytics/moving_percentiles/*',
     '^analytics/top_metrics/*',
     '^data_streams/10_data_stream_resolvability/*',
-    '^deprecation/10_basic/*',
     '^health/10_usage/*', // The usage API is project-aware, this test just fails on the project-awareness of the SLM health indicator
     '^migration/10_get_feature_upgrade_status/*',
     '^migration/20_post_feature_upgrade/*',

@@ -295,7 +295,7 @@ class AuthenticatorChain {
                     ese.status(),
                     ese.getCause()
                 );
-                ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
+                ese.getBodyHeaderKeys().forEach(k -> eseWithPreviousCredentials.addBodyHeader(k, ese.getBodyHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
             } else {

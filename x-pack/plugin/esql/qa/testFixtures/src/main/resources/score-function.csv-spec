@@ -17,7 +17,7 @@ FROM books METADATA _score
 ;
 
 // tag::score-single-result[]
-book_no:keyword | title:text | _score:double | first _score:double 
+book_no:keyword | title:text | _score:double | first_score:double 
 2714            | Return of the King Being the Third Part of The Lord of the Rings | 0 | 0 
 7350            | Return of the Shadow  | 0 | 0
 // end::score-single-result[]
@@ -34,7 +34,7 @@ FROM books
 | LIMIT 5
 ;
 
-book_no:keyword | author:text | first _score:double 
+book_no:keyword | author:text | first_score:double 
 2714            | Return of the King Being the Third Part of The Lord of the Rings | 0
 7350            | Return of the Shadow  | 0
 ;
@@ -75,7 +75,7 @@ book_no:keyword | author:text                                           | stars:
 3293            | Danny Faulkner                                        | 2          | 0.0
 ;
 
-matchWithConjunction
+scoreMatchWithConjunction
 required_capability: score_function
 required_capability: metadata_score
 
@@ -89,7 +89,7 @@ book_no:keyword | title:text                                                    
 7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)                  | 0.0
 ;
 
-scoreWithDisjunction
+scoreMatchWithDisjunction
 required_capability: metadata_score
 required_capability: score_function
 
@@ -106,7 +106,7 @@ book_no:keyword | author:text    | s1:double
 3950            | Kurt Vonnegut  | 0.0
 ;
 
-matchWithDisjunctionAndFiltersConjunction
+scoreMatchWithDisjunctionAndFiltersConjunction
 required_capability: match_function
 required_capability: full_text_functions_disjunctions
 required_capability: score_function

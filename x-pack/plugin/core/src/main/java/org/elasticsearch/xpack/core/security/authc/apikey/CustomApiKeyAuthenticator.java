@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 public interface CustomApiKeyAuthenticator {
     String name();
 
-    AuthenticationToken extractCredentials(ThreadContext threadContext,  @Nullable SecureString apiKeyCredentials);
+    AuthenticationToken extractCredentials(ThreadContext threadContext, @Nullable SecureString apiKeyCredentials);
 
     void authenticate(@Nullable AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<Authentication>> listener);
 
@@ -37,7 +37,7 @@ public interface CustomApiKeyAuthenticator {
         }
 
         @Override
-        public AuthenticationToken extractCredentials(ThreadContext threadContext,  @Nullable SecureString apiKeyCredentials) {
+        public AuthenticationToken extractCredentials(ThreadContext threadContext, @Nullable SecureString apiKeyCredentials) {
             return null;
         }
 

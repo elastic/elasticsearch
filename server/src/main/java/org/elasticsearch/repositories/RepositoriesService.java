@@ -124,7 +124,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
-    private final SnapshotMetrics snapshotMetrics;
 
     @SuppressWarnings("this-escape")
     public RepositoriesService(
@@ -155,7 +154,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
-        this.snapshotMetrics = snapshotMetrics;
         snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 

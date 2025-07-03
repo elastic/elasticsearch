@@ -184,18 +184,10 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             final NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(
-                projectId,
-                metadata,
-                environment,
-                namedXContentRegistry,
-                clusterService,
-                bigArrays,
-                recoverySettings,
-                SnapshotMetrics.NOOP
-            );
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         @Override
@@ -236,7 +228,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    snapshotMetrics
                 )
             );
         }

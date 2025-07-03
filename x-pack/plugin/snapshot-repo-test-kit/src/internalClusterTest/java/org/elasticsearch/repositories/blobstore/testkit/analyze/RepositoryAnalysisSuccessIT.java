@@ -197,7 +197,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    buildBlobPath(metadata.settings())
+                    buildBlobPath(metadata.settings()),
+                    snapshotMetrics
                 )
             );
         }
@@ -227,9 +228,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, SnapshotMetrics.NOOP);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {

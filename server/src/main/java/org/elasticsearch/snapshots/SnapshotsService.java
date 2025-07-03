@@ -4359,7 +4359,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (repositoriesMetadata != null) {
                 repositoriesMetadata.repositories().forEach(repository -> {
                     int snapshotCount = snapshotsInProgress.forRepo(projectId, repository.name()).size();
-                    logger.info("Returning snapshot count of {}", snapshotCount);
                     snapshotsInProgressMetrics.add(
                         new LongWithAttributes(snapshotCount, SnapshotMetrics.createAttributesMap(projectId, repository))
                     );

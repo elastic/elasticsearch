@@ -390,7 +390,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    snapshotMetrics
                 )
             );
         }
@@ -407,18 +408,10 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(
-                projectId,
-                metadata,
-                environment,
-                namedXContentRegistry,
-                clusterService,
-                bigArrays,
-                recoverySettings,
-                SnapshotMetrics.NOOP
-            );
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         private void unlockRestore() {

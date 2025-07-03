@@ -23,8 +23,12 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeR
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -32,19 +36,27 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -99,6 +111,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
     }
 
     public void testBlobStoreStats() throws IOException {
+        assumeFalse("restore not yet working in multi-project mode", multiProjectIntegrationTest());
         startMasterAndIndexNode();
         var objectStoreService = getCurrentMasterObjectStoreService();
         BlobStoreRepository repository = randomBoolean()
@@ -297,6 +310,208 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         } finally {
             removeProjects(allProjects);
         }
+    }
+
+    public void testMultiProjectSnapshots() throws Exception {
+        assumeTrue("multi-project not enabled", multiProjectIntegrationTest());
+        startMasterAndIndexNode();
+        startIndexNode();
+        ensureStableCluster(2);
+        final var repoName = "backup";
+        putProjects(allProjects);
+        final CountDownLatch latch = new CountDownLatch(allProjects.size());
+
+        for (ProjectId projectId : allProjects) {
+            final var projectClient = client().projectClient(projectId);
+            // Create index with some docs
+            final var indexName = "index-" + projectId.id().toLowerCase(Locale.ROOT);
+            safeGet(
+                projectClient.admin()
+                    .indices()
+                    .prepareCreate(indexName)
+                    .setSettings(indexSettings(2, 0).put("index.routing.allocation.total_shards_per_node", 1))
+                    .execute()
+            );
+            indexDocsAndRefresh(projectClient, indexName, between(10, 50));
+            // Create repository
+            safeGet(
+                projectClient.admin()
+                    .cluster()
+                    .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                    .setType(repositoryType())
+                    .setSettings(repositorySettings(projectId))
+                    .setVerify(randomBoolean())
+                    .execute()
+            );
+        }
+
+        final var projectToDelaySnapshot = randomFrom(allProjects);
+        logger.info("--> project to delay snapshot: [{}]", projectToDelaySnapshot);
+        final AtomicReference<CountDownLatch> updateShardLatchRef = new AtomicReference<>();
+        final AtomicReference<CheckedRunnable<Exception>> updateShardRunnableRef = new AtomicReference<>();
+        // Delay one snapshot so that it can be observed as in-progress
+        MockTransportService.getInstance(internalCluster().getMasterName())
+            .addRequestHandlingBehavior(SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, (handler, request, channel, task) -> {
+                final var updateRequest = asInstanceOf(UpdateIndexShardSnapshotStatusRequest.class, request);
+                final var updateShardLatch = updateShardLatchRef.get();
+                if (updateShardLatch != null && projectToDelaySnapshot.equals(updateRequest.snapshot().getProjectId())) {
+                    if (updateShardRunnableRef.compareAndSet(null, () -> handler.messageReceived(request, channel, task))) {
+                        updateShardLatch.countDown();
+                        logger.info(
+                            "--> delaying snapshot update for project [{}], shard {}",
+                            projectToDelaySnapshot,
+                            updateRequest.shardId()
+                        );
+                        return;
+                    }
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        final String snapshotName = "snapshot";
+        try {
+            runInParallel(allProjects.size(), i -> {
+                final ProjectId projectId = allProjects.get(i);
+                final var projectClient = client().projectClient(projectId);
+                final String indexName = "index-" + projectId.id().toLowerCase(Locale.ROOT);
+                try {
+                    // Create snapshot
+                    final var createSnapshotResponse = safeGet(
+                        projectClient.admin()
+                            .cluster()
+                            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                            .setIndices(randomFrom("*", "index*"))
+                            .setWaitForCompletion(true)
+                            .execute()
+                    );
+                    assertNotNull(createSnapshotResponse.getSnapshotInfo());
+                    assertSnapshotInfo(createSnapshotResponse.getSnapshotInfo(), projectId, repoName, SnapshotState.SUCCESS);
+
+                    // Clone snapshot
+                    safeGet(
+                        projectClient.admin()
+                            .cluster()
+                            .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName, "clone-" + snapshotName)
+                            .setIndices(indexName)
+                            .execute()
+                    );
+
+                    // Create another snapshot and maybe delay it so that it is visible as in-progress
+                    final boolean shouldDelaySnapshot = projectId.equals(projectToDelaySnapshot);
+                    final ActionFuture<CreateSnapshotResponse> future;
+                    if (shouldDelaySnapshot) {
+                        logger.info("--> delaying snapshot for project [{}]", projectId);
+                        final var updateShardLatch = new CountDownLatch(1);
+                        updateShardLatchRef.set(updateShardLatch);
+                        future = projectClient.admin()
+                            .cluster()
+                            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "another-" + snapshotName)
+                            .setIndices(randomFrom("*", "index*"))
+                            .setWaitForCompletion(false)
+                            .execute();
+                        safeAwait(updateShardLatch);
+                    } else {
+                        future = null;
+                        safeGet(
+                            projectClient.admin()
+                                .cluster()
+                                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "another-" + snapshotName)
+                                .setIndices(randomFrom("*", "index*"))
+                                .setWaitForCompletion(true)
+                                .execute()
+                        );
+                    }
+
+                    // Get snapshot
+                    final var getSnapshotsResponse = safeGet(
+                        projectClient.admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).setSnapshots("_all").execute()
+                    );
+                    assertThat(getSnapshotsResponse.getSnapshots(), hasSize(3));
+                    assertThat(
+                        getSnapshotsResponse.getSnapshots().stream().map(info -> info.snapshot().getSnapshotId().getName()).toList(),
+                        containsInAnyOrder(snapshotName, "clone-" + snapshotName, "another-" + snapshotName)
+                    );
+                    for (var snapshotInfo : getSnapshotsResponse.getSnapshots()) {
+                        if (snapshotInfo.snapshot().getSnapshotId().getName().equals("another-" + snapshotName)) {
+                            assertSnapshotInfo(
+                                snapshotInfo,
+                                projectId,
+                                repoName,
+                                shouldDelaySnapshot ? SnapshotState.IN_PROGRESS : SnapshotState.SUCCESS
+                            );
+                        } else {
+                            assertSnapshotInfo(snapshotInfo, projectId, repoName, SnapshotState.SUCCESS);
+                        }
+                    }
+
+                    // Get snapshot status
+                    final var getSnapshotStatusResponse = safeGet(
+                        projectClient.admin()
+                            .cluster()
+                            .prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repoName)
+                            .setSnapshots(snapshotName, "clone-" + snapshotName, "another-" + snapshotName)
+                            .execute()
+                    );
+                    assertThat(getSnapshotStatusResponse.getSnapshots(), hasSize(3));
+                    assertThat(
+                        getSnapshotStatusResponse.getSnapshots()
+                            .stream()
+                            .map(status -> status.getSnapshot().getSnapshotId().getName())
+                            .toList(),
+                        containsInAnyOrder(snapshotName, "clone-" + snapshotName, "another-" + snapshotName)
+                    );
+                    for (var snapshotStatus : getSnapshotStatusResponse.getSnapshots()) {
+                        if (snapshotStatus.getSnapshot().getSnapshotId().getName().equals("another-" + snapshotName)) {
+                            assertSnapshotStatus(
+                                snapshotStatus,
+                                projectId,
+                                repoName,
+                                shouldDelaySnapshot ? SnapshotsInProgress.State.STARTED : SnapshotsInProgress.State.SUCCESS
+                            );
+                        } else {
+                            assertSnapshotStatus(snapshotStatus, projectId, repoName, SnapshotsInProgress.State.SUCCESS);
+                        }
+                    }
+
+                    // Unblock "another-snapshot" and it should complete
+                    if (shouldDelaySnapshot) {
+                        logger.info("--> unblocking snapshot for project [{}]", projectId);
+                        updateShardRunnableRef.get().run();
+                        safeGet(future);
+                    }
+
+                    // Delete snapshot
+                    safeGet(projectClient.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).execute());
+                } catch (Exception e) {
+                    fail(e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            safeAwait(latch);
+        } finally {
+            removeProjects(allProjects);
+        }
+    }
+
+    private void assertSnapshotInfo(SnapshotInfo snapshotInfo, ProjectId projectId, String repoName, SnapshotState state) {
+        assertThat(snapshotInfo.projectId(), equalTo(projectId));
+        assertThat(snapshotInfo.repository(), equalTo(repoName));
+        assertThat(snapshotInfo.state(), equalTo(state));
+        assertThat(snapshotInfo.indices(), containsInAnyOrder("index-" + projectId.id().toLowerCase(Locale.ROOT)));
+    }
+
+    private void assertSnapshotStatus(
+        SnapshotStatus snapshotStatus,
+        ProjectId projectId,
+        String repoName,
+        SnapshotsInProgress.State state
+    ) {
+        assertThat(snapshotStatus.getSnapshot().getProjectId(), equalTo(projectId));
+        assertThat(snapshotStatus.getSnapshot().getRepository(), equalTo(repoName));
+        assertThat(snapshotStatus.getState(), equalTo(state));
+        assertThat(snapshotStatus.getShards(), hasSize(2));
     }
 
     public void testReservedBackupRepositories() throws Exception {

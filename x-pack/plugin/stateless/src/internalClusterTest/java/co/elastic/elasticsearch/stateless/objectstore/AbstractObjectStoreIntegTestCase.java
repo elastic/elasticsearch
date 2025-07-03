@@ -40,15 +40,19 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -171,14 +175,14 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         return Settings.EMPTY;
     }
 
-    protected void putProjects(List<ProjectId> allProjects) throws Exception {
+    protected void putProjects(Collection<ProjectId> allProjects) throws Exception {
         // Ensure that the projects are created before each test
         for (ProjectId projectId : allProjects) {
-            putProject(projectId, projectSettings(projectId), projectSecrets(projectId));
+            putProject(projectId, projectSettings(projectId), projectSecrets(projectId), null);
         }
     }
 
-    protected void removeProjects(List<ProjectId> allProjects) throws Exception {
+    protected void removeProjects(Collection<ProjectId> allProjects) throws Exception {
         // Clean up projects after each test
         for (ProjectId projectId : allProjects) {
             removeProject(projectId);
@@ -292,6 +296,49 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
             safeAwait(latch);
         } finally {
             removeProjects(allProjects);
+        }
+    }
+
+    public void testReservedBackupRepositories() throws Exception {
+        assumeTrue("multi-project not enabled", multiProjectIntegrationTest());
+        startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+        final var repoName = "backup";
+        final var projectId = randomUniqueProjectId();
+        try {
+            // Create the project with reserved repository
+            putProject(
+                projectId,
+                projectSettings(projectId),
+                projectSecrets(projectId),
+                new RepositoryMetadata(repoName, repositoryType(), repositorySettings(projectId))
+            );
+
+            final var projectClient = client().projectClient(projectId);
+            // GET repository
+            final var getRepositoriesResponse = safeGet(
+                projectClient.admin().cluster().prepareGetRepositories(TEST_REQUEST_TIMEOUT, repoName).execute()
+            );
+            assertThat(getRepositoriesResponse.repositories(), hasSize(1));
+            final RepositoryMetadata repositoryMetadata = getRepositoriesResponse.repositories().iterator().next();
+            assertThat(repositoryMetadata.type(), equalTo(repositoryType()));
+            assertThat(repositoryMetadata.name(), equalTo(repoName));
+            assertBackupRepositorySettings(repositoryMetadata, projectId);
+
+            // Cannot delete reserved repository
+            final var e = expectThrows(
+                ExecutionException.class,
+                () -> projectClient.admin()
+                    .cluster()
+                    .prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                    .execute()
+                    .get()
+            );
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("[backup] set as read-only by [file_settings]"));
+        } finally {
+            removeProject(projectId);
         }
     }
 

@@ -52,6 +52,6 @@ public record ProjectRepo(ProjectId projectId, String name) implements Writeable
     }
 
     public static String projectRepoString(ProjectId projectId, String repositoryName) {
-        return "[" + projectId + "][" + repositoryName + "]";
+        return "[" + projectId + "/" + repositoryName + "]";
     }
 }

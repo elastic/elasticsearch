@@ -44,7 +44,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     "[does-not-exist]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
-                    "deleting snapshots [does-not-exist] from repository [default][test-repo]"
+                    "deleting snapshots [does-not-exist] from repository [default/test-repo]"
                 )
             );
 
@@ -53,7 +53,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     "[deleting test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
-                    "deleting snapshots [test-snapshot] from repository [default][test-repo]"
+                    "deleting snapshots [test-snapshot] from repository [default/test-repo]"
                 )
             );
 
@@ -62,7 +62,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     "[test-snapshot deleted]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
-                    "snapshots [test-snapshot/*] deleted in repository [default][test-repo]"
+                    "snapshots [test-snapshot/*] deleted in repository [default/test-repo]"
                 )
             );
 
@@ -91,7 +91,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     "[test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.WARN,
-                    "failed to complete snapshot deletion for [test-snapshot] from repository [default][test-repo]"
+                    "failed to complete snapshot deletion for [test-snapshot] from repository [default/test-repo]"
                 )
             );
 

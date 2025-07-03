@@ -119,15 +119,15 @@ dependencies {
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
   allPlugins project(path: ':x-pack:extras:plugins', configuration: 'allPlugins')
   filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  filebeat_amd64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
+  filebeat_amd64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   filebeat_fips_aarch64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  filebeat_fips_amd64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
+  filebeat_fips_amd64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  metricbeat_amd64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
+  metricbeat_amd64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  metricbeat_fips_amd64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
+  metricbeat_fips_amd64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   fips "org.bouncycastle:bc-fips:1.0.2.5"
   fips "org.bouncycastle:bctls-fips:1.0.19"

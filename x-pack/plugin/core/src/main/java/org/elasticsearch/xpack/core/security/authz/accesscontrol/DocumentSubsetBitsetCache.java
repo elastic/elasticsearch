@@ -55,23 +55,23 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * This is a cache for {@link BitSet} instances that are used with the {@link DocumentSubsetReader}.
  * It is bounded by memory size and access time.
- *
+ * <p>
  * DLS uses {@link BitSet} instances to track which documents should be visible to the user ("live") and which should not ("dead").
  * This means that there is a bit for each document in a Lucene index (ES shard).
  * Consequently, an index with 10 million document will use more than 1Mb of bitset memory for every unique DLS query, and an index
  * with 1 billion documents will use more than 100Mb of memory per DLS query.
  * Because DLS supports templating queries based on user metadata, there may be many distinct queries in use for each index, even if
  * there is only a single active role.
- *
+ * <p>
  * The primary benefit of the cache is to avoid recalculating the "live docs" (visible documents) when a user performs multiple
  * consecutive queries across one or more large indices. Given the memory examples above, the cache is only useful if it can hold at
  * least 1 large (100Mb or more ) {@code BitSet} during a user's active session, and ideally should be capable of support multiple
  * simultaneous users with distinct DLS queries.
- *
+ * <p>
  * For this reason the default memory usage (weight) for the cache set to 10% of JVM heap ({@link #CACHE_SIZE_SETTING}), so that it
  * automatically scales with the size of the Elasticsearch deployment, and can provide benefit to most use cases without needing
  * customisation. On a 32Gb heap, a 10% cache would be 3.2Gb which is large enough to store BitSets representing 25 billion docs.
- *
+ * <p>
  * However, because queries can be templated by user metadata and that metadata can change frequently, it is common for the
  * effetively lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
  * BitSets that are not longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been

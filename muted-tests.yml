@@ -602,6 +602,9 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.BlobStoreCorruptionIT
   method: testCorruptionDetection
   issue: https://github.com/elastic/elasticsearch/issues/130536
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
+  issue: https://github.com/elastic/elasticsearch/issues/130568
 
 # Examples:
 #

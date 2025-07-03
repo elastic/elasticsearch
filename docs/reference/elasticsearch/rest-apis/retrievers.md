@@ -1053,13 +1053,9 @@ In the `linear` retriever, this grouping relies on using a normalizer other than
 If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
 ::::
 
-### Field boosting [multi-field-field-boosting]
+### Linear retriever field boosting [multi-field-field-boosting]
 
-::::{note}
-This section applies only to the `linear` retriever.
-::::
-
-Fields can be boosted using the `^` notation:
+When using the `linear` retriever, fields can be boosted using the `^` notation:
 
 ```console
 GET books/_search

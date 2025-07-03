@@ -1,0 +1,5 @@
+pr: 130409
+summary: Add Dependency Checker for `LogicalLocalPlanOptimizer`
+area: ES|QL
+type: enhancement
+issues: []

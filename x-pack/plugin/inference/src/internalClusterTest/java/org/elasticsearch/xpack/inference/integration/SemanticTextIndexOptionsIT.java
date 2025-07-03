@@ -115,12 +115,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final String inferenceId = "test-inference-id-1";
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
-
-        // Downgrade the license and restart the cluster to force the model registry to rebuild
-        setLicense(License.LicenseType.BASIC);
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME);
-        assertLicense(License.LicenseType.BASIC);
+        downgradeLicenseAndRestartCluster();
 
         IndexOptions indexOptions = new DenseVectorFieldMapper.Int8HnswIndexOptions(
             randomIntBetween(1, 100),
@@ -133,22 +128,14 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         );
 
         final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, indexOptions);
-        var getFieldMappingsResponse = safeGet(
-            client().execute(GetFieldMappingsAction.INSTANCE, new GetFieldMappingsRequest().indices(INDEX_NAME).fields(inferenceFieldName))
-        );
-        assertThat(getFieldMappingsResponse.fieldMappings(INDEX_NAME, inferenceFieldName).sourceAsMap(), equalTo(expectedFieldMapping));
+        assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
     }
 
     public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
         final String inferenceId = "test-inference-id-2";
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
-
-        // Downgrade the license and restart the cluster to force the model registry to rebuild
-        setLicense(License.LicenseType.BASIC);
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME);
-        assertLicense(License.LicenseType.BASIC);
+        downgradeLicenseAndRestartCluster();
 
         assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
 
@@ -157,17 +144,9 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
             inferenceId,
             SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
         );
-        var getFieldMappingsResponse = safeGet(
-            client().execute(
-                GetFieldMappingsAction.INSTANCE,
-                new GetFieldMappingsRequest().indices(INDEX_NAME).fields(inferenceFieldName).includeDefaults(true)
-            )
-        );
 
         // Filter out null/empty values from params we didn't set to make comparison easier
-        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(
-            getFieldMappingsResponse.fieldMappings(INDEX_NAME, inferenceFieldName).sourceAsMap()
-        );
+        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
     }
 
@@ -269,6 +248,11 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         return filteredMap;
     }
 
+    private static Map<String, Object> getFieldMappings(String fieldName, boolean includeDefaults) {
+        var request = new GetFieldMappingsRequest().indices(INDEX_NAME).fields(fieldName).includeDefaults(includeDefaults);
+        return safeGet(client().execute(GetFieldMappingsAction.INSTANCE, request)).fieldMappings(INDEX_NAME, fieldName).sourceAsMap();
+    }
+
     private static void setLicense(License.LicenseType type) throws Exception {
         if (type == License.LicenseType.BASIC) {
             assertAcked(
@@ -300,5 +284,13 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     private static void assertLicense(License.LicenseType type) {
         var getLicenseResponse = safeGet(client().execute(GetLicenseAction.INSTANCE, new GetLicenseRequest(TEST_REQUEST_TIMEOUT)));
         assertThat(getLicenseResponse.license().type(), equalTo(type.getTypeName()));
+    }
+
+    private void downgradeLicenseAndRestartCluster() throws Exception {
+        // Downgrade the license and restart the cluster to force the model registry to rebuild
+        setLicense(License.LicenseType.BASIC);
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME);
+        assertLicense(License.LicenseType.BASIC);
     }
 }

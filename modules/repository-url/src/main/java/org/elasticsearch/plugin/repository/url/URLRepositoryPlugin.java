@@ -63,7 +63,8 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory)
+                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory),
+                snapshotMetrics
             )
         );
     }

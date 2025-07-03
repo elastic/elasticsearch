@@ -9,21 +9,23 @@ package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class CohereModel extends Model {
+public abstract class CohereModel extends RateLimitGroupingModel {
+
     private final SecureString apiKey;
     private final CohereRateLimitServiceSettings rateLimitServiceSettings;
 
@@ -63,5 +65,15 @@ public abstract class CohereModel extends Model {
 
     public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings);
 
-    public abstract URI uri();
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
+    }
+
+    public int rateLimitGroupingHash() {
+        return apiKey().hashCode();
+    }
+
+    public URI baseUri() {
+        return rateLimitServiceSettings.uri();
+    }
 }

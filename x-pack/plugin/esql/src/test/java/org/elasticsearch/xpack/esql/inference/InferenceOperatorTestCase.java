@@ -88,12 +88,17 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                try (var builder = blockFactory.newBytesRefVectorBuilder(length)) {
+                try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
                     for (int i = 0; i < length; i++) {
-                        builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                        if (randomInt() % 100 == 0) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                        }
+
                     }
                     currentPosition += length;
-                    return new Page(builder.build().asBlock());
+                    return new Page(builder.build());
                 }
             }
         };

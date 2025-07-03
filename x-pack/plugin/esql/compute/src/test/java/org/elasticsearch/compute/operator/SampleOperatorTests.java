@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.matchesPattern;
 
 public class SampleOperatorTests extends OperatorTestCase {
 
@@ -46,7 +45,7 @@ public class SampleOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesPattern("SampleOperator\\[probability = 0.5, seed = -?\\d+]");
+        return equalTo("SampleOperator[probability = 0.5]");
     }
 
     @Override

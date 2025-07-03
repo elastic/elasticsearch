@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -456,33 +455,6 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
             assertThat(
                 exception.getMessage(),
                 is("The internal model was invalid, please delete the service [service] with id [id] and add it again.")
-            );
-        }
-    }
-
-    public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
-        try (var service = testConfiguration.commonConfig.createService(threadPool, clientManager)) {
-            var listener = new PlainActionFuture<InferenceServiceResults>();
-
-            var exception = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    getInvalidModel("id", "service"),
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
-            );
-
-            assertThat(
-                exception.getMessage(),
-                is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
         }
     }

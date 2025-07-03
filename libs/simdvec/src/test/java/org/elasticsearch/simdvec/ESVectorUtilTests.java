@@ -268,7 +268,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    public void testSoarOverspillScore() {
+    public void testSoarDistance() {
         int size = random().nextInt(128, 512);
         float deltaEps = 1e-5f * size;
         var vector = new float[size];
@@ -279,9 +279,34 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             centroid[i] = random().nextFloat();
             preResidual[i] = random().nextFloat();
         }
-        var expected = defaultedProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
-        var result = defOrPanamaProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat();
+        var expected = defaultedProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
+        var result = defOrPanamaProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
         assertEquals(expected, result, deltaEps);
+    }
+
+    public void testQuantizeVectorWithIntervals() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float[] vector = new float[vectorSize];
+
+        byte bits = (byte) randomIntBetween(1, 8);
+        for (int i = 0; i < vectorSize; ++i) {
+            vector[i] = random().nextFloat();
+        }
+        float low = random().nextFloat();
+        float high = random().nextFloat();
+        if (low > high) {
+            float tmp = low;
+            low = high;
+            high = tmp;
+        }
+        int[] quantizeExpected = new int[vectorSize];
+        int[] quantizeResult = new int[vectorSize];
+        var expected = defaultedProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeExpected, low, high, bits);
+        var result = defOrPanamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeResult, low, high, bits);
+        assertArrayEquals(quantizeExpected, quantizeResult);
+        assertEquals(expected, result, 0f);
     }
 
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {

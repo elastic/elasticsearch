@@ -134,7 +134,11 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         return requestedUpgradeStatus == OLD;
     }
 
-    public static String getOldClusterVersion() {
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedFullClusterRestartTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
         return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 

@@ -27,12 +27,14 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("logsdb")
         .distribution(DistributionType.DEFAULT)
         .user(USER, PASS, "superuser", false)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
+        .feature(FeatureFlag.PATTERNED_TEXT)
         .build();
 
     public LogsdbTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

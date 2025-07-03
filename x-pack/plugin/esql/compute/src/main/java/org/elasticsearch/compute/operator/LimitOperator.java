@@ -14,20 +14,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 public class LimitOperator implements Operator {
-    private final BlockFactory blockFactory;
-    private final int pageSize;
 
     /**
      * Count of pages that have been processed by this operator.
@@ -44,30 +38,25 @@ public class LimitOperator implements Operator {
      */
     private long rowsEmitted;
 
-    private final Limiter limiter;
+    private Page lastInput;
 
-    private final List<Page> queue = new ArrayList<>();
-    private int pendingRows;
+    private final Limiter limiter;
     private boolean finished;
 
-    public LimitOperator(Limiter limiter, BlockFactory blockFactory, int pageSize) {
+    public LimitOperator(Limiter limiter) {
         this.limiter = limiter;
-        this.blockFactory = blockFactory;
-        this.pageSize = pageSize;
     }
 
     public static final class Factory implements OperatorFactory {
         private final Limiter limiter;
-        private final int pageSize;
 
-        public Factory(int limit, int pageSize) {
+        public Factory(int limit) {
             this.limiter = new Limiter(limit);
-            this.pageSize = pageSize;
         }
 
         @Override
         public LimitOperator get(DriverContext driverContext) {
-            return new LimitOperator(limiter, driverContext.blockFactory(), pageSize);
+            return new LimitOperator(limiter);
         }
 
         @Override
@@ -78,20 +67,22 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return readyToEmit() == false;
+        return finished == false && lastInput == null && limiter.remaining() > 0;
     }
 
     @Override
     public void addInput(Page page) {
-        pagesProcessed++;
-        rowsReceived += page.getPositionCount();
+        assert lastInput == null : "has pending input page";
         final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
         if (acceptedRows == 0) {
             page.releaseBlocks();
+            assert isFinished();
+        } else if (acceptedRows < page.getPositionCount()) {
+            lastInput = truncatePage(page, acceptedRows);
         } else {
-            queue.add(page);
-            pendingRows += acceptedRows;
+            lastInput = page;
         }
+        rowsReceived += acceptedRows;
     }
 
     @Override
@@ -101,67 +92,41 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return pendingRows == 0 && (finished || limiter.remaining() == 0);
-    }
-
-    private boolean readyToEmit() {
-        return finished || pendingRows >= pageSize || limiter.remaining() == 0;
+        return lastInput == null && (finished || limiter.remaining() == 0);
     }
 
     @Override
     public Page getOutput() {
-        if (pendingRows > 0 && readyToEmit()) {
-            final Page result = combinePages(queue, blockFactory, pendingRows);
-            pendingRows = 0;
-            rowsEmitted += result.getPositionCount();
-            return result;
-        } else {
+        if (lastInput == null) {
             return null;
         }
+        final Page result = lastInput;
+        lastInput = null;
+        pagesProcessed++;
+        rowsEmitted += result.getPositionCount();
+        return result;
     }
 
-    private static ElementType[] elementTypes(int blockCount, List<Page> pages) {
-        ElementType[] elementTypes = new ElementType[blockCount];
-        for (Page page : pages) {
-            for (int b = 0; b < blockCount; b++) {
-                ElementType newType = page.getBlock(b).elementType();
-                ElementType currType = elementTypes[b];
-                if (currType == null || currType == ElementType.NULL) {
-                    elementTypes[b] = newType;
-                } else {
-                    assert newType == ElementType.NULL || currType == newType : "element type mismatch: " + currType + " != " + newType;
-                }
-            }
+    private static Page truncatePage(Page page, int upTo) {
+        int[] filter = new int[upTo];
+        for (int i = 0; i < upTo; i++) {
+            filter[i] = i;
         }
-        return elementTypes;
-    }
-
-    private static Page combinePages(List<Page> pages, BlockFactory blockFactory, int upTo) {
-        assert pages.isEmpty() == false : "no pages to combine";
-        if (pages.size() == 1 && pages.getFirst().getPositionCount() == upTo) {
-            return pages.removeFirst();
-        }
-        int blockCount = pages.getFirst().getBlockCount();
-        Block.Builder[] builders = new Block.Builder[blockCount];
+        final Block[] blocks = new Block[page.getBlockCount()];
+        Page result = null;
         try {
-            ElementType[] elementTypes = elementTypes(blockCount, pages);
-            for (int b = 0; b < blockCount; b++) {
-                builders[b] = elementTypes[b].newBlockBuilder(upTo, blockFactory);
+            for (int b = 0; b < blocks.length; b++) {
+                blocks[b] = page.getBlock(b).filter(filter);
             }
-            int accumulated = 0;
-            for (Page page : pages) {
-                int size = Math.min(page.getPositionCount(), upTo - accumulated);
-                for (int b = 0; b < blockCount; b++) {
-                    Block block = page.getBlock(b);
-                    builders[b].copyFrom(block, 0, size);
-                }
-                accumulated += size;
-            }
-            Block[] blocks = Block.Builder.buildAll(builders);
-            return new Page(blocks);
+            result = new Page(blocks);
         } finally {
-            Releasables.close(Releasables.wrap(pages), pages::clear, Releasables.wrap(builders));
+            if (result == null) {
+                Releasables.closeExpectNoException(page::releaseBlocks, Releasables.wrap(blocks));
+            } else {
+                page.releaseBlocks();
+            }
         }
+        return result;
     }
 
     @Override
@@ -171,7 +136,9 @@ public class LimitOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(queue);
+        if (lastInput != null) {
+            lastInput.releaseBlocks();
+        }
     }
 
     @Override

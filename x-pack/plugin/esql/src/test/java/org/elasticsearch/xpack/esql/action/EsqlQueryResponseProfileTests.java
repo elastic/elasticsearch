@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
-import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
@@ -21,17 +21,19 @@ import java.util.List;
 public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCase<EsqlQueryResponse.Profile> {
     @Override
     protected Writeable.Reader<EsqlQueryResponse.Profile> instanceReader() {
-        return EsqlQueryResponse.Profile::new;
+        return EsqlQueryResponse.Profile::readFrom;
     }
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles());
+        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles());
     }
 
     @Override
     protected EsqlQueryResponse.Profile mutateInstance(EsqlQueryResponse.Profile instance) {
-        return new EsqlQueryResponse.Profile(randomValueOtherThan(instance.drivers(), this::randomDriverProfiles));
+        return randomBoolean()
+            ? new EsqlQueryResponse.Profile(randomValueOtherThan(instance.drivers(), this::randomDriverProfiles), instance.plans())
+            : new EsqlQueryResponse.Profile(instance.drivers(), randomValueOtherThan(instance.plans(), this::randomPlanProfiles));
     }
 
     @Override
@@ -40,34 +42,41 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
     }
 
     private List<DriverProfile> randomDriverProfiles() {
-        return randomList(10, this::randomDriverProfile);
+        return randomList(
+            10,
+            () -> new DriverProfile(
+                randomIdentifier(),
+                randomIdentifier(),
+                randomIdentifier(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomList(10, this::randomOperatorStatus),
+                DriverSleeps.empty()
+            )
+        );
     }
 
-    private DriverProfile randomDriverProfile() {
-        return new DriverProfile(
-            randomIdentifier(),
-            randomIdentifier(),
-            randomIdentifier(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomList(10, this::randomOperatorStatus),
-            DriverSleeps.empty()
+    private List<PlanProfile> randomPlanProfiles() {
+        return randomList(
+            10,
+            () -> new PlanProfile(randomIdentifier(), randomIdentifier(), randomIdentifier(), randomAlphanumericOfLength(1024))
         );
     }
 
     private OperatorStatus randomOperatorStatus() {
-        String name = randomAlphaOfLength(4);
-        Operator.Status status = randomBoolean()
-            ? null
-            : new AbstractPageMappingOperator.Status(
-                randomNonNegativeLong(),
-                randomNonNegativeInt(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            );
-        return new OperatorStatus(name, status);
+        return new OperatorStatus(
+            randomAlphaOfLength(4),
+            randomBoolean()
+                ? new AbstractPageMappingOperator.Status(
+                    randomNonNegativeLong(),
+                    randomNonNegativeInt(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+                : null
+        );
     }
 }

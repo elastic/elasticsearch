@@ -107,3 +107,10 @@ tasks.register("printClasspath") {
     println "Classpath written to: ${classpathFile.absolutePath}"
   }
 }
+
+tasks.register('generateJsonConfig', JavaExec) {
+  group = "Execution"
+  description = 'Generates JSON configuration using JsonConfigGenerator.'
+  mainClass = 'org.elasticsearch.test.knn.JsonConfigGenerator'
+  classpath = sourceSets.main.runtimeClasspath
+}

@@ -265,9 +265,10 @@ class KMeansLocal {
      */
     void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, boolean neighborAware) throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
+        boolean computeNeighborhoods = neighborAware && clustersPerNeighborhood > 0;
 
         List<int[]> neighborhoods = null;
-        if (neighborAware) {
+        if (computeNeighborhoods) {
             int k = centroids.length;
             neighborhoods = new ArrayList<>(k);
             for (int i = 0; i < k; ++i) {
@@ -276,7 +277,7 @@ class KMeansLocal {
             computeNeighborhoods(centroids, neighborhoods, clustersPerNeighborhood);
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
-        if (neighborAware && clustersPerNeighborhood > 0) {
+        if (computeNeighborhoods) {
             int[] assignments = kMeansIntermediate.assignments();
             assert assignments != null;
             assert assignments.length == vectors.size();

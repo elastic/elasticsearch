@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingModelTests;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModelTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -226,7 +226,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
     }
 
     private PlainActionFuture<InferenceServiceResults> createEmbeddingsFuture(Sender sender, ServiceComponents threadPool) {
-        var model = LlamaEmbeddingModelTests.createEmbeddingsModel("model", getUrl(webServer), "secret");
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("model", getUrl(webServer), "secret");
         var actionCreator = new LlamaActionCreator(sender, threadPool);
         var action = actionCreator.create(model);
 

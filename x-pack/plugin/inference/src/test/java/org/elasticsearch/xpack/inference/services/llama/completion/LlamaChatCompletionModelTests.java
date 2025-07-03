@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.llama.completion;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +37,16 @@ public class LlamaChatCompletionModelTests extends ESTestCase {
             "llama",
             new LlamaChatCompletionServiceSettings(modelId, url, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static LlamaChatCompletionModel createChatCompletionModelNoAuth(String modelId, String url) {
+        return new LlamaChatCompletionModel(
+            "id",
+            TaskType.CHAT_COMPLETION,
+            "llama",
+            new LlamaChatCompletionServiceSettings(modelId, url, null),
+            EmptySecretSettings.INSTANCE
         );
     }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-public class LlamaEmbeddingModelTests extends ESTestCase {
+public class LlamaEmbeddingsModelTests extends ESTestCase {
     public static LlamaEmbeddingsModel createEmbeddingsModel(String modelId, String url, String apiKey) {
         return new LlamaEmbeddingsModel(
             "id",

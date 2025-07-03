@@ -101,6 +101,7 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -1596,6 +1597,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
                                 completeListenersIgnoringException(actionListeners, snapshotInfo);
+                                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(repo.getMetadata());
+                                final SnapshotMetrics snapshotMetrics = repositoriesService.getSnapshotMetrics();
+                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
+                                snapshotMetrics.snapshotsDurationHistogram()
+                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributes);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
 
@@ -4323,6 +4329,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var res = snapshotsInProgress.withAddedEntry(newEntry);
             taskContext.success(() -> {
                 logger.info("snapshot [{}] started", snapshot);
+                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(repository.getMetadata());
+                repositoriesService.getSnapshotMetrics().snapshotsStartedCounter().incrementBy(1, attributes);
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
                     endSnapshot(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);

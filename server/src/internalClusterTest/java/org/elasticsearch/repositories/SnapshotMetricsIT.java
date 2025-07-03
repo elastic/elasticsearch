@@ -14,11 +14,13 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
@@ -31,6 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
@@ -82,6 +85,10 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             waitForBlockOnAnyDataNode(repositoryName);
             collectMetrics();
             assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_STARTED), equalTo(1L));
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_COMPLETED), equalTo(0L));
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), greaterThan(0L));
+            assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo(0L));
         } finally {
             unblockAllDataNodes(repositoryName);
         }
@@ -96,9 +103,31 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_STARTED), equalTo(1L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_COMPLETED), equalTo(1L));
+
+        // Sanity check shard duration observations
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
+        assertDoubleHistogramMetrics(
+            SnapshotMetrics.SNAPSHOT_SHARDS_DURATION,
+            everyItem(lessThan(TimeValue.timeValueNanos(snapshotElapsedTimeNanos).secondsFrac()))
+        );
+
+        // Sanity check snapshot observations
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
+        assertDoubleHistogramMetrics(
+            SnapshotMetrics.SNAPSHOT_DURATION,
+            everyItem(lessThan(TimeValue.timeValueNanos(snapshotElapsedTimeNanos).secondsFrac()))
+        );
+
+        // Work out the maximum amount of concurrency per node
+        final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
+        int snapshotThreadPoolSize = tp.info(ThreadPool.Names.SNAPSHOT).getMax();
+        int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
 
         // sanity check duration values
-        final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * snapshotElapsedTimeNanos;
+        final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * maximumPerNodeConcurrency
+            * snapshotElapsedTimeNanos;
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
             allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
@@ -126,6 +155,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
     }
 
+    private static void assertDoubleHistogramMetrics(String metricName, Matcher<? super List<Double>> matcher) {
+        final List<Double> values = allTestTelemetryPlugins().flatMap(testTelemetryPlugin -> {
+            final List<Measurement> doubleHistogramMeasurement = testTelemetryPlugin.getDoubleHistogramMeasurement(metricName);
+            return doubleHistogramMeasurement.stream().map(Measurement::getDouble);
+        }).toList();
+        assertThat(values, matcher);
+    }
+
     private static void assertShardsInProgressMetricIs(Matcher<? super List<Long>> matcher) {
         final List<Long> values = allTestTelemetryPlugins().map(testTelemetryPlugin -> {
             final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
@@ -147,7 +184,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static Stream<TestTelemetryPlugin> allTestTelemetryPlugins() {
-        return StreamSupport.stream(internalCluster().getDataNodeInstances(PluginsService.class).spliterator(), false)
+        return StreamSupport.stream(internalCluster().getDataOrMasterNodeInstances(PluginsService.class).spliterator(), false)
             .flatMap(pluginsService -> pluginsService.filterPlugins(TestTelemetryPlugin.class));
     }
 }

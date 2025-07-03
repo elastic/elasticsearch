@@ -1269,6 +1269,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
+    public SnapshotMetrics getSnapshotMetrics() {
+        return snapshotMetrics;
+    }
+
     @Override
     protected void doStart() {}
 

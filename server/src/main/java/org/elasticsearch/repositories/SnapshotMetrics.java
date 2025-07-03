@@ -22,6 +22,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public record SnapshotMetrics(
+    LongCounter snapshotsStartedCounter,
+    LongCounter snapshotsCompletedCounter,
+    DoubleHistogram snapshotsDurationHistogram,
     LongCounter snapshotsShardsStartedCounter,
     LongCounter snapshotsShardsCompletedCounter,
     LongGauge snapshotShardsInProgressGauge,
@@ -36,6 +39,9 @@ public record SnapshotMetrics(
 
     public static final SnapshotMetrics NOOP = new SnapshotMetrics(MeterRegistry.NOOP, List::of);
 
+    public static final String SNAPSHOT_STARTED = "es.repositories.snapshots.started.total";
+    public static final String SNAPSHOT_COMPLETED = "es.repositories.snapshots.completed.total";
+    public static final String SNAPSHOT_DURATION = "es.repositories.snapshots.duration.histogram";
     public static final String SNAPSHOT_SHARDS_STARTED = "es.repositories.snapshots.shards.started.total";
     public static final String SNAPSHOT_SHARDS_COMPLETED = "es.repositories.snapshots.shards.completed.total";
     public static final String SNAPSHOT_SHARDS_IN_PROGRESS = "es.repositories.snapshots.shards.current";
@@ -49,6 +55,9 @@ public record SnapshotMetrics(
 
     public SnapshotMetrics(MeterRegistry meterRegistry, Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
         this(
+            meterRegistry.registerLongCounter(SNAPSHOT_STARTED, "snapshots started", "unit"),
+            meterRegistry.registerLongCounter(SNAPSHOT_COMPLETED, "snapshots completed", "unit"),
+            meterRegistry.registerDoubleHistogram(SNAPSHOT_DURATION, "snapshots duration", "s"),
             meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_STARTED, "shard snapshots started", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_COMPLETED, "shard snapshots completed", "unit"),
             meterRegistry.registerLongsGauge(

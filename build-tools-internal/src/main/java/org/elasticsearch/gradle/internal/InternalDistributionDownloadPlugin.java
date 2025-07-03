@@ -202,7 +202,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_WOLFI) {
             return projectName + "wolfi-docker" + archString + "-export";
         }
-        return projectName + distribution.getType().getName();
+        return projectName + architecture.classifier + "-" + distribution.getType().getName();
     }
 
     public static class ProjectBasedDistributionDependency implements DistributionDependency {

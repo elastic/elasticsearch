@@ -281,7 +281,7 @@ setup:
 ---
 "Apply boost and query name on single index":
   - requires:
-      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      cluster_features: "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
       reason: fix boosting and query name for semantic text match queries.
 
   - skip:
@@ -347,7 +347,7 @@ setup:
 ---
 "Apply boost and query name on multiple indices":
   - requires:
-      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      cluster_features: "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
       reason: fix boosting and query name for semantic text match queries.
 
   - skip:
@@ -386,7 +386,7 @@ setup:
   - do:
       index:
         index: index-with-text-field
-        id: doc_1
+        id: doc_2
         body:
           inference_field: [ "It was a beautiful game", "Very competitive" ]
         refresh: true
@@ -405,10 +405,10 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
   - close_to: { hits.hits.0._score: { value: 1.1140361E19, error: 1e15 } }
   - not_exists: hits.hits.0.matched_queries
-  - close_to: { hits.hits.1._score: { value: 0.2876821, error: 1e15 } }
+  - close_to: { hits.hits.1._score: { value: 0.2876821, error: 1e-7 } }
   - not_exists: hits.hits.1.matched_queries
 
   - do:
@@ -427,8 +427,8 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
   - close_to: { hits.hits.0._score: { value: 5.5701804E19, error: 1e15 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
-  - close_to: { hits.hits.1._score: { value: 1.4384103, error: 1e15 } }
+  - close_to: { hits.hits.1._score: { value: 1.4384103, error: 1e-7 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }

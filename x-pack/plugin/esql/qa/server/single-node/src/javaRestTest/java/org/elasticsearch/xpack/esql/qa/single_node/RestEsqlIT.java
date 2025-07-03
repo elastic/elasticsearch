@@ -793,9 +793,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         String[] indices = {
-            "test-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now),
-            "test-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(1)),
-            "test-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(2)) };
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now),
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now.minusYears(1)),
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now.minusYears(2)) };
 
         int idx = 0;
         for (String index : indices) {
@@ -810,7 +810,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         String query = """
             {
-                "query": "from <test-index-{now/d}> | sort f asc | limit 1 | keep f"
+                "query": "from <test-index-{now/d{yyyy}}> | sort f asc | limit 1 | keep f"
             }
             """;
         Request request = new Request("POST", "/_query");
@@ -824,7 +824,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
         query = """
             {
-                "query": "from <test-index-{now/d-1d}> | sort f asc | limit 1 | keep f"
+                "query": "from <test-index-{now/d-1y{yyyy}}> | sort f asc | limit 1 | keep f"
             }
             """;
         request = new Request("POST", "/_query");
@@ -860,8 +860,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertOK(client().performRequest(request));
 
         String[] lookupIndices = {
-            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now),
-            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(1)) };
+            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now),
+            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy", Locale.ROOT).format(now.minusYears(1)) };
 
         for (String index : lookupIndices) {
             createIndex(index, Settings.builder().put("mode", "lookup").build(), """
@@ -880,8 +880,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
 
         String[] queries = {
-            "from idx | lookup join <lookup-index-{now/d}> on key | limit 1",
-            "from idx | lookup join <lookup-index-{now/d-1d}> on key | limit 1" };
+            "from idx | lookup join <lookup-index-{now/d{yyyy}}> on key | limit 1",
+            "from idx | lookup join <lookup-index-{now/d-1y{yyyy}}> on key | limit 1" };
         for (int i = 0; i < queries.length; i++) {
             String queryPayload = "{\"query\": \"" + queries[i] + "\"}";
             request = new Request("POST", "/_query");

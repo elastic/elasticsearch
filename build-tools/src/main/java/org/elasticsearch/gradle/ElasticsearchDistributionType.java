@@ -26,6 +26,7 @@ public interface ElasticsearchDistributionType {
     }
 
     default String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        return ":" + Architecture.current().classifier;
+        Architecture arch = Architecture.current();
+        return version.onOrAfter("9.2.0") ? ":" + arch.classifier : ":" + arch.bwcClassifier;
     }
 }

@@ -14,18 +14,28 @@ package org.elasticsearch.gradle;
  * */
 public enum Architecture {
 
-    AMD64("amd64", "x64", "X86_64", "x86_64", "amd64", "linux/amd64"),
-    AARCH64("aarch64", "aarch64", "aarch64", "aarch64", "arm64", "linux/arm64");
+    AMD64("amd64", "x86_64", "x64", "X86_64", "x86_64", "amd64", "linux/amd64"),
+    AARCH64("aarch64", "aarch64", "aarch64", "aarch64", "aarch64", "arm64", "linux/arm64");
 
     public final String classifier;
     public final String dockerPlatform;
+    public final String bwcClassifier;
     public final String jdkClassifier;
     public final String mlClassifier;
     public final String debianClassifier;
     public final String rpmClassifier;
 
-    Architecture(String classifier, String jdkClassifier, String rpmClassifier, String mlClassifier, String debianClassifier, String dockerPlatform) {
+    Architecture(
+        String classifier,
+        String bwcClassifier,
+        String jdkClassifier,
+        String rpmClassifier,
+        String mlClassifier,
+        String debianClassifier,
+        String dockerPlatform
+    ) {
         this.classifier = classifier;
+        this.bwcClassifier = bwcClassifier;
         this.jdkClassifier = jdkClassifier;
         this.rpmClassifier = rpmClassifier;
         this.mlClassifier = mlClassifier;

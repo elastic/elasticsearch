@@ -12,8 +12,9 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnByteVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TopDocs;
@@ -25,17 +26,28 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Wraps an internal query to rescore the results using a similarity function over the original, non-quantized vectors of a vector field
+ * A Lucene {@link Query} that applies vector-based rescoring to an inner query's results.
+ * <p>
+ * Depending on the nature of the {@code innerQuery}, this class dynamically selects between two rescoring strategies:
+ * <ul>
+ *   <li><b>Inline rescoring</b>:
+ *   Used when the inner query is already a top-N vector query with {@code rescoreK} results.
+ *   The vector similarity is applied inline using a {@link FunctionScoreQuery} without an additional
+ *   filtering pass.</li>
+ *   <li><b>Late rescoring</b>: Used when the inner query is not a top-N vector query or does not return
+ *   {@code rescoreK} results. The top {@code rescoreK} documents are first collected, and then rescoring is applied
+ *   separately to select the final top {@code k}.</li>
+ * </ul>
  */
-public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
-    private final String fieldName;
-    private final float[] floatTarget;
-    private final VectorSimilarityFunction vectorSimilarityFunction;
-    private final int k;
-    private final Query innerQuery;
-    private long vectorOperations = 0;
+public abstract class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
+    protected final String fieldName;
+    protected final float[] floatTarget;
+    protected final VectorSimilarityFunction vectorSimilarityFunction;
+    protected final int k;
+    protected final Query innerQuery;
+    protected long vectorOperations = 0;
 
-    public RescoreKnnVectorQuery(
+    private RescoreKnnVectorQuery(
         String fieldName,
         float[] floatTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
@@ -49,16 +61,31 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         this.innerQuery = innerQuery;
     }
 
-    @Override
-    public Query rewrite(IndexSearcher searcher) throws IOException {
-        DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
-        Query query = searcher.rewrite(functionScoreQuery);
-
-        // Retrieve top k documents from the rescored query
-        TopDocs topDocs = searcher.search(query, k);
-        vectorOperations = topDocs.totalHits.value();
-        return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
+    /**
+     * Selects and returns the appropriate {@link RescoreKnnVectorQuery} strategy based on the nature of the {@code innerQuery}.
+     *
+     * @param fieldName                 the name of the field containing the vector
+     * @param floatTarget              the target vector to compare against
+     * @param vectorSimilarityFunction the similarity function to apply
+     * @param k                        the number of top documents to return after rescoring
+     * @param rescoreK                 the number of top documents to consider for rescoring
+     * @param innerQuery               the original Lucene query to rescore
+     */
+    public static RescoreKnnVectorQuery fromInnerQuery(
+        String fieldName,
+        float[] floatTarget,
+        VectorSimilarityFunction vectorSimilarityFunction,
+        int k,
+        int rescoreK,
+        Query innerQuery
+    ) {
+        if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
+            || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
+            || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
+            // Queries that return only the top `k` results and do not require reduction before re-scoring.
+            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+        }
+        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
     }
 
     public Query innerQuery() {
@@ -102,7 +129,8 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
 
     @Override
     public String toString(String field) {
-        return "KnnRescoreVectorQuery{"
+        return getClass().getSimpleName()
+            + "{"
             + "fieldName='"
             + fieldName
             + '\''
@@ -116,5 +144,83 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
             + ", vectorQuery="
             + innerQuery
             + '}';
+    }
+
+    private static class InlineRescoreQuery extends RescoreKnnVectorQuery {
+        private InlineRescoreQuery(
+            String fieldName,
+            float[] floatTarget,
+            VectorSimilarityFunction vectorSimilarityFunction,
+            int k,
+            Query innerQuery
+        ) {
+            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            var valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
+            var functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
+            // Retrieve top k documents from the function score query
+            var topDocs = searcher.search(functionScoreQuery, k);
+            vectorOperations = topDocs.totalHits.value();
+            return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            return super.equals(o);
+        }
+
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
+    }
+
+    private static class LateRescoreQuery extends RescoreKnnVectorQuery {
+        final int rescoreK;
+
+        private LateRescoreQuery(
+            String fieldName,
+            float[] floatTarget,
+            VectorSimilarityFunction vectorSimilarityFunction,
+            int k,
+            int rescoreK,
+            Query innerQuery
+        ) {
+            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+            this.rescoreK = rescoreK;
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            final TopDocs topDocs;
+            // Retrieve top `rescoreK` documents from the inner query
+            topDocs = searcher.search(innerQuery, rescoreK);
+            vectorOperations = topDocs.totalHits.value();
+
+            // Retrieve top `k` documents from the top `rescoreK` query
+            var topDocsQuery = new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
+            var valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
+            var rescoreQuery = new FunctionScoreQuery(topDocsQuery, valueSource);
+            var rescoreTopDocs = searcher.search(rescoreQuery.rewrite(searcher), k);
+            return new KnnScoreDocQuery(rescoreTopDocs.scoreDocs, searcher.getIndexReader());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            var that = (RescoreKnnVectorQuery.LateRescoreQuery) o;
+            return super.equals(o) && that.rescoreK == rescoreK;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), rescoreK);
+        }
     }
 }

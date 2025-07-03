@@ -483,6 +483,91 @@ public class ClusterChangedEventTests extends ESTestCase {
         assertThat(event.changedCustomProjectMetadataSet(), containsInAnyOrder(customProjectMetadata.getWriteableName()));
     }
 
+    public void testChangedCustomProjectMetadataSet() {
+        final CustomProjectMetadata custom1 = new CustomProjectMetadata("custom1");
+        final CustomProjectMetadata custom2 = new CustomProjectMetadata("custom2");
+        final ProjectMetadata project1 = ProjectMetadata.builder(randomUniqueProjectId())
+            .putCustom(custom1.getWriteableName(), custom1)
+            .build();
+        final ProjectMetadata project2 = ProjectMetadata.builder(randomUniqueProjectId())
+            .putCustom(custom2.getWriteableName(), custom2)
+            .build();
+
+        final ClusterState originalState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .metadata(Metadata.builder().put(project1).build())
+            .build();
+
+        // No changes
+        {
+            ClusterState newState = ClusterState.builder(originalState).build();
+            ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
+            // existing project
+            assertFalse(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
+            // non-existing project
+            assertFalse(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
+        }
+
+        // Add custom to existing project
+        {
+            ClusterState newState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project1).putCustom(custom2.getWriteableName(), custom2).build())
+                .build();
+            ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
+            assertTrue(event.customMetadataChanged(project1.id(), custom2.getWriteableName()));
+        }
+
+        // Remove custom from existing project
+        {
+            ClusterState newState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project1).removeCustom(custom1.getWriteableName()).build())
+                .build();
+            ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
+            assertTrue(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
+        }
+
+        // Add new project with custom
+        {
+            ClusterState newState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project2).build())
+                .build();
+            ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, originalState);
+            // IndexGraveyard is always added when a new project is created, this checks that IndexGraveyard is "changed
+            assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
+            assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
+            // No change to other project
+            assertFalse(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
+        }
+
+        // remove project
+        {
+            ClusterState oldState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project2).build())
+                .build();
+            // project2 is removed
+            ClusterState newState = originalState;
+            ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, oldState);
+            // IndexGraveyard is always added when a new project is created, this checks that IndexGraveyard is "changed"
+            assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
+            assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
+            // No change to other project
+            assertFalse(event.customMetadataChanged(project1.id(), custom1.getWriteableName()));
+        }
+
+        // add custom to project1 + remove project2
+        {
+            ClusterState oldState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project2).build())
+                .build();
+            ClusterState newState = ClusterState.builder(originalState)
+                .putProjectMetadata(ProjectMetadata.builder(project1).putCustom(custom2.getWriteableName(), custom2).build())
+                .build();
+            ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, oldState);
+            assertTrue(event.customMetadataChanged(project2.id(), IndexGraveyard.TYPE));
+            assertTrue(event.customMetadataChanged(project2.id(), custom2.getWriteableName()));
+            assertTrue(event.customMetadataChanged(project1.id(), custom2.getWriteableName()));
+        }
+    }
+
     public void testChangedCustomMetadataSetMultiProject() {
         final CustomProjectMetadata project1Custom = new CustomProjectMetadata("project1");
         final CustomProjectMetadata project2Custom = new CustomProjectMetadata("project2");
@@ -519,6 +604,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             )
             .build();
         event = new ClusterChangedEvent("_na_", originalState, newState);
+        // IndexGraveyard is always added when a new project is created, this checks that IndexGraveyard is "changed"
         assertEquals(Set.of(IndexGraveyard.TYPE, project2Custom.getWriteableName()), event.changedCustomProjectMetadataSet());
     }
 

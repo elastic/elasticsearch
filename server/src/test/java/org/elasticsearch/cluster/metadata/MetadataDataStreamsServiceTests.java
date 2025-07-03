@@ -559,7 +559,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testDeleteSnapshotting() {
         String dataStreamName = randomAlphaOfLength(5);
-        Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
+        var projectId = randomProjectIdOrDefault();
+        Snapshot snapshot = new Snapshot(projectId, "doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
@@ -578,7 +579,6 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             )
         );
         final DataStream dataStream = DataStreamTestHelper.randomInstance(dataStreamName);
-        var projectId = randomProjectIdOrDefault();
         ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
             .putCustom(SnapshotsInProgress.TYPE, snaps)
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(dataStream))

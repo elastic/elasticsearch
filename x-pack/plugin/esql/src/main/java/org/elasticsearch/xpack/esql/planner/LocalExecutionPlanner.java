@@ -618,17 +618,28 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
-            .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
+        EvalOperator.ExpressionEvaluator.Factory rowEncoderFactory;
+        if (rerank.rerankFields().size() > 1) {
+            // If there is more than one field used for reranking we are encoded the input in a YAML doc, using field names as key.
+            // The input value will looks like
+            // text_field: foo bar
+            // multivalue_text_field:
+            // - value 1
+            // - value 2
+            // integer_field: 132
+            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
+                .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
 
-        for (var rerankField : rerank.rerankFields()) {
-            rerankFieldsEvaluatorSuppliers.put(
-                new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
-                EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
-            );
+            for (var rerankField : rerank.rerankFields()) {
+                rerankFieldsEvaluatorSuppliers.put(
+                    new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
+                    EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
+                );
+            }
+            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
+        } else {
+            rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
         }
-
-        XContentRowEncoder.Factory rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));

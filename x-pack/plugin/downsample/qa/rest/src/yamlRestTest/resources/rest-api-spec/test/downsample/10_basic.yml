@@ -1555,7 +1555,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ k8s.pod.name ]
@@ -1639,7 +1638,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ k8s.pod.name, k8s.pod.empty ]

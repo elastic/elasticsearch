@@ -272,7 +272,7 @@ class KMeansLocal {
     private void doCluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
         throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
-        boolean computeNeighborhoods = clustersPerNeighborhood != -1;
+        boolean computeNeighborhoods = clustersPerNeighborhood != -1 && centroids.length > 1;
 
         List<int[]> neighborhoods = null;
         if (computeNeighborhoods) {

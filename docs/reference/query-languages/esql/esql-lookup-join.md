@@ -142,19 +142,38 @@ Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/
 
 ## Prerequisites [esql-lookup-join-prereqs]
 
-To use `LOOKUP JOIN`, the following requirements must be met:
+### Index configuration
 
-* Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
-* **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
-  * The data types must either be identical or be internally represented as the same type in {{esql}}
-  * Numeric types follow these compatibility rules:
-    * `short` and `byte` are compatible with `integer` (all represented as `int`)
-    * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
-  * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
+Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
+### Data type compatibility
+
+Join keys must have compatible data types between the source and lookup indices. Types within the same compatibility group can be joined together:
+
+| Compatibility group    | Types                                                                               | Notes                                                                            |
+|------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| **Numeric family**     | `byte`, `short`, `integer`, `long`, `half_float`, `float`, `scaled_float`, `double` | All compatible                    |
+| **Keyword family**     | `keyword`, `text.keyword`                                                           | Text fields only as join key on left-hand side and must have `.keyword` subfield |
+| **Date (Exact)**       | `date`                                                                              | Must match exactly                                                               |
+| **Date Nanos (Exact)** | `date_nanos`                                                                        | Must match exactly                                                               |
+| **Boolean**            | `boolean`                                                                           | Must match exactly                                                               |
+
+```{tip}
 To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
+```
 
-For a complete list of supported data types and their internal representations, see the [Supported Field Types documentation](/reference/query-languages/esql/limitations.md#_supported_types).
+### Unsupported Types
+
+In addition to the [{{esql}} unsupported field types](/reference/query-languages/esql/limitations.md#_unsupported_types), `LOOKUP JOIN` does not support:
+
+* `VERSION`
+* `UNSIGNED_LONG`
+* Spatial types like `GEO_POINT`, `GEO_SHAPE`
+* Temporal intervals like `DURATION`, `PERIOD`
+
+```{note}
+For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join).
+```
 
 ## Usage notes
 
@@ -181,6 +200,7 @@ The following are the current limitations with `LOOKUP JOIN`:
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
-* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.
+* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
+  * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.

@@ -27,6 +27,7 @@ import java.util.Set;
  */
 public final class FinalizeSnapshotContext extends DelegatingActionListener<RepositoryData, RepositoryData> {
 
+    private final boolean serializeProjectMetadata;
     private final UpdatedShardGenerations updatedShardGenerations;
 
     /**
@@ -46,6 +47,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     private final Runnable onDone;
 
     /**
+     * @param serializeProjectMetadata serialize only the project metadata of the cluster metadata
      * @param updatedShardGenerations updated shard generations for both live and deleted indices
      * @param repositoryStateId       the unique id identifying the state of the repository when the snapshot began
      * @param clusterMetadata         cluster metadata
@@ -57,6 +59,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
      *                                once all cleanup operations after snapshot completion have executed
      */
     public FinalizeSnapshotContext(
+        boolean serializeProjectMetadata,
         UpdatedShardGenerations updatedShardGenerations,
         long repositoryStateId,
         Metadata clusterMetadata,
@@ -66,12 +69,17 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         Runnable onDone
     ) {
         super(listener);
+        this.serializeProjectMetadata = serializeProjectMetadata;
         this.updatedShardGenerations = updatedShardGenerations;
         this.repositoryStateId = repositoryStateId;
         this.clusterMetadata = clusterMetadata;
         this.snapshotInfo = snapshotInfo;
         this.repositoryMetaVersion = repositoryMetaVersion;
         this.onDone = onDone;
+    }
+
+    public boolean serializeProjectMetadata() {
+        return serializeProjectMetadata;
     }
 
     public long repositoryStateId() {
@@ -107,7 +115,8 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
         // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.
         obsoleteGenerations.set(
-            SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
+            SnapshotsInProgress.get(updatedState)
+                .obsoleteGenerations(snapshotInfo.projectId(), snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );
         return updatedState;
     }

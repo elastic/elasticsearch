@@ -9,25 +9,23 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
-
 final class CentroidAssignments {
 
     private final int numCentroids;
     private final float[][] cachedCentroids;
-    private final IntArrayList[] assignmentsByCluster;
+    private final int[][] assignmentsByCluster;
 
-    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, IntArrayList[] assignmentsByCluster) {
+    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, int[][] assignmentsByCluster) {
         this.numCentroids = numCentroids;
         this.cachedCentroids = cachedCentroids;
         this.assignmentsByCluster = assignmentsByCluster;
     }
 
-    CentroidAssignments(float[][] centroids, IntArrayList[] assignmentsByCluster) {
+    CentroidAssignments(float[][] centroids, int[][] assignmentsByCluster) {
         this(centroids.length, centroids, assignmentsByCluster);
     }
 
-    CentroidAssignments(int numCentroids, IntArrayList[] assignmentsByCluster) {
+    CentroidAssignments(int numCentroids, int[][] assignmentsByCluster) {
         this(numCentroids, null, assignmentsByCluster);
     }
 
@@ -40,7 +38,7 @@ final class CentroidAssignments {
         return cachedCentroids;
     }
 
-    public IntArrayList[] assignmentsByCluster() {
+    public int[][] assignmentsByCluster() {
         return assignmentsByCluster;
     }
 }

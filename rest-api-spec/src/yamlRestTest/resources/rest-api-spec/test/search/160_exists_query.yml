@@ -45,6 +45,10 @@ setup:
                       type: keyword
                 text:
                   type: text
+                text_stored_not_indexed:
+                  type: text
+                  store: true
+                  index: false
 
   - do:
       headers:
@@ -70,6 +74,7 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
+            text_stored_not_indexed: "foo bar"
 
   - do:
       headers:
@@ -94,6 +99,7 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
+            text_stored_not_indexed: "foo bar"
 
   - do:
       headers:
@@ -119,6 +125,7 @@ setup:
             object:
               inner2: "bar"
             text: "foo bar"
+            text_stored_not_indexed: "foo bar"
 
   - do:
       index:
@@ -1268,3 +1275,25 @@ setup:
                 field: text
 
   - match: {hits.total: 1}
+
+---
+"Test exists query on text field with no dv, that is stored but not indexed":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ field_exists_query_for_text_fields_no_index_or_dv ]
+      test_runner_features: capabilities
+      reason: "Before the fix, this query would throw an ISE because the field is not indexed and has no doc values."
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: text_stored_not_indexed
+
+  # this should not throw, but rather return 0 hits, as the field is not indexed nor it has doc values
+  - match: {hits.total: 0}

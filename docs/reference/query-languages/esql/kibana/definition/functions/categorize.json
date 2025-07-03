@@ -3,6 +3,7 @@
   "type" : "grouping",
   "name" : "categorize",
   "license" : "PLATINUM",
+  "observability_tier" : "COMPLETE",
   "description" : "Groups text messages into categories of similarly formatted text values.",
   "signatures" : [
     {

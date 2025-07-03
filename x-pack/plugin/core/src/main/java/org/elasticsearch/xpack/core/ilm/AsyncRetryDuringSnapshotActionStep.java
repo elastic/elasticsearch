@@ -145,7 +145,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                             // The index has since been deleted, mission accomplished!
                             return true;
                         }
-                        for (List<SnapshotsInProgress.Entry> snapshots : SnapshotsInProgress.get(state).entriesByRepo()) {
+                        for (List<SnapshotsInProgress.Entry> snapshots : SnapshotsInProgress.get(state).entriesByRepo(projectId)) {
                             for (SnapshotsInProgress.Entry snapshot : snapshots) {
                                 if (snapshot.indices().containsKey(indexName)) {
                                     // There is a snapshot running with this index name

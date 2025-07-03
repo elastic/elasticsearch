@@ -64,7 +64,7 @@ public class TestPlannerOptimizer {
         // individually hence why here the plan is kept as is
 
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-            new LocalLogicalOptimizerContext( config, FoldContext.small(), searchStats)
+            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(new EsqlFlags(true), config, FoldContext.small(), searchStats),

@@ -334,8 +334,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     MergeTask mergeTask = mock(MergeTask.class);
                     // all tasks support IO throttling in this test case
                     when(mergeTask.supportsIOThrottling()).thenReturn(true);
-                    // {@link Schedule.BACKLOG} complicates the test too much because the set of running merge tasks is not stable
-                    when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
+                    doAnswer(mock -> {
+                        Schedule schedule = randomFrom(Schedule.values());
+                        if (schedule == BACKLOG) {
+                            testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                                // reenqueue backlogged merge task
+                                threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
+                            });
+                        }
+                        return schedule;
+                    }).when(mergeTask).schedule();
                     doAnswer(mock -> {
                         currentlyRunningMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing

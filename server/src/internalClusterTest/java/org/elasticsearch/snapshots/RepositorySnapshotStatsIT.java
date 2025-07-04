@@ -21,18 +21,23 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
 
-    public void testRepositorySnapshotStats() throws Exception {
+    public void testRepositorySnapshotStats() {
 
         logger.info("--> starting a node");
         internalCluster().startNode();
 
         logger.info("--> create index");
-        createIndexWithRandomDocs("test-idx", 100);
+        final int numberOfShards = randomIntBetween(2, 6);
+        createIndex("test-idx", numberOfShards, 0);
+        ensureGreen();
+        indexRandomDocs("test-idx", 100);
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats("test-idx").get();
         IndexStats indexStats = indicesStats.getIndex("test-idx");
@@ -70,9 +75,18 @@ public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = clusterAdmin().prepareNodesStats().setRepositoryStats(true).get();
         RepositoriesStats stats = response.getNodes().get(0).getRepositoriesStats();
 
+        // These are just broad sanity checks on the values. There are more detailed checks in SnapshotMetricsIT
         assertTrue(stats.getRepositoryThrottlingStats().containsKey("test-repo"));
-        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").totalWriteThrottledNanos() > 0);
-        assertTrue(stats.getRepositoryThrottlingStats().get("test-repo").totalReadThrottledNanos() > 0);
-
+        RepositoriesStats.SnapshotStats snapshotStats = stats.getRepositoryThrottlingStats().get("test-repo");
+        assertThat(snapshotStats.totalWriteThrottledNanos(), greaterThan(0L));
+        assertThat(snapshotStats.totalReadThrottledNanos(), greaterThan(0L));
+        assertThat(snapshotStats.shardSnapshotsStarted(), equalTo((long) numberOfShards));
+        assertThat(snapshotStats.shardSnapshotsCompleted(), equalTo((long) numberOfShards));
+        assertThat(snapshotStats.shardSnapshotsInProgress(), equalTo(0L));
+        assertThat(snapshotStats.numberOfBlobsUploaded(), greaterThan(0L));
+        assertThat(snapshotStats.numberOfBytesUploaded(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadTimeInNanos(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadReadTimeInNanos(), greaterThan(0L));
+        assertThat(snapshotStats.totalUploadReadTimeInNanos(), lessThan(snapshotStats.totalUploadTimeInNanos()));
     }
 }

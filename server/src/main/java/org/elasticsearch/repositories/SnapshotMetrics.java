@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -84,7 +85,11 @@ public record SnapshotMetrics(
         meterRegistry.registerLongsGauge(SNAPSHOTS_IN_PROGRESS, "snapshots in progress", "unit", snapshotsInProgressObserver);
     }
 
-    public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {
-        return Map.of("project_id", projectId.id(), "repo_type", meta.type(), "repo_name", meta.name());
+    public static Map<String, Object> createAttributesMap(@Nullable ProjectId projectId, RepositoryMetadata meta) {
+        if (projectId == null) {
+            return Map.of("repo_type", meta.type(), "repo_name", meta.name());
+        } else {
+            return Map.of("project_id", projectId.id(), "repo_type", meta.type(), "repo_name", meta.name());
+        }
     }
 }

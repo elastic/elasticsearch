@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.search.basic;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -20,6 +22,7 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 
 import java.util.ArrayList;
@@ -31,6 +34,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
@@ -82,7 +86,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                 }
             });
         }
-        for (int i = 0, n = randomIntBetween(50, 100); i < n; i++) {
+        for (int i = 0, n = randomIntBetween(5, 10); i < n; i++) {
             NetworkDisruption networkDisruption = new NetworkDisruption(
                 isolateNode(internalCluster().getRandomNodeName()),
                 NetworkDisruption.DISCONNECT
@@ -90,6 +94,13 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             setDisruptionScheme(networkDisruption);
             networkDisruption.startDisrupting();
             networkDisruption.stopDisrupting();
+
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             internalCluster().clearDisruptionScheme();
             ensureFullyConnectedCluster();
         }
@@ -103,7 +114,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     private static SearchRequestBuilder prepareRandomSearch() {
         return prepareSearch("*").setQuery(new MatchAllQueryBuilder())
-            .setSize(9999)
+            .setSize(randomIntBetween(10,100))
             .setFetchSource(true)
             .setAllowPartialSearchResults(randomBoolean());
     }

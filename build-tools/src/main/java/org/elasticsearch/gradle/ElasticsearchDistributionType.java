@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.Architecture;
+
 public interface ElasticsearchDistributionType {
 
     String getName();
@@ -26,6 +28,8 @@ public interface ElasticsearchDistributionType {
     }
 
     default String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        return ":" + Architecture.current().classifier;
+        return version.onOrAfter("9.2.0")
+            ? ":" + platform + "-" + Architecture.current().classifier
+            : ":" + Architecture.current().bwcClassifier;
     }
 }

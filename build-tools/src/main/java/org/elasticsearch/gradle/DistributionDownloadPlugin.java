@@ -166,9 +166,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         var extension = distribution.getType().getExtension(distribution.getPlatform());
         var classifier = distribution.getType().getClassifier(distribution.getPlatform(), distroVersion);
         var group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        var definition = group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
-
-        return definition;
+        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 
     private void setupResolutionsContainer(Project project) {

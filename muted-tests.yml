@@ -629,6 +629,9 @@ tests:
 - class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
   method: testExporterWithHostOnly
   issue: https://github.com/elastic/elasticsearch/issues/130599
+- class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
+  method: testCreateRestClient
+  issue: https://github.com/elastic/elasticsearch/issues/130600
 
 # Examples:
 #

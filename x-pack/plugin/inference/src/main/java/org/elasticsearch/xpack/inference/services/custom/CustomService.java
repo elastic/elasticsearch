@@ -27,19 +27,26 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
+import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RequestParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RerankParameters;
+import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -115,18 +122,27 @@ public class CustomService extends SenderService {
      * This does some initial validation with mock inputs to determine if any templates are missing a field to fill them.
      */
     private static void validateConfiguration(CustomModel model) {
-        String query = null;
-        if (model.getTaskType() == TaskType.RERANK) {
-            query = "test query";
-        }
-
         try {
-            new CustomRequest(query, List.of("test input"), model).createHttpRequest();
+            new CustomRequest(createParameters(model), model).createHttpRequest();
         } catch (IllegalStateException e) {
             var validationException = new ValidationException();
             validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
             throw validationException;
         }
+    }
+
+    private static RequestParameters createParameters(CustomModel model) {
+        return switch (model.getTaskType()) {
+            case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
+            case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
+                new EmbeddingsInput(List.of("test input"), null, null),
+                model.getServiceSettings().getInputTypeTranslator()
+            );
+            default -> throw new IllegalStateException(
+                Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
+            );
+        };
     }
 
     private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {
@@ -257,7 +273,8 @@ public class CustomService extends SenderService {
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+        // The custom service doesn't do any validation for the input type because if the input type is supported a default
+        // must be supplied within the service settings.
     }
 
     @Override
@@ -327,7 +344,9 @@ public class CustomService extends SenderService {
             serviceSettings.getQueryParameters(),
             serviceSettings.getRequestContentString(),
             serviceSettings.getResponseJsonParser(),
-            serviceSettings.rateLimitSettings()
+            serviceSettings.rateLimitSettings(),
+            serviceSettings.getBatchSize(),
+            serviceSettings.getInputTypeTranslator()
         );
     }
 
@@ -352,5 +371,14 @@ public class CustomService extends SenderService {
                     .build();
             }
         );
+    }
+
+    @Override
+    public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        if (taskType == TaskType.RERANK) {
+            return new CustomServiceIntegrationValidator();
+        }
+
+        return null;
     }
 }

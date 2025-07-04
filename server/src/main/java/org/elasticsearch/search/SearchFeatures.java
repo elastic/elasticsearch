@@ -31,6 +31,7 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature RESCORER_MISSING_FIELD_BAD_REQUEST = new NodeFeature("search.rescorer.missing.field.bad.request");
     public static final NodeFeature INT_SORT_FOR_INT_SHORT_BYTE_FIELDS = new NodeFeature("search.sort.int_sort_for_int_short_byte_fields");
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
+    public static final NodeFeature BBQ_HNSW_DEFAULT_INDEXING = new NodeFeature("search.vectors.mappers.default_bbq_hnsw");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -39,7 +40,8 @@ public final class SearchFeatures implements FeatureSpecification {
             COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS,
             RESCORER_MISSING_FIELD_BAD_REQUEST,
             INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
-            MULTI_MATCH_CHECKS_POSITIONS
+            MULTI_MATCH_CHECKS_POSITIONS,
+            BBQ_HNSW_DEFAULT_INDEXING
         );
     }
 }

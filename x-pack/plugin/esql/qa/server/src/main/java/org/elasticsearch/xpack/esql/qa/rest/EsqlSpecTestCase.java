@@ -276,9 +276,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
         Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
 
-        var clusters = answer.get("_clusters");
-        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
-        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+        assertNotPartial(answer);
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -301,6 +299,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
             assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
         }
+    }
+
+    static Map<String, Object> assertNotPartial(Map<String, Object> answer) {
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+
+        return answer;
     }
 
     private Map<?, ?> tooks() throws IOException {
@@ -371,9 +377,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             }
         }
         if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
@@ -34,13 +35,15 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNodeAction<WatcherServiceRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportWatcherServiceAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             WatcherServiceAction.NAME,
@@ -51,6 +54,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             WatcherServiceRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -73,7 +77,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                     XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
                     WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                    final var project = clusterState.metadata().getProject();
+                    final var project = projectResolver.getProjectMetadata(clusterState);
                     WatcherMetadata currentMetadata = project.custom(WatcherMetadata.TYPE);
 
                     // adhere to the contract of returning the original state if nothing has changed

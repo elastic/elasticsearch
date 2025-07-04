@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -330,6 +331,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         initIndexes(configs);
         initData(configs);
         for (TestConfig config : configs.values()) {
+            if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
+                continue;
+            }
             config.validateMainIndex();
             config.validateLookupIndex();
             config.validateAdditionalMainIndex();

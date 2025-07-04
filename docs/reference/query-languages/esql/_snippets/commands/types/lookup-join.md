@@ -5,17 +5,17 @@
 | field from the left index | field from the lookup index | 
 | --- | --- | 
 | boolean | boolean |
-| byte | half_float, float, double, scaled_float, byte, short, integer, long |
+| byte | byte, short, integer |
 | date | date |
 | date_nanos | date_nanos |
-| double | half_float, float, double, scaled_float, byte, short, integer, long |
-| float | half_float, float, double, scaled_float, byte, short, integer, long |
-| half_float | half_float, float, double, scaled_float, byte, short, integer, long |
-| integer | half_float, float, double, scaled_float, byte, short, integer, long |
+| double | half_float, float, double, scaled_float |
+| float | half_float, float, double, scaled_float |
+| half_float | half_float, float, double, scaled_float |
+| integer | byte, short, integer |
 | ip | ip |
 | keyword | keyword |
-| long | half_float, float, double, scaled_float, byte, short, integer, long |
-| scaled_float | half_float, float, double, scaled_float, byte, short, integer, long |
-| short | half_float, float, double, scaled_float, byte, short, integer, long |
+| long | long |
+| scaled_float | half_float, float, double, scaled_float |
+| short | byte, short, integer |
 | text | keyword |
 

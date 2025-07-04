@@ -8,8 +8,6 @@
  */
 package org.elasticsearch.search.basic;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -22,7 +20,6 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 
 import java.util.ArrayList;
@@ -113,7 +110,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     private static SearchRequestBuilder prepareRandomSearch() {
         return prepareSearch("*").setQuery(new MatchAllQueryBuilder())
-            .setSize(randomIntBetween(10,100))
+            .setSize(randomIntBetween(10, 100))
             .setFetchSource(true)
             .setAllowPartialSearchResults(randomBoolean());
     }

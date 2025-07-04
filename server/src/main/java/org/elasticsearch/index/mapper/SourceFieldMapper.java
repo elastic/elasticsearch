@@ -437,7 +437,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         XContentType contentType = context.sourceToParse().getXContentType();
 
         final var originalSource = context.sourceToParse().source();
-        final var storedSource = stored() ? removeSyntheticSourceFields(context.mappingLookup(), originalSource, contentType) : null;
+        final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
         if (adaptedStoredSource != null) {
@@ -458,7 +458,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
             } else {
                 // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-                var recoverySource = removeSyntheticSourceFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
+                var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
                 context.doc()
                     .add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
                 context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
@@ -467,7 +467,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     /**
-     * Removes the synthetic source fields (_inference and synthetic vector fields) from the {@code _source} if it is present.
+     * Removes the synthetic vector fields (_inference and synthetic vector fields) from the {@code _source} if it is present.
      * These fields are regenerated at query or snapshot recovery time using stored fields and doc values.
      *
      * <p>For details on how the metadata is re-added, see:</p>
@@ -476,7 +476,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
      * </ul>
      */
-    private BytesReference removeSyntheticSourceFields(
+    private BytesReference removeSyntheticVectorFields(
         MappingLookup mappingLookup,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType

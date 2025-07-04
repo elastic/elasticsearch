@@ -898,7 +898,6 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
-    private volatile boolean searchExcludeVectors;
     private volatile long retentionLeaseMillis;
 
     /**

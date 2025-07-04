@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -40,10 +42,16 @@ public class ToGeohex extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeohexFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geohex", description = """
-        Converts an input value to a `geohex` value.
-        A string will only be successfully converted if it respects the
-        `geohex` format.""", examples = @Example(file = "spatial-grid", tag = "to_geohex"))
+    @FunctionInfo(
+        returnType = "geohex",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        description = """
+            Converts an input value to a `geohex` value.
+            A string will only be successfully converted if it respects the
+            `geohex` format.""",
+        examples = @Example(file = "spatial-grid", tag = "to_geohex")
+    )
     public ToGeohex(
         Source source,
         @Param(

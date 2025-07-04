@@ -1,7 +1,0 @@
-pr: 129391
-summary: Ensure that anomaly detection job state update retries if master node is
-  temoporarily unavailable
-area: Machine Learning
-type: bug
-issues:
- - 126148

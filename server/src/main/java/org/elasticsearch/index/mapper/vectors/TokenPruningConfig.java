@@ -14,15 +14,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
     public static final String PRUNING_CONFIG_FIELD = "pruning_config";
@@ -175,5 +184,39 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
             }
         }
         return new TokenPruningConfig(ratioThreshold, weightThreshold, onlyScorePrunedTokens);
+    }
+
+    public static final ConstructingObjectParser<TokenPruningConfig, Void> PARSER = new ConstructingObjectParser<>(
+        PRUNING_CONFIG_FIELD,
+        args -> new TokenPruningConfig(
+            args[0] == null ? DEFAULT_TOKENS_FREQ_RATIO_THRESHOLD : (Float) args[0],
+            args[1] == null ? DEFAULT_TOKENS_WEIGHT_THRESHOLD : (Float) args[1],
+            args[2] != null && (Boolean) args[2]
+        )
+    );
+
+    static {
+        PARSER.declareFloat(optionalConstructorArg(), TOKENS_FREQ_RATIO_THRESHOLD);
+        PARSER.declareFloat(optionalConstructorArg(), TOKENS_WEIGHT_THRESHOLD);
+        PARSER.declareBoolean(optionalConstructorArg(), ONLY_SCORE_PRUNED_TOKENS_FIELD);
+    }
+
+    public static TokenPruningConfig parseFromMap(Map<String, Object> pruningConfigMap) {
+        if (pruningConfigMap == null) {
+            return null;
+        }
+
+        try {
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                pruningConfigMap,
+                XContentType.JSON
+            );
+
+            return PARSER.parse(parser, null);
+        } catch (IOException ioEx) {
+            throw new UncheckedIOException(ioEx);
+        }
     }
 }

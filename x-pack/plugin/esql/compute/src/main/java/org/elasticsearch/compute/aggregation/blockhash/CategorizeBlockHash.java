@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,9 +47,8 @@ import java.util.Objects;
  */
 public class CategorizeBlockHash extends BlockHash {
 
-    private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(
-        List.of()
-    );
+    private static final CategorizationAnalyzerConfig ANALYZER_CONFIG = CategorizationAnalyzerConfig
+        .buildStandardEsqlCategorizationAnalyzer();
     private static final int NULL_ORD = 0;
 
     private final int channel;

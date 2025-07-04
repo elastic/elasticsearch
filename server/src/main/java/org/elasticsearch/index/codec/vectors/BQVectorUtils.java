@@ -40,7 +40,7 @@ public class BQVectorUtils {
         return Math.abs(l1norm - 1.0d) <= EPSILON;
     }
 
-    public static void packAsBinary(byte[] vector, byte[] packed) {
+    public static void packAsBinary(int[] vector, byte[] packed) {
         for (int i = 0; i < vector.length;) {
             byte result = 0;
             for (int j = 7; j >= 0 && i < vector.length; j--) {

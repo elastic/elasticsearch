@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -44,10 +46,16 @@ public class ToGeotile extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeotileFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geotile", description = """
-        Converts an input value to a `geotile` value.
-        A string will only be successfully converted if it respects the
-        `geotile` format.""", examples = @Example(file = "spatial-grid", tag = "to_geotile"))
+    @FunctionInfo(
+        returnType = "geotile",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        description = """
+            Converts an input value to a `geotile` value.
+            A string will only be successfully converted if it respects the
+            `geotile` format.""",
+        examples = @Example(file = "spatial-grid", tag = "to_geotile")
+    )
     public ToGeotile(
         Source source,
         @Param(

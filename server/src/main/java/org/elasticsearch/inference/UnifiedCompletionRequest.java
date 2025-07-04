@@ -128,6 +128,14 @@ public record UnifiedCompletionRequest(
         );
     }
 
+    /**
+     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxCompletionTokensTokens(Params params) {
+        return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
+    }
+
     public sealed interface Content extends NamedWriteable, ToXContent permits ContentObjects, ContentString {}
 
     @SuppressWarnings("unchecked")

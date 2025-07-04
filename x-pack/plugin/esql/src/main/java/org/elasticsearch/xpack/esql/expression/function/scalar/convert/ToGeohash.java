@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -44,10 +46,16 @@ public class ToGeohash extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeohashFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "geohash", description = """
-        Converts an input value to a `geohash` value.
-        A string will only be successfully converted if it respects the
-        `geohash` format.""", examples = @Example(file = "spatial-grid", tag = "to_geohash"))
+    @FunctionInfo(
+        returnType = "geohash",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        description = """
+            Converts an input value to a `geohash` value.
+            A string will only be successfully converted if it respects the
+            `geohash` format.""",
+        examples = @Example(file = "spatial-grid", tag = "to_geohash")
+    )
     public ToGeohash(
         Source source,
         @Param(

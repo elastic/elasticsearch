@@ -369,9 +369,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     // based on recommendations from this paper: https://arxiv.org/pdf/2305.18494.pdf
                     IndexableField currentField = context.doc().getByKey(key);
                     if (currentField == null) {
-                        context.doc().addWithKey(key, new XFeatureField(fullPath(), feature, value, fieldType().isStored()));
-                    } else if (currentField instanceof XFeatureField && ((XFeatureField) currentField).getFeatureValue() < value) {
-                        ((XFeatureField) currentField).setFeatureValue(value);
+                        context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value, fieldType().isStored()));
+                    } else if (currentField instanceof FeatureField ff && ff.getFeatureValue() < value) {
+                        ff.setFeatureValue(value);
                     }
                 } else {
                     throw new IllegalArgumentException(

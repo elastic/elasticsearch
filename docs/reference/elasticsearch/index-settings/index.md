@@ -1,7 +1,16 @@
+---
+applies_to:
+  stack: all
+---
 # Index settings
 
+:::{include} _snippets/serverless-availability.md
+:::
+
 $$$index-modules-settings-description$$$
-Index level settings can be set per-index. Settings may be:
+{{es}} organizes index-level settings into index modules, each controlling a specific aspect of index behavior.
+
+These settings are configured on a per-index basis and may be:
 
 * _Static_
   They can only be set at index creation time or on a closed index, or by using the [update index settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-settings) with the `reopen` query parameter set to `true` (which automatically closes and reopens impacted indices).
@@ -14,25 +23,31 @@ You can change any documented index settings on closed indices. However, changin
 
 Settings are available for the following modules:
 
-* [History retention](history-retention.md)
-  Control the retention of a history of operations in the index.
-* [Index](index-modules.md)
-  General settings that affect the behavior of indices.
-* [Index shard allocation](shard-allocation.md)
+* [General](index-modules.md):
+  Index settings not tied to a specific module.
+* [Index shard allocation](shard-allocation.md):
   Control where, when, and how shards are allocated to nodes.
-* [Indexing pressure](pressure.md)
-  Configure indexing back pressure limits.
-* [Merge](merge.md)
+* [History retention](history-retention.md)
+  Control how long the history of operations is retained in the index.
+* [Index blocks](./index-block.md):
+  Block different type of operations to the indices.
+* [Mapping limits](./mapping-limit.md):
+  Limit the number of field mappings.
+* [Merge](merge.md):
   Control how shards are merged by the background merge process.
-* [Similarities](similarity.md)
+* [Similarities](similarity.md):
   Configure custom similarity settings to customize how search results are scored.
-* [Slowlog](slow-log.md)
+* [Slowlog](slow-log.md):
   Control how slow queries and fetch requests are logged.
-* [Store](store.md)
+* [Sorting](./sorting.md):
+  Configure how to sort the segments inside each shard.
+* [Store](store.md):
   Configure the type of filesystem used to access shard data.
 * [Time series](time-series.md)
   Configure the backing indices in a time series data stream (TSDS).
 * [Translog](translog.md)
   Control the transaction log and background flush operations.
+* [Indexing pressure](pressure.md)
+  Configure indexing back pressure limits.
 
 There are also index settings associated with [text analysis](docs-content://manage-data/data-store/text-analysis.md), which define analyzers, tokenizers, token filters, and character filters.

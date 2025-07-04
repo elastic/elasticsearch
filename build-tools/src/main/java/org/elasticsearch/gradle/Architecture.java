@@ -11,6 +11,8 @@ package org.elasticsearch.gradle;
 
 /**
  * TODO We need to clean that up when other (binary) components have aligned on architecture namings
+ * I put all different names and nomenclatures here to have a central place to check when we adopt further
+ * ones ml and beats have been updated and bwc branches have been updated too.
  * */
 public enum Architecture {
 

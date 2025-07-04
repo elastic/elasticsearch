@@ -578,9 +578,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/130497
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/40_knn_search/Dimensions are dynamically set}
   issue: https://github.com/elastic/elasticsearch/issues/130626

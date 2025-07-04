@@ -128,7 +128,8 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(
             error.getMessage(),
             containsString(
-                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD mode [lookup]"
+                "line 3:13: [KNN] function cannot operate on [lookup_vector], supplied by an index [test_lookup] in non-STANDARD "
+                    + "mode [lookup]"
             )
         );
     }

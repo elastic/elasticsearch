@@ -20,9 +20,9 @@ public enum Architecture {
     AARCH64("aarch64", "aarch64", "aarch64", "aarch64", "aarch64", "arm64", "linux/arm64");
 
     public final String classifier;
-    public final String dockerPlatform;
     public final String bwcClassifier;
     public final String jdkClassifier;
+    public final String dockerPlatform;
     public final String mlClassifier;
     public final String debianClassifier;
     public final String rpmClassifier;

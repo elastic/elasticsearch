@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.HF_EMBEDDINGS_ADDED;
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.elserConfig;
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.elserResponse;
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.embeddingConfig;

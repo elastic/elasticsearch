@@ -9,8 +9,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.Architecture;
-
 public interface ElasticsearchDistributionType {
 
     String getName();

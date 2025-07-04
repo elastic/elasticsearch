@@ -149,7 +149,8 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
                 Exception.class,
                 () -> runQuery("FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
             );
-            assertThat(ex.getMessage(), containsString(simulatedFailure.getMessage()));
+            String message = ex.getCause() == null ? ex.getMessage() : ex.getCause().getMessage();
+            assertThat(message, containsString(simulatedFailure.getMessage()));
         } finally {
             for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
                 MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);

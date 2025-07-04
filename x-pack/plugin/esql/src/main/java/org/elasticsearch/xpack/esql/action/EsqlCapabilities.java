@@ -1215,7 +1215,9 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+
+        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

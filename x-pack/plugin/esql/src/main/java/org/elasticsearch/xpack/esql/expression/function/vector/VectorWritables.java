@@ -1,0 +1,30 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.vector;
+
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class VectorWritables {
+    public static List<NamedWriteableRegistry.Entry> getNamedWritables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            return List.of(Knn.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(CosineSimilarity.ENTRY);
+        }
+
+        return Collections.unmodifiableList(entries);
+    }
+}

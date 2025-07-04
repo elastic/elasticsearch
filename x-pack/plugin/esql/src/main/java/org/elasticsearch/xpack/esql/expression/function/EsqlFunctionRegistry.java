@@ -179,6 +179,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -487,7 +488,8 @@ public class EsqlFunctionRegistry {
                 def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
-                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") } };
+                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string"),
+                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine_similarity") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -20,8 +20,8 @@ public class RRFRetrieverComponent implements ToXContentObject {
 
     static final float DEFAULT_WEIGHT = 1f;
 
-    RetrieverBuilder retriever;
-    float weight;
+    final RetrieverBuilder retriever;
+    final float weight;
     
     public RRFRetrieverComponent(RetrieverBuilder retrieverBuilder, Float weight) {
         assert retrieverBuilder != null;

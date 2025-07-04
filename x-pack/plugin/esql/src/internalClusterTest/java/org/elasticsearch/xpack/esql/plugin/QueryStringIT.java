@@ -141,7 +141,7 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         var lookupIndexName = "test_lookup";
         createAndPopulateLookupIndex(client, lookupIndexName);
 
-        ensureYellow.accept(new String[]{indexName, lookupIndexName});
+        ensureYellow.accept(new String[] { indexName, lookupIndexName });
     }
 
     public void testWhereQstrWithScoring() {

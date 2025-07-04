@@ -611,6 +611,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/40_knn_search/Dimensions are dynamically set}
   issue: https://github.com/elastic/elasticsearch/issues/130626
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {match-operator.MatchWithMoreComplexDisjunctionAndConjunction SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/130640
 
 # Examples:
 #

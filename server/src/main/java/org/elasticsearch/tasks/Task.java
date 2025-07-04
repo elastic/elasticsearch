@@ -68,7 +68,6 @@ public class Task implements Traceable {
 
     public static final String PARENT_APM_TRACE_CONTEXT = "parent_" + Task.APM_TRACE_CONTEXT;
 
-
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,

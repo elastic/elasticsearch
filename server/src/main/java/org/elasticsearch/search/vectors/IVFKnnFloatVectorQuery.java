@@ -30,17 +30,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * @param field the field to search
      * @param query the query vector
      * @param k the number of nearest neighbors to return
+     * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param nProbe the number of probes to use for the IVF search strategy
      */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, Query filter, int nProbe) {
-        super(field, nProbe, k, filter);
-        if (k < 1) {
-            throw new IllegalArgumentException("k must be at least 1, got: " + k);
-        }
-        if (nProbe < 1) {
-            throw new IllegalArgumentException("nProbe must be at least 1, got: " + nProbe);
-        }
+    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, int nProbe) {
+        super(field, nProbe, k, numCands, filter);
         this.query = query;
     }
 
@@ -85,6 +80,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         KnnCollectorManager knnCollectorManager
     ) throws IOException {
         KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
+        if (knnCollector == null) {
+            return NO_RESULTS;
+        }
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
         if (floatVectorValues == null) {

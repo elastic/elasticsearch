@@ -17,6 +17,7 @@ import org.elasticsearch.core.FixForMultiProject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -56,6 +57,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     private static final Logger logger = LogManager.getLogger(AbstractFileWatchingService.class);
     private static final int REGISTER_RETRY_COUNT = 5;
+    private static final int ACCESS_DENIED_RETRY_COUNT = 5;
     private final Path settingsDir;
     private final Map<Path, FileUpdateState> fileUpdateState = new HashMap<>();
     private WatchService watchService; // null;
@@ -115,20 +117,33 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         return watcherThread != null;
     }
 
-    private FileUpdateState readFileUpdateState(Path path) throws IOException {
-        try {
-            BasicFileAttributes attr = filesReadAttributes(path, BasicFileAttributes.class);
-            return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
-        } catch (NoSuchFileException e) {
-            // file doesn't exist anymore
-            return null;
-        }
+    // package private for testing
+    FileUpdateState readFileUpdateState(Path path) throws IOException, InterruptedException {
+        int retryCount = 0;
+        do {
+            try {
+                BasicFileAttributes attr = filesReadAttributes(path, BasicFileAttributes.class);
+                return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
+            } catch (NoSuchFileException e) {
+                // file doesn't exist anymore
+                return null;
+            } catch (AccessDeniedException e) {
+                // This can happen on Windows when a symlink is deleted for a path while path.toRealPath() is called. In most cases the
+                // symlink is recreated, so retry
+                if (retryCount == ACCESS_DENIED_RETRY_COUNT - 1) {
+                    throw e;
+                }
+                logger.debug("Could not read file state [{}] attempt [{}]", path, retryCount);
+                Thread.sleep(retryDelayMillis(retryCount));
+                retryCount++;
+            }
+        } while (true);
     }
 
     // platform independent way to tell if a file changed
     // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
     @FixForMultiProject // what do we do when a file is removed?
-    final boolean fileChanged(Path path) throws IOException {
+    final boolean fileChanged(Path path) throws IOException, InterruptedException {
         FileUpdateState newFileState = readFileUpdateState(path);
         if (newFileState == null) {
             fileUpdateState.remove(path);

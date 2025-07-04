@@ -57,14 +57,13 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVe
 @SuppressForbidden(reason = "Copied from lucene")
 public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader implements OffHeapStats {
 
-    private static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
-
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(DirectIOLucene99FlatVectorsReader.class);
 
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
 
+    @SuppressWarnings("this-escape")
     public DirectIOLucene99FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);
@@ -86,10 +85,6 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
                 IOUtils.closeWhileHandlingException(this);
             }
         }
-    }
-
-    public static boolean shouldUseDirectIO(SegmentReadState state) {
-        return USE_DIRECT_IO && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
@@ -129,7 +124,8 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
     ) throws IOException {
         String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         // use direct IO for accessing raw vector data for searches
-        IndexInput in = USE_DIRECT_IO && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier did
+        assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
+        IndexInput in = FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier did
             ? did.openInputDirect(fileName, context)
             : state.directory.openInput(fileName, context);
         boolean success = false;

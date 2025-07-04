@@ -1999,8 +1999,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkFieldsWithKeepAfterFork() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-
         assertFieldNames("""
             FROM test
             | WHERE a > 2000
@@ -2013,8 +2011,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkFieldsWithKeepBeforeFork() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-
         assertFieldNames("""
             FROM test
             | KEEP a, b, c, d, x, y
@@ -2027,8 +2023,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkFieldsWithNoProjection() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-
         assertFieldNames("""
             FROM test
             | WHERE a > 2000
@@ -2040,8 +2034,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkFieldsWithStatsInOneBranch() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-
         assertFieldNames("""
             FROM test
             | WHERE a > 2000
@@ -2053,9 +2045,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkFieldsWithEnrichAndLookupJoins() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
         assertFieldNames("""
             FROM test
             | KEEP a, b, abc, def, z, xyz
@@ -2070,8 +2059,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkWithStatsInAllBranches() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-
         assertFieldNames("""
             FROM test
             | WHERE a > 2000
@@ -2084,8 +2071,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testForkWithStatsAndWhere() {
-        assumeTrue("FORK available as snapshot only", EsqlCapabilities.Cap.FORK.isEnabled());
-
         assertFieldNames(" FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )", ALL_FIELDS);
     }
 

@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +28,6 @@ import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -48,6 +48,7 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -161,12 +162,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     many.run();
                 }
             }
-            if (Assertions.ENABLED) {
-                for (int f = 0; f < fields.length; f++) {
-                    assert blocks[f].elementType() == ElementType.NULL || blocks[f].elementType() == fields[f].info.type
-                        : blocks[f].elementType() + " NOT IN (NULL, " + fields[f].info.type + ")";
-                }
-            }
             success = true;
             for (Block b : blocks) {
                 valuesLoaded += b.getTotalValueCount();
@@ -233,6 +228,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
                     blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
+                    sanityCheckBlock(columnAtATime, docs.count(), blocks[f], f);
                 } else {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
@@ -282,6 +278,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             for (RowStrideReaderWork work : rowStrideReaders) {
                 blocks[work.offset] = work.build();
+                sanityCheckBlock(work.reader, docs.count(), blocks[work.offset], work.offset);
             }
         } finally {
             Releasables.close(rowStrideReaders);
@@ -385,6 +382,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 try (Block targetBlock = fieldTypeBuilders[f].build()) {
                     target[f] = targetBlock.filter(backwards);
                 }
+                sanityCheckBlock(rowStride[f], docs.getPositionCount(), target[f], f);
             }
         }
 
@@ -533,7 +531,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     private LeafReaderContext ctx(int shard, int segment) {
-        return shardContexts.get(shard).reader.leaves().get(segment);
+        return shardContexts.get(shard).reader().leaves().get(segment);
     }
 
     @Override
@@ -559,6 +557,40 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     @Override
     protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
         return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
+    }
+
+    /**
+     * Quick checks for on the loaded block to make sure it looks reasonable.
+     * @param loader the object that did the loading - we use it to make error messages if the block is busted
+     * @param expectedPositions how many positions the block should have - it's as many as the incoming {@link Page} has
+     * @param block the block to sanity check
+     * @param field offset into the {@link #fields} array for the block being loaded
+     */
+    private void sanityCheckBlock(Object loader, int expectedPositions, Block block, int field) {
+        if (block.getPositionCount() != expectedPositions) {
+            throw new IllegalStateException(
+                sanityCheckBlockErrorPrefix(loader, block, field)
+                    + " has ["
+                    + block.getPositionCount()
+                    + "] positions instead of ["
+                    + expectedPositions
+                    + "]"
+            );
+        }
+        if (block.elementType() != ElementType.NULL && block.elementType() != fields[field].info.type) {
+            throw new IllegalStateException(
+                sanityCheckBlockErrorPrefix(loader, block, field)
+                    + "'s element_type ["
+                    + block.elementType()
+                    + "] NOT IN (NULL, "
+                    + fields[field].info.type
+                    + ")"
+            );
+        }
+    }
+
+    private String sanityCheckBlockErrorPrefix(Object loader, Block block, int field) {
+        return fields[field].info.name + "[" + loader + "]: " + block;
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -587,16 +619,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         Status(StreamInput in) throws IOException {
             super(in);
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
-            valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
+            valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(readersBuilt, StreamOutput::writeVInt);
-            if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+            if (supportsValuesLoaded(out.getTransportVersion())) {
                 out.writeVLong(valuesLoaded);
             }
+        }
+
+        private static boolean supportsValuesLoaded(TransportVersion version) {
+            return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
+                || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
         }
 
         @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -201,7 +202,23 @@ public final class RemoteClusterService extends RemoteClusterAware
         boolean returnLocalAll
     ) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
-        final Map<String, List<String>> groupedIndices = groupClusterIndices(remoteClusterNames, indices);
+        final Map<String, List<String>> groupedIndices;
+        /*
+         * returnLocalAll is used to control whether we'd like to fallback to the local cluster.
+         * While this is acceptable in a few cases, there are cases where we should not fallback to the local
+         * cluster. Consider _resolve/cluster where the specified patterns do not match any remote clusters.
+         * Falling back to the local cluster and returning its details in such cases is not ok. This is why
+         * TransportResolveClusterAction sets returnLocalAll to false wherever it uses groupIndices().
+         *
+         * If such a fallback isn't allowed and the given indices match a pattern whose semantics mean that
+         * it's ok to return an empty result (denoted via ["*", "-*"]), empty groupIndices.
+         */
+        if (returnLocalAll == false && IndexNameExpressionResolver.isNoneExpression(indices)) {
+            groupedIndices = Map.of();
+        } else {
+            groupedIndices = groupClusterIndices(remoteClusterNames, indices);
+        }
+
         if (groupedIndices.isEmpty()) {
             if (returnLocalAll) {
                 // search on _all in the local cluster if neither local indices nor remote indices were specified

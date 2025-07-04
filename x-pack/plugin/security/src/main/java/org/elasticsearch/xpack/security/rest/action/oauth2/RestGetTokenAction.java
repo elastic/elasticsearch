@@ -144,10 +144,10 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
                 sendTokenErrorResponse(error, validationException.getMessage(), e);
             } else if (e instanceof ElasticsearchSecurityException
                 && "invalid_grant".equals(e.getMessage())
-                && ((ElasticsearchSecurityException) e).getHeader("error_description").size() == 1) {
+                && ((ElasticsearchSecurityException) e).getBodyHeader("error_description").size() == 1) {
                     sendTokenErrorResponse(
                         TokenRequestError.INVALID_GRANT,
-                        ((ElasticsearchSecurityException) e).getHeader("error_description").get(0),
+                        ((ElasticsearchSecurityException) e).getBodyHeader("error_description").get(0),
                         e
                     );
                 } else if (e instanceof ElasticsearchSecurityException
@@ -164,7 +164,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
         private static String extractBase64EncodedToken(ElasticsearchSecurityException e) {
             String base64EncodedToken = null;
-            List<String> values = e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
+            List<String> values = e.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
             if (values != null && values.size() == 1) {
                 final String wwwAuthenticateHeaderValue = values.get(0);
                 // it may contain base64 encoded token that needs to be sent to client if Spnego GSS context negotiation failed

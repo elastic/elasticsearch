@@ -51,6 +51,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -187,22 +188,30 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
             query = ((VectorSimilarityQuery) query).getInnerKnnQuery();
         }
-        Integer k = queryBuilder.k();
-        if (k == null) {
+        int k;
+        if (queryBuilder.k() == null) {
             k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
+        } else {
+            k = queryBuilder.k();
         }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             if (queryBuilder.rescoreVectorBuilder().oversample() > 0) {
                 RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-                assertEquals(k.intValue(), (rescoreQuery.k()));
+                assertEquals(k, (rescoreQuery.k()));
                 query = rescoreQuery.innerQuery();
             } else {
                 assertFalse(query instanceof RescoreKnnVectorQuery);
             }
         }
         switch (elementType()) {
-            case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);
-            case BYTE -> assertTrue(query instanceof ESKnnByteVectorQuery);
+            case FLOAT -> assertThat(
+                query,
+                anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
+            );
+            case BYTE -> assertThat(
+                query,
+                anyOf(instanceOf(ESKnnByteVectorQuery.class), instanceOf(DenseVectorQuery.Bytes.class), instanceOf(BooleanQuery.class))
+            );
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -213,7 +222,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            Float oversample = queryBuilder.rescoreVectorBuilder().oversample();
+            float oversample = queryBuilder.rescoreVectorBuilder().oversample();
             k = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * oversample));
             numCands = Math.max(numCands, k);
         }
@@ -242,10 +251,34 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 expectedStrategy
             );
         };
+
+        Query bruteForceVectorQueryBuilt = switch (elementType()) {
+            case BIT, BYTE -> {
+                if (filterQuery != null) {
+                    yield new BooleanQuery.Builder().add(
+                        new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD),
+                        BooleanClause.Occur.SHOULD
+                    ).add(filterQuery, BooleanClause.Occur.FILTER).build();
+                } else {
+                    yield new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD);
+                }
+            }
+            case FLOAT -> {
+                if (filterQuery != null) {
+                    yield new BooleanQuery.Builder().add(
+                        new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD),
+                        BooleanClause.Occur.SHOULD
+                    ).add(filterQuery, BooleanClause.Occur.FILTER).build();
+                } else {
+                    yield new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD);
+                }
+            }
+        };
+
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();
         }
-        assertEquals(query, knnVectorQueryBuilt);
+        assertThat(query, anyOf(equalTo(knnVectorQueryBuilt), equalTo(bruteForceVectorQueryBuilt)));
     }
 
     public void testWrongDimension() {

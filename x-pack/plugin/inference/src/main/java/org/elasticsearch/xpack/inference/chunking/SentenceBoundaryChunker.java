@@ -211,26 +211,7 @@ public class SentenceBoundaryChunker implements Chunker {
     }
 
     private int countWords(int start, int end) {
-        return countWords(start, end, this.wordIterator);
-    }
-
-    // Exposed for testing. wordIterator should have had
-    // setText() applied before using this function.
-    static int countWords(int start, int end, BreakIterator wordIterator) {
-        assert start < end;
-        wordIterator.preceding(start); // start of the current word
-
-        int boundary = wordIterator.current();
-        int wordCount = 0;
-        while (boundary != BreakIterator.DONE && boundary <= end) {
-            int wordStatus = wordIterator.getRuleStatus();
-            if (wordStatus != BreakIterator.WORD_NONE) {
-                wordCount++;
-            }
-            boundary = wordIterator.next();
-        }
-
-        return wordCount;
+        return ChunkerUtils.countWords(start, end, this.wordIterator);
     }
 
     private static int overlapForChunkSize(int chunkSize) {

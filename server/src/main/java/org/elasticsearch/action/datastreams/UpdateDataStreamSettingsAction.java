@@ -83,7 +83,8 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super(in);
             this.dataStreamNames = in.readStringArray();
             this.settings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
                 this.dryRun = in.readBoolean();
             } else {
                 this.dryRun = false;
@@ -95,7 +96,8 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super.writeTo(out);
             out.writeStringArray(dataStreamNames);
             settings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
                 out.writeBoolean(dryRun);
             }
         }

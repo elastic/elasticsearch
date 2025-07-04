@@ -193,7 +193,6 @@ public class PushTopNToSourceTests extends ESTestCase {
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114515")
     public void testPartiallyPushableSort() {
         // FROM index | EVAL sum = 1 + integer | SORT integer, sum, field | LIMIT 10
         var query = from("index").eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").sort("sum").sort("field").limit(10);
@@ -452,7 +451,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             String name = ((Attribute) expectedSorts.get(i).child()).name();
             EsQueryExec.Sort sort = sorts.get(i);
             if (sort.field() != null) {
-                String fieldName = sort.field().fieldName();
+                String fieldName = sort.field().fieldName().string();
                 assertThat("Expect sort[" + i + "] name to match", fieldName, is(sortName(name, fieldMap)));
             }
             assertThat("Expect sort[" + i + "] direction to match", sort.direction(), is(expectedSorts.get(i).direction()));

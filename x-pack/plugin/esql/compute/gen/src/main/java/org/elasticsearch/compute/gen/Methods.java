@@ -38,6 +38,9 @@ import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR_FIXED_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
@@ -216,6 +219,9 @@ public class Methods {
         if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "appendDouble";
         }
+        if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
+            return "appendFloat";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
@@ -266,6 +272,15 @@ public class Methods {
         if (t.equals(DOUBLE_VECTOR_FIXED_BUILDER)) {
             return "newDoubleVectorFixedBuilder";
         }
+        if (t.equals(FLOAT_BLOCK_BUILDER)) {
+            return "newFloatBlockBuilder";
+        }
+        if (t.equals(FLOAT_VECTOR_BUILDER)) {
+            return "newFloatVectorBuilder";
+        }
+        if (t.equals(FLOAT_VECTOR_FIXED_BUILDER)) {
+            return "newFloatVectorFixedBuilder";
+        }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }
 
@@ -288,6 +303,9 @@ public class Methods {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return "getDouble";
+        }
+        if (elementType.equals(TypeName.FLOAT)) {
+            return "getFloat";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

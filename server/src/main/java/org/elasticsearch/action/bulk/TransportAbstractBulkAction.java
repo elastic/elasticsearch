@@ -68,8 +68,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private final IngestService ingestService;
     private final IngestActionForwarder ingestForwarder;
     protected final LongSupplier relativeTimeNanosProvider;
-    protected final Executor writeExecutor;
-    protected final Executor systemWriteExecutor;
+    protected final Executor coordinationExecutor;
+    protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
 
     public TransportAbstractBulkAction(
@@ -92,8 +92,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         this.projectResolver = projectResolver;
-        this.writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
-        this.systemWriteExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        this.coordinationExecutor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
+        this.systemCoordinationExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
         this.ingestForwarder = new IngestActionForwarder(transportService);
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
@@ -106,8 +106,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
          * This is called on the Transport thread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport
          * thread busy. Then, as soon as we have the indexing pressure in we fork
-         * to one of the write thread pools. We do this because juggling the
-         * bulk request can get expensive for a few reasons:
+         * to the coordinator thread pool for coordination tasks. We do this because
+         * juggling the bulk request can get expensive for a few reasons:
          * 1. Figuring out which shard should receive a bulk request might require
          *    parsing the _source.
          * 2. When dispatching the sub-requests to shards we may have to compress
@@ -131,7 +131,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
-        final Executor executor = isOnlySystem ? systemWriteExecutor : writeExecutor;
+        // Use coordinationExecutor for dispatching coordination tasks
+        final Executor executor = isOnlySystem ? systemCoordinationExecutor : coordinationExecutor;
         ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
     }
 
@@ -142,7 +143,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         ActionListener<BulkResponse> releasingListener
     ) {
         final ClusterState initialState = clusterService.state();
-        final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        ProjectId projectId = projectResolver.getProjectId();
+        final ClusterBlockException blockException = initialState.blocks().globalBlockedException(projectId, ClusterBlockLevel.WRITE);
         if (blockException != null) {
             if (false == blockException.retryable()) {
                 releasingListener.onFailure(blockException);
@@ -171,7 +173,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 public void onTimeout(TimeValue timeout) {
                     releasingListener.onFailure(blockException);
                 }
-            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
+            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(projectId, ClusterBlockLevel.WRITE));
         } else {
             forkAndExecute(task, bulkRequest, executor, releasingListener);
         }
@@ -295,6 +297,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     ) {
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        final Thread originalThread = Thread.currentThread();
         getIngestService(original).executeBulkRequest(
             metadata.id(),
             original.numberOfActions(),
@@ -303,49 +306,42 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             (indexName) -> resolveFailureStore(indexName, metadata, threadPool.absoluteTimeInMillis()),
             bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
-            (originalThread, exception) -> {
-                if (exception != null) {
-                    logger.debug("failed to execute pipeline for a bulk request", exception);
-                    listener.onFailure(exception);
+            listener.delegateFailureAndWrap((l, unused) -> {
+                long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
+                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, l);
+                if (bulkRequest.requests().isEmpty()) {
+                    // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                    // so we stop and send an empty response back to the client.
+                    // (this will happen if pre-processing all items in the bulk failed)
+                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                 } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
-                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
-                        ingestTookInMillis,
-                        listener
-                    );
-                    if (bulkRequest.requests().isEmpty()) {
-                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                        // so we stop and send an empty response back to the client.
-                        // (this will happen if pre-processing all items in the bulk failed)
-                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
-                    } else {
-                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
-                            @Override
-                            protected void doRun() throws IOException {
-                                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
-                            }
-
-                            @Override
-                            public boolean isForceExecution() {
-                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
-                                // (Otherwise the work done during ingest will be lost)
-                                // It is okay to force execution here. Throttling of write requests happens prior to
-                                // ingest when a node receives a bulk request.
-                                return true;
-                            }
-                        };
-                        // If a processor went async and returned a response on a different thread then
-                        // before we continue the bulk request we should fork back on a write thread:
-                        if (originalThread == Thread.currentThread()) {
-                            runnable.run();
-                        } else {
-                            executor.execute(runnable);
+                    ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                        @Override
+                        protected void doRun() throws IOException {
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                         }
+
+                        @Override
+                        public boolean isForceExecution() {
+                            // If we fork back to a coordination thread we **not** should fail, because tp queue is full.
+                            // (Otherwise the work done during ingest will be lost)
+                            // It is okay to force execution here. Throttling of write requests happens prior to
+                            // ingest when a node receives a bulk request.
+                            return true;
+                        }
+                    };
+                    // If a processor went async and returned a response on a different thread then
+                    // before we continue the bulk request we should fork back on a coordination thread. Otherwise it is fine to perform
+                    // coordination steps on the write thread
+                    if (originalThread == Thread.currentThread()) {
+                        runnable.run();
+                    } else {
+                        executor.execute(runnable);
                     }
                 }
-            },
-            executor
+
+            })
         );
     }
 

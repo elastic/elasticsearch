@@ -43,6 +43,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -959,13 +960,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     public void testStopWorksWithNoOpenRequests() {
         var grace = SHORT_GRACE_PERIOD_MS;
         try (var noWait = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
-            final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
-                @Override
-                public Map<String, List<String>> getHeaders() {
-                    // close connection before shutting down
-                    return Map.of(CONNECTION, List.of(CLOSE));
-                }
-            };
+            final TestHttpRequest httpRequest = new TestHttpRequest(
+                HttpRequest.HttpVersion.HTTP_1_1,
+                RestRequest.Method.GET,
+                "/",
+                Map.of(CONNECTION, List.of(CLOSE))
+            );
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(httpRequest, httpChannel);
@@ -1183,7 +1183,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
             TestProjectResolvers.alwaysThrow()
         );
     }

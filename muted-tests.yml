@@ -590,6 +590,9 @@ tests:
 - class: org.elasticsearch.gradle.LoggedExecFuncTest
   method: failed tasks output logged to console when spooling true
   issue: https://github.com/elastic/elasticsearch/issues/119509
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyFromRow ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/130642
 
 # Examples:
 #

@@ -445,24 +445,25 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        boolean enableRecoverySource = context.indexSettings().isRecoverySourceEnabled();
-        if (enableRecoverySource && (stored() == false || adaptedStoredSource != storedSource)) {
-            if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
-                assert isSynthetic() : "recovery source should not be disabled on non-synthetic source";
-                /**
-                 * We use synthetic source for recovery, so we omit the recovery source.
-                 * Instead, we record only the size of the uncompressed source.
-                 * This size is used in {@link LuceneSyntheticSourceChangesSnapshot} to control memory
-                 * usage during the recovery process when loading a batch of synthetic sources.
-                 */
-                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
-            } else {
-                // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-                var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
-                context.doc()
-                    .add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
-                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
-            }
+        if (context.indexSettings().isRecoverySourceEnabled() == false) {
+            // Recovery source is disabled; skip adding recovery source fields.
+            return;
+        }
+
+        if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+            assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+            // Synthetic source recovery is enabled; omit the full recovery source.
+            // Instead, store only the size of the uncompressed original source.
+            // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
+            // when loading batches of synthetic sources during recovery.
+            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
+        } else if (stored() == false || adaptedStoredSource != storedSource) {
+            // If the source is missing (due to synthetic source or disabled mode)
+            // or has been altered (via source filtering), store a reduced recovery source.
+            // This includes the original source with synthetic vector fields removed for operation-based recovery.
+            var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
+            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
+            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }
     }
 

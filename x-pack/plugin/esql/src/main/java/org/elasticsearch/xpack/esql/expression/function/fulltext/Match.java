@@ -13,10 +13,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
@@ -50,7 +47,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
@@ -396,48 +392,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, () -> field, failures);
+            fieldVerifier(plan, this, field, failures);
         };
-    }
-
-    public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Supplier<Expression> fieldSupplier, Failures failures) {
-        var field = fieldSupplier.get();
-        var fieldAttribute = fieldAsFieldAttribute(field);
-        if (fieldAttribute == null) {
-            plan.forEachExpression(function.getClass(), m -> {
-                if (function.children().contains(field)) {
-                    failures.add(
-                        Failure.fail(
-                            field,
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            m.functionName(),
-                            m.functionType(),
-                            field.sourceText()
-                        )
-                    );
-                }
-            });
-        } else {
-            // Traverse the plan to find the EsRelation outputting the field
-            plan.forEachDown(p -> {
-                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
-                    // Check if this EsRelation supplies the field
-                    if (esRelation.output().stream().anyMatch(attr -> attr.id().equals(fieldAttribute.id()))) {
-                        failures.add(
-                            Failure.fail(
-                                field,
-                                "[{}] {} cannot operate on [{}], supplied by an index [{}] in non-STANDARD mode [{}]",
-                                function.functionName(),
-                                function.functionType(),
-                                field.sourceText(),
-                                esRelation.indexPattern(),
-                                esRelation.indexMode()
-                            )
-                        );
-                    }
-                }
-            });
-        }
     }
 
     @Override

@@ -249,7 +249,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            Match.fieldVerifier(plan, this, () -> field, failures);
+            FullTextFunction.fieldVerifier(plan, this, field, failures);
         };
     }
 

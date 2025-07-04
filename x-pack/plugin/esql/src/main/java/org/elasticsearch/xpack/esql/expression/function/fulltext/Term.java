@@ -38,7 +38,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.expression.function.fulltext.Match.fieldVerifier;
 
 /**
  * Full text function that performs a {@link TermQuery} .
@@ -112,7 +111,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, () -> field, failures);
+            fieldVerifier(plan, this, field, failures);
         };
     }
 

@@ -566,6 +566,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/130205
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text single fvh source order}
+  issue: https://github.com/elastic/elasticsearch/issues/130657
 
 # Examples:
 #

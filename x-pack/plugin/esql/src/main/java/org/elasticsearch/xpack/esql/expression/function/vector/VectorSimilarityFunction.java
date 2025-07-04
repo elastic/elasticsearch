@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -59,11 +61,11 @@ abstract class VectorSimilarityFunction extends EsqlScalarFunction implements Ve
             return new TypeResolution("Unresolved children");
         }
 
-        return checkDenseVectorParam(left()).and(checkDenseVectorParam(right()));
+        return checkDenseVectorParam(left(), FIRST).and(checkDenseVectorParam(right(), SECOND));
     }
 
-    private TypeResolution checkDenseVectorParam(Expression param) {
-        return isNotNull(param, sourceText(), FIRST).and(isType(param, dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
+    private TypeResolution checkDenseVectorParam(Expression param, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return isNotNull(param, sourceText(), paramOrdinal).and(isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector"));
     }
 
     @Override

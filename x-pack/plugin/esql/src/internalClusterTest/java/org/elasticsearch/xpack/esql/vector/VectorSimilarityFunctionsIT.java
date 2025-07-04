@@ -53,7 +53,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCosineSimilarityBetweenVectors() {
+    public void testSimilarityBetweenVectors() {
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, right_vector)
@@ -75,7 +75,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCosineSimilarityBetweenConstantVectorAndField() {
+    public void testSimilarityBetweenConstantVectorAndField() {
         var randomVector = randomVectorArray();
         var query = String.format(Locale.ROOT, """
                 FROM test
@@ -97,7 +97,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCosineSimilarityBetweenConstantVectors() {
+    public void testSimilarityBetweenConstantVectors() {
         var vectorLeft = randomVectorArray();
         var vectorRight = randomVectorArray();
         var query = String.format(Locale.ROOT, """

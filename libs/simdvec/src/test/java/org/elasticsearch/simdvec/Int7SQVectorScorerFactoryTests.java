@@ -22,6 +22,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
@@ -47,8 +48,7 @@ import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-public class VectorScorerFactoryTests extends AbstractVectorTestCase {
+public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;
@@ -107,7 +107,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         scorer.setScoringOrdinal(0);
                         assertThat(scorer.score(1), equalTo(expected));
 
-                        if (Runtime.version().feature() >= 22) {
+                        if (supportsHeapSegments()) {
                             var qScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(sim), values, query1).get();
                             assertThat(qScorer.score(1), equalTo(expected));
                         }
@@ -229,11 +229,11 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, VectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, VectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
@@ -459,6 +459,19 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
+    }
+
+    /** Computes the score using the Lucene implementation. */
+    public static float luceneScore(
+        VectorSimilarityType similarityFunc,
+        byte[] a,
+        byte[] b,
+        float correction,
+        float aOffsetValue,
+        float bOffsetValue
+    ) {
+        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityType.of(similarityFunc), correction, (byte) 7);
+        return scorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
     RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim) throws IOException {

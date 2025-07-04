@@ -88,7 +88,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     public void testDeleteSnapshotting() {
         String indexName = randomAlphaOfLength(5);
-        Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
+        final ProjectId projectId = randomProjectIdOrDefault();
+        Snapshot snapshot = new Snapshot(projectId, "doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
             SnapshotsInProgress.Entry.snapshot(
                 snapshot,
@@ -107,7 +108,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             )
         );
         final Index index = new Index(indexName, randomUUID());
-        ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
+        ClusterState state = ClusterState.builder(clusterState(projectId, index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
         Exception e = expectThrows(
             SnapshotInProgressException.class,
             () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(index), Settings.EMPTY)
@@ -125,9 +126,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         // Create an unassigned index
         String indexName = randomAlphaOfLength(5);
         Index index = new Index(indexName, randomUUID());
-        ClusterState before = clusterState(index);
-
-        final var projectId = before.metadata().projectFor(index).id();
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState before = clusterState(projectId, index);
 
         // Mock the built reroute
         when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(i -> i.getArguments()[0]);
@@ -433,11 +433,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(after.metadata().projects(), aMapWithSize(numProjects));
     }
 
-    private ClusterState clusterState(Index index) {
+    private ClusterState clusterState(ProjectId projectId, Index index) {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersionUtils.randomVersion(), index.getUUID(), 1, 1))
             .build();
-        final ProjectId projectId = randomProjectIdOrDefault();
         final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
 
         if (randomBoolean()) {
@@ -454,7 +453,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata))
             .build();
     }
 }

@@ -21,7 +21,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollectorManager;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
@@ -199,14 +198,14 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
     }
 
     /**
-     * Sets the reader context to enable reading metadata that was removed from the {@code _source}.
+     * Sets the reader context to enable reading synthetic fields that were removed from the {@code _source}.
      * This method sets up the {@code sourceMetadataFetcher} with the provided {@link LeafReaderContext},
      * ensuring it is ready to fetch metadata for subsequent operations.
      *
-     * <p>Note: This method should be called before {@link #addSourceMetadata(BytesReference, int)} at the start of every leaf
+     * <p>Note: This method should be called before {@link #addSyntheticFields(Source, int)} at the start of every leaf
      * to ensure the metadata fetcher is properly initialized.</p>
      */
-    protected void setNextSourceMetadataReader(LeafReaderContext context) {
+    protected void setNextSyntheticFieldsReader(LeafReaderContext context) throws IOException {
         if (sourceMetadataFetcher != null) {
             sourceMetadataFetcher.setNextReader(context);
         }
@@ -214,27 +213,25 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
 
     /**
      * Creates a new {@link Source} object by combining the provided {@code originalSource}
-     * with additional metadata fields. If the {@code sourceMetadataFetcher} is null or no metadata
+     * with additional synthetic fields. If the {@code sourceMetadataFetcher} is null or no metadata
      * fields are fetched, the original source is returned unchanged.
      *
-     * @param originalSourceBytes the original source bytes
+     * @param originalSource the original source
      * @param segmentDocID the document ID used to fetch metadata fields
      * @return a new {@link Source} instance containing the original data and additional metadata,
      *         or the original source if no metadata is added
-     * @throws IOException if an error occurs while fetching metadata values
+     * @throws IOException if an error occurs while fetching synthetic values
      */
-    protected BytesReference addSourceMetadata(BytesReference originalSourceBytes, int segmentDocID) throws IOException {
+    protected Source addSyntheticFields(Source originalSource, int segmentDocID) throws IOException {
         if (sourceMetadataFetcher == null) {
-            return originalSourceBytes;
+            return originalSource;
         }
-        var originalSource = Source.fromBytes(originalSourceBytes);
         List<Object> values = sourceMetadataFetcher.fetchValues(originalSource, segmentDocID, List.of());
         if (values.isEmpty()) {
-            return originalSourceBytes;
+            return originalSource;
         }
-        var map = originalSource.source();
-        map.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(map, originalSource.sourceContentType()).internalSourceRef();
+        originalSource.source().put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+        return Source.fromMap(originalSource.source(), originalSource.sourceContentType());
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

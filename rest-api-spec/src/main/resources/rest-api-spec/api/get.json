@@ -68,6 +68,10 @@
         "type":"list",
         "description":"A list of fields to extract and return from the _source field"
       },
+      "_source_exclude_vectors":{
+        "type":"boolean",
+        "description":"Whether vectors should be excluded from _source"
+      },
       "version":{
         "type":"number",
         "description":"Explicit version number for concurrency control"

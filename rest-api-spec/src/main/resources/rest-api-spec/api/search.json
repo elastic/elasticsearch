@@ -155,6 +155,10 @@
         "type":"list",
         "description":"A list of fields to extract and return from the _source field"
       },
+      "_source_exclude_vectors":{
+        "type":"boolean",
+        "description":"Whether vectors should be excluded from _source"
+      },
       "terminate_after":{
         "type":"number",
         "description":"The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."

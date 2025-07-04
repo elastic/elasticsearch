@@ -15,12 +15,14 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.parsers.DocumentBuilder;
@@ -51,6 +53,9 @@ public final class XmlProcessor extends AbstractProcessor {
     public static final String TYPE = "xml";
     
     private static final XPathFactory XPATH_FACTORY = XPathFactory.newInstance();
+    
+    // Pre-compiled pattern to detect namespace prefixes
+    private static final Pattern NAMESPACE_PATTERN = Pattern.compile(".*\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*.*");
     
     // Pre-configured SAX parser factories for secure XML parsing
     private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
@@ -383,16 +388,14 @@ public final class XmlProcessor extends AbstractProcessor {
             });
         }
         
-        // Pre-compiled pattern to detect namespace prefixes
-        java.util.regex.Pattern namespacePattern = 
-            java.util.regex.Pattern.compile(".*\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*.*");
+        // Use pre-compiled pattern to detect namespace prefixes
         
         for (Map.Entry<String, String> entry : xpathExpressions.entrySet()) {
             String xpathExpression = entry.getKey();
             String targetFieldName = entry.getValue();
             
             // Validate namespace prefixes if no namespaces are configured
-            if (!hasNamespaces && namespacePattern.matcher(xpathExpression).matches()) {
+            if (!hasNamespaces && NAMESPACE_PATTERN.matcher(xpathExpression).matches()) {
                 throw new IllegalArgumentException(
                     "Invalid XPath expression [" + xpathExpression + "]: contains namespace prefixes but no namespace configuration provided"
                 );
@@ -476,7 +479,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
             // Parse parse_options parameter
             String parseOptions = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "parse_options", "");
-            if (parseOptions != null && parseOptions != "" && !"strict".equals(parseOptions)) {
+            if (parseOptions != null && !parseOptions.isEmpty() && !"strict".equals(parseOptions)) {
                 throw new IllegalArgumentException("Invalid parse_options [" + parseOptions + "]. Only 'strict' is supported.");
             }
 
@@ -528,7 +531,7 @@ public final class XmlProcessor extends AbstractProcessor {
         // Use enhanced handler that can build DOM during streaming when needed
         XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);
         
-        parser.parse(new java.io.ByteArrayInputStream(xmlString.getBytes("UTF-8")), handler);
+        parser.parse(new java.io.ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
         
         // Store structured result if needed
         if (storeXml) {
@@ -926,10 +929,11 @@ public final class XmlProcessor extends AbstractProcessor {
      * @return the appropriate SAX parser factory for the current configuration
      */
     private javax.xml.parsers.SAXParserFactory selectSaxParserFactory() {
+        boolean needsNamespaceAware = hasNamespaces() || removeNamespaces;
         if (isStrict()) {
-            return hasNamespaces() ? SAX_PARSER_FACTORY_NS_STRICT : SAX_PARSER_FACTORY_STRICT;
+            return needsNamespaceAware ? SAX_PARSER_FACTORY_NS_STRICT : SAX_PARSER_FACTORY_STRICT;
         } else {
-            return hasNamespaces() ? SAX_PARSER_FACTORY_NS : SAX_PARSER_FACTORY;
+            return needsNamespaceAware ? SAX_PARSER_FACTORY_NS : SAX_PARSER_FACTORY;
         }
     }
 }

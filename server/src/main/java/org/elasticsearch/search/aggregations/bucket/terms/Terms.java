@@ -44,9 +44,5 @@ public interface Terms extends MultiBucketsAggregation {
      */
     Long getDocCountError();
 
-    /**
-     * Return the sum of the document counts of all buckets that did not make
-     * it to the top buckets.
-     */
     long getSumOfOtherDocCounts();
 }

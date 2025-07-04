@@ -86,14 +86,17 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         boolQueryBuilder.should(
             createSubQueryForIndices(
                 indexInformation.nonInferenceIndices(),
-                createSubQueryForIndices(indexInformation.nonInferenceIndices(), new SparseVectorQueryBuilder(
-                    sparseVectorQueryBuilder.getFieldName(),
-                    sparseVectorQueryBuilder.getQueryVectors(),
-                    sparseVectorQueryBuilder.getInferenceId(),
-                    sparseVectorQueryBuilder.getQuery(),
-                    sparseVectorQueryBuilder.shouldPruneTokens(),
-                    sparseVectorQueryBuilder.getTokenPruningConfig()
-                ))
+                createSubQueryForIndices(
+                    indexInformation.nonInferenceIndices(),
+                    new SparseVectorQueryBuilder(
+                        sparseVectorQueryBuilder.getFieldName(),
+                        sparseVectorQueryBuilder.getQueryVectors(),
+                        sparseVectorQueryBuilder.getInferenceId(),
+                        sparseVectorQueryBuilder.getQuery(),
+                        sparseVectorQueryBuilder.shouldPruneTokens(),
+                        sparseVectorQueryBuilder.getTokenPruningConfig()
+                    )
+                )
             )
         );
         // We always perform nested subqueries on semantic_text fields, to support

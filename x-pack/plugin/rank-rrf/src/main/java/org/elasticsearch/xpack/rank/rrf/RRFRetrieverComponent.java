@@ -14,7 +14,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class RRFRetrieverComponent implements ToXContentObject {
-    
+
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
 
@@ -22,7 +22,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
 
     final RetrieverBuilder retriever;
     final float weight;
-    
+
     public RRFRetrieverComponent(RetrieverBuilder retrieverBuilder, Float weight) {
         assert retrieverBuilder != null;
         this.retriever = retrieverBuilder;
@@ -38,7 +38,6 @@ public class RRFRetrieverComponent implements ToXContentObject {
         builder.field(WEIGHT_FIELD.getPreferredName(), weight);
         return builder;
     }
-
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<RRFRetrieverComponent, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(

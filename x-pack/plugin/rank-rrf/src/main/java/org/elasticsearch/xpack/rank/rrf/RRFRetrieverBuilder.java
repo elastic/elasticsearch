@@ -75,7 +75,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
             List<RetrieverSource> innerRetrievers = new ArrayList<>(rawRetrievers.size());
             float[] weights = new float[rawRetrievers.size()];
-            
+
             int weightIndex = 0;
             for (Object retrieverOrComponent : rawRetrievers) {
                 if (retrieverOrComponent instanceof RRFRetrieverComponent component) {
@@ -93,29 +93,26 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     );
 
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(),
-            (p, c) -> {
-                List<Object> list = new ArrayList<>();
-                while (p.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (p.currentToken() == XContentParser.Token.START_OBJECT &&
-                        p.nextToken() == XContentParser.Token.FIELD_NAME &&
-                        RRFRetrieverComponent.RETRIEVER_FIELD.match(p.currentName(), p.getDeprecationHandler())) {
-                        // Handle wrapped retriever with weight
-                        list.add(RRFRetrieverComponent.fromXContent(p, c));
-                    } else {
-                        // Handle bare retriever (legacy format)
-                        String name = p.currentName();
-                        RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
-                        c.trackRetrieverUsage(retrieverBuilder.getName());
-                        p.nextToken();
-                        list.add(retrieverBuilder);
-                    }
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
+            List<Object> list = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (p.currentToken() == XContentParser.Token.START_OBJECT
+                    && p.nextToken() == XContentParser.Token.FIELD_NAME
+                    && RRFRetrieverComponent.RETRIEVER_FIELD.match(p.currentName(), p.getDeprecationHandler())) {
+                    // Handle wrapped retriever with weight
+                    list.add(RRFRetrieverComponent.fromXContent(p, c));
+                } else {
+                    // Handle bare retriever (legacy format)
+                    String name = p.currentName();
+                    RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
+                    c.trackRetrieverUsage(retrieverBuilder.getName());
+                    p.nextToken();
+                    list.add(retrieverBuilder);
                 }
-                return list;
-            },
-            RETRIEVERS_FIELD
-        );
-        
+            }
+            return list;
+        }, RETRIEVERS_FIELD);
+
         PARSER.declareStringArray(optionalConstructorArg(), FIELDS_FIELD);
         PARSER.declareString(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
@@ -200,7 +197,14 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     @Override
     protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
-        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.fields, this.query, this.rankWindowSize, this.rankConstant, this.weights);
+        RRFRetrieverBuilder clone = new RRFRetrieverBuilder(
+            newRetrievers,
+            this.fields,
+            this.query,
+            this.rankWindowSize,
+            this.rankConstant,
+            this.weights
+        );
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
         clone.retrieverName = retrieverName;
         return clone;
@@ -290,7 +294,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                     List<RetrieverSource> retrievers = new ArrayList<>(r.size());
                     float[] weights = new float[r.size()];
                     int i = 0;
-                    for(var retriever: r) {
+                    for (var retriever : r) {
                         retrievers.add(retriever.retrieverSource());
                         weights[i++] = retriever.weight();
                     }
@@ -298,9 +302,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 },
                 w -> {
                     if (w < 0) {
-                        throw new IllegalArgumentException(
-                            "[" + NAME + "] per-field weights must be non-negative"
-                        );
+                        throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
                     }
                 }
             );
@@ -341,7 +343,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         if (innerRetrievers.isEmpty() == false) {
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
-            
+
             for (int i = 0; i < innerRetrievers.size(); i++) {
                 new RRFRetrieverComponent(innerRetrievers.get(i).retriever(), this.weights[i]).toXContent(builder, params);
             }

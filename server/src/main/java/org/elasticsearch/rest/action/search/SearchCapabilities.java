@@ -54,6 +54,7 @@ public final class SearchCapabilities {
     private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
     private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
     private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+    private static final String FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV = "field_exists_query_for_text_fields_no_index_or_dv";
     private static final String SYNTHETIC_VECTORS_SETTING = "synthetic_vectors_setting";
 
     public static final Set<String> CAPABILITIES;
@@ -78,6 +79,7 @@ public final class SearchCapabilities {
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
         capabilities.add(EXCLUDE_VECTORS_PARAM);
         capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
+        capabilities.add(FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV);
         if (SYNTHETIC_VECTORS) {
             capabilities.add(SYNTHETIC_VECTORS_SETTING);
         }

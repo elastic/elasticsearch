@@ -30,7 +30,7 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
 
     // Hugging Face embeddings and ELSER was added in 8.12.0
     // but in 8.15 the endpoints were renamed. For the sake of this
-    // test can can start at 8.15.0.
+    // test can start at 8.15.0.
     public static final String MIN_OLD_CLUSTER_VERSION = "8.15.0";
 
     private static MockWebServer embeddingsServer;

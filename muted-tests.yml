@@ -626,6 +626,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
+- class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
+  method: testExporterWithHostOnly
+  issue: https://github.com/elastic/elasticsearch/issues/130599
 
 # Examples:
 #

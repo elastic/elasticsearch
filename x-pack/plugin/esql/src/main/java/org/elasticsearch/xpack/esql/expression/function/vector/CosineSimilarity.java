@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
@@ -54,19 +55,32 @@ public class CosineSimilarity extends EsqlScalarFunction implements VectorFuncti
         description = "Calculates the cosine similarity between two dense_vectors.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
-    public CosineSimilarity(Source source, Expression left, Expression right) {
+    public CosineSimilarity(
+        Source source,
+        @Param(name = "left", type = { "dense_vector" }, description = "first dense_vector to calculate cosine similarity")
+        Expression left,
+        @Param(name = "right", type = { "dense_vector" }, description = "second dense_vector to calculate cosine similarity")
+        Expression right
+    ) {
         super(source, List.of(left, right));
         this.left = left;
         this.right = right;
     }
 
+    private CosineSimilarity(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
+    }
+
     @Override
     public DataType dataType() {
         return DataType.DOUBLE;
-    }
-
-    private CosineSimilarity(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
@@ -75,18 +89,11 @@ public class CosineSimilarity extends EsqlScalarFunction implements VectorFuncti
             return new TypeResolution("Unresolved children");
         }
 
-        return checkParam(left()).and(checkParam(right()));
+        return checkDenseVectorParam(left()).and(checkDenseVectorParam(right()));
     }
 
-    private TypeResolution checkParam(Expression param) {
+    private TypeResolution checkDenseVectorParam(Expression param) {
         return isNotNull(param, sourceText(), FIRST).and(isType(param, dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(left());
-        out.writeNamedWriteable(right());
     }
 
     @Override
@@ -178,7 +185,7 @@ public class CosineSimilarity extends EsqlScalarFunction implements VectorFuncti
 
                         readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
                         readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
-                        float result = VectorSimilarityFunction.COSINE.compare(leftScratch, rightScratch);
+                        float result = calculateSimilarity(leftScratch, rightScratch);
                         builder.appendDouble(result);
                     }
                     return builder.build().asBlock();
@@ -186,7 +193,11 @@ public class CosineSimilarity extends EsqlScalarFunction implements VectorFuncti
             }
         }
 
-        private void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
+        private float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
+            return VectorSimilarityFunction.COSINE.compare(leftScratch, rightScratch);
+        }
+
+        private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
             for (int i = 0; i < dimensions; i++) {
                 scratch[i] = block.getFloat(position + i);
             }
@@ -200,5 +211,4 @@ public class CosineSimilarity extends EsqlScalarFunction implements VectorFuncti
         @Override
         public void close() {}
     }
-
 }

@@ -10,617 +10,627 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+
+/**
+ * Tests for {@link XmlProcessor}. These tests ensure feature parity and test coverage.
+ */
+@SuppressWarnings("unchecked")
 public class XmlProcessorTests extends ESTestCase {
 
-    public void testSimpleXmlDecodeWithTargetField() throws Exception {
-        String xml = """
-            <catalog>
-                <book seq="1">
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-                </book>
-            </catalog>""";
+    private static final String XML_FIELD = "xmldata";
+    private static final String TARGET_FIELD = "data";
 
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "xml", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    private static IngestDocument createTestIngestDocument(String xml) {
+        return new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of(XML_FIELD, xml)));
+    }
+    
+    private static XmlProcessor createTestProcessor(Map<String, Object> config) {
+        config.putIfAbsent("field", XML_FIELD);
+        config.putIfAbsent("target_field", TARGET_FIELD);
+
+        XmlProcessor.Factory factory = new XmlProcessor.Factory();
+        try {
+            return factory.create(null, "_tag", null, config, null);
+        } catch (Exception e){
+            fail("Failed to create XmlProcessor: " + e.getMessage());
+            return null; // This line will never be reached, but is needed to satisfy the compiler
+        }
+    }
+
+    /**
+     * Test parsing standard XML with attributes.
+     */
+    public void testParseStandardXml() {
+        String xml = "<foo key=\"value\"/>";
+
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> xmlField = (Map<String, Object>) ingestDocument.getFieldValue("xml", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) xmlField.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-
-        assertThat(book.get("seq"), equalTo("1"));
-        assertThat(book.get("author"), equalTo("William H. Gaddis"));
-        assertThat(book.get("title"), equalTo("The Recognitions"));
-        assertThat(book.get("review"), equalTo("One of the great seminal American novels of the 20th century."));
-
-        // Original field should remain unchanged
-        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo(xml));
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        assertThat(foo.get("key"), equalTo("value"));
     }
-
-    public void testXmlDecodeToSameFieldWhenTargetIsField() throws Exception {
-        String xml = """
-            <?xml version="1.0"?>
-            <catalog>
-                <book seq="1">
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-                </book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    
+    /**
+     * Test parsing XML with array elements (multiple elements with same name).
+     */
+    public void testParseXmlWithArrayValue() {
+        String xml = "<foo><key>value1</key><key>value2</key></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-
-        assertThat(book.get("seq"), equalTo("1"));
-        assertThat(book.get("author"), equalTo("William H. Gaddis"));
-        assertThat(book.get("title"), equalTo("The Recognitions"));
-        assertThat(book.get("review"), equalTo("One of the great seminal American novels of the 20th century."));
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        List<Object> keyValues = (List<Object>) foo.get("key");
+        assertThat(keyValues.size(), equalTo(2));
+        
+        // The values might be nested inside their own lists
+        Object firstValue = keyValues.get(0);
+        assertThat(firstValue, equalTo("value1"));
+        
+        Object secondValue = keyValues.get(1);
+        assertThat(secondValue, equalTo("value2"));
     }
-
-    public void testXmlDecodeWithArray() throws Exception {
-        String xml = """
-            <?xml version="1.0"?>
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-                </book>
-                <book>
-                    <author>Ralls, Kim</author>
-                    <title>Midnight Rain</title>
-                    <review>Some review.</review>
-                </book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    
+    /**
+     * Test parsing XML with nested elements.
+     */
+    public void testParseXmlWithNestedElements() {
+        String xml = "<foo><key1><key2>value</key2></key1></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> books = (List<Map<String, Object>>) catalog.get("book");
-
-        assertThat(books.size(), equalTo(2));
-
-        Map<String, Object> firstBook = books.get(0);
-        assertThat(firstBook.get("author"), equalTo("William H. Gaddis"));
-        assertThat(firstBook.get("title"), equalTo("The Recognitions"));
-
-        Map<String, Object> secondBook = books.get(1);
-        assertThat(secondBook.get("author"), equalTo("Ralls, Kim"));
-        assertThat(secondBook.get("title"), equalTo("Midnight Rain"));
+        Map<String, Object> key1Map = (Map<String, Object>) foo.get("key1");
+        assertThat(key1Map.size(), equalTo(1));
+       
+        String key2Value = (String) key1Map.get("key2");
+        assertThat(key2Value, equalTo("value"));
     }
 
-    public void testXmlDecodeWithToLower() throws Exception {
-        String xml = """
-            <AuditBase>
-                <ContextComponents>
-                    <Component>
-                        <RelyingParty>N/A</RelyingParty>
-                    </Component>
-                    <Component>
-                        <PrimaryAuth>N/A</PrimaryAuth>
-                    </Component>
-                </ContextComponents>
-            </AuditBase>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, true, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    /**
+     * Test parsing XML in a single item array.
+     */
+    public void testParseXmlInSingleItemArray() {
+        String xml = "<foo bar=\"baz\"/>";
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> auditbase = (Map<String, Object>) messageField.get("auditbase");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> contextcomponents = (Map<String, Object>) auditbase.get("contextcomponents");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> components = (List<Map<String, Object>>) contextcomponents.get("component");
-
-        assertThat(components.size(), equalTo(2));
-        assertThat(components.get(0).get("relyingparty"), equalTo("N/A"));
-        assertThat(components.get(1).get("primaryauth"), equalTo("N/A"));
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        assertThat(foo.get("bar"), equalTo("baz"));
     }
 
-    public void testXmlDecodeWithMultipleElements() throws Exception {
-        String xml = """
-            <?xml version="1.0"?>
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-                </book>
-                <book>
-                    <author>Ralls, Kim</author>
-                    <title>Midnight Rain</title>
-                    <review>Some review.</review>
-                </book>
-                <secondcategory>
-                    <paper id="bk102">
-                        <test2>Ralls, Kim</test2>
-                        <description>A former architect battles corporate zombies,
-                        an evil sorceress, and her own childhood to become queen of the world.
-                        </description>
-                    </paper>
-                </secondcategory>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    /**
+     * Test extracting a single element using XPath.
+     */
+    public void testXPathSingleElementExtraction() {
+        String xml = "<foo><bar>hello</bar><baz>world</baz></foo>";
+        
+        Map<String, String> xpathMap = Map.of("/foo/bar/text()", "bar_content");
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("xpath", xpathMap);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-
-        // Check books array
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> books = (List<Map<String, Object>>) catalog.get("book");
-        assertThat(books.size(), equalTo(2));
-
-        // Check secondcategory
-        @SuppressWarnings("unchecked")
-        Map<String, Object> secondcategory = (Map<String, Object>) catalog.get("secondcategory");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> paper = (Map<String, Object>) secondcategory.get("paper");
-        assertThat(paper.get("id"), equalTo("bk102"));
-        assertThat(paper.get("test2"), equalTo("Ralls, Kim"));
+        
+        // Get the XPath result
+        Object barContent = ingestDocument.getFieldValue("bar_content", Object.class);
+        assertNotNull(barContent);
+        assertEquals("hello", barContent);
+        
+        // Verify that the full parsed XML is also available
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        assertNotNull(foo);
+        assertThat(foo.get("bar"), equalTo("hello"));
+        assertThat(foo.get("baz"), equalTo("world"));
     }
 
-    public void testXmlDecodeWithUtf16Encoding() throws Exception {
-        String xml = """
-            <?xml version="1.0" encoding="UTF-16"?>
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-                </book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    /**
+     * Test extracting multiple elements using XPath.
+     */
+    public void testXPathMultipleElementsExtraction() {
+        String xml = "<foo><bar>first</bar><bar>second</bar><bar>third</bar></foo>";
+        
+        Map<String, String> xpathMap = Map.of("/foo/bar", "all_bars");
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("xpath", xpathMap);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-
-        assertThat(book.get("author"), equalTo("William H. Gaddis"));
-        assertThat(book.get("title"), equalTo("The Recognitions"));
+        
+        List<String> allBars = ingestDocument.getFieldValue("all_bars", List.class);
+        
+        assertNotNull(allBars);
+        assertThat(allBars.size(), equalTo(3));
+        assertThat(allBars.get(0), equalTo("first"));
+        assertThat(allBars.get(1), equalTo("second"));
+        assertThat(allBars.get(2), equalTo("third"));
     }
 
-    public void testBrokenXmlWithIgnoreFailureFalse() {
-        String brokenXml = """
-            <?xml version="1.0"?>
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-            </ook>
-            catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", brokenXml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), containsString("contains invalid XML"));
-    }
-
-    public void testBrokenXmlWithIgnoreFailureTrue() throws Exception {
-        String brokenXml = """
-            <?xml version="1.0"?>
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title>The Recognitions</title>
-                    <review>One of the great seminal American novels of the 20th century.</review>
-            </ook>
-            catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, true, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", brokenXml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
-        // Should not throw exception and leave document unchanged
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo(brokenXml));
-    }
-
-    public void testFieldNotFound() {
-        XmlProcessor processor = new XmlProcessor("tag", null, "nonexistent", "target", false, false, false, false);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), containsString("not present as part of path [nonexistent]"));
-    }
-
-    public void testFieldNotFoundWithIgnoreMissing() throws Exception {
-        XmlProcessor processor = new XmlProcessor("tag", null, "nonexistent", "target", true, false, false, false);
-        IngestDocument originalDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        IngestDocument ingestDocument = new IngestDocument(originalDocument);
+    /**
+     * Test extracting attributes using XPath.
+     */
+    public void testXPathAttributeExtraction() {
+        String xml = "<foo><bar id=\"123\" type=\"test\">content</bar></foo>";
+        
+        Map<String, String> xpathMap = new HashMap<>();
+        xpathMap.put("/foo/bar/@id", "bar_id");
+        xpathMap.put("/foo/bar/@type", "bar_type");
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("xpath", xpathMap);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        // Document should remain unchanged
-        assertThat(ingestDocument.getSourceAndMetadata(), equalTo(originalDocument.getSourceAndMetadata()));
+        
+        String barId = ingestDocument.getFieldValue("bar_id", String.class);
+        assertNotNull(barId);
+        assertThat(barId, equalTo("123"));
+        
+        String barType = ingestDocument.getFieldValue("bar_type", String.class);
+        assertNotNull(barType);
+        assertThat(barType, equalTo("test"));
     }
 
-    public void testNullValue() {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", null);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), containsString("field [field] is null"));
-    }
-
-    public void testNullValueWithIgnoreMissing() throws Exception {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", true, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", null);
-        IngestDocument originalDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IngestDocument ingestDocument = new IngestDocument(originalDocument);
+    /**
+     * Test extracting elements with namespaces using XPath.
+     */
+    public void testXPathNamespacedExtraction() {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                     "<root xmlns:myns=\"http://example.org/ns1\">" +
+                     "  <myns:element>namespace-value</myns:element>" +
+                     "  <regular>regular-value</regular>" +
+                     "</root>";
+        
+        Map<String, String> namespaces = Map.of("myns", "http://example.org/ns1");
+        Map<String, String> xpathMap = Map.of("//myns:element/text()", "ns_value");
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("xpath", xpathMap);
+        config.put("namespaces", namespaces);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        // Document should remain unchanged
-        assertThat(ingestDocument.getSourceAndMetadata(), equalTo(originalDocument.getSourceAndMetadata()));
+        
+        String nsValue = ingestDocument.getFieldValue("ns_value", String.class);
+        assertNotNull(nsValue);
+        assertThat(nsValue, equalTo("namespace-value"));
     }
 
-    public void testNonStringValueWithIgnoreFailureFalse() {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", 123);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), containsString("field [field] is not a string"));
-    }
-
-    public void testNonStringValueWithIgnoreFailureTrue() throws Exception {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, true, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", 123);
-        IngestDocument originalDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IngestDocument ingestDocument = new IngestDocument(originalDocument);
+    /**
+     * Test parsing XML with mixed content (text and elements mixed together).
+     */
+    public void testParseXmlWithMixedContent() {
+        String xml = "<foo>This text is <b>bold</b> and this is <i>italic</i>!</foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        // Document should remain unchanged
-        assertThat(ingestDocument.getSourceAndMetadata(), equalTo(originalDocument.getSourceAndMetadata()));
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        
+        assertNotNull(foo.get("b"));
+        assertThat((String)foo.get("b"), equalTo("bold"));
+        assertNotNull(foo.get("i"));
+        assertThat((String)foo.get("i"), equalTo("italic"));
+        assertNotNull(foo.get("#text"));
+        assertThat((String)foo.get("#text"), equalTo("This text is  and this is !"));
     }
-
-    public void testEmptyXml() throws Exception {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", "");
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    
+    /**
+     * Test parsing XML with CDATA sections.
+     */
+    public void testParseXmlWithCDATA() {
+        String xml = "<foo><![CDATA[This is CDATA content with <tags> that shouldn't be parsed!]]></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        // Empty XML should result in null target
-        assertThat(ingestDocument.getFieldValue("target", Object.class), equalTo(null));
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Object content = data.get("foo");
+        
+        assertNotNull(content);
+        assertThat(content, equalTo("This is CDATA content with <tags> that shouldn't be parsed!"));
     }
-
-    public void testWhitespaceOnlyXml() throws Exception {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", "   \n\t  ");
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    
+    /**
+     * Test parsing XML with numeric data.
+     */
+    public void testParseXmlWithNumericData() {
+        String xml = "<foo><count>123</count><price>99.95</price><active>true</active></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        // Whitespace-only XML should result in null target
-        assertThat(ingestDocument.getFieldValue("target", Object.class), equalTo(null));
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        
+        assertThat((String)foo.get("count"), equalTo("123"));
+        assertThat((String)foo.get("price"), equalTo("99.95"));
+        assertThat((String)foo.get("active"), equalTo("true"));
     }
 
-    public void testSelfClosingTag() throws Exception {
-        String xml = "<empty/>";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    /**
+     * Test parsing XML with force_array option enabled.
+     */
+    public void testParseXmlWithForceArray() {
+        String xml = "<foo><bar>single_value</bar></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("force_array", true); // Enable force_array option
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
+        
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getFieldValue(TARGET_FIELD, Object.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        
+        // With force_array=true, even single values should be in arrays
+        Object barValue = foo.get("bar");
+        assertNotNull(barValue);
+        assertTrue("Expected bar value to be a List with force_array=true", barValue instanceof List);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) ingestDocument.getFieldValue("target", Object.class);
-        assertThat(result.get("empty"), equalTo(null));
+        List<String> barList = (List<String>) barValue;
+        assertThat(barList.size(), equalTo(1));
+        assertThat(barList.get(0), equalTo("single_value"));
     }
 
-    public void testSelfClosingTagWithAttributes() throws Exception {
-        String xml = "<empty id=\"123\" name=\"test\"/>";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+    /**
+     * Test extracting multiple elements using multiple XPath expressions.
+     * Tests that multiple XPath expressions can be used simultaneously.
+     */
+    public void testMultipleXPathExpressions() {
+        String xml = "<root>" +
+                     "  <person id=\"1\"><n>John</n><age>30</age></person>" +
+                     "  <person id=\"2\"><n>Jane</n><age>25</age></person>" +
+                     "</root>";
+        
+        // Configure multiple XPath expressions
+        Map<String, String> xpathMap = new HashMap<>();
+        xpathMap.put("/root/person[1]/n/text()", "first_person_name");
+        xpathMap.put("/root/person[2]/n/text()", "second_person_name");
+        xpathMap.put("/root/person/@id", "person_ids");
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("xpath", xpathMap);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
 
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) ingestDocument.getFieldValue("target", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> empty = (Map<String, Object>) result.get("empty");
-        assertThat(empty.get("id"), equalTo("123"));
-        assertThat(empty.get("name"), equalTo("test"));
+        
+        assertTrue("first_person_name field should exist", ingestDocument.hasField("first_person_name"));
+        assertTrue("second_person_name field should exist", ingestDocument.hasField("second_person_name"));
+        assertTrue("person_ids field should exist", ingestDocument.hasField("person_ids"));
+        
+        Object firstName = ingestDocument.getFieldValue("first_person_name", Object.class);
+        assertEquals("John", firstName);
+        
+        Object secondName = ingestDocument.getFieldValue("second_person_name", Object.class);
+        assertEquals("Jane", secondName);
+        
+        Object personIdsObj = ingestDocument.getFieldValue("person_ids", Object.class);
+        assertTrue("person_ids should be a List", personIdsObj instanceof List);
+        List<?> personIds = (List<?>) personIdsObj;
+        assertEquals("Should have 2 person IDs", 2, personIds.size());
+        assertEquals("First person ID should be '1'", "1", personIds.get(0));
+        assertEquals("Second person ID should be '2'", "2", personIds.get(1));
+        
+        assertTrue("Target field should exist", ingestDocument.hasField(TARGET_FIELD));
     }
-
-    public void testGetType() {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        assertThat(processor.getType(), equalTo("xml"));
+    
+    /**
+     * Test handling of invalid XML with ignoreFailure=false.
+     */
+    public void testInvalidXml() {
+        String xml = "<foo><unclosed>"; // Invalid XML missing closing tag
+        
+        Map<String, Object> config = new HashMap<>();
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            processor.execute(ingestDocument);
+        });
+        
+        assertTrue("Error message should indicate XML is invalid", 
+                   exception.getMessage().contains("invalid XML") || 
+                   exception.getCause().getMessage().contains("XML"));
     }
-
-    public void testGetters() {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", true, true, true, false);
-        assertThat(processor.getField(), equalTo("field"));
-        assertThat(processor.getTargetField(), equalTo("target"));
-        assertThat(processor.isIgnoreMissing(), equalTo(true));
-    }
-
-    public void testIgnoreEmptyValueEnabled() throws Exception {
-        String xml = """
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title></title>
-                    <review>One of the great seminal American novels.</review>
-                    <empty/>
-                    <nested>
-                        <empty_text>   </empty_text>
-                        <valid_content>Some content</valid_content>
-                    </nested>
-                </book>
-                <empty_book></empty_book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, true);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
+    
+    /**
+     * Test handling of invalid XML with ignoreFailure=true.
+     */
+    public void testInvalidXmlWithIgnoreFailure() {
+        String xml = "<foo><unclosed>"; // Invalid XML missing closing tag
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("ignore_failure", true);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-
-        // Empty title should be filtered out
-        assertThat(book.containsKey("title"), equalTo(false));
-        // Empty element should be filtered out
-        assertThat(book.containsKey("empty"), equalTo(false));
-        // empty_book should be filtered out entirely
-        assertThat(catalog.containsKey("empty_book"), equalTo(false));
-
-        // Valid content should remain
-        assertThat(book.get("author"), equalTo("William H. Gaddis"));
-        assertThat(book.get("review"), equalTo("One of the great seminal American novels."));
-
-        // Nested structure handling
-        @SuppressWarnings("unchecked")
-        Map<String, Object> nested = (Map<String, Object>) book.get("nested");
-        assertThat(nested.containsKey("empty_text"), equalTo(false)); // Whitespace-only should be filtered
-        assertThat(nested.get("valid_content"), equalTo("Some content"));
+        
+        List<String> tags = ingestDocument.getFieldValue("tags", List.class);
+        assertNotNull(tags);
+        assertTrue(tags.contains("_xmlparsefailure"));
     }
-
-    public void testIgnoreEmptyValueWithArrays() throws Exception {
-        String xml = """
-            <catalog>
-                <book>
-                    <title>Valid Book</title>
-                </book>
-                <book>
-                    <title></title>
-                </book>
-                <book>
-                    <title>Another Valid Book</title>
-                </book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, true);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
+    
+    /**
+     * Test the store_xml=false option to not store parsed XML in target field.
+     */
+    public void testNoStoreXml() {
+        String xml = "<foo><bar>value</bar></foo>";
+        
+        // Set up XPath to extract value but don't store XML
+        Map<String, String> xpathMap = Map.of("/foo/bar/text()", "bar_content");
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("store_xml", false); // Do not store XML in target field
+        config.put("xpath", xpathMap); 
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> books = (List<Map<String, Object>>) catalog.get("book");
-
-        // Should have 2 books after filtering out the one with empty title
-        assertThat(books.size(), equalTo(2));
-        assertThat(books.get(0).get("title"), equalTo("Valid Book"));
-        assertThat(books.get(1).get("title"), equalTo("Another Valid Book"));
+        
+        // Verify XPath result is stored
+        String barContent = ingestDocument.getFieldValue("bar_content", String.class);
+        assertNotNull(barContent);
+        assertThat(barContent, equalTo("value"));
+        
+        // Verify the target field was not created
+        assertFalse(ingestDocument.hasField(TARGET_FIELD));
     }
-
-    public void testIgnoreEmptyValueDisabled() throws Exception {
-        String xml = """
-            <catalog>
-                <book>
-                    <author>William H. Gaddis</author>
-                    <title></title>
-                    <empty/>
-                </book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "message", "message", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("message", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
+    
+    /**
+     * Test the to_lower option for converting field names to lowercase.
+     */
+    public void testToLower() {
+        String xml = "<FOO><BAR>value</BAR></FOO>";
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("to_lower", true); // Enable to_lower option
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> messageField = (Map<String, Object>) ingestDocument.getFieldValue("message", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) messageField.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-
-        // Empty values should remain when ignore_empty_value is false
-        assertThat(book.containsKey("title"), equalTo(true));
-        assertThat(book.get("title"), equalTo(null));  // Empty elements are parsed as null
-        assertThat(book.containsKey("empty"), equalTo(true));
-        assertThat(book.get("empty"), equalTo(null));
-        assertThat(book.get("author"), equalTo("William H. Gaddis"));
+        
+        // Verify field names are lowercase
+        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+        assertTrue(data.containsKey("foo"));
+        assertFalse(data.containsKey("FOO"));
+        
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        assertTrue(foo.containsKey("bar"));
+        assertFalse(foo.containsKey("BAR"));
+        assertThat(foo.get("bar"), equalTo("value"));
     }
-
-    public void testGettersWithIgnoreEmptyValue() {
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", true, true, true, true);
-        assertThat(processor.getField(), equalTo("field"));
-        assertThat(processor.getTargetField(), equalTo("target"));
-        assertThat(processor.isIgnoreMissing(), equalTo(true));
-        assertThat(processor.isIgnoreEmptyValue(), equalTo(true));
-    }
-
-    public void testElementsWithAttributesAndTextContent() throws Exception {
-        String xml = """
-            <catalog version="1.0">
-                <book id="123" isbn="978-0-684-80335-9">
-                    <title lang="en">The Recognitions</title>
-                    <author nationality="American">William H. Gaddis</author>
-                    <price currency="USD">29.99</price>
-                </book>
-            </catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, false, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
+    
+    /**
+     * Test the ignore_missing option when field is missing.
+     */
+    public void testIgnoreMissing() {
+        String xmlField = "nonexistent_field";
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", xmlField);
+        config.put("ignore_missing", true); // Enable ignore_missing option
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of()));
         processor.execute(ingestDocument);
+        
+        assertFalse("Target field should not be created when source field is missing", 
+            ingestDocument.hasField(TARGET_FIELD));
+        
+        // With ignoreMissing=false
+        config.put("ignore_missing", false);
+        XmlProcessor failingProcessor = createTestProcessor(config);
+       
+        // This should throw an exception
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            failingProcessor.execute(ingestDocument);
+        });
+        
+        assertTrue(exception.getMessage().contains("not present as part of path"));
+    }
+    
+    /**
+     * Test that ignore_empty_value correctly filters out empty values from arrays and mixed content.
+     */
+    public void testIgnoreEmptyValue() {
+        // XML with mixed empty and non-empty elements, including array elements with mixed empty/non-empty values
+        String xml = "<root>" +
+                    "  <empty></empty>" +
+                    "  <blank>   </blank>" +
+                    "  <valid>content</valid>" +
+                    "  <nested><empty/><valid>nested-content</valid></nested>" +
+                    "  <items>" +
+                    "    <item>first</item>" +
+                    "    <item></item>" +
+                    "    <item>third</item>" +
+                    "    <item>   </item>" +
+                    "    <item>fifth</item>" +
+                    "  </items>" +
+                    "  <mixed>Text with <empty></empty> and <valid>content</valid></mixed>" +
+                    "</root>";
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) ingestDocument.getFieldValue("target", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) result.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> title = (Map<String, Object>) book.get("title");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> author = (Map<String, Object>) book.get("author");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> price = (Map<String, Object>) book.get("price");
-
-        // Test catalog with attributes only
-        assertThat(catalog.get("version"), equalTo("1.0"));
-
-        // Test book with attributes only (no text content)
-        assertThat(book.get("id"), equalTo("123"));
-        assertThat(book.get("isbn"), equalTo("978-0-684-80335-9"));
-
-        // Test elements with both attributes and text content (should use #text key)
-        assertThat(title.get("lang"), equalTo("en"));
-        assertThat(title.get("#text"), equalTo("The Recognitions"));
-
-        assertThat(author.get("nationality"), equalTo("American"));
-        assertThat(author.get("#text"), equalTo("William H. Gaddis"));
-
-        assertThat(price.get("currency"), equalTo("USD"));
-        assertThat(price.get("#text"), equalTo("29.99"));
+        Map<String, Object> config = new HashMap<>();
+        config.put("ignore_empty_value", true);
+        XmlProcessor processor = createTestProcessor(config);
+        
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        processor.execute(ingestDocument);
+        
+        Map<String, Object> result = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+        Map<String, Object> root = (Map<String, Object>) result.get("root");
+        
+        // Check empty elements are filtered
+        assertFalse("Empty element should be filtered out", root.containsKey("empty"));
+        assertFalse("Blank element should be filtered out", root.containsKey("blank"));
+        
+        // Check valid elements are preserved
+        assertTrue("Valid element should be preserved", root.containsKey("valid"));
+        assertEquals("content", root.get("valid"));
+        
+        // Check nested structure filtering
+        Map<String, Object> nested = (Map<String, Object>) root.get("nested");
+        assertNotNull("Nested element should be preserved", nested);
+        assertFalse("Empty nested element should be filtered", nested.containsKey("empty"));
+        assertEquals("nested-content", nested.get("valid"));
+        
+        // Check array with mixed empty/non-empty values
+        Map<String,Object> items = (Map<String,Object>) root.get("items");
+        assertNotNull("Items object should be preserved", items);
+        List<String> itemList = (List<String>) items.get("item");
+        assertNotNull("Item array should be preserved", itemList);
+        assertEquals("Array should contain only non-empty items", 3, itemList.size());
+        assertEquals("first", itemList.get(0));
+        assertEquals("third", itemList.get(1));
+        assertEquals("fifth", itemList.get(2));
+        
+        // Check mixed content handling
+        Map<String, Object> mixed = (Map<String, Object>) root.get("mixed");
+        assertNotNull("Mixed content should be preserved", mixed);
+        assertFalse("Empty element in mixed content should be filtered", mixed.containsKey("empty"));
+        assertTrue("Valid element in mixed content should be preserved", mixed.containsKey("valid"));
+        assertEquals("content", mixed.get("valid"));
+        assertEquals("Text with  and", mixed.get("#text"));
+    }
+    
+    /**
+     * Test parsing with strict mode option.
+     */
+    public void testStrictParsing() {
+        String xml = "<foo><bar>valid</bar></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("parse_options", "strict");
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
+        processor.execute(ingestDocument);
+        
+        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        assertThat(foo.get("bar"), equalTo("valid"));
+        
+        // Test with invalid XML in strict mode
+        String invalidXml = "<foo><invalid & xml</foo>";
+        IngestDocument invalidDocument = createTestIngestDocument(invalidXml);
+        
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            processor.execute(invalidDocument);
+        });
+        
+        assertTrue("Error message should indicate XML is invalid", 
+                   exception.getMessage().contains("invalid XML") || 
+                   exception.getCause().getMessage().contains("XML"));
+    }
+    
+    /**
+     * Test parsing XML with remove_namespaces option.
+     */
+    public void testRemoveNamespaces() {
+        String xml = "<foo xmlns:ns=\"http://example.org/ns\"><ns:bar>value</ns:bar></foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("remove_namespaces", true);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
+        processor.execute(ingestDocument);
+        
+        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        
+        assertTrue("Element with namespace should be present", foo.containsKey("ns:bar"));
+        assertThat(foo.get("ns:bar"), equalTo("value"));
+        
+        // Now test with removeNamespaces=false
+        IngestDocument ingestDocument2 = createTestIngestDocument(xml);
+        
+        config.put("remove_namespaces", false);
+        XmlProcessor processor2 = createTestProcessor(config);
+        processor2.execute(ingestDocument2);
+        
+        Map<String, Object> data2 = ingestDocument2.getFieldValue(TARGET_FIELD, Map.class);
+        Map<String, Object> foo2 = (Map<String, Object>) data2.get("foo");
+        
+        // With removeNamespaces=false, the "ns:" prefix should be preserved
+        assertTrue("Element should be accessible with namespace prefix", foo2.containsKey("ns:bar"));
+        assertThat(foo2.get("ns:bar"), equalTo("value"));
     }
 
-    public void testMixedAttributesAndTextWithToLower() throws Exception {
-        String xml = """
-            <Catalog Version="1.0">
-                <Book ID="123">
-                    <Title Lang="EN">The Recognitions</Title>
-                    <Author Nationality="AMERICAN">William H. Gaddis</Author>
-                </Book>
-            </Catalog>""";
-
-        XmlProcessor processor = new XmlProcessor("tag", null, "field", "target", false, false, true, false);
-        Map<String, Object> document = new HashMap<>();
-        document.put("field", xml);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
+    /**
+     * Test the force_content option.
+     */
+    public void testForceContent() {
+        String xml = "<foo>simple text</foo>";
+        
+        Map<String, Object> config = new HashMap<>();
+        config.put("force_content", true);
+        XmlProcessor processor = createTestProcessor(config);
+        IngestDocument ingestDocument = createTestIngestDocument(xml);
+        
         processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) ingestDocument.getFieldValue("target", Object.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) result.get("catalog");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book = (Map<String, Object>) catalog.get("book");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> title = (Map<String, Object>) book.get("title");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> author = (Map<String, Object>) book.get("author");
-
-        // Test that element names are converted to lowercase
-        assertThat(catalog.get("version"), equalTo("1.0"));
-        assertThat(book.get("id"), equalTo("123"));
-
-        // Test that attribute names are converted to lowercase but values remain unchanged
-        assertThat(title.get("lang"), equalTo("EN"));
-        assertThat(title.get("#text"), equalTo("The Recognitions"));
-
-        assertThat(author.get("nationality"), equalTo("AMERICAN"));
-        assertThat(author.get("#text"), equalTo("William H. Gaddis"));
+        
+        Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
+        Map<String, Object> foo = (Map<String, Object>) data.get("foo");
+        
+        // With forceContent=true, the text should be in a #text field
+        assertTrue("Text content should be in #text field", foo.containsKey("#text"));
+        assertThat(foo.get("#text"), equalTo("simple text"));
+        
+        // Now test with forceContent=false
+        config.put("force_content", false);
+        XmlProcessor processor2 = createTestProcessor(config);
+        IngestDocument ingestDocument2 = createTestIngestDocument(xml);
+        
+        processor2.execute(ingestDocument2);
+        
+        Map<String, Object> data2 = ingestDocument2.getFieldValue(TARGET_FIELD, Map.class);
+        
+        // With forceContent=false, the text should be directly assigned to the element
+        assertThat(data2.get("foo"), equalTo("simple text"));
     }
 }

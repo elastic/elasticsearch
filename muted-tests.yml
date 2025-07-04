@@ -563,6 +563,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyFromRow ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130642
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130205
 
 # Examples:
 #

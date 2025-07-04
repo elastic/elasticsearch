@@ -491,9 +491,7 @@ public final class CsvTestUtils {
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEOHASH(x -> x == null ? null : Geohash.longEncode(x), Long.class),
-        GEOTILE(x -> x == null ? null : GeoTileUtils.longEncode(x), (l, r) -> {
-            return 0;
-        }, Long.class),
+        GEOTILE(x -> x == null ? null : GeoTileUtils.longEncode(x), Long.class),
         GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
         AGGREGATE_METRIC_DOUBLE(
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),

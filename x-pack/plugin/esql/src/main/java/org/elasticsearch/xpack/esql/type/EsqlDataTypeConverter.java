@@ -253,8 +253,17 @@ public class EsqlDataTypeConverter {
             if (DataType.isSpatialGeo(to)) {
                 return EsqlConverter.STRING_TO_GEO;
             }
-            if (DataType.isSpatialAndGrid(to)) {
+            if (DataType.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
+            }
+            if (to == DataType.GEOHASH) {
+                return EsqlConverter.STRING_TO_GEOHASH;
+            }
+            if (to == DataType.GEOTILE) {
+                return EsqlConverter.STRING_TO_GEOTILE;
+            }
+            if (to == DataType.GEOHEX) {
+                return EsqlConverter.STRING_TO_GEOHEX;
             }
             if (to == DataType.TIME_DURATION) {
                 return EsqlConverter.STRING_TO_TIME_DURATION;
@@ -814,7 +823,10 @@ public class EsqlDataTypeConverter {
         STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt(BytesRefs.toString(x))),
         STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean(BytesRefs.toString(x))),
         STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo(BytesRefs.toString(x))),
-        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x)));
+        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial(BytesRefs.toString(x))),
+        STRING_TO_GEOHASH(x -> Geohash.longEncode(BytesRefs.toString(x))),
+        STRING_TO_GEOTILE(x -> GeoTileUtils.longEncode(BytesRefs.toString(x))),
+        STRING_TO_GEOHEX(x -> H3.stringToH3(BytesRefs.toString(x)));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

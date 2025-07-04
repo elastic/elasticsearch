@@ -339,7 +339,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG || commonType == DATETIME || commonType == DATE_NANOS || commonType == UNSIGNED_LONG) {
+        if (commonType == LONG
+            || commonType == DATETIME
+            || commonType == DATE_NANOS
+            || commonType == UNSIGNED_LONG
+            || DataType.isGeoGrid(commonType)) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
@@ -347,7 +351,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             || commonType == IP
             || commonType == VERSION
             || commonType == UNSUPPORTED
-            || DataType.isSpatialAndGrid(commonType)) {
+            || DataType.isSpatial(commonType)) {
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {

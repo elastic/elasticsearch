@@ -402,15 +402,17 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             return new Profile(
                 in.readCollectionAsImmutableList(DriverProfile::readFrom),
                 in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                    : List.of()
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
+                        ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                        : List.of()
             );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
                 out.writeCollection(plans);
             }
         }

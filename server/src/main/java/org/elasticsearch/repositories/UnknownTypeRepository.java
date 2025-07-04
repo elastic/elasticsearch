@@ -74,7 +74,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         throw createUnknownTypeException();
     }
 

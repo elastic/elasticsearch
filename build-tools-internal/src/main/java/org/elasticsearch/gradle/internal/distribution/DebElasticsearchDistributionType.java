@@ -25,6 +25,6 @@ public class DebElasticsearchDistributionType implements ElasticsearchDistributi
 
     @Override
     public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        return Architecture.current().debianClassifier;
+        return ":" + Architecture.current().debianClassifier;
     }
 }

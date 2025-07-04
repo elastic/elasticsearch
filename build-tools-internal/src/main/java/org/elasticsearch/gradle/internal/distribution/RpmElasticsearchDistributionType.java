@@ -35,6 +35,6 @@ public class RpmElasticsearchDistributionType implements ElasticsearchDistributi
 
     @Override
     public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        return Architecture.current().bwcClassifier;
+        return ":" + Architecture.current().bwcClassifier;
     }
 }

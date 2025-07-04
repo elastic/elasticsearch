@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
@@ -187,16 +188,17 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                 ),
                 MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME)
             ),
-            "elser-v2",
+            "elser-2",
             new DefaultModelConfig(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
-                    defaultEndpointId("elser-v2"),
+                    defaultEndpointId("elser-2"),
                     TaskType.SPARSE_EMBEDDING,
                     "test",
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-2", null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
-                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
+                    ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
                 MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME)
             )

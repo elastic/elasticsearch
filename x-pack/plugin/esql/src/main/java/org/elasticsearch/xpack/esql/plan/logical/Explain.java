@@ -27,6 +27,12 @@ public class Explain extends LeafPlan implements TelemetryAware {
 
     private final LogicalPlan query;
 
+    private final List<Attribute> output = List.of(
+        new ReferenceAttribute(Source.EMPTY, "role", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD)
+    );
+
     public Explain(Source source, LogicalPlan query) {
         super(source);
         this.query = query;
@@ -42,32 +48,13 @@ public class Explain extends LeafPlan implements TelemetryAware {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    // TODO: implement again
-    // @Override
-    // public void execute(EsqlSession session, ActionListener<Result> listener) {
-    // ActionListener<String> analyzedStringListener = listener.map(
-    // analyzed -> new Result(
-    // output(),
-    // List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
-    // )
-    // );
-    //
-    // session.analyzedPlan(
-    // query,
-    // ActionListener.wrap(
-    // analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
-    // e -> analyzedStringListener.onResponse(e.toString())
-    // )
-    // );
-    //
-    // }
+    public LogicalPlan query() {
+        return query;
+    }
 
     @Override
     public List<Attribute> output() {
-        return List.of(
-            new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
-        );
+        return output;
     }
 
     @Override

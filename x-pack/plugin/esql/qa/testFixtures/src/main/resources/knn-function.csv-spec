@@ -3,11 +3,11 @@
 # top-n query at the shard level 
 
 knnSearch
-required_capability: knn_function
+required_capability: knn_function_v2
 
 // tag::knn-function[]
 from colors metadata _score 
-| where knn(rgb_vector, [0, 120, 0]) 
+| where knn(rgb_vector, [0, 120, 0], 10) 
 | sort _score desc, color asc
 // end::knn-function[]
 | keep color, rgb_vector
@@ -29,30 +29,12 @@ chartreuse | [127.0, 255.0, 0.0]
 // end::knn-function-result[]
 ;
 
-knnSearchWithKOption
-required_capability: knn_function
-
-// tag::knn-function-options[]
-from colors metadata _score 
-| where knn(rgb_vector, [0,255,255], {"k": 4})
-| sort _score desc, color asc
-// end::knn-function-options[]
-| keep color, rgb_vector
-| limit 4
-;
-
-color:text  | rgb_vector:dense_vector
-cyan        | [0.0, 255.0, 255.0]
-turquoise   | [64.0, 224.0, 208.0]
-aqua marine | [127.0, 255.0, 212.0]
-teal        | [0.0, 128.0, 128.0]
-;
-
-knnSearchWithSimilarityOption
-required_capability: knn_function
+# https://github.com/elastic/elasticsearch/issues/129550 - Add as an example to knn function documentation
+knnSearchWithSimilarityOption-Ignore
+required_capability: knn_function_v2
 
 from colors metadata _score 
-| where knn(rgb_vector, [255,192,203], {"k": 140, "similarity": 40})
+| where knn(rgb_vector, [255,192,203], 140, {"similarity": 40})
 | sort _score desc, color asc
 | keep color, rgb_vector
 ;
@@ -62,14 +44,13 @@ pink       | [255.0, 192.0, 203.0]
 peach puff | [255.0, 218.0, 185.0]
 bisque     | [255.0, 228.0, 196.0]
 wheat      | [245.0, 222.0, 179.0]
-
 ;
 
 knnHybridSearch
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score 
-| where match(color, "blue") or knn(rgb_vector, [65,105,225], {"k": 140})
+| where match(color, "blue") or knn(rgb_vector, [65,105,225], 140)
 | where primary == true
 | sort _score desc, color asc
 | keep color, rgb_vector
@@ -89,10 +70,10 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithMultipleFunctions
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
-| where knn(rgb_vector, [128,128,0], {"k": 140}) and match(color, "olive") 
+| where knn(rgb_vector, [128,128,0], 140) and match(color, "olive") 
 | sort _score desc, color asc
 | keep color, rgb_vector
 ;
@@ -102,11 +83,11 @@ olive            | [128.0, 128.0, 0.0]
 ;
 
 knnAfterKeep
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
-| where knn(rgb_vector, [128,255,0], {"k": 140})
+| where knn(rgb_vector, [128,255,0], 140)
 | sort _score desc, color asc
 | keep rgb_vector
 | limit 5
@@ -121,11 +102,11 @@ rgb_vector:dense_vector
 ;
 
 knnAfterDrop
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | drop primary
-| where knn(rgb_vector, [128,250,0], {"k": 140})
+| where knn(rgb_vector, [128,250,0], 140)
 | sort _score desc, color asc
 | keep color, rgb_vector
 | limit 5
@@ -140,11 +121,11 @@ lime           | [0.0, 255.0, 0.0]
 ;
 
 knnAfterEval
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], {"k": 140})
+| where knn(rgb_vector, [128,128,0], 140)
 | sort _score desc, color asc
 | keep color, composed_name 
 | limit 5
@@ -159,11 +140,11 @@ golden rod | true
 ;
 
 knnWithConjunction
-required_capability: knn_function
+required_capability: knn_function_v2
 
 # TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
-| where knn(rgb_vector, [255,255,238], {"k": 140}) and hex_code like "#FFF*" 
+| where knn(rgb_vector, [255,255,238], 140) and hex_code like "#FFF*" 
 | sort _score desc, color asc
 | keep color, hex_code, rgb_vector
 | limit 10
@@ -180,11 +161,11 @@ yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
-required_capability: knn_function
+required_capability: knn_function_v2
 
 # TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
-| where (knn(rgb_vector, [0,255,255], {"k": 140}) or knn(rgb_vector, [128, 0, 255], {"k": 140})) and primary == true 
+| where (knn(rgb_vector, [0,255,255], 140) or knn(rgb_vector, [128, 0, 255], 140)) and primary == true 
 | keep color, rgb_vector, _score
 | sort _score desc, color asc
 | drop _score
@@ -204,11 +185,11 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithNonPushableConjunction
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], {"k": 140}) and composed_name == false
+| where knn(rgb_vector, [128,128,0], 140) and composed_name == false
 | sort _score desc, color asc
 | keep color, composed_name
 | limit 10
@@ -227,11 +208,12 @@ green      | false
 maroon     | false
 ;
 
-testKnnWithNonPushableDisjunctions
-required_capability: knn_function
+# https://github.com/elastic/elasticsearch/issues/129550
+testKnnWithNonPushableDisjunctions-Ignore
+required_capability: knn_function_v2
 
 from colors metadata _score 
-| where knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 30}) or length(color) > 10 
+| where knn(rgb_vector, [128,128,0], 140, {"similarity": 30}) or length(color) > 10 
 | sort _score desc, color asc
 | keep color 
 ;
@@ -243,11 +225,12 @@ lemon chiffon
 papaya whip
 ;
 
-testKnnWithNonPushableDisjunctionsOnComplexExpressions
-required_capability: knn_function
+# https://github.com/elastic/elasticsearch/issues/129550
+testKnnWithNonPushableDisjunctionsOnComplexExpressions-Ignore
+required_capability: knn_function_v2
 
 from colors metadata _score 
-| where (knn(rgb_vector, [128,128,0], {"k": 140, "similarity": 70}) and length(color) < 10) or (knn(rgb_vector, [128,0,128], {"k": 140, "similarity": 60}) and primary == false) 
+| where (knn(rgb_vector, [128,128,0], 140, {"similarity": 70}) and length(color) < 10) or (knn(rgb_vector, [128,0,128], 140, {"similarity": 60}) and primary == false) 
 | sort _score desc, color asc
 | keep color, primary
 ;
@@ -259,11 +242,11 @@ indigo       | false
 ;
 
 testKnnInStatsNonPushable
-required_capability: knn_function
+required_capability: knn_function_v2
 
 from colors 
 | where length(color) < 10 
-| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 140})
+| stats c = count(*) where knn(rgb_vector, [128,128,255], 140)
 ;
 
 c: long 
@@ -271,12 +254,12 @@ c: long
 ;
 
 testKnnInStatsWithGrouping
-required_capability: knn_function
+required_capability: knn_function_v2
 required_capability: full_text_functions_in_stats_where
 
 from colors 
 | where length(color) < 10 
-| stats c = count(*) where knn(rgb_vector, [128,128,255], {"k": 140}) by primary
+| stats c = count(*) where knn(rgb_vector, [128,128,255], 140) by primary
 ;
 
 c: long       | primary: boolean    

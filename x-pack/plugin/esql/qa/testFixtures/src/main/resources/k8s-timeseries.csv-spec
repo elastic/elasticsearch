@@ -83,11 +83,17 @@ bytes: double       | sum(rate(network.total_cost)): double | cluster: keyword
 
 oneRateWithBucket
 required_capability: metrics_command
-TS k8s | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 2;
+// tag::rate[]
+TS k8s
+| STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute)
+// end::rate[]
+| SORT time_bucket DESC | LIMIT 2;
 
+// tag::rate-result[]
 max(rate(network.total_bytes_in)): double | time_bucket:date
 6.980660660660663                         | 2024-05-10T00:20:00.000Z
 23.702205882352942                        | 2024-05-10T00:15:00.000Z
+// end::rate-result[]
 ;
 
 twoRatesWithBucket
@@ -169,13 +175,19 @@ null                                     | three       | 2024-05-10T00:01:00.000
 max_over_time
 required_capability: metrics_command
 required_capability: max_over_time
-TS k8s | STATS cost=sum(max_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::max_over_time[]
+TS k8s 
+| STATS cost=sum(max_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::max_over_time[]
+| SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::max_over_time-result[]
 cost:double | cluster:keyword | time_bucket:datetime    
 32.75       | qa              | 2024-05-10T00:17:00.000Z
 32.25       | staging         | 2024-05-10T00:09:00.000Z
 31.75       | qa              | 2024-05-10T00:06:00.000Z
 29.0        | prod            | 2024-05-10T00:19:00.000Z
+// end::max_over_time-result[]
 28.625      | qa              | 2024-05-10T00:09:00.000Z
 24.625      | qa              | 2024-05-10T00:18:00.000Z
 23.25       | qa              | 2024-05-10T00:11:00.000Z
@@ -187,12 +199,18 @@ cost:double | cluster:keyword | time_bucket:datetime
 min_over_time
 required_capability: metrics_command
 required_capability: min_over_time
-TS k8s | STATS cost=sum(min_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::min_over_time[]
+TS k8s 
+| STATS cost=sum(min_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::min_over_time[]
+| SORT cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::min_over_time-result[]
 cost:double | cluster:keyword | time_bucket:datetime    
 29.0        | prod            | 2024-05-10T00:19:00.000Z
 27.625      | qa              | 2024-05-10T00:06:00.000Z
 24.25       | qa              | 2024-05-10T00:09:00.000Z
+// end::min_over_time-result[]
 23.125      | staging         | 2024-05-10T00:08:00.000Z
 22.5        | prod            | 2024-05-10T00:13:00.000Z
 18.625      | qa              | 2024-05-10T00:04:00.000Z
@@ -205,13 +223,19 @@ cost:double | cluster:keyword | time_bucket:datetime
 max_of_avg_over_time
 required_capability: metrics_command
 required_capability: avg_over_time
-TS k8s | STATS max_cost=max(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::avg_over_time[]
+TS k8s
+| STATS max_cost=max(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::avg_over_time[]
+| SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::avg_over_time-result[]
 max_cost:double | cluster:keyword | time_bucket:datetime    
 12.375          | prod            | 2024-05-10T00:17:00.000Z
 12.375          | qa              | 2024-05-10T00:01:00.000Z
 12.25           | prod            | 2024-05-10T00:19:00.000Z
 12.0625         | qa              | 2024-05-10T00:06:00.000Z
+// end::avg_over_time-result[]
 11.875          | prod            | 2024-05-10T00:15:00.000Z
 11.875          | qa              | 2024-05-10T00:09:00.000Z
 11.625          | prod            | 2024-05-10T00:12:00.000Z
@@ -242,13 +266,19 @@ avg_cost:double    | cluster:keyword | time_bucket:datetime
 max_of_last_over_time
 required_capability: metrics_command
 required_capability: last_over_time
-TS k8s | STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::last_over_time[]
+TS k8s 
+| STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::last_over_time[]
+| SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::last_over_time-result[]
 max_cost:double | cluster:keyword | time_bucket:datetime    
 12.5            | staging         | 2024-05-10T00:09:00.000Z
 12.375          | prod            | 2024-05-10T00:17:00.000Z
 12.375          | qa              | 2024-05-10T00:06:00.000Z
 12.375          | qa              | 2024-05-10T00:01:00.000Z
+// end::last_over_time-result[]
 12.25           | prod            | 2024-05-10T00:19:00.000Z
 12.125          | qa              | 2024-05-10T00:17:00.000Z
 12.125          | prod            | 2024-05-10T00:00:00.000Z
@@ -260,12 +290,18 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 max_of_first_over_time
 required_capability: metrics_command
 required_capability: first_over_time
-TS k8s | STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::first_over_time[]
+TS k8s
+| STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
+// end::first_over_time[]
+| SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::first_over_time-result[]
 max_cost:double | cluster:keyword | time_bucket:datetime    
 12.375          | prod            | 2024-05-10T00:17:00.000Z
 12.375          | qa              | 2024-05-10T00:01:00.000Z
 12.25           | prod            | 2024-05-10T00:19:00.000Z
+// end::first_over_time-result[]
 12.125          | qa              | 2024-05-10T00:07:00.000Z
 12.125          | staging         | 2024-05-10T00:03:00.000Z
 11.875          | prod            | 2024-05-10T00:15:00.000Z
@@ -335,4 +371,18 @@ distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:dateti
 2              |2              | qa              | 2024-05-10T00:18:00.000Z
 2              |2              | staging         | 2024-05-10T00:18:00.000Z
 
+;
+
+
+two_rates
+required_capability: metrics_command
+
+TS k8s | STATS cost_per_mb=max(rate(network.total_bytes_in) / 1024 * 1024 * rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp,5minute) | SORT cost_per_mb DESC, cluster, time_bucket DESC | LIMIT 5;
+
+cost_per_mb:double | cluster:keyword | time_bucket:datetime
+5.119502189662629  | qa              | 2024-05-10T00:15:00.000Z
+4.1135056380088795 | qa              | 2024-05-10T00:05:00.000Z
+2.0974277092655393 | qa              | 2024-05-10T00:10:00.000Z
+2.071474095190272  | prod            | 2024-05-10T00:15:00.000Z
+1.59556462585034   | staging         | 2024-05-10T00:10:00.000Z
 ;

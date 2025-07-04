@@ -169,6 +169,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
+    protected MergeMetrics mergeMetrics;
 
     protected IndexSettings defaultSettings;
     protected String codecName;
@@ -263,6 +264,7 @@ public abstract class EngineTestCase extends ESTestCase {
         primaryTranslogDir = createTempDir("translog-primary");
         mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping(), extraMappers());
         translogHandler = createTranslogHandler(mapperService);
+        mergeMetrics = MergeMetrics.NOOP;
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -313,7 +315,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics()
         );
     }
 
@@ -347,7 +350,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics()
         );
     }
 
@@ -381,7 +385,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics()
         );
     }
 
@@ -887,7 +892,8 @@ public abstract class EngineTestCase extends ESTestCase {
             indexCommitListener,
             true,
             mapperService,
-            new EngineResetLock()
+            new EngineResetLock(),
+            mergeMetrics
         );
     }
 
@@ -929,7 +935,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics()
         );
     }
 

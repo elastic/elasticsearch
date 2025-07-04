@@ -35,8 +35,8 @@ jobs:
                 !/(^|\/)_snippets\//i.test(f.filename)
               )
               .map(f => {
-                let p = f.filename.replace(/\/index\.md$/i, '/');
-                if (p === f.filename) p = p.replace(/\.md$/i, '');
+                let p = f.filename.replace(/^docs\//, '').replace(/\/index\.md$/i, '/');
+                if (p === f.filename.replace(/^docs\//, '')) p = p.replace(/\.md$/i, '');
                 return `- [\`${f.filename}\`](${base}/${p})`;
               });
             if (!links.length) return;  // nothing to do

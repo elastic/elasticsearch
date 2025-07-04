@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
@@ -94,7 +95,7 @@ public class URLRepository extends BlobStoreRepository {
      * Constructs a read-only URL-based repository
      */
     public URLRepository(
-        ProjectId projectId,
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,

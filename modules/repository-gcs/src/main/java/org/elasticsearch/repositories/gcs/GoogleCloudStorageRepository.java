@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
@@ -90,7 +91,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,

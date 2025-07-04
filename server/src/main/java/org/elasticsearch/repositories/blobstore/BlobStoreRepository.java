@@ -200,6 +200,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private static final Logger shutdownLogger = LogManager.getLogger(ShutdownLogger.class);
     }
 
+    @Nullable
     private final ProjectId projectId;
     protected volatile RepositoryMetadata metadata;
 
@@ -498,7 +499,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     @SuppressWarnings("this-escape")
     protected BlobStoreRepository(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,

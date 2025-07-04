@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -112,7 +113,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final RepositoriesMetrics repositoriesMetrics;
 
     public AzureRepository(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,

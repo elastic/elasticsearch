@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -33,7 +34,7 @@ public class BlobStoreSnapshotMetrics {
     private final CounterMetric numberOfShardSnapshotsCompleted = new CounterMetric();
     private final Map<String, Object> metricAttributes;
 
-    public BlobStoreSnapshotMetrics(ProjectId projectId, RepositoryMetadata repositoryMetadata, SnapshotMetrics snapshotMetrics) {
+    public BlobStoreSnapshotMetrics(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata, SnapshotMetrics snapshotMetrics) {
         this.snapshotMetrics = snapshotMetrics;
         metricAttributes = SnapshotMetrics.createAttributesMap(projectId, repositoryMetadata);
     }

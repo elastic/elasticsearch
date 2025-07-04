@@ -51,7 +51,7 @@
 :   (keyword) Analyzer used to convert quoted text in the query string into tokens. Defaults to the search_quote_analyzer mapped for the default_field.
 
 `allow_wildcard`
-:   (boolean) If true, the query attempts to analyze wildcard terms in the query string. Defaults to false. 
+:   (boolean) If true, the query attempts to analyze wildcard terms in the query string. Defaults to false.
 
 `boost`
 :   (float) Floating point number used to decrease or increase the relevance scores of the query.

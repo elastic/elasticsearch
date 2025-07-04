@@ -27,11 +27,8 @@ public class ToLower extends ChangeCase {
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to lower case.",
-        examples = {
-            @Example(file = "string", tag = "to_lower"),
-            @Example(file = "string", tag = "to_lower_mv", applies_to = "stack: ga 9.1.0") }
+        examples = @Example(file = "string", tag = "to_lower")
     )
-
     public ToLower(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
         String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
         or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.

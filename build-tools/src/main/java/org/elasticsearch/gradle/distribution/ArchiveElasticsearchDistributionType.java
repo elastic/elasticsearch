@@ -30,9 +30,6 @@ public class ArchiveElasticsearchDistributionType implements ElasticsearchDistri
 
     @Override
     public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        if (version.onOrAfter("9.2.0")) {
-            return ":" + platform + "-" + Architecture.current().classifier;
-        }
         return version.onOrAfter("7.0.0") ? ":" + platform + "-" + Architecture.current().bwcClassifier : "";
     }
 

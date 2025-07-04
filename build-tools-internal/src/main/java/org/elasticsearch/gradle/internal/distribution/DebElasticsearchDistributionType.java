@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.distribution;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
@@ -24,7 +25,6 @@ public class DebElasticsearchDistributionType implements ElasticsearchDistributi
 
     @Override
     public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        return ":amd64";
+        return Architecture.current().debianClassifier;
     }
-
 }

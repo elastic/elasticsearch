@@ -581,10 +581,10 @@ public class XmlProcessorTests extends ESTestCase {
 
         Map<String, Object> data = ingestDocument.getFieldValue(TARGET_FIELD, Map.class);
         Map<String, Object> foo = (Map<String, Object>) data.get("foo");
-        
+
         assertTrue("Element without namespace should be present", foo.containsKey("bar"));
         assertThat(foo.get("bar"), equalTo("value"));
-        
+
         // Now test with removeNamespaces=false
         IngestDocument ingestDocument2 = createTestIngestDocument(xml);
 

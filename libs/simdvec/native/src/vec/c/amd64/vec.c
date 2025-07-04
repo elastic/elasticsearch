@@ -191,8 +191,8 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
 
 // --- single precision floats
 
-// Horizontal add of all 8 elements in a __m256 register
-static inline float horizontal_sum_avx2(__m256 v) {
+// Horizontally add 8 float32 elements in a __m256 register
+static inline float hsum_f32_8(const __m256 v) {
     // First, add the low and high 128-bit lanes
     __m128 low  = _mm256_castps256_ps128(v);      // lower 128 bits
     __m128 high = _mm256_extractf128_ps(v, 1);    // upper 128 bits
@@ -261,9 +261,9 @@ EXPORT float cosf32(const float *a, const float *b, size_t elementCount) {
     __m256 norm_a_total = _mm256_add_ps(_mm256_add_ps(norm_a0, norm_a1), _mm256_add_ps(norm_a2, norm_a3));
     __m256 norm_b_total = _mm256_add_ps(_mm256_add_ps(norm_b0, norm_b1), _mm256_add_ps(norm_b2, norm_b3));
 
-    float dot_result = horizontal_sum_avx2(dot_total);
-    float norm_a_result = horizontal_sum_avx2(norm_a_total);
-    float norm_b_result = horizontal_sum_avx2(norm_b_total);
+    float dot_result = hsum_f32_8(dot_total);
+    float norm_a_result = hsum_f32_8(norm_a_total);
+    float norm_b_result = hsum_f32_8(norm_b_total);
 
     // Handle remaining tail with scalar loop
     for (; i < elementCount; ++i) {
@@ -302,7 +302,7 @@ EXPORT float dotf32(const float *a, const float *b, size_t elementCount) {
 
     // Combine all partial sums
     __m256 total_sum = _mm256_add_ps(_mm256_add_ps(acc0, acc1), _mm256_add_ps(acc2, acc3));
-    float result = horizontal_sum_avx2(total_sum);
+    float result = hsum_f32_8(total_sum);
 
     for (; i < elementCount; ++i) {
         result += a[i] * b[i];
@@ -337,7 +337,7 @@ EXPORT float sqrf32(const float *a, const float *b, size_t elementCount) {
 
     // reduce all partial sums
     __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sum0, sum1), _mm256_add_ps(sum2, sum3));
-    float result = horizontal_sum_avx2(total_sum);
+    float result = hsum_f32_8(total_sum);
 
     for (; i < elementCount; ++i) {
         float diff = a[i] - b[i];

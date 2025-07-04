@@ -296,9 +296,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test023InstallPluginUsingConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/126145
-- class: org.elasticsearch.search.SearchWithRejectionsIT
-  method: testOpenContextsAfterRejections
-  issue: https://github.com/elastic/elasticsearch/issues/126340
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
   issue: https://github.com/elastic/elasticsearch/issues/123200

@@ -15,8 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class XmlProcessorFactoryTests extends ESTestCase {
 
@@ -68,8 +68,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
      * Creates a configuration map with both XPath expressions and namespaces.
      */
     private Map<String, Object> createConfigWithXPathAndNamespaces(
-        String fieldName, 
-        Map<String, String> xpathExpressions, 
+        String fieldName,
+        Map<String, String> xpathExpressions,
         Map<String, String> namespaces
     ) {
         Map<String, Object> config = createBaseConfig(fieldName);
@@ -100,7 +100,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         if (expressionsAndFields.length % 2 != 0) {
             throw new IllegalArgumentException("Must provide even number of arguments (expression, field, expression, field, ...)");
         }
-        
+
         Map<String, String> xpathConfig = new HashMap<>();
         for (int i = 0; i < expressionsAndFields.length; i += 2) {
             xpathConfig.put(expressionsAndFields[i], expressionsAndFields[i + 1]);
@@ -115,7 +115,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         if (prefixesAndUris.length % 2 != 0) {
             throw new IllegalArgumentException("Must provide even number of arguments (prefix, uri, prefix, uri, ...)");
         }
-        
+
         Map<String, String> namespaceConfig = new HashMap<>();
         for (int i = 0; i < prefixesAndUris.length; i += 2) {
             namespaceConfig.put(prefixesAndUris[i], prefixesAndUris[i + 1]);
@@ -128,7 +128,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
      */
     private Map<String, Object> createConfigWithOptions(String fieldName, String... options) {
         Map<String, Object> config = createBaseConfig(fieldName);
-        
+
         for (String option : options) {
             switch (option) {
                 case "ignore_missing":
@@ -162,7 +162,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
                     throw new IllegalArgumentException("Unknown option: " + option);
             }
         }
-        
+
         return config;
     }
 
@@ -172,11 +172,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     private void expectCreationFailure(Map<String, Object> config, Class<? extends Exception> exceptionClass, String expectedMessage) {
         XmlProcessor.Factory factory = createFactory();
         String processorTag = randomAlphaOfLength(10);
-        
-        Exception exception = expectThrows(
-            exceptionClass,
-            () -> factory.create(null, processorTag, null, config, null)
-        );
+
+        Exception exception = expectThrows(exceptionClass, () -> factory.create(null, processorTag, null, config, null));
         assertThat(exception.getMessage(), equalTo(expectedMessage));
     }
 
@@ -226,10 +223,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithXPath() throws Exception {
-        Map<String, String> xpathConfig = createXPathConfig(
-            "//author/text()", "author_field",
-            "//title/@lang", "language_field"
-        );
+        Map<String, String> xpathConfig = createXPathConfig("//author/text()", "author_field", "//title/@lang", "language_field");
         Map<String, Object> config = createConfigWithXPath(DEFAULT_FIELD, xpathConfig);
 
         XmlProcessor processor = createProcessor(config);
@@ -240,24 +234,30 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     public void testCreateWithInvalidXPathConfig() throws Exception {
         Map<String, Object> config = createBaseConfig();
         config.put("xpath", "invalid_string"); // Should be a map
-        
+
         expectCreationFailure(config, IllegalArgumentException.class, "XPath configuration must be a map of expressions to target fields");
     }
 
     public void testCreateWithInvalidXPathTargetField() throws Exception {
         Map<String, Object> config = createBaseConfig();
-        
+
         Map<String, Object> xpathConfig = new HashMap<>();
         xpathConfig.put("//author/text()", 123); // Should be string
         config.put("xpath", xpathConfig);
 
-        expectCreationFailure(config, IllegalArgumentException.class, "XPath target field [//author/text()] must be a string, got [Integer]");
+        expectCreationFailure(
+            config,
+            IllegalArgumentException.class,
+            "XPath target field [//author/text()] must be a string, got [Integer]"
+        );
     }
 
     public void testCreateWithNamespaces() throws Exception {
         Map<String, String> namespacesConfig = createNamespaceConfig(
-            "book", "http://example.com/book",
-            "author", "http://example.com/author"
+            "book",
+            "http://example.com/book",
+            "author",
+            "http://example.com/author"
         );
         Map<String, Object> config = createConfigWithNamespaces(DEFAULT_FIELD, namespacesConfig);
 
@@ -276,7 +276,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
 
     public void testCreateWithInvalidNamespaceURI() throws Exception {
         Map<String, Object> config = createBaseConfig();
-        
+
         Map<String, Object> namespacesConfig = new HashMap<>();
         namespacesConfig.put("book", 123); // Should be string
         config.put("namespaces", namespacesConfig);
@@ -285,13 +285,8 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithXPathAndNamespaces() throws Exception {
-        Map<String, String> xpathConfig = createXPathConfig(
-            "//book:author/text()", "author_field",
-            "//book:title/@lang", "language_field"
-        );
-        Map<String, String> namespacesConfig = createNamespaceConfig(
-            "book", "http://example.com/book"
-        );
+        Map<String, String> xpathConfig = createXPathConfig("//book:author/text()", "author_field", "//book:title/@lang", "language_field");
+        Map<String, String> namespacesConfig = createNamespaceConfig("book", "http://example.com/book");
         Map<String, Object> config = createConfigWithXPathAndNamespaces(DEFAULT_FIELD, xpathConfig, namespacesConfig);
 
         XmlProcessor processor = createProcessor(config);
@@ -301,7 +296,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     }
 
     // Tests for individual boolean options
-    
+
     public void testCreateWithStoreXmlFalse() throws Exception {
         Map<String, Object> config = createConfigWithOptions(DEFAULT_FIELD, "store_xml");
         XmlProcessor processor = createProcessor(config);
@@ -344,8 +339,13 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithMultipleOptions() throws Exception {
-        Map<String, Object> config = createConfigWithOptions(DEFAULT_FIELD, 
-            "ignore_missing", "force_content", "force_array", "remove_namespaces");
+        Map<String, Object> config = createConfigWithOptions(
+            DEFAULT_FIELD,
+            "ignore_missing",
+            "force_content",
+            "force_array",
+            "remove_namespaces"
+        );
         XmlProcessor processor = createProcessor(config);
 
         assertThat(processor.getField(), equalTo(DEFAULT_FIELD));
@@ -356,28 +356,32 @@ public class XmlProcessorFactoryTests extends ESTestCase {
     }
 
     // Tests for invalid parse options
-    
+
     public void testCreateWithInvalidParseOptions() throws Exception {
         Map<String, Object> config = createBaseConfig();
         config.put("parse_options", "invalid_option");
 
-        expectCreationFailure(config, IllegalArgumentException.class, "Invalid parse_options [invalid_option]. Only 'strict' is supported.");
+        expectCreationFailure(
+            config,
+            IllegalArgumentException.class,
+            "Invalid parse_options [invalid_option]. Only 'strict' is supported."
+        );
     }
 
     // Tests for XPath compilation errors (testing precompilation feature)
-    
+
     public void testCreateWithInvalidXPathExpression() throws Exception {
         Map<String, String> xpathConfig = createXPathConfig("invalid xpath ][", "target_field");
         Map<String, Object> config = createConfigWithXPath(DEFAULT_FIELD, xpathConfig);
 
         XmlProcessor.Factory factory = createFactory();
         String processorTag = randomAlphaOfLength(10);
-        
+
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> factory.create(null, processorTag, null, config, null)
         );
-        
+
         // Check that the error message contains the XPath expression and indicates it's invalid
         assertThat(exception.getMessage(), containsString("Invalid XPath expression [invalid xpath ][]:"));
         assertThat(exception.getMessage(), containsString("javax.xml.transform.TransformerException"));
@@ -387,6 +391,10 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         Map<String, String> xpathConfig = createXPathConfig("//book:title/text()", "title_field");
         Map<String, Object> config = createConfigWithXPath(DEFAULT_FIELD, xpathConfig);
 
-        expectCreationFailure(config, IllegalArgumentException.class, "Invalid XPath expression [//book:title/text()]: contains namespace prefixes but no namespace configuration provided");
+        expectCreationFailure(
+            config,
+            IllegalArgumentException.class,
+            "Invalid XPath expression [//book:title/text()]: contains namespace prefixes but no namespace configuration provided"
+        );
     }
 }

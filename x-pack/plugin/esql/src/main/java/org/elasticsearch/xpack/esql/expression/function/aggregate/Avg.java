@@ -28,6 +28,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
@@ -65,7 +66,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double or numeric except unsigned_long or counter types"
@@ -108,12 +109,9 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         if (field.foldable()) {
             return new MvAvg(s, field);
         }
-        Expression sum = new Sum(s, field, filter()).surrogate() == null
-            ? new Sum(s, field, filter())
-            : new Sum(s, field, filter()).surrogate();
-        Expression count = new Count(s, field, filter()).surrogate() == null
-            ? new Count(s, field, filter())
-            : new Count(s, field, filter()).surrogate();
-        return new Div(s, sum, count, dataType());
+        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+            return new Div(s, new Sum(s, field, filter()).surrogate(), new Count(s, field, filter()).surrogate());
+        }
+        return new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
     }
 }

@@ -33,6 +33,9 @@ import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
 import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
 import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnByteVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -52,6 +55,7 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
@@ -68,7 +72,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntConsumer;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
@@ -93,6 +99,7 @@ class KnnSearcher {
     private final VectorEncoding vectorEncoding;
     private final float overSamplingFactor;
     private final int searchThreads;
+    private final int numSearchers;
 
     KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
         this.docPath = cmdLineArgs.docVectors();
@@ -112,16 +119,20 @@ class KnnSearcher {
         this.nProbe = nProbe;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
+        this.numSearchers = cmdLineArgs.numSearchers();
     }
 
-    void runSearch(KnnIndexTester.Results finalResults) throws IOException {
+    void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
         int offsetByteSize = 0;
         try (
             FileChannel input = FileChannel.open(queryPath);
-            ExecutorService executorService = Executors.newFixedThreadPool(searchThreads, r -> new Thread(r, "KnnSearcher-Thread"))
+            ExecutorService executorService = Executors.newFixedThreadPool(searchThreads, r -> new Thread(r, "KnnSearcher-Thread"));
+            ExecutorService numSearchersExecutor = numSearchers > 1
+                ? Executors.newFixedThreadPool(numSearchers, r -> new Thread(r, "KnnSearcher-Caller"))
+                : null
         ) {
             long queryPathSizeInBytes = input.size();
             logger.info(
@@ -153,22 +164,80 @@ class KnnSearcher {
                     for (int i = 0; i < numQueryVectors; i++) {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             targetReader.next(targetBytes);
-                            doVectorQuery(targetBytes, searcher);
+                            doVectorQuery(targetBytes, searcher, earlyTermination);
                         } else {
                             targetReader.next(target);
-                            doVectorQuery(target, searcher);
+                            doVectorQuery(target, searcher, earlyTermination);
+                        }
+                    }
+                    targetReader.reset();
+                    final IntConsumer[] queryConsumers = new IntConsumer[numSearchers];
+                    if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                        byte[][] queries = new byte[numQueryVectors][dim];
+                        for (int i = 0; i < numQueryVectors; i++) {
+                            targetReader.next(queries[i]);
+                        }
+                        for (int s = 0; s < numSearchers; s++) {
+                            queryConsumers[s] = i -> {
+                                try {
+                                    results[i] = doVectorQuery(queries[i], searcher, earlyTermination);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            };
+                        }
+                    } else {
+                        float[][] queries = new float[numQueryVectors][dim];
+                        for (int i = 0; i < numQueryVectors; i++) {
+                            targetReader.next(queries[i]);
+                        }
+                        for (int s = 0; s < numSearchers; s++) {
+                            queryConsumers[s] = i -> {
+                                try {
+                                    results[i] = doVectorQuery(queries[i], searcher, earlyTermination);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            };
+                        }
+                    }
+                    int[][] querySplits = new int[numSearchers][];
+                    int queriesPerSearcher = numQueryVectors / numSearchers;
+                    for (int s = 0; s < numSearchers; s++) {
+                        int start = s * queriesPerSearcher;
+                        int end = (s == numSearchers - 1) ? numQueryVectors : (s + 1) * queriesPerSearcher;
+                        querySplits[s] = new int[end - start];
+                        for (int i = start; i < end; i++) {
+                            querySplits[s][i - start] = i;
                         }
                     }
                     targetReader.reset();
                     startNS = System.nanoTime();
                     KnnIndexTester.ThreadDetails startThreadDetails = new KnnIndexTester.ThreadDetails();
-                    for (int i = 0; i < numQueryVectors; i++) {
-                        if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                            targetReader.next(targetBytes);
-                            results[i] = doVectorQuery(targetBytes, searcher);
-                        } else {
-                            targetReader.next(target);
-                            results[i] = doVectorQuery(target, searcher);
+                    if (numSearchersExecutor != null) {
+                        // use multiple searchers
+                        var futures = new ArrayList<Future<Void>>();
+                        for (int s = 0; s < numSearchers; s++) {
+                            int[] split = querySplits[s];
+                            IntConsumer queryConsumer = queryConsumers[s];
+                            futures.add(numSearchersExecutor.submit(() -> {
+                                for (int j : split) {
+                                    queryConsumer.accept(j);
+                                }
+                                return null;
+                            }));
+                        }
+                        for (Future<Void> future : futures) {
+                            try {
+                                future.get();
+                            } catch (Exception e) {
+                                throw new RuntimeException("Error executing searcher thread", e);
+                            }
+                        }
+                    } else {
+                        // use a single searcher
+                        for (int i = 0; i < numQueryVectors; i++) {
+                            queryConsumers[0].accept(i);
                         }
                     }
                     KnnIndexTester.ThreadDetails endThreadDetails = new KnnIndexTester.ThreadDetails();
@@ -176,13 +245,13 @@ class KnnSearcher {
                     long startCPUTimeNS = 0;
                     long endCPUTimeNS = 0;
                     for (int i = 0; i < startThreadDetails.threadInfos.length; i++) {
-                        if (startThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher-Thread")) {
+                        if (startThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
                             startCPUTimeNS += startThreadDetails.cpuTimesNS[i];
                         }
                     }
 
                     for (int i = 0; i < endThreadDetails.threadInfos.length; i++) {
-                        if (endThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher-Thread")) {
+                        if (endThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
                             endCPUTimeNS += endThreadDetails.cpuTimesNS[i];
                         }
                     }
@@ -264,7 +333,7 @@ class KnnSearcher {
         return true;
     }
 
-    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher) throws IOException {
+    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, boolean earlyTermination) throws IOException {
         Query knnQuery;
         if (overSamplingFactor > 1f) {
             throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
@@ -280,6 +349,9 @@ class KnnSearcher {
                 null,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
             );
+            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
+                knnQuery = PatienceKnnVectorQuery.fromByteQuery((KnnByteVectorQuery) knnQuery);
+            }
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
@@ -288,7 +360,7 @@ class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher) throws IOException {
+    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, boolean earlyTermination) throws IOException {
         Query knnQuery;
         int topK = this.topK;
         if (overSamplingFactor > 1f) {
@@ -307,6 +379,9 @@ class KnnSearcher {
                 null,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
             );
+            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
+                knnQuery = PatienceKnnVectorQuery.fromFloatQuery((KnnFloatVectorQuery) knnQuery);
+            }
         }
         if (overSamplingFactor > 1f) {
             // oversample the topK results to get more candidates for the final result
@@ -314,9 +389,12 @@ class KnnSearcher {
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
-        QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
-        queryProfilerProvider.profile(profiler);
-        return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+        if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.profile(profiler);
+            return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+        } else {
+            return docs;
+        }
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {

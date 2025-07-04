@@ -716,18 +716,18 @@ avg of aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_implicit_casting_in_aggs]
-      reason: "maybe make its own capability"
+          capabilities: [aggregate_metric_double_avg]
+      reason: "support avg aggregations with aggregate metric double"
 
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test4 | STATS avg = avg(agg_metric) | KEEP avg'
+          query: 'FROM test2 | STATS avg = avg(agg_metric) | KEEP avg'
 
   - length: {values: 1}
   - length: {values.0: 1}
   - match: {columns.0.name: "avg"}
   - match: {columns.0.type: "double"}
-  - match: {values.0.0: 0.1}
+  - match: {values.0.0: 4.904761904761905}

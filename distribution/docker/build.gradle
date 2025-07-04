@@ -659,7 +659,7 @@ subprojects { Project subProject ->
       it.setCompression(Compression.GZIP)
       it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
       it.getArchiveVersion().set("")
-      it.getArchiveClassifier().set(architectur.dockerClassifier)
+      it.getArchiveClassifier().set(architecture.dockerClassifier)
       it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
       it.dependsOn(exportTask)
     }

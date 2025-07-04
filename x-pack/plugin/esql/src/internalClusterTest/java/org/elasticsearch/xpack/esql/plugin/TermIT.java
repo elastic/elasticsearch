@@ -91,14 +91,14 @@ public class TermIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE id > 0 AND TERM(more_content, "fox")
+            | WHERE id > 0 AND TERM(lookup_content, "fox")
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
             containsString(
-                "line 3:25: [Term] function cannot operate on [more_content], supplied by an index [test_lookup] "
+                "line 3:25: [Term] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
                     + "in non-STANDARD mode [lookup]"
             )
         );

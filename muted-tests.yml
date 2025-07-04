@@ -572,12 +572,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/130505
-- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
-  method: testGetSystemTrustStoreWithNoSystemProperties
-  issue: https://github.com/elastic/elasticsearch/issues/130517
-- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
-  method: testGetNonPKCS11TrustStoreWithPasswordSet
-  issue: https://github.com/elastic/elasticsearch/issues/130519
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/130568

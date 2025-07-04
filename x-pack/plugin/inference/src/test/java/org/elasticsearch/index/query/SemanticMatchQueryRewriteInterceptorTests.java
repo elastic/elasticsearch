@@ -81,13 +81,13 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
         assertEquals(original, rewritten);
     }
 
-    public void testBoostInMatchQueryRewrite() throws IOException {
+    public void testBoostAndQueryNameInMatchQueryRewrite() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
             new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        QueryBuilder original = createTestQueryBuilderWithBoost();
+        QueryBuilder original = createTestQueryBuilderWithBoostAndQueryName();
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
@@ -106,7 +106,7 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
         return new MatchQueryBuilder(FIELD_NAME, VALUE);
     }
 
-    private MatchQueryBuilder createTestQueryBuilderWithBoost() {
+    private MatchQueryBuilder createTestQueryBuilderWithBoostAndQueryName() {
         MatchQueryBuilder queryBuilder = createTestQueryBuilder();
         queryBuilder.boost(BOOST);
         queryBuilder.queryName(QUERY_NAME);

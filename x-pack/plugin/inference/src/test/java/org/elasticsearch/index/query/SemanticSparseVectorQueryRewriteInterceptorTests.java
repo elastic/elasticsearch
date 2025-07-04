@@ -52,27 +52,17 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     }
 
     public void testSparseVectorQueryOnInferenceFieldIsInterceptedAndRewritten() throws IOException {
+        float boost = randomFloat() * 5;
+        String queryName = randomAlphaOfLength(5);
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
             new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
-        QueryBuilder rewritten = original.rewrite(context);
-        assertTrue(
-            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
-            rewritten instanceof InterceptedQueryBuilderWrapper
-        );
-        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
-        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
-        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
-        QueryBuilder innerQuery = nestedQueryBuilder.query();
-        assertTrue(innerQuery instanceof SparseVectorQueryBuilder);
-        SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) innerQuery;
-        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
-        assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
-        assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
+        original.boost(boost);
+        original.queryName(queryName);
+        testRewrittenInferenceQuery(context, original);
     }
 
     public void testSparseVectorQueryOnInferenceFieldWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
@@ -82,21 +72,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, null, QUERY);
-        QueryBuilder rewritten = original.rewrite(context);
-        assertTrue(
-            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
-            rewritten instanceof InterceptedQueryBuilderWrapper
-        );
-        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
-        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
-        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
-        QueryBuilder innerQuery = nestedQueryBuilder.query();
-        assertTrue(innerQuery instanceof SparseVectorQueryBuilder);
-        SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) innerQuery;
-        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
-        assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
-        assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
+        testRewrittenInferenceQuery(context, original);
     }
 
     public void testSparseVectorQueryOnNonInferenceFieldRemainsUnchanged() throws IOException {
@@ -110,36 +86,29 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         assertEquals(original, rewritten);
     }
 
-    public void testBoostAndQueryNameOnSparseVectorQueryRewrite() throws IOException {
-        float BOOST = 5.0f;
-        String QUERY_NAME = "sparse_vector_query";
-
-        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
-            FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
-        );
-        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
-        original.boost(BOOST);
-        original.queryName(QUERY_NAME);
+    private void testRewrittenInferenceQuery(QueryRewriteContext context, QueryBuilder original) throws IOException {
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertEquals(BOOST, intercepted.boost(), 0.0f);
-        assertEquals(QUERY_NAME, intercepted.queryName());
+        assertEquals(original.boost(), intercepted.boost(), 0.0f);
+        assertEquals(original.queryName(), intercepted.queryName());
+
         assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
         assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
+        assertEquals(original.boost(), nestedQueryBuilder.boost(), 0.0f);
+        assertEquals(original.queryName(), nestedQueryBuilder.queryName());
+
         QueryBuilder innerQuery = nestedQueryBuilder.query();
         assertTrue(innerQuery instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) innerQuery;
         assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
         assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
         assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
-        assertEquals(BOOST, sparseVectorQueryBuilder.boost(), 5.0f);
+        assertEquals(1.0f, sparseVectorQueryBuilder.boost(), 0.0f);
         assertNull(sparseVectorQueryBuilder.queryName());
     }
 

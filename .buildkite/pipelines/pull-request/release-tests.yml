@@ -18,6 +18,6 @@ steps:
               - checkPart6
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           diskSizeGb: 350
           machineType: custom-32-98304

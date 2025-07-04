@@ -55,24 +55,23 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 /**
  * Benchmark that compares various scalar quantized vector similarity function
  * implementations;: scalar, lucene's panama-ized, and Elasticsearch's native.
- * Run with ./gradlew -p benchmarks run --args 'VectorScorerBenchmark'
+ * Run with ./gradlew -p benchmarks run --args 'Int7uScorerBenchmark'
  */
-public class VectorScorerBenchmark {
+public class Int7uScorerBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
     @Param({ "96", "768", "1024" })
-    int dims;
-    int size = 2; // there are only two vectors to compare
+    public int dims;
+    final int size = 2; // there are only two vectors to compare
 
     Directory dir;
     IndexInput in;
     VectorScorerFactory factory;
 
-    byte[] vec1;
-    byte[] vec2;
+    byte[] vec1, vec2;
     float vec1Offset;
     float vec2Offset;
     float scoreCorrectionConstant;
@@ -139,39 +138,6 @@ public class VectorScorerBenchmark {
         nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
         luceneSqrScorerQuery = luceneScorer(values, VectorSimilarityFunction.EUCLIDEAN, queryVec);
         nativeSqrScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.EUCLIDEAN, values, queryVec).get();
-
-        // sanity
-        var f1 = dotProductLucene();
-        var f2 = dotProductNative();
-        var f3 = dotProductScalar();
-        if (f1 != f2) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "native[" + f2 + "]");
-        }
-        if (f1 != f3) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
-        }
-        // square distance
-        f1 = squareDistanceLucene();
-        f2 = squareDistanceNative();
-        f3 = squareDistanceScalar();
-        if (f1 != f2) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "native[" + f2 + "]");
-        }
-        if (f1 != f3) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
-        }
-
-        var q1 = dotProductLuceneQuery();
-        var q2 = dotProductNativeQuery();
-        if (q1 != q2) {
-            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
-        }
-
-        var sqr1 = squareDistanceLuceneQuery();
-        var sqr2 = squareDistanceNativeQuery();
-        if (sqr1 != sqr2) {
-            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
-        }
     }
 
     @TearDown

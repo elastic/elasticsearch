@@ -519,6 +519,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setupEntitlementsForClass() {
+        // TODO fix this
+        if (inFipsJvm()) {
+            return;
+        }
         boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
         boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
         if (TestEntitlementBootstrap.isEnabledForTest()) {

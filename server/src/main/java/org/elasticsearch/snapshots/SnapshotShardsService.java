@@ -411,6 +411,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 entry.version(),
                 entry.startTime()
             );
+            snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
             startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -429,7 +430,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     assert false : wrapperException; // impossible
                 }
             });
-            snapshotStatus.updateStatusDescription("shard snapshot enqueued to start");
         }
 
         // apply some backpressure by reserving one SNAPSHOT thread for the startup work

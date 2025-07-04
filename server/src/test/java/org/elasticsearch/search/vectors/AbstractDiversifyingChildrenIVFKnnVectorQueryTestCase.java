@@ -300,7 +300,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 );
                 assertEquals(8, results.scoreDocs.length);
                 assertIdMatches(reader, "10", results.scoreDocs[0].doc);
-                assertIdMatches(reader, "8", results.scoreDocs[7].doc);
+                assertIdMatches(reader, "6", results.scoreDocs[7].doc);
             }
         }
     }

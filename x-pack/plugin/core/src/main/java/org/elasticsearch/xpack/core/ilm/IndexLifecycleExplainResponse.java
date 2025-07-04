@@ -51,6 +51,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField PREVIOUS_STEP_INFO_FIELD = new ParseField("previous_step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
+    private static final ParseField AGE_IN_MILLIS_FIELD = new ParseField("age_in_millis");
     private static final ParseField TIME_SINCE_INDEX_CREATION_FIELD = new ParseField("time_since_index_creation");
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
@@ -83,6 +84,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             Objects.requireNonNullElse((Boolean) a[22], false)
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
+            // a[23] = "age_in_millis"
         )
     );
     static {
@@ -121,6 +123,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             return BytesReference.bytes(builder);
         }, PREVIOUS_STEP_INFO_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
     }
 
     private final String index;
@@ -529,7 +532,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     LIFECYCLE_DATE_FIELD.getPreferredName(),
                     lifecycleDate
                 );
-                builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
+
+                final TimeValue ageNow = getAge(nowSupplier);
+                builder.field(AGE_FIELD.getPreferredName(), ageNow.toHumanReadableString(2));
+                builder.field(AGE_IN_MILLIS_FIELD.getPreferredName(), ageNow.getMillis());
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

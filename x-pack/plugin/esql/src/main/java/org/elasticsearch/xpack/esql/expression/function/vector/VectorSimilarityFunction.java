@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 
 import java.io.IOException;
 import java.util.List;
@@ -86,93 +85,84 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
         return right;
     }
 
-    protected abstract class SimilarityEvaluatorFactory implements EvalOperator.ExpressionEvaluator.Factory {
+    @FunctionalInterface
+    public interface SimilarityEvaluatorFunction {
+        float calculateSimilarity(float[] leftScratch, float[] rightScratch);
+    }
 
-        protected final EvalOperator.ExpressionEvaluator.Factory left;
-        protected final EvalOperator.ExpressionEvaluator.Factory right;
+    protected class SimilarityEvaluatorFactory implements EvalOperator.ExpressionEvaluator.Factory {
 
-        SimilarityEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory left, EvalOperator.ExpressionEvaluator.Factory right) {
+        private final EvalOperator.ExpressionEvaluator.Factory left;
+        private final EvalOperator.ExpressionEvaluator.Factory right;
+        private final SimilarityEvaluatorFunction similarityFunction;
+
+        SimilarityEvaluatorFactory(
+            EvalOperator.ExpressionEvaluator.Factory left,
+            EvalOperator.ExpressionEvaluator.Factory right,
+            SimilarityEvaluatorFunction similarityFunction
+        ) {
             this.left = left;
             this.right = right;
+            this.similarityFunction = similarityFunction;
         }
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return getSimilarityEvaluator(context);
-        }
+            return new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    try (
+                        FloatBlock leftBlock = (FloatBlock) left.get(context).eval(page);
+                        FloatBlock rightBlock = (FloatBlock) right.get(context).eval(page)
+                    ) {
+                        int positionCount = page.getPositionCount();
+                        if (positionCount == 0) {
+                            return context.blockFactory().newConstantFloatBlockWith(0F, 0);
+                        }
 
-        protected abstract SimilarityEvaluator getSimilarityEvaluator(DriverContext context);
-    }
+                        int dimensions = leftBlock.getValueCount(0);
+                        int dimsRight = rightBlock.getValueCount(0);
+                        assert dimensions == dimsRight
+                            : "Left and right vector must have the same value count, but got left: " + dimensions + ", right: " + dimsRight;
+                        float[] leftScratch = new float[dimensions];
+                        float[] rightScratch = new float[dimensions];
+                        try (DoubleVector.Builder builder = context.blockFactory().newDoubleVectorBuilder(positionCount * dimensions)) {
+                            for (int p = 0; p < positionCount; p++) {
+                                assert leftBlock.getValueCount(p) == dimensions
+                                    : "Left vector must have the same value count for all positions, but got left: "
+                                        + leftBlock.getValueCount(p)
+                                        + ", expected: "
+                                        + dimensions;
+                                assert rightBlock.getValueCount(p) == dimensions
+                                    : "Left vector must have the same value count for all positions, but got left: "
+                                        + rightBlock.getValueCount(p)
+                                        + ", expected: "
+                                        + dimensions;
 
-    /**
-     * Evaluator for {@link CosineSimilarity}. Not generated and doesn’t extend from
-     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it’s different from {@link org.elasticsearch.compute.ann.MvEvaluator}
-     * or scalar evaluators.
-     * <p>
-     * We can probably generalize to a common class or use its own annotation / evaluator template
-     */
-    protected abstract static class SimilarityEvaluator implements EvalOperator.ExpressionEvaluator {
-        private final DriverContext context;
-        private final EvalOperator.ExpressionEvaluator left;
-        private final EvalOperator.ExpressionEvaluator right;
-
-        SimilarityEvaluator(DriverContext context, EvalOperator.ExpressionEvaluator left, EvalOperator.ExpressionEvaluator right) {
-            this.context = context;
-            this.left = left;
-            this.right = right;
-        }
-
-        @Override
-        public final Block eval(Page page) {
-            try (FloatBlock leftBlock = (FloatBlock) left.eval(page); FloatBlock rightBlock = (FloatBlock) right.eval(page)) {
-                int positionCount = page.getPositionCount();
-                if (positionCount == 0) {
-                    return context.blockFactory().newConstantFloatBlockWith(0F, 0);
-                }
-
-                int dimensions = leftBlock.getValueCount(0);
-                int dimsRight = rightBlock.getValueCount(0);
-                assert dimensions == dimsRight
-                    : "Left and right vector must have the same value count, but got left: " + dimensions + ", right: " + dimsRight;
-                float[] leftScratch = new float[dimensions];
-                float[] rightScratch = new float[dimensions];
-                try (DoubleVector.Builder builder = context.blockFactory().newDoubleVectorBuilder(positionCount * dimensions)) {
-                    for (int p = 0; p < positionCount; p++) {
-                        assert leftBlock.getValueCount(p) == dimensions
-                            : "Left vector must have the same value count for all positions, but got left: "
-                                + leftBlock.getValueCount(p)
-                                + ", expected: "
-                                + dimensions;
-                        assert rightBlock.getValueCount(p) == dimensions
-                            : "Left vector must have the same value count for all positions, but got left: "
-                                + rightBlock.getValueCount(p)
-                                + ", expected: "
-                                + dimensions;
-
-                        readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
-                        readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
-                        float result = calculateSimilarity(leftScratch, rightScratch);
-                        builder.appendDouble(result);
+                                readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
+                                readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
+                                float result = similarityFunction.calculateSimilarity(leftScratch, rightScratch);
+                                builder.appendDouble(result);
+                            }
+                            return builder.build().asBlock();
+                        }
                     }
-                    return builder.build().asBlock();
                 }
-            }
-        }
 
-        protected abstract float calculateSimilarity(float[] leftScratch, float[] rightScratch);
+                @Override
+                public void close() {}
+
+                @Override
+                public String toString() {
+                    return "ExpressionEvaluator[left=" + left + ", right=" + right + "]";
+                }
+            };
+        }
 
         private static void readFloatArray(FloatBlock block, int position, int dimensions, float[] scratch) {
             for (int i = 0; i < dimensions; i++) {
                 scratch[i] = block.getFloat(position + i);
             }
         }
-
-        @Override
-        public final String toString() {
-            return getClass().getSimpleName() + "=" + left + ", right=" + right + "]";
-        }
-
-        @Override
-        public void close() {}
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -68,22 +67,10 @@ public class CosineSimilarity extends org.elasticsearch.xpack.esql.expression.fu
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new VectorSimilarityFunction.SimilarityEvaluatorFactory(toEvaluator.apply(left()), toEvaluator.apply(right())) {
-            @Override
-            protected SimilarityEvaluator getSimilarityEvaluator(DriverContext context) {
-                return new CosineSimilarityEvaluator(context, left.get(context), right.get(context));
-            }
-        };
-    }
-
-    private static class CosineSimilarityEvaluator extends VectorSimilarityFunction.SimilarityEvaluator {
-        CosineSimilarityEvaluator(DriverContext context, EvalOperator.ExpressionEvaluator left, EvalOperator.ExpressionEvaluator right) {
-            super(context, left, right);
-        }
-
-        @Override
-        protected float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-            return COSINE.compare(leftScratch, rightScratch);
-        }
+        return new SimilarityEvaluatorFactory(
+            toEvaluator.apply(left()),
+            toEvaluator.apply(right()),
+            (leftScratch, rightScratch) -> COSINE.compare(leftScratch, rightScratch)
+        );
     }
 }

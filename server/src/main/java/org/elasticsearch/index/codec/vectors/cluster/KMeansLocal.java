@@ -303,7 +303,7 @@ class KMeansLocal {
     private void doCluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
         throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
-        boolean neighborAware = clustersPerNeighborhood != -1;
+        boolean neighborAware = clustersPerNeighborhood != -1 && centroids.length > 1;
 
         List<NeighborHood> neighborhoods = null;
         // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
@@ -316,7 +316,7 @@ class KMeansLocal {
             computeNeighborhoods(centroids, neighborhoods, clustersPerNeighborhood);
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
-        if (neighborAware && clustersPerNeighborhood > 0) {
+        if (neighborAware) {
             int[] assignments = kMeansIntermediate.assignments();
             assert assignments != null;
             assert assignments.length == vectors.size();

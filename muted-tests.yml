@@ -578,21 +578,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/130568
-- class: org.elasticsearch.reindex.ReindexRestClientSslTests
-  method: testClientPassesClientCertificate
-  issue: https://github.com/elastic/elasticsearch/issues/130584
-- class: org.elasticsearch.reindex.ReindexRestClientSslTests
-  method: testClientFailsWithUntrustedCertificate
-  issue: https://github.com/elastic/elasticsearch/issues/130585
-- class: org.elasticsearch.reindex.ReindexRestClientSslTests
-  method: testClientSucceedsWithCertificateAuthorities
-  issue: https://github.com/elastic/elasticsearch/issues/130586
-- class: org.elasticsearch.reindex.ReindexFromRemoteBuildRestClientTests
-  method: testHeaders
-  issue: https://github.com/elastic/elasticsearch/issues/130587
-- class: org.elasticsearch.reindex.ReindexFromRemoteBuildRestClientTests
-  method: testBuildRestClient
-  issue: https://github.com/elastic/elasticsearch/issues/130588
 - class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
   method: testRespondAfterServiceCloseWithClientCancel
   issue: https://github.com/elastic/elasticsearch/issues/130590

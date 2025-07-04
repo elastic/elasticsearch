@@ -908,6 +908,7 @@ public class SSLServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testclient");
         Settings settings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.keystore.path", testclientStore)
             .setSecureSettings(secureSettings)
             .build();
@@ -941,6 +942,7 @@ public class SSLServiceTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testclient");
         Settings settings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.keystore.path", testclientStore)
             .setSecureSettings(secureSettings)
             .build();

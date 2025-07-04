@@ -43,8 +43,7 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
     }
 
     private void assertStandardIssuers(X509ExtendedTrustManager trustManager) {
-        X509Certificate[] acceptedIssuers = trustManager.getAcceptedIssuers();
-        assertThat(acceptedIssuers, not(emptyArray()));
+        assertThat(trustManager.getAcceptedIssuers(), not(emptyArray()));
         // This is a sample of the CAs that we expect on every JRE.
         // We can safely change this list if the JRE's issuer list changes, but we want to assert something useful.
         assertHasTrustedIssuer(trustManager, "DigiCert");

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -32,6 +33,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.API_VERSION;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.MODEL_REQUIRED_FOR_V2_API;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.apiVersionFromMap;
 
 public class CohereCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
@@ -54,39 +58,65 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
             context
         );
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var apiVersion = apiVersionFromMap(map, context, validationException);
+        if (apiVersion == CohereServiceSettings.CohereApiVersion.V2) {
+            if (modelId == null) {
+                validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
+            }
+        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereCompletionServiceSettings(uri, modelId, rateLimitSettings);
+        return new CohereCompletionServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }
 
     private final URI uri;
-
     private final String modelId;
-
     private final RateLimitSettings rateLimitSettings;
+    private final CohereServiceSettings.CohereApiVersion apiVersion;
 
-    public CohereCompletionServiceSettings(@Nullable URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public CohereCompletionServiceSettings(
+        @Nullable URI uri,
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereServiceSettings.CohereApiVersion apiVersion
+    ) {
         this.uri = uri;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.apiVersion = apiVersion;
     }
 
-    public CohereCompletionServiceSettings(@Nullable String url, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this(createOptionalUri(url), modelId, rateLimitSettings);
+    public CohereCompletionServiceSettings(
+        @Nullable String url,
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereServiceSettings.CohereApiVersion apiVersion
+    ) {
+        this(createOptionalUri(url), modelId, rateLimitSettings, apiVersion);
     }
 
     public CohereCompletionServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
         modelId = in.readOptionalString();
         rateLimitSettings = new RateLimitSettings(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+            this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
+        } else {
+            this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
+        }
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
+    }
+
+    @Override
+    public CohereServiceSettings.CohereApiVersion apiVersion() {
+        return apiVersion;
     }
 
     public URI uri() {
@@ -102,6 +132,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
+        builder.field(API_VERSION, apiVersion); // API version is persisted but not exposed to the user
 
         builder.endObject();
         return builder;
@@ -123,6 +154,9 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(modelId);
         rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+            out.writeEnum(apiVersion);
+        }
     }
 
     @Override
@@ -146,11 +180,12 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         CohereCompletionServiceSettings that = (CohereCompletionServiceSettings) object;
         return Objects.equals(uri, that.uri)
             && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && apiVersion == that.apiVersion;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings);
+        return Objects.hash(uri, modelId, rateLimitSettings, apiVersion);
     }
 }

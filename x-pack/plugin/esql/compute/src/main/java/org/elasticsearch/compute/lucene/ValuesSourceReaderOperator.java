@@ -46,6 +46,8 @@ import java.util.TreeMap;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
+
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
  * and outputs them to a new column.
@@ -112,6 +114,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private final BlockFactory blockFactory;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
+    private long valuesLoaded;
 
     int lastShard = -1;
     int lastSegment = -1;
@@ -158,6 +161,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
             }
             success = true;
+            for (Block b : blocks) {
+                valuesLoaded += b.getTotalValueCount();
+            }
             return page.appendBlocks(blocks);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -548,7 +554,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
-        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted);
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
     }
 
     /**
@@ -593,21 +599,34 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         );
 
         private final Map<String, Integer> readersBuilt;
+        private final long valuesLoaded;
 
-        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+        Status(
+            Map<String, Integer> readersBuilt,
+            long processNanos,
+            int pagesProcessed,
+            long rowsReceived,
+            long rowsEmitted,
+            long valuesLoaded
+        ) {
             super(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
             this.readersBuilt = readersBuilt;
+            this.valuesLoaded = valuesLoaded;
         }
 
         Status(StreamInput in) throws IOException {
             super(in);
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
+            valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19) ? in.readVLong() : 0;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(readersBuilt, StreamOutput::writeVInt);
+            if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19)) {
+                out.writeVLong(valuesLoaded);
+            }
         }
 
         @Override
@@ -620,6 +639,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public long valuesLoaded() {
+            return valuesLoaded;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startObject("readers_built");
@@ -627,6 +651,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
+            builder.field("values_loaded", valuesLoaded);
             innerToXContent(builder);
             return builder.endObject();
         }
@@ -635,12 +660,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         public boolean equals(Object o) {
             if (super.equals(o) == false) return false;
             Status status = (Status) o;
-            return readersBuilt.equals(status.readersBuilt);
+            return readersBuilt.equals(status.readersBuilt) && valuesLoaded == status.valuesLoaded;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), readersBuilt);
+            return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded);
         }
 
         @Override
@@ -750,6 +775,4 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             return factory.newAggregateMetricDoubleBlockBuilder(count);
         }
     }
-
-    // TODO tests that mix source loaded fields and doc values in the same block
 }

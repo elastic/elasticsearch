@@ -124,7 +124,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     ) {
         // Use a mutable list for childRetrievers so that we can use addChild
         super(childRetrievers == null ? new ArrayList<>() : new ArrayList<>(childRetrievers), rankWindowSize);
-        this.fields = fields == null ? List.of() : List.copyOf(fields);
+        this.fields = fields == null ? null : List.copyOf(fields);
         this.query = query;
         this.rankConstant = rankConstant;
     }
@@ -302,7 +302,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             builder.endArray();
         }
 
-        if (fields.isEmpty() == false) {
+        if (fields != null) {
             builder.startArray(FIELDS_FIELD.getPreferredName());
             for (String field : fields) {
                 builder.value(field);

@@ -43,7 +43,7 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 * <<esql-keep>>
 * <<esql-limit>>
-* experimental:[] <<esql-lookup-join>>
+* <<esql-lookup-join>>
 * experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
 * experimental:[] <<esql-sample>>

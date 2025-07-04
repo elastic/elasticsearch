@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperator.Status> {
     public static ValuesSourceReaderOperator.Status simple() {
-        return new ValuesSourceReaderOperator.Status(Map.of("ReaderType", 3), 1022323, 123, 111, 222);
+        return new ValuesSourceReaderOperator.Status(Map.of("ReaderType", 3), 1022323, 123, 111, 222, 1000);
     }
 
     public static String simpleToJson() {
@@ -29,6 +29,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
               "readers_built" : {
                 "ReaderType" : 3
               },
+              "values_loaded" : 1000,
               "process_nanos" : 1022323,
               "process_time" : "1ms",
               "pages_processed" : 123,
@@ -53,6 +54,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             randomNonNegativeLong(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -73,14 +75,16 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
         int pagesProcessed = instance.pagesProcessed();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
-        switch (between(0, 4)) {
+        long valuesLoaded = instance.valuesLoaded();
+        switch (between(0, 5)) {
             case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuilt);
             case 1 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
             case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
             case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
             case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            case 5 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new ValuesSourceReaderOperator.Status(readersBuilt, processNanos, pagesProcessed, rowsReceived, rowsEmitted);
+        return new ValuesSourceReaderOperator.Status(readersBuilt, processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
     }
 }

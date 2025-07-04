@@ -438,6 +438,11 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         @Override
+        public long documentsFound() {
+            return rowsEmitted;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("processed_slices", processedSlices);

@@ -668,7 +668,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("cpu_nanos", greaterThan(0L))
             .entry("took_nanos", greaterThan(0L))
             .entry("operators", instanceOf(List.class))
-            .entry("sleeps", matchesMap().extraOk());
+            .entry("sleeps", matchesMap().extraOk())
+            .entry("documents_found", greaterThanOrEqualTo(0))
+            .entry("values_loaded", greaterThanOrEqualTo(0));
     }
 
     /**
@@ -698,7 +700,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("processing_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
-            case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
+            case "ValuesSourceReaderOperator" -> basicProfile().entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))

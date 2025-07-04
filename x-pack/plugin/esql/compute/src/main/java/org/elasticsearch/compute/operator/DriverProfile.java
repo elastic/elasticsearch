@@ -63,7 +63,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     /**
      * Status of each {@link Operator} in the driver when it finished.
      */
-    private final List<DriverStatus.OperatorStatus> operators;
+    private final List<OperatorStatus> operators;
 
     private final DriverSleeps sleeps;
 
@@ -74,7 +74,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         long tookNanos,
         long cpuNanos,
         long iterations,
-        List<DriverStatus.OperatorStatus> operators,
+        List<OperatorStatus> operators,
         DriverSleeps sleeps
     ) {
         this.taskDescription = taskDescription;
@@ -107,7 +107,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             this.cpuNanos = 0;
             this.iterations = 0;
         }
-        this.operators = in.readCollectionAsImmutableList(DriverStatus.OperatorStatus::new);
+        this.operators = in.readCollectionAsImmutableList(OperatorStatus::readFrom);
         this.sleeps = DriverSleeps.read(in);
     }
 
@@ -176,7 +176,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     /**
      * Status of each {@link Operator} in the driver when it finished.
      */
-    public List<DriverStatus.OperatorStatus> operators() {
+    public List<OperatorStatus> operators() {
         return operators;
     }
 
@@ -202,6 +202,8 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
                 if (b.humanReadable()) {
                     b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
                 }
+                b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
+                b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
                 b.field("iterations", iterations);
                 return b;
             });

@@ -12,14 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -121,11 +118,11 @@ public class DriverStatus implements Task.Status {
         this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
         this.status = Status.read(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+            this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::readFrom);
         } else {
             this.completedOperators = List.of();
         }
-        this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+        this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::readFrom);
         this.sleeps = DriverSleeps.read(in);
     }
 
@@ -241,6 +238,8 @@ public class DriverStatus implements Task.Status {
         if (builder.humanReadable()) {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
+        builder.field("documents_found", documentsFound());
+        builder.field("values_loaded", valuesLoaded());
         builder.field("iterations", iterations);
         builder.field("status", status, params);
         builder.startArray("completed_operators");
@@ -296,71 +295,31 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
-     * Status of an {@link Operator}.
+         * The number of documents found by this driver.
      */
-    public static class OperatorStatus implements Writeable, ToXContentObject {
-        /**
-         * String representation of the {@link Operator}. Literally just the
-         * {@link Object#toString()} of it.
-         */
-        private final String operator;
-        /**
-         * Status as reported by the {@link Operator}.
-         */
-        @Nullable
-        private final Operator.Status status;
-
-        public OperatorStatus(String operator, Operator.Status status) {
-            this.operator = operator;
-            this.status = status;
+    public long documentsFound() {
+        long documentsFound = 0;
+        for (OperatorStatus s : completedOperators) {
+            documentsFound += s.documentsFound();
         }
-
-        OperatorStatus(StreamInput in) throws IOException {
-            operator = in.readString();
-            status = in.readOptionalNamedWriteable(Operator.Status.class);
+        for (OperatorStatus s : activeOperators) {
+            documentsFound += s.documentsFound();
         }
+        return documentsFound;
+    }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(operator);
-            out.writeOptionalNamedWriteable(status != null && VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
+    /**
+     * The number of values loaded by this operator.
+     */
+    public long valuesLoaded() {
+        long valuesLoaded = 0;
+        for (OperatorStatus s : completedOperators) {
+            valuesLoaded += s.valuesLoaded();
         }
-
-        public String operator() {
-            return operator;
+        for (OperatorStatus s : activeOperators) {
+            valuesLoaded += s.valuesLoaded();
         }
-
-        public Operator.Status status() {
-            return status;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("operator", operator);
-            if (status != null) {
-                builder.field("status", status);
-            }
-            return builder.endObject();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            OperatorStatus that = (OperatorStatus) o;
-            return operator.equals(that.operator) && Objects.equals(status, that.status);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(operator, status);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
+        return valuesLoaded;
     }
 
     public enum Status implements Writeable, ToXContentFragment {

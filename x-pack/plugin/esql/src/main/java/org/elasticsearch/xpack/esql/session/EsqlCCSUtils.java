@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -78,7 +79,7 @@ public class EsqlCCSUtils {
         public void onFailure(Exception e) {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), executionInfo));
+                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo));
             } else {
                 listener.onFailure(e);
             }
@@ -220,7 +221,7 @@ public class EsqlCCSUtils {
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
                 );
-                if (executionInfo.isSkipUnavailable(c) == false) {
+                if (executionInfo.isSkipUnavailable(c) == false || filter != null) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = error;
                     } else {
@@ -228,7 +229,7 @@ public class EsqlCCSUtils {
                     }
                 }
                 if (filter == null) {
-                    // We check for filter since the filter may be the reason why the index is missing, and then it's ok
+                    // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         c,

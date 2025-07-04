@@ -144,7 +144,7 @@
           "name" : "field",
           "type" : "geohash",
           "optional" : false,
-          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -156,7 +156,7 @@
           "name" : "field",
           "type" : "geohex",
           "optional" : false,
-          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -168,7 +168,7 @@
           "name" : "field",
           "type" : "geotile",
           "optional" : false,
-          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,

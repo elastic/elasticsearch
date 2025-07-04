@@ -96,6 +96,27 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testCosineSimilarityBetweenConstantVectors() {
+        var vectorLeft = randomVectorArray();
+        var vectorRight = randomVectorArray();
+        var query = String.format(Locale.ROOT, """
+                ROW a = 1
+                | EVAL similarity = %s(%s, %s)
+                | KEEP similarity
+            """, functionName, Arrays.toString(vectorLeft), Arrays.toString(vectorRight));
+
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(1, valuesList.size());
+
+            Double similarity = (Double) valuesList.get(0).get(0);
+            assertNotNull(similarity);
+            float expectedSimilarity = similarityFunction.compare(vectorLeft, vectorRight);
+            assertEquals(expectedSimilarity, similarity, 0.0001);
+        }
+    }
+
     private static float[] readVector(List<Float> leftVector) {
         float[] leftScratch = new float[leftVector.size()];
         for (int i = 0; i < leftVector.size(); i++) {

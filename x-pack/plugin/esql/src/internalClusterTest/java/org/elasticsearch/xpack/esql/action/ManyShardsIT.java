@@ -26,6 +26,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -187,6 +188,11 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                         @Override
                         public void sendResponse(Exception exception) {
                             channel.sendResponse(exception);
+                        }
+
+                        @Override
+                        public Compression.Scheme compressionScheme() {
+                            return channel.compressionScheme();
                         }
                     }, task);
                 }

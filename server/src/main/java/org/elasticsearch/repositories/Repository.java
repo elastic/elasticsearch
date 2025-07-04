@@ -88,6 +88,13 @@ public interface Repository extends LifecycleComponent {
     ProjectId getProjectId();
 
     /**
+     * Get the project qualified repository
+     */
+    default ProjectRepo getProjectRepo() {
+        return new ProjectRepo(getProjectId(), getMetadata().name());
+    }
+
+    /**
      * Returns metadata about this repository.
      */
     RepositoryMetadata getMetadata();
@@ -138,10 +145,11 @@ public interface Repository extends LifecycleComponent {
     /**
      * Returns global metadata associated with the snapshot.
      *
-     * @param snapshotId the snapshot id to load the global metadata from
+     * @param snapshotId                 the snapshot id to load the global metadata from
+     * @param fromProjectMetadata        The metadata may need to be constructed by first reading the project metadata
      * @return the global metadata about the snapshot
      */
-    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId);
+    Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata);
 
     /**
      * Returns the index metadata associated with the snapshot.

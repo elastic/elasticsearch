@@ -21,22 +21,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
-
-    private static final Set<String> DENSE_VECTOR_INDEX_TYPES = Set.of(
-        /*        "int8_hnsw",
-            "hnsw",
-            "int4_hnsw",
-            "bbq_hnsw",
-            "int8_flat",
-            "int4_flat",
-            "bbq_flat",*/
-        "flat"
-    );
 
     @SuppressWarnings("unchecked")
     public void testCosineSimilarity() {

@@ -14,7 +14,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class VectorWritables {
+/**
+ * Defines the named writables for vector functions in ESQL.
+ */
+public final class VectorWritables {
+
+    private VectorWritables() {
+        // Utility class
+    }
+
     public static List<NamedWriteableRegistry.Entry> getNamedWritables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 

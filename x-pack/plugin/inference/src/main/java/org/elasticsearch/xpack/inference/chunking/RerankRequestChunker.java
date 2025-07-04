@@ -7,40 +7,34 @@
 
 package org.elasticsearch.xpack.inference.chunking;
 
+import com.ibm.icu.text.BreakIterator;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 public class RerankRequestChunker {
-
-    private final ChunkingSettings chunkingSettings;
     private final List<String> inputs;
-    private final Map<Integer, RerankChunks> rerankChunks;
+    private final List<RerankChunks> rerankChunks;
 
-    public RerankRequestChunker(List<String> inputs) {
-        // TODO: Make chunking settings dependent on the model being used.
-        // There may be a way to do this dynamically knowing the max token size for the model/service and query size
-        // instead of hardcoding it ona model/service basis.
-        this.chunkingSettings = new WordBoundaryChunkingSettings(100, 10);
+    public RerankRequestChunker(String query, List<String> inputs) {
         this.inputs = inputs;
-        this.rerankChunks = chunk(inputs, chunkingSettings);
+        this.rerankChunks = chunk(inputs, buildChunkingSettingsForElasticRerank(query));
     }
 
-    private Map<Integer, RerankChunks> chunk(List<String> inputs, ChunkingSettings chunkingSettings) {
+    private List<RerankChunks> chunk(List<String> inputs, ChunkingSettings chunkingSettings) {
         var chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
-        var chunks = new HashMap<Integer, RerankChunks>();
-        var chunkIndex = 0;
+        var chunks = new ArrayList<RerankChunks>();
         for (int i = 0; i < inputs.size(); i++) {
             var chunksForInput = chunker.chunk(inputs.get(i), chunkingSettings);
             for (var chunk : chunksForInput) {
-                chunks.put(chunkIndex, new RerankChunks(i, inputs.get(i).substring(chunk.start(), chunk.end())));
-                chunkIndex++;
+                chunks.add(new RerankChunks(i, inputs.get(i).substring(chunk.start(), chunk.end())));
             }
         }
         return chunks;
@@ -48,18 +42,18 @@ public class RerankRequestChunker {
 
     public List<String> getChunkedInputs() {
         List<String> chunkedInputs = new ArrayList<>();
-        for (RerankChunks chunk : rerankChunks.values()) {
+        for (RerankChunks chunk : rerankChunks) {
             chunkedInputs.add(chunk.chunkString());
         }
+
         // TODO: Score the inputs here and only return the top N chunks for each document
         return chunkedInputs;
     }
 
-    public ActionListener<InferenceAction.Response> parseChunkedRerankResultsListener(ActionListener<InferenceAction.Response> listener) {
+    public ActionListener<InferenceServiceResults> parseChunkedRerankResultsListener(ActionListener<InferenceServiceResults> listener) {
         return ActionListener.wrap(results -> {
-            if (results.getResults() instanceof RankedDocsResults rankedDocsResults) {
-                listener.onResponse(new InferenceAction.Response(parseRankedDocResultsForChunks(rankedDocsResults)));
-                // TODO: Figure out if the above correctly creates the response or if it loses any info
+            if (results instanceof RankedDocsResults rankedDocsResults) {
+                listener.onResponse(parseRankedDocResultsForChunks(rankedDocsResults));
 
             } else {
                 listener.onFailure(new IllegalArgumentException("Expected RankedDocsResults but got: " + results.getClass()));
@@ -68,32 +62,36 @@ public class RerankRequestChunker {
         }, listener::onFailure);
     }
 
+    // TODO: Can we assume the rankeddocsresults are always sorted by relevance score?
+    // TODO: Should we short circuit if no chunking was done?
     private RankedDocsResults parseRankedDocResultsForChunks(RankedDocsResults rankedDocsResults) {
-        Map<Integer, RankedDocsResults.RankedDoc> bestRankedDocResultPerDoc = new HashMap<>();
-        for (var rankedDoc : rankedDocsResults.getRankedDocs()) {
+        List<RankedDocsResults.RankedDoc> updatedRankedDocs = new ArrayList<>();
+        Set<Integer> docIndicesSeen = new HashSet<>();
+        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocsResults.getRankedDocs()) {
             int chunkIndex = rankedDoc.index();
             int docIndex = rerankChunks.get(chunkIndex).docIndex();
-            if (bestRankedDocResultPerDoc.containsKey(docIndex)) {
-                RankedDocsResults.RankedDoc existingDoc = bestRankedDocResultPerDoc.get(docIndex);
-                if (rankedDoc.relevanceScore() > existingDoc.relevanceScore()) {
-                    bestRankedDocResultPerDoc.put(
-                        docIndex,
-                        new RankedDocsResults.RankedDoc(docIndex, rankedDoc.relevanceScore(), inputs.get(docIndex))
-                    );
-                }
-            } else {
-                bestRankedDocResultPerDoc.put(
+
+            if (docIndicesSeen.contains(docIndex) == false) {
+                // Create a ranked doc with the full input string and the index for the document instead of the chunk
+                RankedDocsResults.RankedDoc updatedRankedDoc = new RankedDocsResults.RankedDoc(
                     docIndex,
-                    new RankedDocsResults.RankedDoc(docIndex, rankedDoc.relevanceScore(), inputs.get(docIndex))
+                    rankedDoc.relevanceScore(),
+                    inputs.get(docIndex)
                 );
+                updatedRankedDocs.add(updatedRankedDoc);
+                docIndicesSeen.add(docIndex);
             }
         }
-        var bestRankedDocResultPerDocList = new ArrayList<>(bestRankedDocResultPerDoc.values());
-        bestRankedDocResultPerDocList.sort(
-            (RankedDocsResults.RankedDoc d1, RankedDocsResults.RankedDoc d2) -> Float.compare(d2.relevanceScore(), d1.relevanceScore())
-        );
-        return new RankedDocsResults(bestRankedDocResultPerDocList);
+
+        return new RankedDocsResults(updatedRankedDocs);
     }
 
     public record RerankChunks(int docIndex, String chunkString) {};
+
+    private ChunkingSettings buildChunkingSettingsForElasticRerank(String query) {
+        var wordIterator = BreakIterator.getWordInstance();
+        wordIterator.setText(query);
+        var queryWordCount = ChunkerUtils.countWords(0, query.length(), wordIterator);
+        return ChunkingSettingsBuilder.buildChunkingSettingsForElasticRerank(queryWordCount);
+    }
 }

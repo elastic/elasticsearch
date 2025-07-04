@@ -17,7 +17,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.io.IOException;
@@ -28,21 +27,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
-public abstract class VectorSimilarityFunction extends EsqlScalarFunction implements VectorFunction {
-    protected Expression left;
-    protected Expression right;
+/**
+ * Base class for vector similarity functions, which compute a similarity score between two dense vectors
+ */
+abstract class VectorSimilarityFunction extends EsqlScalarFunction implements VectorFunction {
 
-    public VectorSimilarityFunction(
-        Source source,
-        List<Expression> fields,
-        @Param(name = "left", type = { "dense_vector" }, description = "first dense_vector to calculate cosine similarity") Expression left,
-        @Param(
-            name = "right",
-            type = { "dense_vector" },
-            description = "second dense_vector to calculate cosine similarity"
-        ) Expression right
-    ) {
-        super(source, fields);
+    private final Expression left;
+    private final Expression right;
+
+    protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
+        super(source, List.of(left, right));
         this.left = left;
         this.right = right;
     }
@@ -85,29 +79,33 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
         return right;
     }
 
+    /**
+     * Functional interface for evaluating the similarity between two float arrays
+     */
     @FunctionalInterface
     public interface SimilarityEvaluatorFunction {
         float calculateSimilarity(float[] leftScratch, float[] rightScratch);
     }
 
-    protected class SimilarityEvaluatorFactory implements EvalOperator.ExpressionEvaluator.Factory {
+    @Override
+    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new SimilarityEvaluatorFactory(toEvaluator.apply(left()), toEvaluator.apply(right()), getSimilarityFunction());
+    }
 
-        private final EvalOperator.ExpressionEvaluator.Factory left;
-        private final EvalOperator.ExpressionEvaluator.Factory right;
-        private final SimilarityEvaluatorFunction similarityFunction;
+    /**
+     * Returns the similarity function to be used for evaluating the similarity between two vectors.
+     */
+    protected abstract SimilarityEvaluatorFunction getSimilarityFunction();
 
-        SimilarityEvaluatorFactory(
-            EvalOperator.ExpressionEvaluator.Factory left,
-            EvalOperator.ExpressionEvaluator.Factory right,
-            SimilarityEvaluatorFunction similarityFunction
-        ) {
-            this.left = left;
-            this.right = right;
-            this.similarityFunction = similarityFunction;
-        }
+    private record SimilarityEvaluatorFactory(
+        EvalOperator.ExpressionEvaluator.Factory left,
+        EvalOperator.ExpressionEvaluator.Factory right,
+        SimilarityEvaluatorFunction similarityFunction
+    ) implements EvalOperator.ExpressionEvaluator.Factory {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            // TODO check whether to use this custom evaluator or reuse / define an existing one
             return new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {

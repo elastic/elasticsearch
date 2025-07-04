@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -17,11 +16,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 
@@ -48,7 +45,7 @@ public class CosineSimilarity extends org.elasticsearch.xpack.esql.expression.fu
             description = "second dense_vector to calculate cosine similarity"
         ) Expression right
     ) {
-        super(source, List.of(left, right), left, right);
+        super(source, left, right);
     }
 
     private CosineSimilarity(StreamInput in) throws IOException {
@@ -56,21 +53,17 @@ public class CosineSimilarity extends org.elasticsearch.xpack.esql.expression.fu
     }
 
     @Override
+    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+        return COSINE::compare;
+    }
+
+    @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Pow::new, left(), right());
+        return NodeInfo.create(this, CosineSimilarity::new, left(), right());
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new SimilarityEvaluatorFactory(
-            toEvaluator.apply(left()),
-            toEvaluator.apply(right()),
-            (leftScratch, rightScratch) -> COSINE.compare(leftScratch, rightScratch)
-        );
     }
 }

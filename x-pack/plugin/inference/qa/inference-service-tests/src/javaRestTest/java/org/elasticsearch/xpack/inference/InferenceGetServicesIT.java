@@ -136,7 +136,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         List<Object> services = getServices(TaskType.COMPLETION);
         assertThat(services.size(), equalTo(16));
         var providers = providers(services);
-      
+
         assertThat(
             providersFor(TaskType.COMPLETION),
             containsInAnyOrder(

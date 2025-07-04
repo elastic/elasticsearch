@@ -605,6 +605,40 @@ setup:
   - match: { hits.hits.0._score: $knn_score0 }
   - match: { hits.hits.1._score: $knn_score1 }
   - match: { hits.hits.2._score: $knn_score2 }
+
+---
+"Dimensions are dynamically set":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+
+  - do:
+      index:
+        index: test_index
+        id: "0"
+        body:
+          embedding: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.dims: 5 }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test_index
+        id: "0"
+        body:
+          embedding: [ 0.5, 111.3 ]
+
 ---
 "Updating dim to null is not allowed":
   - requires:

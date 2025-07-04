@@ -1220,7 +1220,12 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE(Build.current().isSnapshot());
+        FUSE(Build.current().isSnapshot()),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

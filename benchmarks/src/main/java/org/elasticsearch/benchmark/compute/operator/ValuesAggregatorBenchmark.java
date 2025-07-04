@@ -114,7 +114,7 @@ public class ValuesAggregatorBenchmark {
     @Param({ BYTES_REF, INT, LONG })
     public String dataType;
 
-    @Param({ "0", "1"})
+    @Param({ "0", "1" })
     public int numOrdinalMerges;
 
     private static Operator operator(DriverContext driverContext, int groups, String dataType, int numOrdinalMerges) {
@@ -135,6 +135,7 @@ public class ValuesAggregatorBenchmark {
                 mergeOrdinal();
                 return super.getOutput();
             }
+
             // simulate OrdinalsGroupingOperator
             void mergeOrdinal() {
                 var merged = supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1)).apply(driverContext);

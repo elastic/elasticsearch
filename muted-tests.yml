@@ -614,6 +614,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {match-operator.MatchWithMoreComplexDisjunctionAndConjunction SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130640
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
 
 # Examples:
 #

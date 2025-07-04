@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
@@ -248,7 +249,11 @@ public final class EvalMapper {
                 if (multiValue.isEmpty()) {
                     return blockFactory.newConstantNullBlock(positions);
                 }
-                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
+                // dense_vector create internally float values, even if they are specified as doubles
+                ElementType elementType = lit.dataType() == DataType.DENSE_VECTOR
+                    ? ElementType.FLOAT
+                    : ElementType.fromJava(multiValue.get(0).getClass());
+                var wrapper = BlockUtils.wrapperFor(blockFactory, elementType, positions);
                 for (int i = 0; i < positions; i++) {
                     wrapper.accept(multiValue);
                 }

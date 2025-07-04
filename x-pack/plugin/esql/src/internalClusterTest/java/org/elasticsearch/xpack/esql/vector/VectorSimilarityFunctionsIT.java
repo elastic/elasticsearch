@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.vector;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,40 +23,85 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        List<Object[]> params = new ArrayList<>();
+
+        params.add(new Object[] { "v_cosine_similarity", VectorSimilarityFunction.COSINE });
+
+        return params;
+    }
+
+    private final String functionName;
+    private final VectorSimilarityFunction similarityFunction;
+    private int numDims;
+
+    public VectorSimilarityFunctionsIT(
+        @Name("functionName") String functionName,
+        @Name("similarityFunction") VectorSimilarityFunction similarityFunction
+    ) {
+        this.functionName = functionName;
+        this.similarityFunction = similarityFunction;
+    }
+
     @SuppressWarnings("unchecked")
-    public void testCosineSimilarity() {
-        var query = """
+    public void testCosineSimilarityBetweenVectors() {
+        var query = String.format(Locale.ROOT, """
                 FROM test
-                | EVAL similarity = v_cosine_similarity(left_vector, right_vector)
-                | KEEP id, left_vector, right_vector, similarity
-            """;
+                | EVAL similarity = %s(left_vector, right_vector)
+                | KEEP left_vector, right_vector, similarity
+            """, functionName);
 
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             valuesList.forEach(values -> {
-                List<Float> leftVector = (List<Float>) values.get(1);
-                float[] leftScratch = new float[leftVector.size()];
-                for (int i = 0; i < leftVector.size(); i++) {
-                    leftScratch[i] = leftVector.get(i);
-                }
-                List<Float> rightVector = (List<Float>) values.get(2);
-                float[] rightScratch = new float[rightVector.size()];
-                for (int i = 0; i < rightVector.size(); i++) {
-                    rightScratch[i] = rightVector.get(i);
-                }
-                Double similarity = (Double) values.get(3);
-                assertNotNull(similarity);
+                float[] left = readVector((List<Float>) values.get(0));
+                float[] right = readVector((List<Float>) values.get(1));
+                Double similarity = (Double) values.get(2);
 
-                float expectedSimilarity = VectorSimilarityFunction.COSINE.compare(leftScratch, rightScratch);
+                assertNotNull(similarity);
+                float expectedSimilarity = similarityFunction.compare(left, right);
                 assertEquals(expectedSimilarity, similarity, 0.0001);
             });
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCosineSimilarityBetweenConstantVectorAndField() {
+        var randomVector = randomVectorArray();
+        var query = String.format(Locale.ROOT, """
+                FROM test
+                | EVAL similarity = %s(left_vector, %s)
+                | KEEP left_vector, similarity
+            """, functionName, Arrays.toString(randomVector));
+
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            valuesList.forEach(values -> {
+                float[] left = readVector((List<Float>) values.get(0));
+                Double similarity = (Double) values.get(1);
+
+                assertNotNull(similarity);
+                float expectedSimilarity = similarityFunction.compare(left, randomVector);
+                assertEquals(expectedSimilarity, similarity, 0.0001);
+            });
+        }
+    }
+
+    private static float[] readVector(List<Float> leftVector) {
+        float[] leftScratch = new float[leftVector.size()];
+        for (int i = 0; i < leftVector.size(); i++) {
+            leftScratch[i] = leftVector.get(i);
+        }
+        return leftScratch;
     }
 
     @Before
@@ -62,23 +110,35 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
         createIndexWithDenseVector("test");
 
-        int numDims = randomIntBetween(32, 64) * 2; // min 64, even number
+        numDims = randomIntBetween(32, 64) * 2; // min 64, even number
         int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            List<Float> leftVector = new ArrayList<>(numDims);
-            for (int j = 0; j < numDims; j++) {
-                leftVector.add(randomFloat());
-            }
-            List<Float> rightVector = new ArrayList<>(numDims);
-            for (int j = 0; j < numDims; j++) {
-                rightVector.add(randomFloat());
-            }
+            List<Float> leftVector = randomVector();
+            List<Float> rightVector = randomVector();
             docs[i] = prepareIndex("test").setId("" + i)
                 .setSource("id", String.valueOf(i), "left_vector", leftVector, "right_vector", rightVector);
         }
 
         indexRandom(true, docs);
+    }
+
+    private List<Float> randomVector() {
+        assert numDims != 0 : "numDims must be set before calling randomVector()";
+        List<Float> vector = new ArrayList<>(numDims);
+        for (int j = 0; j < numDims; j++) {
+            vector.add(randomFloat());
+        }
+        return vector;
+    }
+
+    private float[] randomVectorArray() {
+        assert numDims != 0 : "numDims must be set before calling randomVectorArray()";
+        float[] vector = new float[numDims];
+        for (int j = 0; j < numDims; j++) {
+            vector[j] = randomFloat();
+        }
+        return vector;
     }
 
     private void createIndexWithDenseVector(String indexName) throws IOException {

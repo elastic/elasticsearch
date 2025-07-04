@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 
-public class CosineSimilarity extends org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction {
+public class CosineSimilarity extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

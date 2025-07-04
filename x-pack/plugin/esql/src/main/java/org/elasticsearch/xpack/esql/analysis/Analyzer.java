@@ -1399,14 +1399,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof In in) {
                 return processIn(in);
             }
+            if (f instanceof VectorFunction) {
+                return processVectorFunction(f);
+            }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
-            }
-            if (f instanceof VectorFunction vectorFunction) {
-                return processVectorFunction(f);
             }
             return f;
         }

@@ -52,10 +52,10 @@ public final class XmlProcessor extends AbstractProcessor {
     public static final String TYPE = "xml";
 
     private static final XPathFactory XPATH_FACTORY = XPathFactory.newInstance();
-    
+
     // Pre-compiled pattern to detect namespace prefixes
     private static final Pattern NAMESPACE_PATTERN = Pattern.compile(".*\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*.*");
-    
+
     // Pre-configured SAX parser factories for secure XML parsing
     private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY = createSecureSaxParserFactory();
     private static final javax.xml.parsers.SAXParserFactory SAX_PARSER_FACTORY_NS = createSecureSaxParserFactoryNamespaceAware();
@@ -390,9 +390,9 @@ public final class XmlProcessor extends AbstractProcessor {
                 }
             });
         }
-        
+
         // Use pre-compiled pattern to detect namespace prefixes
-        
+
         for (Map.Entry<String, String> entry : xpathExpressions.entrySet()) {
             String xpathExpression = entry.getKey();
             String targetFieldName = entry.getValue();
@@ -557,9 +557,9 @@ public final class XmlProcessor extends AbstractProcessor {
 
         // Use enhanced handler that can build DOM during streaming when needed
         XmlStreamingWithDomHandler handler = new XmlStreamingWithDomHandler(needsDom);
-        
+
         parser.parse(new java.io.ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
-        
+
         // Store structured result if needed
         if (storeXml) {
             Object streamingResult = handler.getStructuredResult();

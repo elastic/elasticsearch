@@ -357,7 +357,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('platform') {
           from(configurations.libsNative)
           if (os != null) {
-            include (os + '-' + architecture.classifier + '/*')
+            include (os + '-' + architecture.jdkClassifier + '/*')
           }
         }
         into('entitlement-agent') {

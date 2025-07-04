@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Limit extends UnaryPlan implements TelemetryAware {
+public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;
@@ -57,17 +57,15 @@ public class Limit extends UnaryPlan implements TelemetryAware {
     }
 
     /**
-     * Omits serializing {@link Limit#duplicated} because when sent to a data node, this should always be {@code false}.
-     * That's because if it's true, this means a copy of this limit was pushed down below an MvExpand or Join, and thus there's
-     * another pipeline breaker further upstream - we're already on the coordinator node.
+     * Omits serializing {@link Limit#duplicated} because this is only required to avoid duplicating a limit past
+     * {@link org.elasticsearch.xpack.esql.plan.logical.join.Join} or {@link MvExpand} in an infinite loop, see
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits}.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
         out.writeNamedWriteable(child());
-        // Let's make sure we notice during tests if we ever serialize a duplicated Limit.
-        assert duplicated == false;
     }
 
     @Override

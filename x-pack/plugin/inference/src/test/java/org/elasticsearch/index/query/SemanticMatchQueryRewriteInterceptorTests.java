@@ -94,12 +94,12 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(5.0, intercepted.boost(), 0.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
         assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
         SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;
         assertEquals(FIELD_NAME, semanticQueryBuilder.getFieldName());
         assertEquals(VALUE, semanticQueryBuilder.getQuery());
-        assertEquals(BOOST, semanticQueryBuilder.boost(), 0.0f);
-        assertEquals(QUERY_NAME, semanticQueryBuilder.queryName());
     }
 
     private MatchQueryBuilder createTestQueryBuilder() {

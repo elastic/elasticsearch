@@ -1072,6 +1072,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // not implemented yet
     }
 
+    public boolean includeRequestBody() {
+        return includeRequestBody;
+    }
+
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }

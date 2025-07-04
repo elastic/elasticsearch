@@ -746,7 +746,14 @@ public class EsqlCapabilities {
          * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
          * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467</a>
          */
-        FIX_JOIN_MASKING_REGEX_EXTRACT;
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
+         * found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES;
 
         private final boolean enabled;
 

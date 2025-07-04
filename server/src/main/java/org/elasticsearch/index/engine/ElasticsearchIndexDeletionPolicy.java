@@ -25,7 +25,7 @@ public abstract class ElasticsearchIndexDeletionPolicy extends IndexDeletionPoli
     public abstract IndexCommit acquireIndexCommit(boolean acquiringSafeCommit);
 
     /**
-     * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
+     * Releases an index commit that was acquired by {@link #acquireIndexCommit(boolean)}.
      *
      * @return true if the acquired commit can be clean up.
      */

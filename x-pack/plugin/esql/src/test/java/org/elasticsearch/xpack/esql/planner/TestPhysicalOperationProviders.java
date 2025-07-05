@@ -332,7 +332,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
         return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName().string(), blockCopier)) {
             case BlockResultMissing unused -> getNullsBlock(indexDoc);
-            case BlockResultSuccess success -> TypeConverter.fromConvertFunction(conversion).convert(success.block);
+            case BlockResultSuccess success -> TypeConverter.fromScalarFunction(conversion).convert(success.block);
         };
     }
 

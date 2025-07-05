@@ -12,22 +12,18 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
-
 public class WildcardQuery extends Query {
 
     private final String field, query;
     private final boolean caseInsensitive;
+    private final boolean forceStringMatch;
 
-    public WildcardQuery(Source source, String field, String query) {
-        this(source, field, query, false);
-    }
-
-    public WildcardQuery(Source source, String field, String query, boolean caseInsensitive) {
+    public WildcardQuery(Source source, String field, String query, boolean caseInsensitive, boolean forceStringMatch) {
         super(source);
         this.field = field;
         this.query = query;
         this.caseInsensitive = caseInsensitive;
+        this.forceStringMatch = forceStringMatch;
     }
 
     public String field() {
@@ -44,7 +40,7 @@ public class WildcardQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        WildcardQueryBuilder wb = wildcardQuery(field, query);
+        WildcardQueryBuilder wb = new WildcardQueryBuilder(field, query, forceStringMatch);
         // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
         return caseInsensitive == false ? wb : wb.caseInsensitive(caseInsensitive);
     }
@@ -73,5 +69,10 @@ public class WildcardQuery extends Query {
     @Override
     protected String innerToString() {
         return field + ":" + query;
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

@@ -51,6 +51,7 @@ public class Configuration implements Writeable {
 
     private final boolean profile;
     private final boolean allowPartialResults;
+    private final boolean stringLikeOnIndex;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -67,7 +68,8 @@ public class Configuration implements Writeable {
         boolean profile,
         Map<String, Map<String, Column>> tables,
         long queryStartTimeNanos,
-        boolean allowPartialResults
+        boolean allowPartialResults,
+        boolean stringLikeOnIndex
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -83,6 +85,7 @@ public class Configuration implements Writeable {
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
+        this.stringLikeOnIndex = stringLikeOnIndex;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -116,6 +119,12 @@ public class Configuration implements Writeable {
         } else {
             this.allowPartialResults = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+            this.stringLikeOnIndex = in.readBoolean();
+        } else {
+            this.stringLikeOnIndex = false;
+        }
+
     }
 
     @Override
@@ -143,6 +152,9 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             out.writeBoolean(allowPartialResults);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+            out.writeBoolean(stringLikeOnIndex);
         }
     }
 
@@ -211,6 +223,24 @@ public class Configuration implements Writeable {
         return tables;
     }
 
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults,
+            stringLikeOnIndex
+        );
+    }
+
     /**
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
@@ -224,6 +254,10 @@ public class Configuration implements Writeable {
      */
     public boolean allowPartialResults() {
         return allowPartialResults;
+    }
+
+    public boolean stringLikeOnIndex() {
+        return stringLikeOnIndex;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -309,4 +343,11 @@ public class Configuration implements Writeable {
             + '}';
     }
 
+    /**
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
+     */
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
+        return new Configuration(blockStreamInput);
+    }
 }

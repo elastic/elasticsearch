@@ -349,7 +349,8 @@ public class EvalBenchmark {
             false,
             Map.of(),
             0,
-            false
+            false,
+            true
         );
     }
 

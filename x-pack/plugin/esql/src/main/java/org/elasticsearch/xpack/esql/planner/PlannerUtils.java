@@ -26,11 +26,13 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -213,8 +215,8 @@ public class PlannerUtils {
     /**
      * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    public static QueryBuilder canMatchFilter(TransportVersion minTransportVersion, PhysicalPlan plan) {
-        return detectFilter(minTransportVersion, plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
+    public static QueryBuilder canMatchFilter(Configuration configuration, TransportVersion minTransportVersion, PhysicalPlan plan) {
+        return detectFilter(configuration, minTransportVersion, plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
     }
 
     /**
@@ -222,10 +224,15 @@ public class PlannerUtils {
      * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
      * take care to not use it with TEXT fields.
      */
-    static QueryBuilder detectFilter(TransportVersion minTransportVersion, PhysicalPlan plan, Predicate<String> fieldName) {
+    static QueryBuilder detectFilter(
+        Configuration configuration,
+        TransportVersion minTransportVersion,
+        PhysicalPlan plan,
+        Predicate<String> fieldName
+    ) {
         // first position is the REST filter, the second the query filter
         final List<QueryBuilder> requestFilters = new ArrayList<>();
-        final LucenePushdownPredicates ctx = LucenePushdownPredicates.forCanMatch(minTransportVersion);
+        final LucenePushdownPredicates ctx = LucenePushdownPredicates.forCanMatch(minTransportVersion, configuration);
         plan.forEachDown(FragmentExec.class, fe -> {
             if (fe.esFilter() != null && fe.esFilter().supportsVersion(minTransportVersion)) {
                 requestFilters.add(fe.esFilter());
@@ -253,7 +260,12 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(ctx, Predicates.combineAnd(matches)).toQueryBuilder());
+                    Query qlQuery = TRANSLATOR_HANDLER.asQuery(ctx, Predicates.combineAnd(matches));
+                    QueryBuilder builder = qlQuery.toQueryBuilder();
+                    if (qlQuery.containsPlan()) {
+                        builder = new PlanStreamWrapperQueryBuilder(configuration, builder);
+                    }
+                    requestFilters.add(builder);
                 }
             });
         });

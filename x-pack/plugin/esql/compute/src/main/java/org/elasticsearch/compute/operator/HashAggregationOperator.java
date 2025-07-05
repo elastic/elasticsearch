@@ -46,7 +46,8 @@ public class HashAggregationOperator implements Operator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        int maxTopNLimit
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -65,7 +66,7 @@ public class HashAggregationOperator implements Operator {
             }
             return new HashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false, maxTopNLimit),
                 driverContext
             );
         }

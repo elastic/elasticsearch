@@ -171,7 +171,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts.estimatedRowSize())
+            context.pageSize(ts.estimatedRowSize()),
+            context.queryPragmas().maxTopNAggsLimit()
         );
     }
 
@@ -443,7 +444,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
                     driverContext.blockFactory(),
                     pageSize,
-                    false
+                    false,
+                    100
                 ),
                 attribute,
                 driverContext

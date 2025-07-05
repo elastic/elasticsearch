@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -169,10 +170,11 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         public PersistentTasksCustomMetadata.Assignment getAssignment(
             TestTaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            ProjectId projectId
         ) {
             candidates.set(candidateNodes);
-            return super.getAssignment(params, candidateNodes, clusterState);
+            return super.getAssignment(params, candidateNodes, clusterState, projectId);
         }
 
         @Override

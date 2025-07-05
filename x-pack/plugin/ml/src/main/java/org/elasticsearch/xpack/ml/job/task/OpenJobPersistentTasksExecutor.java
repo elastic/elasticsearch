@@ -17,9 +17,11 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -121,7 +123,12 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     @Override
-    public Assignment getAssignment(OpenJobAction.JobParams params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+    public Assignment getAssignment(
+        OpenJobAction.JobParams params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
         Job job = params.getJob();
         // If the task parameters do not have a job field then the job
         // was first opened on a pre v6.6 node and has not been migrated
@@ -210,13 +217,13 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     @Override
-    public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
+    public void validate(OpenJobAction.JobParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
         final Job job = params.getJob();
         final String jobId = params.getJobId();
         validateJobAndId(jobId, job);
         // If we already know that we can't find an ml node because all ml nodes are running at capacity or
         // simply because there are no ml nodes in the cluster then we fail quickly here:
-        PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        var assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, projectId);
         if (assignment.equals(AWAITING_UPGRADE)) {
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }

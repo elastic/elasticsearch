@@ -93,7 +93,8 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
         final Assignment assignment = executor.getAssignment(
             mock(ShardFollowTask.class),
             clusterStateBuilder.nodes().getAllNodes(),
-            clusterStateBuilder.build()
+            clusterStateBuilder.build(),
+            null
         );
         consumer.accept(theSpecial, assignment);
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +43,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomDataSetSizes(),
             randomRoutingToDataPath(),
             randomReservedSpace(),
-            randomNodeHeapUsage()
+            randomNodeHeapUsage(),
+            randomNodeWriteLoads()
         );
     }
 
@@ -60,6 +62,23 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeHeapUsage.put(key, estimatedHeapUsage);
         }
         return nodeHeapUsage;
+    }
+
+    private static Map<String, NodeExecutionLoad> randomNodeWriteLoads() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, NodeExecutionLoad> nodeWriteLoads = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeIdKey = randomAlphaOfLength(32);
+            NodeExecutionLoad.ThreadPoolUsageStats writeThreadPoolStats = new NodeExecutionLoad.ThreadPoolUsageStats(
+                /* totalThreadPoolThreads= */ randomIntBetween(1, 16),
+                /* averageThreadPoolUtilization= */ randomFloat(),
+                /* averageThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
+            );
+            Map<String, NodeExecutionLoad.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
+            statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
+            nodeWriteLoads.put(ThreadPool.Names.WRITE, new NodeExecutionLoad(nodeIdKey, statsForThreadPools));
+        }
+        return nodeWriteLoads;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

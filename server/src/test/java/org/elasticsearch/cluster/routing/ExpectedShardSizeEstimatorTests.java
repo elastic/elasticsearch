@@ -206,6 +206,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
     }

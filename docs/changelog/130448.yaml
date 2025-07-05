@@ -1,0 +1,6 @@
+pr: 130448
+summary: Fix wildcard drop after lookup join
+area: ES|QL
+type: bug
+issues:
+ - 129561

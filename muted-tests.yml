@@ -569,6 +569,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text single fvh source order}
   issue: https://github.com/elastic/elasticsearch/issues/130657
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/40_knn_search/Dimensions are dynamically set}
+  issue: https://github.com/elastic/elasticsearch/issues/130661
 
 # Examples:
 #

@@ -329,8 +329,10 @@ class KMeansLocal {
         float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();
+        int[] assignments = kMeansIntermediate.assignments();
 
-        if (k == 1 || k >= n) {
+        if (k == 1) {
+            Arrays.fill(assignments, 0);
             return;
         }
         IntToIntFunction translateOrd = i -> i;
@@ -339,7 +341,7 @@ class KMeansLocal {
             sampledVectors = SampleReader.createSampleReader(vectors, sampleSize, 42L);
             translateOrd = sampledVectors::ordToDoc;
         }
-        int[] assignments = kMeansIntermediate.assignments();
+
         assert assignments.length == n;
         float[][] nextCentroids = new float[centroids.length][vectors.dimension()];
         for (int i = 0; i < maxIterations; i++) {
@@ -349,7 +351,7 @@ class KMeansLocal {
             }
         }
         // If we were sampled, do a once over the full set of vectors to finalize the centroids
-        if (sampleSize < n) {
+        if (sampleSize < n || maxIterations == 0) {
             // No ordinal translation needed here, we are using the full set of vectors
             stepLloyd(vectors, i -> i, centroids, nextCentroids, assignments, neighborhoods);
         }

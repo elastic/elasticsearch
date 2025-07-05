@@ -307,8 +307,7 @@ public class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
-            taskManager,
-            Tracer.NOOP
+            taskManager
         );
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(

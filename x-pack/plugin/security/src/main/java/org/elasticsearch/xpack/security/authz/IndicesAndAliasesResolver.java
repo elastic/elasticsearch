@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.FlatIndicesRequest;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -55,6 +58,8 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 class IndicesAndAliasesResolver {
 
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
+
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
@@ -103,7 +108,6 @@ class IndicesAndAliasesResolver {
      * resolving wildcards.
      * </p>
      */
-
     ResolvedIndices resolve(
         String action,
         TransportRequest request,
@@ -124,7 +128,60 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
+
+        if (request instanceof FlatIndicesRequest flatIndicesRequest && flatIndicesRequest.requiresRewrite()) {
+            rewrite(flatIndicesRequest, authorizedIndices);
+        }
+
         return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
+    }
+
+    void rewrite(FlatIndicesRequest request, AuthorizationEngine.AuthorizedIndices authorizedIndices) {
+        assert request.requiresRewrite();
+
+        var clusters = remoteClusterResolver.clusters();
+        logger.info("Clusters available for remote indices: {}", clusters);
+        // no remotes, nothing to rewrite...
+        if (clusters.isEmpty()) {
+            logger.info("No remote clusters linked, skipping...");
+            return;
+        }
+
+        var indices = request.indices();
+        // empty indices actually means search everything so would need to also rewrite that
+
+        var authorizedClusters = new HashSet<String>();
+        for (var cluster : clusters) {
+            if (authorizedIndices.checkProject(cluster)) {
+                logger.info("Remote cluster [{}] authorized", cluster);
+                authorizedClusters.add(cluster);
+            }
+        }
+
+        if (authorizedClusters.isEmpty()) {
+            logger.info("No remote clusters authorized, skipping...");
+            return;
+        }
+
+        ResolvedIndices resolved = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
+        // skip handling searches where there's both qualified and flat expressions to simplify POC
+        // in the real thing, we'd also rewrite these
+        if (resolved.getRemote().isEmpty() == false) {
+            return;
+        }
+
+        List<FlatIndicesRequest.IndexExpression> indexExpressions = new ArrayList<>(indices.length);
+        for (var local : resolved.getLocal()) {
+            List<String> rewritten = new ArrayList<>();
+            rewritten.add(local);
+            for (var cluster : authorizedClusters) {
+                rewritten.add(RemoteClusterAware.buildRemoteIndexName(cluster, local));
+                indexExpressions.add(new FlatIndicesRequest.IndexExpression(local, rewritten));
+            }
+            logger.info("Rewrote [{}] to [{}]", local, rewritten);
+        }
+
+        request.indexExpressions(indexExpressions);
     }
 
     /**
@@ -568,6 +625,10 @@ class IndicesAndAliasesResolver {
                 .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
                 .toList();
             return new ResolvedIndices(local == null ? List.of() : local, remote);
+        }
+
+        Set<String> clusters() {
+            return Collections.unmodifiableSet(clusters);
         }
     }
 }

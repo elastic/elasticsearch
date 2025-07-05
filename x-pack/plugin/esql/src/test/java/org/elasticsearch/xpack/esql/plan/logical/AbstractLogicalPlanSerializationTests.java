@@ -30,6 +30,7 @@ public abstract class AbstractLogicalPlanSerializationTests<T extends LogicalPla
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(PlanWritables.logical());
+        entries.addAll(PlanWritables.others());
         entries.addAll(ExpressionWritables.aggregates());
         entries.addAll(ExpressionWritables.allExpressions());
         return new NamedWriteableRegistry(entries);

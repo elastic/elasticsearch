@@ -5,26 +5,34 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai.request;
+package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
+/**
+ * LlamaChatCompletionRequestEntity is responsible for creating the request entity for Llama chat completion.
+ * It implements ToXContentObject to allow serialization to XContent format.
+ */
+public class LlamaChatCompletionRequestEntity implements ToXContentObject {
 
-    public static final String USER_FIELD = "user";
-    private final OpenAiChatCompletionModel model;
+    private final LlamaChatCompletionModel model;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
-    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
+    /**
+     * Constructs a LlamaChatCompletionRequestEntity with the specified unified chat input and model.
+     *
+     * @param unifiedChatInput the unified chat input containing messages and parameters for the completion request
+     * @param model the Llama chat completion model to be used for the request
+     */
+    public LlamaChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, LlamaChatCompletionModel model) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
     }
@@ -32,17 +40,8 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(
-            builder,
-            UnifiedCompletionRequest.withMaxCompletionTokens(model.getServiceSettings().modelId(), params)
-        );
-
-        if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
-            builder.field(USER_FIELD, model.getTaskSettings().user());
-        }
-
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params));
         builder.endObject();
-
         return builder;
     }
 }

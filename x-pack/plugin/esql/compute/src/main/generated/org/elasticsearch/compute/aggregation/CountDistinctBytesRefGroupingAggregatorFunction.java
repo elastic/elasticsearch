@@ -147,6 +147,29 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+    BytesRef scratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -184,6 +207,29 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+    BytesRef scratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -205,11 +251,6 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       int groupId = groups.getInt(groupPosition);
       CountDistinctBytesRefAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -236,6 +277,11 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     HllStates.GroupingState inState = ((CountDistinctBytesRefGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     CountDistinctBytesRefAggregator.combineStates(state, groupId, inState, position);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

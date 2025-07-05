@@ -147,6 +147,39 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector value = ((DoubleBlock) valueUncast).asVector();
+    Block deltaUncast = page.getBlock(channels.get(1));
+    if (deltaUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector delta = ((DoubleBlock) deltaUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(2));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SumFloatAggregator.combineIntermediate(state, groupId, value.getDouble(groupPosition + positionOffset), delta.getDouble(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -182,6 +215,39 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector value = ((DoubleBlock) valueUncast).asVector();
+    Block deltaUncast = page.getBlock(channels.get(1));
+    if (deltaUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector delta = ((DoubleBlock) deltaUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(2));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SumFloatAggregator.combineIntermediate(state, groupId, value.getDouble(groupPosition + positionOffset), delta.getDouble(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
@@ -201,11 +267,6 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupId = groups.getInt(groupPosition);
       SumFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -242,6 +303,11 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
     SumDoubleAggregator.GroupingSumState inState = ((SumFloatGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SumFloatAggregator.combineStates(state, groupId, inState, position);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

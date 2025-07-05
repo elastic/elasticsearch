@@ -155,6 +155,44 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block timestampsUncast = page.getBlock(channels.get(0));
+    if (timestampsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock timestamps = (LongBlock) timestampsUncast;
+    Block valuesUncast = page.getBlock(channels.get(1));
+    if (valuesUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleBlock values = (DoubleBlock) valuesUncast;
+    Block sampleCountsUncast = page.getBlock(channels.get(2));
+    if (sampleCountsUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
+    Block resetsUncast = page.getBlock(channels.get(3));
+    if (resetsUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(groupPosition + positionOffset), resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock values,
       LongVector timestamps) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -193,6 +231,44 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block timestampsUncast = page.getBlock(channels.get(0));
+    if (timestampsUncast.areAllValuesNull()) {
+      return;
+    }
+    LongBlock timestamps = (LongBlock) timestampsUncast;
+    Block valuesUncast = page.getBlock(channels.get(1));
+    if (valuesUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleBlock values = (DoubleBlock) valuesUncast;
+    Block sampleCountsUncast = page.getBlock(channels.get(2));
+    if (sampleCountsUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector sampleCounts = ((IntBlock) sampleCountsUncast).asVector();
+    Block resetsUncast = page.getBlock(channels.get(3));
+    if (resetsUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == sampleCounts.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, sampleCounts.getInt(groupPosition + positionOffset), resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values,
       LongVector timestamps) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -215,11 +291,6 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
       var valuePosition = groupPosition + positionOffset;
       RateDoubleAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getDouble(valuePosition));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -261,6 +332,11 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     RateDoubleAggregator.DoubleRateGroupingState inState = ((RateDoubleGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     RateDoubleAggregator.combineStates(state, groupId, inState, position);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

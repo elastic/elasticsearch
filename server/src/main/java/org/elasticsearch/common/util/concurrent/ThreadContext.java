@@ -193,33 +193,38 @@ public final class ThreadContext implements Writeable, TraceContext {
      */
     public StoredContext newTraceContext() {
         final ThreadContextStruct originalContext = threadLocal.get();
-        final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
-        final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
-
-        final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
-        if (previousTraceParent != null) {
-            newTransientHeaders.put("parent_" + Task.TRACE_PARENT_HTTP_HEADER, previousTraceParent);
-        }
-
-        final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
-        if (previousTraceState != null) {
-            newTransientHeaders.put("parent_" + Task.TRACE_STATE, previousTraceState);
-        }
-
-        final Object previousTraceContext = newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
-        if (previousTraceContext != null) {
-            newTransientHeaders.put("parent_" + Task.APM_TRACE_CONTEXT, previousTraceContext);
-        }
-
         // this is the context when this method returns
-        final ThreadContextStruct newContext = new ThreadContextStruct(
-            newRequestHeaders,
-            originalContext.responseHeaders,
-            newTransientHeaders,
-            originalContext.isSystemContext,
-            originalContext.warningHeadersSize
-        );
-        threadLocal.set(newContext);
+        final ThreadContextStruct newContext;
+        if (originalContext.hasTraceContext() == false) {
+            newContext = originalContext;
+        } else {
+            final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+            final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
+
+            final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+            if (previousTraceParent != null) {
+                newTransientHeaders.put(Task.PARENT_TRACE_PARENT_HEADER, previousTraceParent);
+            }
+
+            final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
+            if (previousTraceState != null) {
+                newTransientHeaders.put(Task.PARENT_TRACE_STATE, previousTraceState);
+            }
+
+            final Object previousTraceContext = newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+            if (previousTraceContext != null) {
+                newTransientHeaders.put(Task.PARENT_APM_TRACE_CONTEXT, previousTraceContext);
+            }
+
+            newContext = new ThreadContextStruct(
+                newRequestHeaders,
+                originalContext.responseHeaders,
+                newTransientHeaders,
+                originalContext.isSystemContext,
+                originalContext.warningHeadersSize
+            );
+            threadLocal.set(newContext);
+        }
         // Tracing shouldn't interrupt the propagation of response headers, so in the same as
         // #newStoredContextPreservingResponseHeaders(), pass on any potential changes to the response headers.
         return () -> {
@@ -233,10 +238,11 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     public boolean hasTraceContext() {
-        final ThreadContextStruct context = threadLocal.get();
-        return context.requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER)
-            || context.requestHeaders.containsKey(Task.TRACE_STATE)
-            || context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+        return threadLocal.get().hasTraceContext();
+    }
+
+    public boolean hasParentTraceContext() {
+        return threadLocal.get().hasParentTraceContext();
     }
 
     /**
@@ -254,10 +260,10 @@ public final class ThreadContext implements Writeable, TraceContext {
         newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
         newRequestHeaders.remove(Task.TRACE_STATE);
 
-        newTransientHeaders.remove("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-        newTransientHeaders.remove("parent_" + Task.TRACE_STATE);
+        newTransientHeaders.remove(Task.PARENT_TRACE_PARENT_HEADER);
+        newTransientHeaders.remove(Task.PARENT_TRACE_STATE);
         newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
-        newTransientHeaders.remove("parent_" + Task.APM_TRACE_CONTEXT);
+        newTransientHeaders.remove(Task.PARENT_APM_TRACE_CONTEXT);
 
         threadLocal.set(
             new ThreadContextStruct(
@@ -851,6 +857,18 @@ public final class ThreadContext implements Writeable, TraceContext {
                 });
             }
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
+        }
+
+        private boolean hasTraceContext() {
+            return requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER)
+                || requestHeaders.containsKey(Task.TRACE_STATE)
+                || transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+        }
+
+        private boolean hasParentTraceContext() {
+            return transientHeaders.containsKey(Task.PARENT_TRACE_PARENT_HEADER)
+                || transientHeaders.containsKey(Task.PARENT_TRACE_STATE)
+                || transientHeaders.containsKey(Task.PARENT_APM_TRACE_CONTEXT);
         }
 
         private void logWarningHeaderThresholdExceeded(long threshold, Setting<?> thresholdSetting) {

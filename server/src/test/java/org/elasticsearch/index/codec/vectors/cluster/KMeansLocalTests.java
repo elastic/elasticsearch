@@ -17,7 +17,24 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class KMeansLocalTests extends ESTestCase {
+
+    public void testIllegalClustersPerNeighborhood() {
+        KMeansLocal kMeansLocal = new KMeansLocal(randomInt(), randomInt());
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], i -> i);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> kMeansLocal.cluster(
+                FloatVectorValues.fromFloats(List.of(), randomInt(1024)),
+                kMeansIntermediate,
+                randomIntBetween(Integer.MIN_VALUE, 1),
+                randomFloat()
+            )
+        );
+        assertThat(ex.getMessage(), containsString("clustersPerNeighborhood must be at least 2"));
+    }
 
     public void testKMeansNeighbors() throws IOException {
         int nClusters = random().nextInt(1, 10);
@@ -25,7 +42,7 @@ public class KMeansLocalTests extends ESTestCase {
         int dims = random().nextInt(2, 20);
         int sampleSize = random().nextInt(100, nVectors + 1);
         int maxIterations = random().nextInt(0, 100);
-        int clustersPerNeighborhood = random().nextInt(0, 512);
+        int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
@@ -49,8 +66,8 @@ public class KMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations, clustersPerNeighborhood, soarLambda);
-        kMeansLocal.cluster(vectors, kMeansIntermediate, true);
+        KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations);
+        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(kMeansIntermediate.soarAssignments());
@@ -90,8 +107,8 @@ public class KMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations, clustersPerNeighborhood, soarLambda);
-        kMeansLocal.cluster(fvv, kMeansIntermediate, true);
+        KMeansLocal kMeansLocal = new KMeansLocal(sampleSize, maxIterations);
+        kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(kMeansIntermediate.soarAssignments());

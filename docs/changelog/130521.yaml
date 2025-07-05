@@ -1,0 +1,5 @@
+pr: 130521
+summary: Trim to size lists created in source fetchers
+area: Search
+type: bug
+issues: []

@@ -371,7 +371,7 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+        if (hasDocValues() || (isIndexed() && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));

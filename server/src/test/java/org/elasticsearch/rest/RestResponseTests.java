@@ -539,6 +539,11 @@ public class RestResponseTests extends ESTestCase {
             this.addHttpHeader("My-Header", "v1");
             this.addMetadata("es.test", "value1", "value2");
         }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
+        }
     }
 
     private static class SimpleExceptionRestChannel extends AbstractRestChannel {

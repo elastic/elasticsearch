@@ -144,16 +144,14 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         var searchNode = newNode(Set.of(DiscoveryNodeRole.SEARCH_ROLE));
         var indexNode = newNode(Set.of(DiscoveryNodeRole.INDEX_ROLE));
         var shardId = new ShardId(backingIndex, 0);
+        ShardRouting indexOnlyShard = shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null)
+            .withRole(ShardRouting.Role.INDEX_ONLY)
+            .build();
         var clusterState = ClusterState.builder(initialClusterState)
             .nodes(new DiscoveryNodes.Builder().add(indexNode).add(searchNode).build())
             .putRoutingTable(
                 projectId,
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(backingIndex)
-                            .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
-                    )
-                    .build()
+                RoutingTable.builder().add(IndexRoutingTable.builder(backingIndex).addShard(indexOnlyShard)).build()
             )
             .build();
 
@@ -177,7 +175,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(backingIndex)
-                            .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
+                            .addShard(indexOnlyShard)
                             .addShard(
                                 shardRoutingBuilder(shardId, searchNode.getId(), false, STARTED).withRecoverySource(null)
                                     .withRole(ShardRouting.Role.SEARCH_ONLY)

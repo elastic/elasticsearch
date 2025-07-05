@@ -56,7 +56,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
 
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
-        List<Object> values = new ArrayList<>();
+        ArrayList<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
@@ -70,6 +70,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
                 ignoredValues.add(sourceValue);
             }
         }
+        values.trimToSize();
         return values;
     }
 

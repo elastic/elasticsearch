@@ -161,11 +161,10 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
     /**
      * Only shards that can be searched can be used as the source of a downsampling task.
-     * In stateless deployment, this means that shards that CANNOT be promoted to primary can be used.
      * For simplicity, in non-stateless deployments we use the primary shard.
      */
     private boolean isEligible(ShardRouting shardRouting) {
-        return shardRouting.started() && (isStateless ? shardRouting.isPromotableToPrimary() == false : shardRouting.primary());
+        return shardRouting.started() && (isStateless ? shardRouting.isSearchable() : shardRouting.primary());
     }
 
     private boolean isCandidateNode(Collection<DiscoveryNode> candidateNodes, String nodeId) {

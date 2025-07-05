@@ -159,6 +159,8 @@ public class TestPolicyManager extends PolicyManager {
         "org.junit",
         "org.mockito",
         "net.bytebuddy", // Mockito uses this
+
+        "org.bouncycastle.jsse.provider" // Used in test code if FIPS is enabled, support more fine-grained config in ES-12128
     };
 
     @Override

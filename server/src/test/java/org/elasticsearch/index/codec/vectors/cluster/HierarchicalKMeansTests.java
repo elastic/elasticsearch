@@ -19,11 +19,11 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
     public void testHKmeans() throws IOException {
         int nClusters = random().nextInt(1, 10);
-        int nVectors = random().nextInt(nClusters * 100, nClusters * 200);
+        int nVectors = random().nextInt(1, nClusters * 200);
         int dims = random().nextInt(2, 20);
-        int sampleSize = random().nextInt(100, nVectors + 1);
-        int maxIterations = random().nextInt(0, 100);
-        int clustersPerNeighborhood = random().nextInt(0, 512);
+        int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
+        int maxIterations = random().nextInt(1, 100);
+        int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
@@ -36,14 +36,16 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int[] assignments = result.assignments();
         int[] soarAssignments = result.soarAssignments();
 
-        assertEquals(nClusters, centroids.length, 6);
+        assertEquals(Math.min(nClusters, nVectors), centroids.length, 8);
         assertEquals(nVectors, assignments.length);
-        if (centroids.length > 1 && clustersPerNeighborhood > 0) {
+        if (centroids.length > 1 && centroids.length < nVectors) {
             assertEquals(nVectors, soarAssignments.length);
             // verify no duplicates exist
             for (int i = 0; i < assignments.length; i++) {
                 assert assignments[i] != soarAssignments[i];
             }
+        } else {
+            assertEquals(0, soarAssignments.length);
         }
     }
 

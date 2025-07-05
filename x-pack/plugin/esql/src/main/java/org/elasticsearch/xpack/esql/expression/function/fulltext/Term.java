@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -112,19 +111,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(Term.class, t -> {
-                if (t.field() instanceof FieldAttribute == false) { // TODO: is a conversion possible, similar to Match’s case?
-                    failures.add(
-                        Failure.fail(
-                            t.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            t.functionName(),
-                            t.functionType(),
-                            t.field().sourceText()
-                        )
-                    );
-                }
-            });
+            fieldVerifier(plan, this, field, failures);
         };
     }
 
@@ -157,6 +144,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         return field;
     }
 
+    // TODO: method can be dropped, to allow failure messages contain the capitalized function name, aligned with similar functions/classes
     @Override
     public String functionName() {
         return ENTRY.name;

@@ -40,4 +40,34 @@ public interface VectorSimilarityFunctions {
      * vector data bytes. The third argument is the length of the vector data.
      */
     MethodHandle squareDistanceHandle7u();
+
+    /**
+     * Produces a method handle returning the cosine of float32 vectors.
+     *
+     * <p> The type of the method handle will have {@code float} as return type, The type of
+     * its first and second arguments will be {@code MemorySegment}, whose contents is the
+     * vector data floats. The third argument is the length of the vector data - number of
+     * 4-byte float32 elements.
+     */
+    MethodHandle cosineHandleFloat32();
+
+    /**
+     * Produces a method handle returning the dot product of float32 vectors.
+     *
+     * <p> The type of the method handle will have {@code float} as return type, The type of
+     * its first and second arguments will be {@code MemorySegment}, whose contents is the
+     * vector data floats. The third argument is the length of the vector data - number of
+     * 4-byte float32 elements.
+     */
+    MethodHandle dotProductHandleFloat32();
+
+    /**
+     * Produces a method handle returning the square distance of float32 vectors.
+     *
+     * <p> The type of the method handle will have {@code float} as return type, The type of
+     * its first and second arguments will be {@code MemorySegment}, whose contents is the
+     * vector data floats. The third argument is the length of the vector data - number of
+     * 4-byte float32 elements.
+     */
+    MethodHandle squareDistanceHandleFloat32();
 }

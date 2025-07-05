@@ -1316,7 +1316,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            clusterService.localNode().getId()
+
         );
         transportService.start();
         transportService.acceptIncomingRequests();

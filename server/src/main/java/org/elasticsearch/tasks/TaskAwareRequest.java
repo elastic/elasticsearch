@@ -9,8 +9,6 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.core.Nullable;
-
 import java.util.Map;
 
 /**
@@ -57,18 +55,8 @@ public interface TaskAwareRequest {
     /**
      * Returns the task object that should be used to keep track of the processing of the request, with an extra local node ID.
      */
-    // TODO remove the above overload, use only this one.
-    default Task createTask(
-        // TODO this is only nullable in tests, where the MockNode does not guarantee the localNodeId is set before calling this method. We
-        // We should fix the tests, and replace this and id with TaskId instead.
-        @Nullable String localNodeId,
-        long id,
-        String type,
-        String action,
-        TaskId parentTaskId,
-        Map<String, String> headers
-    ) {
-        return createTask(id, type, action, parentTaskId, headers);
+    default Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return createTask(taskId.getId(), type, action, parentTaskId, headers);
     }
 
     /**

@@ -160,7 +160,7 @@ public class ClusterServiceUtils {
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
+            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP, localNode.getId())
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState.Builder builder = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))

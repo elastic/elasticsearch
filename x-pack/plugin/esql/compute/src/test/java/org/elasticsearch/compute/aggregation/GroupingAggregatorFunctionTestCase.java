@@ -661,9 +661,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override
-                    public AddInput prepareProcessPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
+                    public AddInput prepareProcessRawInputPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
                         return new AddInput() {
-                            final AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
+                            final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
                                 BitArray seen = new BitArray(0, bigArrays);
                                 seen.or(seenGroupIds);
                                 return seen;

@@ -419,3 +419,37 @@ emp_no:integer | job_positions:keyword
 10001          | Accountant
 10001          | Senior Python Developer          
 ;
+
+testMvExpandInconsistentColumnOrder1
+required_capability: fix_mv_expand_inconsistent_column_order
+from languages 
+| eval foo_1 = 1, foo_2 = 1 
+| sort language_code 
+| mv_expand foo_1
+;
+
+language_code:integer   | language_name:keyword | foo_1:integer | foo_2:integer
+1                       | English               | 1             | 1
+2                       | French                | 1             | 1
+3                       | Spanish               | 1             | 1
+4                       | German                | 1             | 1
+;
+
+testMvExpandInconsistentColumnOrder2
+required_capability: fix_mv_expand_inconsistent_column_order
+from message_types,languages_lookup_non_unique_key 
+| sort type
+| eval language_code = 1, `language_name` = false, message = true, foo_3 = 1, foo_2 = null 
+| eval foo_3 = "1", `foo_3` = -1, foo_1 = 1, `language_code` = null, `foo_2` = "1" 
+| mv_expand foo_1 
+| limit 5
+;
+
+country:text | country.keyword:keyword | type:keyword | language_name:boolean | message:boolean | foo_3:integer | foo_1:integer | language_code:null | foo_2:keyword
+null         | null                    | Development  | false                 | true            | -1            | 1             | null               | 1              
+null         | null                    | Disconnected | false                 | true            | -1            | 1             | null               | 1              
+null         | null                    | Error        | false                 | true            | -1            | 1             | null               | 1              
+null         | null                    | Production   | false                 | true            | -1            | 1             | null               | 1              
+null         | null                    | Success      | false                 | true            | -1            | 1             | null               | 1         
+;
+

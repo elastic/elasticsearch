@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -64,10 +63,16 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             }
         };
 
-        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
+        ScriptService scriptService = new ScriptService(
+            indexSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        ) {
             @Override
             @SuppressWarnings("unchecked")
-            public <FactoryType> FactoryType compile(ProjectId projectId, Script script, ScriptContext<FactoryType> context) {
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
                 assertEquals(new Script("my_script"), script);
                 return (FactoryType) factory;

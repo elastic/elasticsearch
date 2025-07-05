@@ -15,8 +15,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -54,7 +52,6 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final NodeClient client;
     private final SearchUsageHolder searchUsageHolder;
-    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportSearchTemplateAction(
@@ -65,8 +62,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         NodeClient client,
         UsageService usageService,
         ClusterService clusterService,
-        FeatureService featureService,
-        ProjectResolver projectResolver
+        FeatureService featureService
     ) {
         super(
             MustachePlugin.SEARCH_TEMPLATE_ACTION.name(),
@@ -77,7 +73,6 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
-        this.projectResolver = projectResolver;
         this.clusterSupportsFeature = f -> {
             ClusterState state = clusterService.state();
             return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
@@ -92,7 +87,6 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         boolean success = false;
         try {
             SearchRequest searchRequest = convert(
-                projectResolver.getProjectId(),
                 request,
                 response,
                 scriptService,
@@ -124,7 +118,6 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     }
 
     static SearchRequest convert(
-        ProjectId projectId,
         SearchTemplateRequest searchTemplateRequest,
         SearchTemplateResponse response,
         ScriptService scriptService,
@@ -138,7 +131,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             searchTemplateRequest.getScript(),
             searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams()
         );
-        TemplateScript compiledScript = scriptService.compile(projectId, script, TemplateScript.CONTEXT).newInstance(script.getParams());
+        TemplateScript compiledScript = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
         String source = compiledScript.execute();
         response.setSource(new BytesArray(source));
 

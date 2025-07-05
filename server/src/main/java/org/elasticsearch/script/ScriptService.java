@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -179,6 +179,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
+    private final ProjectResolver projectResolver;
     private final LongSupplier timeProvider;
 
     private ClusterState clusterState;
@@ -193,10 +194,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         Settings settings,
         Map<String, ScriptEngine> engines,
         Map<String, ScriptContext<?>> contexts,
-        LongSupplier timeProvider
+        LongSupplier timeProvider,
+        ProjectResolver projectResolver
     ) {
         this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
         this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
+        this.projectResolver = projectResolver;
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(
@@ -589,18 +592,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    @FixForMultiProject // All usages of this method should pass an explicit project ID
-    @Deprecated
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-        return compile(ProjectId.DEFAULT, script, context);
-    }
-
-    /**
-     * Compiles a script using the given context.
-     *
-     * @return a compiled script which may be used to construct instances of a script for the given context
-     */
-    public <FactoryType> FactoryType compile(ProjectId projectId, Script script, ScriptContext<FactoryType> context) {
+        ProjectId projectId = projectResolver.getProjectId();
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 

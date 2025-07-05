@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
@@ -63,9 +64,10 @@ class NodeServiceProvider {
         Settings settings,
         Map<String, ScriptEngine> engines,
         Map<String, ScriptContext<?>> contexts,
-        LongSupplier timeProvider
+        LongSupplier timeProvider,
+        ProjectResolver projectResolver
     ) {
-        return new ScriptService(settings, engines, contexts, timeProvider);
+        return new ScriptService(settings, engines, contexts, timeProvider, projectResolver);
     }
 
     ClusterInfoService newClusterInfoService(

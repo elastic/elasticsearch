@@ -10,6 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
@@ -25,7 +26,8 @@ public class MockScriptService extends ScriptService {
     public static class TestPlugin extends Plugin {}
 
     public MockScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        super(settings, engines, contexts, () -> 1L);
+        // Since this script service is used in mock nodes for internal cluster tests, we need to always resolve the default project ID.
+        super(settings, engines, contexts, () -> 1L, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
     }
 
     @Override

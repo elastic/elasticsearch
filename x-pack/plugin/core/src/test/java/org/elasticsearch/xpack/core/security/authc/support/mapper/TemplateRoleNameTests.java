@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -93,7 +94,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ExpressionModel model = new ExpressionModel();
         model.defineField("username", "hulk");
@@ -149,7 +151,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("""
@@ -177,7 +180,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final BytesReference template = new BytesArray("""
@@ -208,7 +212,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final BytesReference template = new BytesArray("""
@@ -243,7 +248,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Map.of("painless", scriptEngine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         ) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
@@ -272,7 +278,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final BytesReference inlineScript = new BytesArray("""
             { "source":"" }""");
@@ -289,7 +296,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
@@ -320,7 +328,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);

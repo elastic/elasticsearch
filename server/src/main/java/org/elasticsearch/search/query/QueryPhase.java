@@ -209,29 +209,36 @@ public class QueryPhase {
                 searcher.addQueryCancellation(timeoutRunnable);
             }
 
-            QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
-            if (searchContext.getProfilers() != null) {
-                searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
-            }
-            queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
-            if (searcher.timeExceeded()) {
-                assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                SearchTimeoutException.handleTimeout(
-                    searchContext.request().allowPartialSearchResults(),
-                    searchContext.shardTarget(),
-                    searchContext.queryResult()
-                );
-            }
-            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
-            }
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-                || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-            if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+            try {
+                QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
+                if (searchContext.getProfilers() != null) {
+                    searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
+                }
+                queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
+                if (searcher.timeExceeded()) {
+                    assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
+                    SearchTimeoutException.handleTimeout(
+                        searchContext.request().allowPartialSearchResults(),
+                        searchContext.shardTarget(),
+                        searchContext.queryResult()
+                    );
+                }
+                if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                    queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
+                }
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
+                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
+            } finally {
+                // Search phase has finished, no longer need to check for timeout
+                if (timeoutRunnable != null) {
+                    searcher.removeQueryCancellation(timeoutRunnable);
+                }
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);

@@ -29,6 +29,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         logger.info("field mapping={}", fieldMapping);
         logger.info("value={}", value);
+        logger.info("params={}", params.toString());
         return expectedValue(fieldMapping, value, params, testContext);
     }
 
@@ -84,7 +85,8 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     .map(BytesRef::new)
                     .collect(Collectors.toList());
 
-                if (store == false && ignoreAbove.equals(Integer.MAX_VALUE)) {
+                String ssk = (String) keywordMultiFieldMapping.get("synthetic_source_keep");
+                if (store == false && "arrays".equals(ssk) == false) {
                     // using doc_values for synthetic source
                     indexed = new ArrayList<>(new HashSet<>(indexed));
                     indexed.sort(BytesRef::compareTo);

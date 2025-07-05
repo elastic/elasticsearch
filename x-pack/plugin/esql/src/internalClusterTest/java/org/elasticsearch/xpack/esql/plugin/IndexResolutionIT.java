@@ -11,6 +11,8 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -108,12 +110,44 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
         indexRandom(true, "index-1", 10);
         assertAcked(client().admin().indices().prepareClose("index-1"));
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 15);
 
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
             () -> run(syncEsqlQueryRequest().query("FROM index-1"))
         );
+        expectThrows(
+            ClusterBlockException.class,
+            containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,index-2"))
+        );
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-*"))) {
+            assertOk(response);
+            assertResultCount(response, 15);// only index-2 records match
+        }
+    }
+
+    public void testHiddenIndices() {
+        assertAcked(client().admin().indices().prepareCreate("my-index-1"));
+        indexRandom(true, "my-index-1", 10);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(".hidden-index-1")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+        );
+        indexRandom(true, ".hidden-index-1", 15);
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-index-1"))) {
+            assertOk(response);
+            assertResultCount(response, 15);
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM *-index-1"))) {
+            assertOk(response);
+            assertResultCount(response, 10); // only non hidden index matches
+        }
     }
 
     public void testPartialResolution() {
@@ -133,5 +167,15 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     private static void assertOk(EsqlQueryResponse response) {
         assertThat(response.isPartial(), equalTo(false));
+    }
+
+    private static void assertResultCount(EsqlQueryResponse response, long rows) {
+        long count = 0;
+        var iterator = response.column(0);
+        while (iterator.hasNext()) {
+            iterator.next();
+            count++;
+        }
+        assertThat(count, equalTo(rows));
     }
 }

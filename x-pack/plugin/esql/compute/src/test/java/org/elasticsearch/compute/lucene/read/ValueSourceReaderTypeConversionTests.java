@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.lucene;
+package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
@@ -48,6 +48,12 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -629,7 +635,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
         }
         for (Operator op : operators) {
-            assertThat(((ValuesSourceReaderOperator) op).status().pagesProcessed(), equalTo(input.size()));
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
         }
         assertDriverContext(driverContext);
     }
@@ -716,8 +724,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         }
         drive(operators, input.iterator(), driverContext);
         for (int i = 0; i < cases.size(); i++) {
-            ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) operators.get(i).status();
-            assertThat(status.pagesProcessed(), equalTo(input.size()));
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) operators.get(i).status();
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
             fc.checkReaders.check(fc.info.name(), allInOnePage, input.size(), totalSize, status.readersBuilt());
         }

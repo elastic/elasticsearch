@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.lucene;
+package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,9 +18,9 @@ import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperator.Status> {
-    public static ValuesSourceReaderOperator.Status simple() {
-        return new ValuesSourceReaderOperator.Status(Map.of("ReaderType", 3), 1022323, 123, 111, 222, 1000);
+public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperatorStatus> {
+    public static ValuesSourceReaderOperatorStatus simple() {
+        return new ValuesSourceReaderOperatorStatus(Map.of("ReaderType", 3), 1022323, 123, 200, 111, 222, 1000);
     }
 
     public static String simpleToJson() {
@@ -32,7 +32,8 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
               "values_loaded" : 1000,
               "process_nanos" : 1022323,
               "process_time" : "1ms",
-              "pages_processed" : 123,
+              "pages_received" : 123,
+              "pages_emitted" : 200,
               "rows_received" : 111,
               "rows_emitted" : 222
             }""";
@@ -43,15 +44,16 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
     }
 
     @Override
-    protected Writeable.Reader<ValuesSourceReaderOperator.Status> instanceReader() {
-        return ValuesSourceReaderOperator.Status::new;
+    protected Writeable.Reader<ValuesSourceReaderOperatorStatus> instanceReader() {
+        return ValuesSourceReaderOperatorStatus::readFrom;
     }
 
     @Override
-    public ValuesSourceReaderOperator.Status createTestInstance() {
-        return new ValuesSourceReaderOperator.Status(
+    public ValuesSourceReaderOperatorStatus createTestInstance() {
+        return new ValuesSourceReaderOperatorStatus(
             randomReadersBuilt(),
             randomNonNegativeLong(),
+            randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -69,22 +71,32 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
     }
 
     @Override
-    protected ValuesSourceReaderOperator.Status mutateInstance(ValuesSourceReaderOperator.Status instance) throws IOException {
+    protected ValuesSourceReaderOperatorStatus mutateInstance(ValuesSourceReaderOperatorStatus instance) throws IOException {
         Map<String, Integer> readersBuilt = instance.readersBuilt();
         long processNanos = instance.processNanos();
-        int pagesProcessed = instance.pagesProcessed();
+        int pagesReceived = instance.pagesReceived();
+        int pagesEmitted = instance.pagesEmitted();
         long rowsReceived = instance.rowsReceived();
         long rowsEmitted = instance.rowsEmitted();
         long valuesLoaded = instance.valuesLoaded();
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0 -> readersBuilt = randomValueOtherThan(readersBuilt, this::randomReadersBuilt);
             case 1 -> processNanos = randomValueOtherThan(processNanos, ESTestCase::randomNonNegativeLong);
-            case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
-            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
-            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
-            case 5 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
+            case 2 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
+            case 3 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 4 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 5 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            case 6 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new ValuesSourceReaderOperator.Status(readersBuilt, processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
+        return new ValuesSourceReaderOperatorStatus(
+            readersBuilt,
+            processNanos,
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted,
+            valuesLoaded
+        );
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
@@ -57,7 +58,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     private IndexReader reader;
 
     @After
-    private void closeIndex() throws IOException {
+    public void closeIndex() throws IOException {
         IOUtils.close(reader, directory);
     }
 

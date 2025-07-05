@@ -21,6 +21,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -39,12 +40,14 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -63,6 +66,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests.getServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -496,10 +500,195 @@ public class LlamaServiceTests extends ESTestCase {
             }]""", getUrl(webServer))));
     }
 
+    public void testInfer_StreamRequestRetry() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(503).setBody("""
+            {
+              "error": {
+                "message": "server busy"
+              }
+            }"""));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+            data: {\
+                "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",\
+                "choices": [{\
+                        "delta": {\
+                            "content": "Deep",\
+                            "function_call": null,\
+                            "refusal": null,\
+                            "role": "assistant",\
+                            "tool_calls": null\
+                        },\
+                        "finish_reason": null,\
+                        "index": 0,\
+                        "logprobs": null\
+                    }\
+                ],\
+                "created": 1750158492,\
+                "model": "llama3.2:3b",\
+                "object": "chat.completion.chunk",\
+                "service_tier": null,\
+                "system_fingerprint": "fp_ollama",\
+                "usage": null\
+            }
+
+            """));
+
+        streamCompletion().hasNoErrors().hasEvent("""
+            {"completion":[{"delta":"Deep"}]}""");
+    }
+
     public void testSupportsStreaming() throws IOException {
         try (var service = new LlamaService(mock(), createWithEmptySettings(mock()))) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), is("The [llama] service does not support task type [sparse_embedding]"));
+                }
+            );
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.SPARSE_EMBEDDING,
+                getRequestConfigMap(getEmbeddingsServiceSettingsMap(), getSecretSettingsMap("secret")),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
+        testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(
+            getRequestConfigMap(getEmbeddingsServiceSettingsMap(), getSecretSettingsMap("secret")),
+            TaskType.TEXT_EMBEDDING
+        );
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig_Completion() throws IOException {
+        testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(
+            getRequestConfigMap(
+                LlamaChatCompletionServiceSettingsTests.getServiceSettingsMap("llama-completion", "url"),
+                getSecretSettingsMap("secret")
+            ),
+            TaskType.COMPLETION
+        );
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig_ChatCompletion() throws IOException {
+        testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(
+            getRequestConfigMap(
+                LlamaChatCompletionServiceSettingsTests.getServiceSettingsMap("llama-chat-completion", "url"),
+                getSecretSettingsMap("secret")
+            ),
+            TaskType.CHAT_COMPLETION
+        );
+    }
+
+    private void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig(Map<String, Object> secret, TaskType chatCompletion)
+        throws IOException {
+        try (var service = createService()) {
+            secret.put("extra_key", "value");
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [llama] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", chatCompletion, secret, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingTaskSettingsMap() throws IOException {
+        testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap(getEmbeddingsServiceSettingsMap(), TaskType.TEXT_EMBEDDING);
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap(
+        Map<String, Object> serviceSettingsMap,
+        TaskType chatCompletion
+    ) throws IOException {
+        try (var service = createService()) {
+            var taskSettings = new HashMap<String, Object>();
+            taskSettings.put("extra_key", "value");
+
+            var config = getRequestConfigMap(serviceSettingsMap, Collections.emptyMap(), getSecretSettingsMap("secret"), taskSettings);
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [llama] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", chatCompletion, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingSecretSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var secretSettings = getSecretSettingsMap("secret");
+            secretSettings.put("extra_key", "value");
+
+            var config = getRequestConfigMap(getEmbeddingsServiceSettingsMap(), secretSettings);
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [llama] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInCompletionSecretSettingsMap() throws IOException {
+        testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap("llama-completion", TaskType.COMPLETION);
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInChatCompletionSecretSettingsMap() throws IOException {
+        testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap("llama-chat-completion", TaskType.CHAT_COMPLETION);
+    }
+
+    private void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap(String modelId, TaskType chatCompletion)
+        throws IOException {
+        try (var service = createService()) {
+            var secretSettings = getSecretSettingsMap("secret");
+            secretSettings.put("extra_key", "value");
+
+            var config = getRequestConfigMap(LlamaChatCompletionServiceSettingsTests.getServiceSettingsMap(modelId, "url"), secretSettings);
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [llama] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", chatCompletion, config, modelVerificationListener);
         }
     }
 
@@ -532,6 +721,17 @@ public class LlamaServiceTests extends ESTestCase {
     private Map<String, Object> getRequestConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings,
+        Map<String, Object> taskSettings
+    ) {
+        var requestConfigMap = getRequestConfigMap(serviceSettings, chunkingSettings, secretSettings);
+        requestConfigMap.put(ModelConfigurations.TASK_SETTINGS, taskSettings);
+        return requestConfigMap;
+    }
+
+    private Map<String, Object> getRequestConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> chunkingSettings,
         Map<String, Object> secretSettings
     ) {
         var requestConfigMap = getRequestConfigMap(serviceSettings, secretSettings);
@@ -546,5 +746,9 @@ public class LlamaServiceTests extends ESTestCase {
         builtServiceSettings.putAll(secretSettings);
 
         return new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings));
+    }
+
+    private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
+        return buildServiceSettingsMap("id", "url", SimilarityMeasure.COSINE.toString(), null, null, null);
     }
 }

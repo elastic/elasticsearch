@@ -447,7 +447,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         );
     }
 
-    private static HashMap<String, Object> buildServiceSettingsMap(
+    public static HashMap<String, Object> buildServiceSettingsMap(
         @Nullable String modelId,
         @Nullable String url,
         @Nullable String similarity,

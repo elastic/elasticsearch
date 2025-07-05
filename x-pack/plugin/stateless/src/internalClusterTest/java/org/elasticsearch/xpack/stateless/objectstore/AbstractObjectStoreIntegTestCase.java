@@ -318,10 +318,16 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         startIndexNode();
         ensureStableCluster(2);
         final var repoName = "backup";
-        putProjects(allProjects);
         final CountDownLatch latch = new CountDownLatch(allProjects.size());
 
         for (ProjectId projectId : allProjects) {
+            // Create the project with reserved repository
+            putProject(
+                projectId,
+                projectSettings(projectId),
+                projectSecrets(projectId),
+                new RepositoryMetadata(repoName, repositoryType(), repositorySettings(projectId))
+            );
             final var projectClient = client().projectClient(projectId);
             // Create index with some docs
             final var indexName = "index-" + projectId.id().toLowerCase(Locale.ROOT);
@@ -333,16 +339,6 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
                     .execute()
             );
             indexDocsAndRefresh(projectClient, indexName, between(10, 50));
-            // Create repository
-            safeGet(
-                projectClient.admin()
-                    .cluster()
-                    .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
-                    .setType(repositoryType())
-                    .setSettings(repositorySettings(projectId))
-                    .setVerify(randomBoolean())
-                    .execute()
-            );
         }
 
         final var projectToDelaySnapshot = randomFrom(allProjects);

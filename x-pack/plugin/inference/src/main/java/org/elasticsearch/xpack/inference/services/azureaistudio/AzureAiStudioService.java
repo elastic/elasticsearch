@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -74,7 +75,7 @@ public class AzureAiStudioService extends SenderService {
     static final String NAME = "azureaistudio";
 
     private static final String SERVICE_NAME = "Azure AI Studio";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -305,6 +306,24 @@ public class AzureAiStudioService extends SenderService {
                 completionModel.getServiceSettings().endpointType()
             );
             return completionModel;
+        }
+
+        if (taskType == TaskType.RERANK) {
+            var rerankModel = new AzureAiStudioRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
+            checkProviderAndEndpointTypeForTask(
+                TaskType.RERANK,
+                rerankModel.getServiceSettings().provider(),
+                rerankModel.getServiceSettings().endpointType()
+            );
+            return rerankModel;
         }
 
         throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);

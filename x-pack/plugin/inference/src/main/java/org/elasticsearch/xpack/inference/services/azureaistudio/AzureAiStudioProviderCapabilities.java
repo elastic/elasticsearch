@@ -23,6 +23,15 @@ public final class AzureAiStudioProviderCapabilities {
     public static final List<AzureAiStudioProvider> chatCompletionProviders = List.of(AzureAiStudioProvider.values());
 
     // these providers allow token ("pay as you go") embeddings endpoints
+    public static final List<AzureAiStudioProvider> rerankProviders = List.of(AzureAiStudioProvider.COHERE);
+
+    // these providers allow token ("pay as you go") embeddings endpoints
+    public static final List<AzureAiStudioProvider> tokenRerankProviders = List.of(AzureAiStudioProvider.COHERE);
+
+    // these providers allow realtime rerank endpoints (none at the moment)
+    public static final List<AzureAiStudioProvider> realtimeRerankProviders = List.of();
+
+    // these providers allow token ("pay as you go") embeddings endpoints
     public static final List<AzureAiStudioProvider> tokenEmbeddingsProviders = List.of(
         AzureAiStudioProvider.OPENAI,
         AzureAiStudioProvider.COHERE
@@ -54,6 +63,9 @@ public final class AzureAiStudioProviderCapabilities {
             case TEXT_EMBEDDING -> {
                 return embeddingProviders.contains(provider);
             }
+            case RERANK -> {
+                return rerankProviders.contains(provider);
+            }
             default -> {
                 return false;
             }
@@ -75,6 +87,11 @@ public final class AzureAiStudioProviderCapabilities {
                 return (endpointType == AzureAiStudioEndpointType.TOKEN)
                     ? tokenEmbeddingsProviders.contains(provider)
                     : realtimeEmbeddingsProviders.contains(provider);
+            }
+            case RERANK -> {
+                return (endpointType == AzureAiStudioEndpointType.TOKEN)
+                    ? tokenRerankProviders.contains(provider)
+                    : realtimeRerankProviders.contains(provider);
             }
             default -> {
                 return false;

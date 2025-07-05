@@ -572,6 +572,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.vectors/40_knn_search/Dimensions are dynamically set}
   issue: https://github.com/elastic/elasticsearch/issues/130661
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_half_byte_quantized/Test create, merge, and search cosine}
+  issue: https://github.com/elastic/elasticsearch/issues/130663
 
 # Examples:
 #

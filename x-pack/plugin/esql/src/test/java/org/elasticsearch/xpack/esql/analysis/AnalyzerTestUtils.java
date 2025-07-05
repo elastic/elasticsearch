@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -39,6 +40,8 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class AnalyzerTestUtils {
 
@@ -189,10 +192,16 @@ public final class AnalyzerTestUtils {
 
     public static InferenceResolution defaultInferenceResolution() {
         return InferenceResolution.builder()
-            .withResolvedInference(new ResolvedInference("reranking-inference-id", TaskType.RERANK))
-            .withResolvedInference(new ResolvedInference("completion-inference-id", TaskType.COMPLETION))
+            .withResolvedInference(mockedResolvedInference("reranking-inference-id", TaskType.RERANK))
+            .withResolvedInference(mockedResolvedInference("completion-inference-id", TaskType.COMPLETION))
             .withError("error-inference-id", "error with inference resolution")
             .build();
+    }
+
+    private static ResolvedInference mockedResolvedInference(String inferenceId, TaskType taskType) {
+        ModelConfigurations modelConfigurations = mock(ModelConfigurations.class);
+        when(modelConfigurations.getTaskType()).thenReturn(taskType);
+        return new ResolvedInference(inferenceId, modelConfigurations);
     }
 
     public static void loadEnrichPolicyResolution(

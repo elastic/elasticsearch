@@ -798,6 +798,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Set<String> returnTypes = Arrays.stream(description.returnType())
             .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
+
         assertEquals(returnFromSignature, returnTypes);
     }
 

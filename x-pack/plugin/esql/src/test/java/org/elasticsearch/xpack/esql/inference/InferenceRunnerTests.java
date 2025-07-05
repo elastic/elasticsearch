@@ -26,11 +26,15 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,31 +69,30 @@ public class InferenceRunnerTests extends ESTestCase {
 
     public void testResolveInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
+        Set<String> inferenceIds = Set.of("rerank-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceRunner.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
             assertNotNull(inferenceResolution);
-            assertThat(inferenceResolution.resolvedInferences(), contains(new ResolvedInference("rerank-plan", TaskType.RERANK)));
+            assertThat(
+                inferenceResolution.resolvedInferences(),
+                contains(allOf(inferenceId(equalTo("rerank-plan")), taskType(equalTo(TaskType.RERANK))))
+            );
             assertThat(inferenceResolution.hasError(), equalTo(false));
         });
     }
 
     public void testResolveMultipleInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(
-            mockInferencePlan("rerank-plan"),
-            mockInferencePlan("rerank-plan"),
-            mockInferencePlan("completion-plan")
-        );
+        Set<String> inferenceIds = Set.of("rerank-plan", "completion-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceRunner.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -100,8 +103,8 @@ public class InferenceRunnerTests extends ESTestCase {
             assertThat(
                 inferenceResolution.resolvedInferences(),
                 contains(
-                    new ResolvedInference("rerank-plan", TaskType.RERANK),
-                    new ResolvedInference("completion-plan", TaskType.COMPLETION)
+                    allOf(inferenceId(equalTo("rerank-plan")), taskType(equalTo(TaskType.RERANK))),
+                    allOf(inferenceId(equalTo("completion-plan")), taskType(equalTo(TaskType.COMPLETION)))
                 )
             );
             assertThat(inferenceResolution.hasError(), equalTo(false));
@@ -110,11 +113,11 @@ public class InferenceRunnerTests extends ESTestCase {
 
     public void testResolveMissingInferenceIds() throws Exception {
         InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("missing-plan"));
+        Set<String> inferenceIds = Set.of("missing-plan");
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceRunner.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -183,5 +186,23 @@ public class InferenceRunnerTests extends ESTestCase {
         InferencePlan<?> plan = mock(InferencePlan.class);
         when(plan.inferenceId()).thenReturn(Literal.keyword(Source.EMPTY, inferenceId));
         return plan;
+    }
+
+    private FeatureMatcher<ResolvedInference, String> inferenceId(Matcher<String> matcher) {
+        return new FeatureMatcher<>(matcher, "inference id", "inferenceId") {
+            @Override
+            protected String featureValueOf(ResolvedInference resolution) {
+                return resolution.inferenceId();
+            }
+        };
+    }
+
+    private FeatureMatcher<ResolvedInference, TaskType> taskType(Matcher<TaskType> matcher) {
+        return new FeatureMatcher<>(matcher, "task type", "taskType") {
+            @Override
+            protected TaskType featureValueOf(ResolvedInference resolution) {
+                return resolution.taskType();
+            }
+        };
     }
 }

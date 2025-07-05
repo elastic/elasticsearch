@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
+import org.elasticsearch.xpack.esql.inference.embedding.DenseEmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -119,6 +120,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.embedding.DenseVectorEmbeddingExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
@@ -266,6 +268,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof DenseVectorEmbeddingExec embedding) {
+            return planDenseVectorEmbedding(embedding, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         }
@@ -317,6 +321,31 @@ public class LocalExecutionPlanner {
         );
 
         return source.with(new CompletionOperator.Factory(inferenceRunner, inferenceId, promptEvaluatorFactory), outputLayout);
+    }
+
+    private PhysicalOperation planDenseVectorEmbedding(DenseVectorEmbeddingExec embedding, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(embedding.child(), context);
+        String inferenceId = BytesRefs.toString(embedding.inferenceId().fold(context.foldCtx()));
+
+        int dimensions;
+        if (embedding.dimensions() instanceof Literal literal) {
+            Object val = literal.value() instanceof BytesRef br ? BytesRefs.toString(br) : literal.value();
+            dimensions = stringToInt(val.toString());
+        } else {
+            throw new EsqlIllegalArgumentException("dimensions only supported with literal values");
+        }
+
+        Layout outputLayout = source.layout.builder().append(embedding.targetField()).build();
+        EvalOperator.ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+            context.foldCtx(),
+            embedding.input(),
+            source.layout
+        );
+
+        return source.with(
+            new DenseEmbeddingOperator.Factory(inferenceRunner, inferenceId, dimensions, inputEvaluatorFactory),
+            outputLayout
+        );
     }
 
     private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 
 /**
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
@@ -28,25 +31,25 @@ import static java.util.Collections.emptyList;
 public class PreAnalyzer {
 
     public static class PreAnalysis {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, emptyList(), emptyList(), emptyList(), emptyList());
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, emptyList(), emptyList(), emptySet(), emptyList());
 
         public final IndexMode indexMode;
         public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
-        public final List<InferencePlan<?>> inferencePlans;
+        public final Set<String> inferenceIds;
         public final List<IndexPattern> lookupIndices;
 
         public PreAnalysis(
             IndexMode indexMode,
             List<IndexPattern> indices,
             List<Enrich> enriches,
-            List<InferencePlan<?>> inferencePlans,
+            Set<String> inferenceIds,
             List<IndexPattern> lookupIndices
         ) {
             this.indexMode = indexMode;
             this.indices = indices;
             this.enriches = enriches;
-            this.inferencePlans = inferencePlans;
+            this.inferenceIds = inferenceIds;
             this.lookupIndices = lookupIndices;
         }
     }
@@ -64,7 +67,7 @@ public class PreAnalyzer {
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-        List<InferencePlan<?>> unresolvedInferencePlans = new ArrayList<>();
+        Set<String> unresolvedInferenceIds = new HashSet<>();
         Holder<IndexMode> indexMode = new Holder<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
@@ -78,11 +81,28 @@ public class PreAnalyzer {
         });
 
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
-        plan.forEachUp(InferencePlan.class, unresolvedInferencePlans::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, unresolvedInferencePlans, lookupIndices);
+        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, inferenceIds(plan), lookupIndices);
+    }
+
+    protected Set<String> inferenceIds(LogicalPlan plan) {
+        Set<String> inferenceIds = new HashSet<>();
+
+        List<InferencePlan<?>> inferencePlans = new ArrayList<>();
+        plan.forEachUp(InferencePlan.class, inferencePlans::add);
+        inferencePlans.stream().map(this::inferenceId).forEach(inferenceIds::add);
+
+        return inferenceIds;
+    }
+
+    private String inferenceId(InferencePlan<?> inferencePlan) {
+        if (inferencePlan.inferenceId() instanceof Literal literal) {
+            return BytesRefs.toString(literal.value());
+        }
+
+        throw new IllegalStateException("inferenceId is not a literal");
     }
 }

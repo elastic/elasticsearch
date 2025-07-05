@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.XContentTestUtils;
@@ -51,11 +52,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
-    private static final String TENANT_ID = "tenant-id";
-    private static final String CLIENT_ID = "client_id";
-    private static final String CLIENT_SECRET = "client_secret";
-    private static final String USERNAME = "Thor";
-    private static final String EXPECTED_GROUP = "test_group";
+    private static final String TENANT_ID = System.getProperty("test.ms_graph.tenant_id");
+    private static final String CLIENT_ID = System.getProperty("test.ms_graph.client_id");
+    private static final String CLIENT_SECRET = System.getProperty("test.ms_graph.client_secret");
+    private static final String USERNAME = System.getProperty("test.ms_graph.username");
+    private static final String EXPECTED_GROUP = System.getProperty("test.ms_graph.group_id");
+    private static final Boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.ms_graph.fixture"));
 
     private static final List<MicrosoftGraphHttpFixture.TestUser> TEST_USERS = List.of(
         new MicrosoftGraphHttpFixture.TestUser(
@@ -90,12 +92,14 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     );
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(graphFixture).around(trustStore).around(cluster);
+    public static TestRule ruleChain = USE_FIXTURE
+        ? RuleChain.outerRule(graphFixture).around(trustStore).around(cluster)
+        : RuleChain.outerRule(cluster);
 
     private static final String IDP_ENTITY_ID = "http://idp.example.org/";
 
     private static ElasticsearchCluster initTestCluster() {
-        return ElasticsearchCluster.local()
+        final var clusterBuilder = ElasticsearchCluster.local()
             .module("analysis-common")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
@@ -118,15 +122,22 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_id", CLIENT_ID)
             .keystore("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_secret", CLIENT_SECRET)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.tenant_id", TENANT_ID)
-            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host", () -> graphFixture.getBaseUrl() + "/v1.0")
-            .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)
             .setting("logger.org.elasticsearch.xpack.security.authz.microsoft", "TRACE")
             .setting("logger.com.microsoft", "TRACE")
-            .setting("logger.com.azure", "TRACE")
-            .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
-            .systemProperty("javax.net.ssl.trustStoreType", "jks")
-            .systemProperty("tests.azure.credentials.disable_instance_discovery", "true")
-            .build();
+            .setting("logger.com.azure", "TRACE");
+
+        if (USE_FIXTURE) {
+            clusterBuilder.setting(
+                "xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host",
+                () -> graphFixture.getBaseUrl() + "/v1.0"
+            )
+                .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)
+                .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
+                .systemProperty("javax.net.ssl.trustStoreType", "jks")
+                .systemProperty("tests.azure.credentials.disable_instance_discovery", "true");
+        }
+
+        return clusterBuilder.build();
     }
 
     private static String getIDPMetadata() {
@@ -210,6 +221,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     }
 
     public void testConcurrentAuthentication() throws Exception {
+        assumeTrue("This needs the test server as the real account only has one user configured", USE_FIXTURE);
         final var concurrentLogins = 3;
 
         final var resultsListener = new PlainActionFuture<Collection<Map<String, Object>>>();

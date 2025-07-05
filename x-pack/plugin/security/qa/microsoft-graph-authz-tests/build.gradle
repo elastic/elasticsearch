@@ -8,7 +8,34 @@ dependencies {
   clusterModules project(":modules:analysis-common")
 }
 
+boolean useFixture = false
+String msGraphTenantId = System.getenv("ms_graph_tenant_id")
+String msGraphClientId = System.getenv("ms_graph_client_id")
+String msGraphClientSecret = System.getenv("ms_graph_client_secret")
+String msGraphUsername = System.getenv("ms_graph_username")
+String msGraphGroupId = System.getenv("ms_graph_groupid")
+
+if (!msGraphTenantId || !msGraphClientId || !msGraphClientSecret || !msGraphUsername || !msGraphGroupId) {
+  msGraphTenantId = "tenant-id"
+  msGraphClientId = "client_id"
+  msGraphClientSecret = "client_secret"
+  msGraphUsername = "Thor"
+  msGraphGroupId = "test_group"
+  useFixture = true
+}
+
 tasks.named("javaRestTest").configure {
+  systemProperty "test.ms_graph.fixture", useFixture
+  systemProperty "test.ms_graph.tenant_id", msGraphTenantId
+  systemProperty "test.ms_graph.client_id", msGraphClientId
+  systemProperty "test.ms_graph.client_secret", msGraphClientSecret
+  systemProperty "test.ms_graph.username", msGraphUsername
+  systemProperty "test.ms_graph.group_id", msGraphGroupId
+
   // disable tests in FIPS mode as we need to use a custom truststore containing the certs used in MicrosoftGraphHttpFixture
   buildParams.withFipsEnabledOnly(it)
+}
+
+tasks.register("msGraphThirdPartyTest") {
+  dependsOn "javaRestTest"
 }

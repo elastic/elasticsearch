@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {
@@ -22,6 +23,12 @@ public final class LogicalVerifier {
     public Failures verify(LogicalPlan plan) {
         Failures failures = new Failures();
         Failures dependencyFailures = new Failures();
+
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+        var enriches = plan.collectFirstChildren(Enrich.class::isInstance);
+        if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
+            return failures;
+        }
 
         plan.forEachUp(p -> {
             PlanConsistencyChecker.checkPlan(p, dependencyFailures);

@@ -23,6 +23,7 @@ public class HierarchicalKMeans {
     static final int MAX_ITERATIONS_DEFAULT = 6;
     static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    static final int TARGET_MARGIN = 134;  // 34% great target size is used to try to prevent oversplitting
 
     final int dimension;
     final int maxIterations;
@@ -65,7 +66,7 @@ public class HierarchicalKMeans {
         }
 
         // partition the space
-        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, 0);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations);
@@ -75,7 +76,7 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
+    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize, final int depth) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -113,13 +114,13 @@ public class HierarchicalKMeans {
         for (int c = 0; c < centroidVectorCount.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
-            if (100 * centroidVectorCount[c] > 134 * targetSize) {
+            if (100 * centroidVectorCount[c] > TARGET_MARGIN * targetSize) {
                 FloatVectorValues sample = createClusterSlice(centroidVectorCount[c], c, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, c, clusterAndSplit(sample, targetSize));
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, c, clusterAndSplit(sample, targetSize, depth + 1), depth);
             }
         }
 
@@ -139,7 +140,7 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
-    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
+    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions, int depth) {
         int orgCentroidsSize = current.centroids().length;
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
@@ -155,6 +156,17 @@ public class HierarchicalKMeans {
             // append the remainder
             System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
 
+            // create a top "parent" layer for faster query
+            if (depth == 0) {
+                int[] newParentLayer = new int[newCentroids.length];
+                System.arraycopy(current.parentLayer(), 0, newParentLayer, 0, current.parentLayer().length);
+                current.setParentLayer(newParentLayer);
+                current.parentLayer()[cluster] = cluster;
+                for (int i = current.centroids().length; i < newCentroids.length; i++) {
+                    current.parentLayer()[i] = cluster;
+                }
+            }
+
             current.setCentroids(newCentroids);
 
             for (int i = 0; i < subPartitions.assignments().length; i++) {
@@ -165,6 +177,7 @@ public class HierarchicalKMeans {
                     current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
                 }
             }
+
         }
     }
 }

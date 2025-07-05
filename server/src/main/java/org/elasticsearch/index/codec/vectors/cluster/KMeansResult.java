@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import java.util.Arrays;
+
 /**
  * Output object for clustering (partitioning) a set of vectors
  */
@@ -16,6 +18,7 @@ public class KMeansResult {
     private float[][] centroids;
     private final int[] assignments;
     private int[] soarAssignments;
+    private int[] parentLayer;
 
     KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {
         assert centroids != null;
@@ -24,6 +27,8 @@ public class KMeansResult {
         this.centroids = centroids;
         this.assignments = assignments;
         this.soarAssignments = soarAssignments;
+        this.parentLayer = new int[centroids.length];
+        Arrays.fill(this.parentLayer, -1);
     }
 
     public float[][] centroids() {
@@ -44,5 +49,13 @@ public class KMeansResult {
 
     public int[] soarAssignments() {
         return soarAssignments;
+    }
+
+    void setParentLayer(int[] centroids) {
+        this.parentLayer = centroids;
+    }
+
+    public int[] parentLayer() {
+        return parentLayer;
     }
 }

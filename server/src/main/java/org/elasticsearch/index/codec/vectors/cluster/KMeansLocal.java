@@ -149,6 +149,7 @@ class KMeansLocal {
                 bestCentroidOffset = i;
             }
         }
+
         return bestCentroidOffset;
     }
 

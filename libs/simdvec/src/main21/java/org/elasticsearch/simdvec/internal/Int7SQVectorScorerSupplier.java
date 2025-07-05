@@ -9,14 +9,18 @@
 
 package org.elasticsearch.simdvec.internal;
 
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.util.Optional;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -26,6 +30,25 @@ import static org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarit
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier {
 
     static final byte BITS = 7;
+
+    public static Optional<RandomVectorScorerSupplier> create(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        QuantizedByteVectorValues values,
+        float scoreCorrectionConstant
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        if (input instanceof MemorySegmentAccessInput == false) {
+            return Optional.empty();
+        }
+        MemorySegmentAccessInput msInput = (MemorySegmentAccessInput) input;
+        checkInvariants(values.size(), values.dimension(), input);
+        return switch (similarityType) {
+            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductSupplier(msInput, values, scoreCorrectionConstant));
+            case EUCLIDEAN -> Optional.of(new EuclideanSupplier(msInput, values, scoreCorrectionConstant));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant));
+        };
+    }
 
     final int dims;
     final int maxOrd;
@@ -171,5 +194,11 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     static boolean checkIndex(long index, long length) {
         return index >= 0 && index < length;
+    }
+
+    static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
+        if (input.length() < (long) vectorByteLength * maxOrd) {
+            throw new IllegalArgumentException("input length is less than expected vector data");
+        }
     }
 }

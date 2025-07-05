@@ -36,7 +36,10 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
 
     @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
-        return new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
+        semanticQueryBuilder.boost(queryBuilder.boost());
+        semanticQueryBuilder.queryName(queryBuilder.queryName());
+        return semanticQueryBuilder;
     }
 
     @Override
@@ -51,7 +54,9 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
             createSemanticSubQuery(
                 indexInformation.getInferenceIndices(),
                 matchQueryBuilder.fieldName(),
-                (String) matchQueryBuilder.value()
+                (String) matchQueryBuilder.value(),
+                matchQueryBuilder.boost(),
+                matchQueryBuilder.queryName()
             )
         );
         boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));

@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -31,7 +33,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -225,6 +226,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         String inferenceId = getInferenceIdForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
+        TimeValue inferenceTimeout = getInferenceTimeeoutForSemanticField(
+            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+            fieldName
+        );
         SetOnce<InferenceServiceResults> inferenceResultsSupplier = new SetOnce<>();
         boolean noInferenceResults = false;
         if (inferenceId != null) {
@@ -237,7 +242,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 List.of(query),
                 Map.of(),
                 InputType.INTERNAL_SEARCH,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
+                inferenceTimeout,
                 false
             );
 
@@ -262,6 +267,33 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         return new SemanticQueryBuilder(this, noInferenceResults ? null : inferenceResultsSupplier, null, noInferenceResults);
+    }
+
+    @SuppressWarnings("unchecked")
+    private TimeValue getInferenceTimeeoutForSemanticField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
+        TimeValue inferenceTimeout = InferenceMetadataFieldsMapper.DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT;
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            boolean fieldExistsInIndex = indexMetadata.mapping()
+                .getSourceAsMap()
+                .values()
+                .stream()
+                .filter(v -> v instanceof Map)
+                .map(v -> (Map<String, Object>) v)
+                .anyMatch(m -> m.containsKey(fieldName));
+
+            if (fieldExistsInIndex == false) {
+                continue;
+            }
+
+            TimeValue currentInferenceTimeout = indexMetadata.getSettings()
+                .getAsTime("index.semantic_text.inference_timeout", InferenceMetadataFieldsMapper.DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT);
+
+            if (currentInferenceTimeout.compareTo(inferenceTimeout) < 0) {
+                inferenceTimeout = currentInferenceTimeout;
+            }
+        }
+
+        return inferenceTimeout;
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

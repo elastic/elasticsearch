@@ -207,6 +207,7 @@ import org.elasticsearch.action.synonyms.TransportPutSynonymRuleAction;
 import org.elasticsearch.action.synonyms.TransportPutSynonymsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
+import org.elasticsearch.action.termvectors.TransportEnsureDocsSearchableAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
@@ -720,6 +721,7 @@ public class ActionModule extends AbstractModule {
 
         actions.register(TransportIndexAction.TYPE, TransportIndexAction.class);
         actions.register(TransportGetAction.TYPE, TransportGetAction.class);
+        actions.register(TransportEnsureDocsSearchableAction.TYPE, TransportEnsureDocsSearchableAction.class);
         actions.register(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
         actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class);
         actions.register(TransportShardMultiTermsVectorAction.TYPE, TransportShardMultiTermsVectorAction.class);

@@ -186,6 +186,12 @@ final class CanMatchPreFilterSearchPhase {
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
+            if (searchShardIterator.prefiltered() == false && searchShardIterator.skip()) {
+                // This implies the iterator was skipped due to an index level block,
+                // not a remote can-match run.
+                continue;
+            }
+
             final CanMatchNodeRequest canMatchNodeRequest = new CanMatchNodeRequest(
                 request,
                 searchShardIterator.getOriginalIndices().indicesOptions(),

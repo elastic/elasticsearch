@@ -4739,4 +4739,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(q, "Invalid query");
         }
     }
+
+    public void testBracketsInIndexNames() {
+        expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
+
+        expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
+
+        expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
+
+        LogicalPlan plan = statement("from \"test)\"");
+        UnresolvedRelation from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("test)"));
+
+        plan = statement("from test | enrich \"foo)\"");
+        Enrich enrich = as(plan, Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("foo)")));
+        as(enrich.child(), UnresolvedRelation.class);
+
+        plan = statement("from test | lookup join \"foo)\" on bar");
+        LookupJoin lookup = as(plan, LookupJoin.class);
+        UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
+        assertThat(right.indexPattern().indexPattern(), is("foo)"));
+    }
+
 }

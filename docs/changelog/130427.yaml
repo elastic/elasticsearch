@@ -1,0 +1,5 @@
+pr: 130427
+summary: Disallow brackets in unquoted index pattersn
+area: ES|QL
+type: bug
+issues: []

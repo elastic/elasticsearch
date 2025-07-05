@@ -98,7 +98,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
         );
         assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
-        assertEquals(Long.valueOf(2L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("basket"));
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests

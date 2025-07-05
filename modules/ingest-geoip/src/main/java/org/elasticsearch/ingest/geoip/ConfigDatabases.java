@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -34,6 +35,7 @@ import java.util.stream.Stream;
  * Keeps track of user provided databases in the ES_HOME/config/ingest-geoip directory.
  * This directory is monitored and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
+@NotMultiProjectCapable(description = "Custom databases not available in serverless")
 final class ConfigDatabases implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ConfigDatabases.class);

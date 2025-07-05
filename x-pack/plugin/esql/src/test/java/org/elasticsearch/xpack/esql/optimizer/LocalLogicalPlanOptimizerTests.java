@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -82,6 +83,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -508,12 +510,13 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyze(analyzer, parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+        ListenableActionFuture<LogicalPlan> localPlanListener = new ListenableActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized, localPlanListener);
 
-        var project = as(plan, Project.class);
+        var project = as(localPlanListener.actionResult(), Project.class);
         assertThat(project.projections(), hasSize(10));
         assertThat(
             Expressions.names(project.projections()),
@@ -785,7 +788,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyze(analyzer, parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -799,9 +802,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+        ListenableActionFuture<LogicalPlan> localPlan = new ListenableActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(plan, localPlan);
         // System.out.println(localPlan);
-        return localPlan;
+        return localPlan.actionResult();
     }
 
     private LogicalPlan localPlan(String query) {

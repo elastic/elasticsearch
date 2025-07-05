@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -194,9 +195,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         this.verifier = verifier;
     }
 
-    public LogicalPlan analyze(LogicalPlan plan) {
-        BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
+    public void analyze(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
+        execute(plan, listener.delegateFailureAndWrap((l, p) -> {
+            BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
+            l.onResponse(verify(p, gatherPreAnalysisMetrics(p, partialMetrics)));
+        }));
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -17,6 +19,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 
 public class TestPlannerOptimizer {
     private final EsqlParser parser;
@@ -50,11 +54,12 @@ public class TestPlannerOptimizer {
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
-        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
-        return physical;
+        ListenableActionFuture<PhysicalPlan> physicalPlanFuture = new ListenableActionFuture<>();
+        optimizedPlan(physicalPlan(query, analyzer), stats, physicalPlanFuture);
+        return physicalPlanFuture.actionResult();
     }
 
-    private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
+    private void optimizedPlan(PhysicalPlan plan, SearchStats searchStats, ActionListener<PhysicalPlan> listener) {
         // System.out.println("* Physical Before\n" + plan);
         var physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
         // System.out.println("* Physical After\n" + physicalPlan);
@@ -69,17 +74,17 @@ public class TestPlannerOptimizer {
             new LocalPhysicalOptimizerContext(config, FoldContext.small(), searchStats),
             true
         );
-        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
 
-        // handle local reduction alignment
-        l = PhysicalPlanOptimizerTests.localRelationshipAlignment(l);
-
-        // System.out.println("* Localized DataNode Plan\n" + l);
-        return l;
+        PlannerUtils.localPlan(
+            physicalPlan,
+            logicalTestOptimizer,
+            physicalTestOptimizer,
+            listener.map(PhysicalPlanOptimizerTests::localRelationshipAlignment)
+        );
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(analyze(analyzer, parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         return physical;

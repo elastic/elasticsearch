@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
@@ -80,7 +81,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         return operators.with(newRules.toArray(Rule[]::new));
     }
 
-    public LogicalPlan localOptimize(LogicalPlan plan) {
-        return execute(plan);
+    // public LogicalPlan localOptimize(LogicalPlan plan) {
+    // return execute(plan);
+    // }
+
+    public void localOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
+        execute(plan, listener);
     }
 }

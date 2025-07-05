@@ -26,6 +26,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.packaging.test.PackagingTestCase;
 
 import java.io.IOException;
@@ -82,7 +83,7 @@ public class ServerUtils {
                 .lines()
                 .filter(each -> each.startsWith("xpack.security.enabled"))
                 .findFirst()
-                .map(line -> Boolean.parseBoolean(line.split("=")[1]))
+                .map(line -> Booleans.parseBoolean(line.split("=")[1]))
                 // security is enabled by default, the only way for it to be disabled is to be explicitly disabled
                 .orElse(true);
         }

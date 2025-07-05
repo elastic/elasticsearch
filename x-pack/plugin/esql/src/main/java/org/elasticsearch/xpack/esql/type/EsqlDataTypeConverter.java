@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -600,7 +601,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static boolean stringToBoolean(String field) {
-        return Boolean.parseBoolean(field);
+        return Booleans.parseBooleanLenient(field, false);
     }
 
     public static int stringToInt(String field) {

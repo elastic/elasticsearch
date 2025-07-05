@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.tools.publiccallersfinder;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.tools.ExternalAccess;
 import org.elasticsearch.entitlement.tools.Utils;
@@ -191,7 +192,7 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         var csvFilePath = Path.of(args[0]);
-        boolean bubbleUpFromPublic = args.length >= 2 && Boolean.parseBoolean(args[1]);
+        boolean bubbleUpFromPublic = args.length >= 2 && Booleans.parseBoolean(args[1]);
         parseCsv(csvFilePath, (method, module, access) -> identifyTopLevelEntryPoints(method, module, access, bubbleUpFromPublic));
     }
 }

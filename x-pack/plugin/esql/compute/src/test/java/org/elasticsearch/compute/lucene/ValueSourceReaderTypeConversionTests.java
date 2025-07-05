@@ -61,6 +61,7 @@ import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -1906,7 +1907,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         Boolean evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
-            return Boolean.parseBoolean(container.getBytesRef(index, scratchPad).utf8ToString());
+            return Booleans.parseBoolean(container.getBytesRef(index, scratchPad).utf8ToString());
         }
     }
 

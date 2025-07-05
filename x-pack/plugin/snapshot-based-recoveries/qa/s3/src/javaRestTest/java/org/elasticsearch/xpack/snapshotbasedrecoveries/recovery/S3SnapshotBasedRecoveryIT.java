@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.not;
 
 public class S3SnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRestTestCase {
 
-    static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
 

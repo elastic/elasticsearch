@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .userName(inputs[caseNo][1])
                 .apiKeyId(inputs[caseNo][2])
                 .apiKeyName(inputs[caseNo][3])
-                .ownedByAuthenticatedUser(Boolean.parseBoolean(inputs[caseNo][4]))
+                .ownedByAuthenticatedUser(Booleans.parseBoolean(inputs[caseNo][4]))
                 .withProfileUid(randomBoolean())
                 .build();
             ActionRequestValidationException ve = request.validate();

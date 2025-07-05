@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,7 +29,7 @@ public class IndexSettingsOverrideTests extends ESTestCase {
     public void testStatelessMinRefreshIntervalOverride() {
         assumeTrue(
             "This test depends on system property configured in build.gradle",
-            Boolean.parseBoolean(
+            Booleans.parseBoolean(
                 System.getProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
             )
         );

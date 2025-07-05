@@ -20,6 +20,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -52,7 +53,7 @@ public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
 
     // e.g. use ./gradlew -Dtests.jvm.argline="-Dgeoip_test_with_security=false" ":modules:ingest-geoip:qa:full-cluster-restart:check"
     // to set this to false, if you so desire
-    private static final boolean useSecurity = Boolean.parseBoolean(System.getProperty("geoip_test_with_security", "true"));
+    private static final boolean useSecurity = Booleans.parseBoolean(System.getProperty("geoip_test_with_security", "true"));
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

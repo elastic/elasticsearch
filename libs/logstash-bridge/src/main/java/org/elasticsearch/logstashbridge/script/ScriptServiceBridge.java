@@ -8,7 +8,9 @@
  */
 package org.elasticsearch.logstashbridge.script;
 
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.common.SettingsBridge;
 import org.elasticsearch.painless.PainlessPlugin;
@@ -55,7 +57,9 @@ public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> im
             MustacheScriptEngine.NAME,
             new MustacheScriptEngine(settings)
         );
-        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider);
+        @FixForMultiProject // Should this be non-null?
+        final ProjectResolver projectResolver = null;
+        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, projectResolver);
     }
 
     private static List<Whitelist> getPainlessBaseWhiteList() {

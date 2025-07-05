@@ -9,7 +9,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -34,13 +34,19 @@ public class TestTemplateService extends ScriptService {
     }
 
     private TestTemplateService(boolean compilationException) {
-        super(Settings.EMPTY, Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()), Collections.emptyMap(), () -> 1L);
+        super(
+            Settings.EMPTY,
+            Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.alwaysThrow()
+        );
         this.compilationException = compilationException;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public <FactoryType> FactoryType compile(ProjectId projectId, Script script, ScriptContext<FactoryType> context) {
+    public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         if (this.compilationException) {
             throw new RuntimeException("could not compile script");
         } else {

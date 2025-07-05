@@ -702,7 +702,8 @@ public class IngestServiceTests extends ESTestCase {
                 return true;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         Map<String, Processor.Factory> processors = new HashMap<>();

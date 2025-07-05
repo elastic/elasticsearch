@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -68,7 +67,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         String node1Name = internalCluster().startNode(settings);
 
         logger.info("--> should be blocked, no master...");
-        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         assertThat(state.nodes().getSize(), equalTo(1)); // verify that we still see the local node in the cluster state
 
@@ -81,9 +80,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -123,12 +120,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopNode(masterNode);
 
-        assertBusy(() -> {
-            ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-            assertTrue(clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(otherNode, clusterState -> clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         // verify that both nodes are still in the cluster state but there is no master
         assertThat(state.nodes().getSize(), equalTo(2));
@@ -144,9 +138,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -176,10 +168,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopNode(otherNode);
 
-        assertBusy(() -> {
-            ClusterState state1 = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-            assertThat(state1.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
-        });
+        awaitClusterState(masterNode, clusterState -> clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         logger.info("--> starting the previous master node again...");
         internalCluster().startNode(Settings.builder().put(settings).put(otherNodeDataPathSettings).build());
@@ -192,9 +181,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-        assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
-        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -220,12 +207,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         ClusterState state;
 
-        assertBusy(() -> {
-            for (Client client : clients()) {
-                ClusterState state1 = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-                assertThat(state1.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
-            }
-        });
+        for (var node : internalCluster().getNodeNames()) {
+            awaitClusterState(node, clusterState -> clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+        }
 
         logger.info("--> start one more node");
         internalCluster().startNode(settings);
@@ -261,8 +245,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
 
+        final var masterName = internalCluster().getMasterName();
         List<String> nonMasterNodes = new ArrayList<>(
-            Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(internalCluster().getMasterName()))
+            Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()), Collections.singleton(masterName))
         );
         Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonMasterNodes.get(0));
         Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonMasterNodes.get(1));
@@ -271,10 +256,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify that there is no master anymore on remaining node");
         // spin here to wait till the state is set
-        assertBusy(() -> {
-            ClusterState st = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-            assertThat(st.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
-        });
+        awaitClusterState(masterName, clusterState -> clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         logger.info("--> start back the 2 nodes ");
         internalCluster().startNodes(nonMasterDataPathSettings1, nonMasterDataPathSettings2);

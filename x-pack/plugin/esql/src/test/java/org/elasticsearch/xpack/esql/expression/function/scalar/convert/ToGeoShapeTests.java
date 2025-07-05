@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +40,20 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[in=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        // Points and shapes
         TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, DataType.GEO_SHAPE, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, attribute, DataType.GEO_SHAPE, v -> v, List.of());
+        // Geo-Grid types
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            TestCaseSupplier.forUnaryGeoGrid(
+                suppliers,
+                "ToGeoShapeFromGeoGridEvaluator[in=Attribute[channel=0], dataType=" + gridType + "]",
+                gridType,
+                DataType.GEO_SHAPE,
+                v -> EsqlDataTypeConverter.geoGridToShape(v, gridType),
+                List.of()
+            );
+        }
         // random strings that don't look like a geo shape
         TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("FromString"), DataType.GEO_SHAPE, bytesRef -> null, bytesRef -> {
             var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));

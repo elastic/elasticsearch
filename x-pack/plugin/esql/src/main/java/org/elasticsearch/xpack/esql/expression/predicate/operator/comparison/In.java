@@ -236,7 +236,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
+        if (DataType.isSpatialAndGrid(left) && DataType.isSpatialAndGrid(right)) {
             return left == right;
         }
         return DataType.areCompatible(left, right);
@@ -339,7 +339,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG || commonType == DATETIME || commonType == DATE_NANOS || commonType == UNSIGNED_LONG) {
+        if (commonType == LONG
+            || commonType == DATETIME
+            || commonType == DATE_NANOS
+            || commonType == UNSIGNED_LONG
+            || DataType.isGeoGrid(commonType)) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
@@ -362,7 +366,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (DataType.isSpatial(commonType)) {
+            if (DataType.isSpatialAndGrid(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {

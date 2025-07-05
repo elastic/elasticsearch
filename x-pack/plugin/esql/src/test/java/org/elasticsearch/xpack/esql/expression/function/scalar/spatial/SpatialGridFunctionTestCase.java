@@ -26,7 +26,6 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
@@ -70,6 +69,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
+        DataType gridType,
         BiFunction<BytesRef, Integer, Long> expectedValue,
         TriFunction<BytesRef, Integer, GeoBoundingBox, Long> expectedValueWithBounds
     ) {
@@ -91,7 +91,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     return new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData),
                         getFunctionClassName() + evaluatorName,
-                        LONG,
+                        gridType,
                         equalTo(expectedValue.apply(geometry, precision))
                     );
                 }));
@@ -111,7 +111,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     return new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData, boundsData.typedData),
                         startsWith(getFunctionClassName() + evaluatorName),
-                        LONG,
+                        gridType,
                         equalTo(expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox()))
                     );
                 }));

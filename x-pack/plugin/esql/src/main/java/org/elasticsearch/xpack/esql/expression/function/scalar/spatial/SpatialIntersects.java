@@ -36,12 +36,17 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * This is the primary class for supporting the function ST_INTERSECTS.
@@ -79,20 +84,30 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅""", examples = @Example(file = "spatial", tag = "st_intersects-airports"))
     public SpatialIntersects(
         Source source,
-        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
-            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
-            If `null`, the function returns `null`.""") Expression left,
-        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
-            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
-            If `null`, the function returns `null`.
-            The second parameter must also have the same coordinate system as the first.
-            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
+        @Param(
+            name = "geomA",
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "geohash", "geotile", "geohex" },
+            description = """
+                Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`)
+                or a geo-grid value (`geohash`, `geotile`, `geohex`).
+                If `null`, the function returns `null`."""
+        ) Expression left,
+        @Param(
+            name = "geomB",
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "geohash", "geotile", "geohex" },
+            description = """
+                Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`)
+                or a geo-grid value (`geohash`, `geotile`, `geohex`).
+                If `null`, the function returns `null`.
+                The second parameter must also have the same coordinate system as the first.
+                This means it is not possible to combine `geo_*` and `cartesian_*` parameters."""
+        ) Expression right
     ) {
         this(source, left, right, false, false);
     }
 
     private SpatialIntersects(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues);
+        super(source, left, right, leftDocValues, rightDocValues, true);
     }
 
     private SpatialIntersects(StreamInput in) throws IOException {
@@ -130,6 +145,11 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     @Override
     public Object fold(FoldContext ctx) {
         try {
+            if (DataType.isGeoGrid(left().dataType())) {
+                return foldGeoGrid(ctx, right(), left(), left().dataType());
+            } else if (DataType.isGeoGrid(right().dataType())) {
+                return foldGeoGrid(ctx, left(), right(), right().dataType());
+            }
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
             Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());
             return (crsType() == SpatialCrsType.GEO)
@@ -138,6 +158,11 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
         }
+    }
+
+    private Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) throws IOException {
+        long gridId = (Long) valueOf(ctx, gridExp);
+        return GEO.compareGeometryAndGrid(makeGeometryFromLiteral(ctx, spatialExp), gridId, gridType);
     }
 
     @Override
@@ -209,6 +234,78 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                 }
             }
         }
+
+        // Support geo_point and geo-grid types
+        for (DataType gridType : new DataType[] { GEOHASH, GEOTILE, GEOHEX }) {
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT, gridType),
+                new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantGridFactory(
+                    (s, w, g) -> new SpatialIntersectsGeoSourceAndConstantGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT, gridType).withLeftDocValues(),
+                new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantGridFactory(
+                    (s, w, g) -> new SpatialIntersectsGeoPointDocValuesAndConstantGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT, gridType),
+                new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
+                    (s, w, g) -> new SpatialIntersectsGeoSourceAndSourceGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT, gridType).withLeftDocValues(),
+                new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
+                    (s, w, g) -> new SpatialIntersectsGeoPointDocValuesAndSourceGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+        }
+    }
+
+    @Evaluator(extraName = "GeoSourceAndConstantGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndConstantGrid(
+        BooleanBlock.Builder results,
+        int p,
+        BytesRefBlock wkb,
+        @Fixed long gridId,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processSourceAndConstantGrid(results, p, wkb, gridId, gridType);
+    }
+
+    @Evaluator(extraName = "GeoPointDocValuesAndConstantGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndConstantGrid(
+        BooleanBlock.Builder results,
+        int p,
+        LongBlock encodedPoints,
+        @Fixed long gridId,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processGeoPointDocValuesAndConstantGrid(results, p, encodedPoints, gridId, gridType);
+    }
+
+    @Evaluator(extraName = "GeoSourceAndSourceGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndSourceGrid(
+        BooleanBlock.Builder results,
+        int p,
+        BytesRefBlock wkb,
+        LongBlock gridId,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processSourceAndSourceGrid(results, p, wkb, gridId, gridType);
+    }
+
+    @Evaluator(extraName = "GeoPointDocValuesAndSourceGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndSourceGrid(
+        BooleanBlock.Builder results,
+        int p,
+        LongBlock encodedPoints,
+        LongBlock gridIds,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processGeoPointDocValuesAndSourceGrid(results, p, encodedPoints, gridIds, gridType);
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })

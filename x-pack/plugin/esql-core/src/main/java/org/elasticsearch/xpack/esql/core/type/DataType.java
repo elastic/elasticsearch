@@ -276,6 +276,9 @@ public enum DataType {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
+    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES)),
+    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES)),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -567,19 +570,33 @@ public enum DataType {
     }
 
     public static boolean isSpatialShape(DataType t) {
-        return t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatialGeo(DataType t) {
-        return t == GEO_POINT || t == GEO_SHAPE;
+        return t == GEO_POINT || t == GEO_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialAndGrid(DataType t) {
+        return t == GEO_POINT
+            || t == CARTESIAN_POINT
+            || t == GEO_SHAPE
+            || t == CARTESIAN_SHAPE
+            || t == GEOHASH
+            || t == GEOTILE
+            || t == GEOHEX;
+    }
+
+    public static boolean isGeoGrid(DataType t) {
+        return t == GEOHASH || t == GEOTILE || t == GEOHEX;
+    }
+
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE || isCounter(t) || isSpatialAndGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
     public String nameUpper() {

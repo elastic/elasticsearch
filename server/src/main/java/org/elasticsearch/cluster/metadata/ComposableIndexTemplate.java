@@ -373,7 +373,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     @SuppressWarnings("unchecked")
-    private CompressedXContent merge(CompressedXContent originalMapping, CompressedXContent mappingAddition) throws IOException {
+    public static CompressedXContent merge(CompressedXContent originalMapping, CompressedXContent mappingAddition) throws IOException {
         Map<String, Object> mappingAdditionMap = XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2();
         Map<String, Object> combinedMappingMap = new HashMap<>();
         if (originalMapping != null) {
@@ -389,7 +389,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return convertMappingMapToXContent(combinedMappingMap);
     }
 
-    private static CompressedXContent convertMappingMapToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
+    public static CompressedXContent convertMappingMapToXContent(Map<String, ?> rawAdditionalMapping) throws IOException {
         CompressedXContent compressedXContent;
         if (rawAdditionalMapping.isEmpty()) {
             compressedXContent = EMPTY_MAPPINGS;

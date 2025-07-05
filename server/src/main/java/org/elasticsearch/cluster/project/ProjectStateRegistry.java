@@ -78,6 +78,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
         return registry.projectsSettings.getOrDefault(projectId, Settings.EMPTY);
     }
 
+    public boolean isProjectMarkedForDeletion(ProjectId projectId) {
+        return projectsMarkedForDeletion.contains(projectId);
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean multiProject = params.paramAsBoolean("multi-project", false);

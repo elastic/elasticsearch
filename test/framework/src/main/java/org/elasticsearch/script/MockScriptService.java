@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
@@ -60,7 +61,7 @@ public class MockScriptService extends ScriptService {
         };
         return new MockScriptService(Settings.EMPTY, Map.of("lang", engine), Map.of(context.name, context)) {
             @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 return storedLookup.get(id);
             }
         };

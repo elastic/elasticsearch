@@ -11,9 +11,11 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -84,15 +86,7 @@ public class ScriptServiceTests extends ESTestCase {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L) {
             @Override
-            Map<String, StoredScriptSource> getScriptsFromClusterState() {
-                Map<String, StoredScriptSource> scripts = new HashMap<>();
-                scripts.put("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
-                scripts.put("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
-                return scripts;
-            }
-
-            @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 // mock the script that gets retrieved from an index
                 return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }
@@ -161,8 +155,8 @@ public class ScriptServiceTests extends ESTestCase {
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
-        FieldScript.Factory factoryScript1 = scriptService.compile(script, FieldScript.CONTEXT);
-        FieldScript.Factory factoryScript2 = scriptService.compile(script, FieldScript.CONTEXT);
+        FieldScript.Factory factoryScript1 = scriptService.compile(randomProjectIdOrDefault(), script, FieldScript.CONTEXT);
+        FieldScript.Factory factoryScript2 = scriptService.compile(randomProjectIdOrDefault(), script, FieldScript.CONTEXT);
         assertThat(factoryScript1, sameInstance(factoryScript2));
     }
 
@@ -224,16 +218,18 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
 
         String type = scriptEngine.getType();
+        Script script = new Script(ScriptType.INLINE, type, "test", Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> scriptService.compile(new Script(ScriptType.INLINE, type, "test", Collections.emptyMap()), IngestScript.CONTEXT)
+            () -> scriptService.compile(randomProjectIdOrDefault(), script, IngestScript.CONTEXT)
         );
         assertThat(e.getMessage(), containsString("script context [" + IngestScript.CONTEXT.name + "] not supported"));
     }
 
     public void testCompileCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        scriptService.compile(randomProjectIdOrDefault(), script, randomFrom(contexts.values()));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -241,10 +237,8 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
         int numberOfCompilations = randomIntBetween(1, 20);
         for (int i = 0; i < numberOfCompilations; i++) {
-            scriptService.compile(
-                new Script(ScriptType.INLINE, "test", i + "+" + i, Collections.emptyMap()),
-                randomFrom(contexts.values())
-            );
+            Script script = new Script(ScriptType.INLINE, "test", i + "+" + i, Collections.emptyMap());
+            scriptService.compile(randomProjectIdOrDefault(), script, randomFrom(contexts.values()));
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
@@ -253,15 +247,15 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
         ScriptContext<?> context = randomFrom(contexts.values());
-        scriptService.compile(script, context);
-        scriptService.compile(script, context);
+        scriptService.compile(randomProjectIdOrDefault(), script, context);
+        scriptService.compile(randomProjectIdOrDefault(), script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testIndexedScriptCountedInGeneralCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         ScriptContext<?> ctx = randomFrom(contexts.values());
-        scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -269,8 +263,8 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY).build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
         ScriptContext<?> context = randomFrom(contexts.values());
-        scriptService.compile(script, context);
-        scriptService.compile(script, context);
+        scriptService.compile(randomProjectIdOrDefault(), script, context);
+        scriptService.compile(randomProjectIdOrDefault(), script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
         assertWarnings(true, new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
     }
@@ -282,22 +276,22 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(builder.build());
         Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
         ScriptContext<?> context = randomFrom(contexts.values());
-        scriptService.compile(script, context);
-        scriptService.compile(script, context);
+        scriptService.compile(randomProjectIdOrDefault(), script, context);
+        scriptService.compile(randomProjectIdOrDefault(), script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testGeneralIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         ScriptContext<?> ctx = randomFrom(contexts.values());
-        scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testContextIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY).build());
         ScriptContext<?> ctx = randomFrom(contexts.values());
-        scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.cacheStats().getContextStats().get(ctx.name).getCompilations());
         assertWarnings(true, new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
@@ -312,8 +306,8 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(contextCacheSizeSetting.getKey(), 1)
                 .build()
         );
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), context);
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), context);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), context);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), context);
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
         assertSettingDeprecationsAndWarnings(
@@ -327,8 +321,10 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m");
         buildScriptService(builder.build());
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), randomFrom(contexts.values()));
+        Script script1 = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        scriptService.compile(randomProjectIdOrDefault(), script1, randomFrom(contexts.values()));
+        Script script2 = new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap());
+        scriptService.compile(randomProjectIdOrDefault(), script2, randomFrom(contexts.values()));
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(2L, scriptService.cacheStats().getGeneralStats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
@@ -362,27 +358,39 @@ public class ScriptServiceTests extends ESTestCase {
         );
 
         // Context A
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), contextA);
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), contextA);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), contextA);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), contextA);
         GeneralScriptException gse = expectThrows(
             GeneralScriptException.class,
-            () -> scriptService.compile(new Script(ScriptType.INLINE, "test", "3+3", Collections.emptyMap()), contextA)
+            () -> scriptService.compile(
+                randomProjectIdOrDefault(),
+                new Script(ScriptType.INLINE, "test", "3+3", Collections.emptyMap()),
+                contextA
+            )
         );
         assertEquals(msg.apply(aRate, contextA.name), gse.getRootCause().getMessage());
         assertEquals(CircuitBreakingException.class, gse.getRootCause().getClass());
 
         // Context B
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "4+4", Collections.emptyMap()), contextB);
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "5+5", Collections.emptyMap()), contextB);
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "6+6", Collections.emptyMap()), contextB);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "4+4", Collections.emptyMap()), contextB);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "5+5", Collections.emptyMap()), contextB);
+        scriptService.compile(randomProjectIdOrDefault(), new Script(ScriptType.INLINE, "test", "6+6", Collections.emptyMap()), contextB);
         gse = expectThrows(
             GeneralScriptException.class,
-            () -> scriptService.compile(new Script(ScriptType.INLINE, "test", "7+7", Collections.emptyMap()), contextB)
+            () -> scriptService.compile(
+                randomProjectIdOrDefault(),
+                new Script(ScriptType.INLINE, "test", "7+7", Collections.emptyMap()),
+                contextB
+            )
         );
         assertEquals(msg.apply(bRate, contextB.name), gse.getRootCause().getMessage());
         gse = expectThrows(
             GeneralScriptException.class,
-            () -> scriptService.compile(new Script(ScriptType.INLINE, "test", "8+8", Collections.emptyMap()), contextB)
+            () -> scriptService.compile(
+                randomProjectIdOrDefault(),
+                new Script(ScriptType.INLINE, "test", "8+8", Collections.emptyMap()),
+                contextB
+            )
         );
         assertEquals(msg.apply(bRate, contextB.name), gse.getRootCause().getMessage());
         assertEquals(CircuitBreakingException.class, gse.getRootCause().getClass());
@@ -446,34 +454,51 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        ScriptMetadata.TYPE,
-                        new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
-                            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build()
-                    )
-            )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+                {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build())
             .build();
 
-        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
 
-        cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
+        project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
+        ScriptMetadata.Builder scripts = new ScriptMetadata.Builder(null);
+        scripts.storeScript("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
+        scripts.storeScript("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(ScriptMetadata.TYPE, scripts.build()).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        scriptService.applyClusterState(new ClusterChangedEvent("", state, ClusterState.EMPTY_STATE));
+
+        scriptService.compile(
+            project.id(),
+            new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()),
+            randomFrom(contexts.values())
+        );
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
-            scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
+            scriptService.compile(
+                project.id(),
+                new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()),
+                randomFrom(contexts.values())
+            );
         });
         assertEquals("exceeded max allowed inline script size in bytes [4] with size [5] for script [10+10]", iae.getMessage());
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 6).build());
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
+        scriptService.compile(
+            project.id(),
+            new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()),
+            randomFrom(contexts.values())
+        );
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 5).build());
-        scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
+        scriptService.compile(
+            project.id(),
+            new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()),
+            randomFrom(contexts.values())
+        );
         iae = expectThrows(IllegalArgumentException.class, () -> {
             clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build());
         });
@@ -879,7 +904,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {
         try {
-            scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext);
+            scriptService.compile(randomProjectIdOrDefault(), new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext);
             fail(
                 "compile should have been rejected for lang ["
                     + lang
@@ -896,6 +921,9 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {
-        assertThat(scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext), notNullValue());
+        assertThat(
+            scriptService.compile(randomProjectIdOrDefault(), new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext),
+            notNullValue()
+        );
     }
 }

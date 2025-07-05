@@ -25,7 +25,7 @@ import java.util.function.Predicate;
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
  */
-public final class Pipeline {
+public class Pipeline {
 
     public static final String DESCRIPTION_KEY = "description";
     public static final String PROCESSORS_KEY = "processors";

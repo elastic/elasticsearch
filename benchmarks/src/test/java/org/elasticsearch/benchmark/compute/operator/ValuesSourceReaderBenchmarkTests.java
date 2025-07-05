@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.elasticsearch.benchmark._nightly.esql.ValuesSourceReaderBenchmark;
 import org.elasticsearch.test.ESTestCase;
 
 public class ValuesSourceReaderBenchmarkTests extends ESTestCase {

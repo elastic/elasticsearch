@@ -1183,9 +1183,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         return new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE).id(id).source("@timestamp", ts, "count", count);
     }
 
-    public void testOverlappingIndexPatterns() throws Exception {
-        String[] indexNames = { "test_overlapping_index_patterns_1", "test_overlapping_index_patterns_2" };
-
+    public void testOverlappingIndexPatterns() {
         assertAcked(
             client().admin()
                 .indices()
@@ -1216,13 +1214,27 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testErrorMessageForUnknownColumn() {
-        var e = expectThrows(VerificationException.class, () -> run("row a = 1 | eval x = b"));
-        assertThat(e.getMessage(), containsString("Unknown column [b]"));
+        expectThrows(VerificationException.class, containsString("Unknown column [b]"), () -> run("row a = 1 | eval x = b"));
     }
 
     public void testErrorMessageForEmptyParams() {
-        var e = expectThrows(ParsingException.class, () -> run("row a = 1 | eval x = ?"));
-        assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
+        expectThrows(ParsingException.class, containsString("Not enough actual parameters 0"), () -> run("row a = 1 | eval x = ?"));
+    }
+
+    public void testErrorMessageForUnknownIndex() {
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-index]"),
+            () -> run(syncEsqlQueryRequest().query("from no-such-index").allowPartialResults(false))
+        );
+    }
+
+    public void testErrorMessageForUnknownIndexInPatternList() {
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-such-index]"),
+            () -> run(syncEsqlQueryRequest().query("from test,no-such-index").allowPartialResults(false))
+        );
     }
 
     public void testEmptyIndex() {

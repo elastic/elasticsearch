@@ -39,7 +39,50 @@
         body: { "index": "test", "shard": 2147483647, "primary": true }
 
 ---
+"cluster shard allocation explanation test with an invalid, string shard parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": "wrong", "primary": true }
+
+---
+"cluster shard allocation explanation test with a valid, string shard parameter in the body":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": "0", "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
 "cluster shard allocation explanation test with long shard value":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/allocation/explain
+          capabilities: [shard_parameter_non_integer_validation]
+      test_runner_features: [capabilities]
+      reason: Additional validation for the shard parameter was added in 9.2.0
+
   - do:
       indices.create:
         index: test
@@ -53,6 +96,14 @@
 
 ---
 "cluster shard allocation explanation test with float shard value":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/allocation/explain
+          capabilities: [ shard_parameter_non_integer_validation ]
+      test_runner_features: [ capabilities ]
+      reason: Additional validation for the shard parameter was added in 9.2.0
+
   - do:
       indices.create:
         index: test
@@ -61,21 +112,21 @@
   - match: { acknowledged: true }
 
   - do:
+      catch: /illegal_argument_exception/
       cluster.allocation_explain:
         body: { "index": "test", "shard": 1.0, "primary": true }
 
-  - match: { current_state: "started" }
-  - is_true: current_node.id
-  - match: { index: "test" }
-  - match: { shard: 1 }
-  - match: { primary: true }
-  - is_true: can_remain_on_current_node
-  - is_true: can_rebalance_cluster
-  - is_true: can_rebalance_to_other_node
-  - is_true: rebalance_explanation
-
 ---
-"cluster shard allocation explanation test with double shard value":
+"cluster shard allocation explanation test with stringified float shard value":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/allocation/explain
+          capabilities: [ shard_parameter_non_integer_validation ]
+      test_runner_features: [ capabilities ]
+      reason: Additional validation for the shard parameter was added in 9.2.0
+
+
   - do:
       indices.create:
         index: test
@@ -84,18 +135,55 @@
   - match: { acknowledged: true }
 
   - do:
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": "1.0", "primary": true }
+
+
+---
+"cluster shard allocation explanation test with double shard value":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/allocation/explain
+          capabilities: [ shard_parameter_non_integer_validation ]
+      test_runner_features: [ capabilities ]
+      reason: Additional validation for the shard parameter was added in 9.2.0
+
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 2, "index.number_of_replicas": 0 } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
       cluster.allocation_explain:
         body: { "index": "test", "shard": 1.1234567891234567, "primary": true }
 
-  - match: { current_state: "started" }
-  - is_true: current_node.id
-  - match: { index: "test" }
-  - match: { shard: 1 }
-  - match: { primary: true }
-  - is_true: can_remain_on_current_node
-  - is_true: can_rebalance_cluster
-  - is_true: can_rebalance_to_other_node
-  - is_true: rebalance_explanation
+---
+"cluster shard allocation explanation test with stringified double shard value":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/allocation/explain
+          capabilities: [ shard_parameter_non_integer_validation ]
+      test_runner_features: [ capabilities ]
+      reason: Additional validation for the shard parameter was added in 9.2.0
+
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 2, "index.number_of_replicas": 0 } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": "1.1234567891234567", "primary": true }
+
 
 ---
 "cluster shard allocation explanation test with three valid body parameters":

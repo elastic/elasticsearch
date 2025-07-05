@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -31,7 +32,7 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
     private final Runnable simulator;
 
     protected LatencySimulatingBlobStoreRepository(
-        ProjectId projectId,
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         Environment env,
         NamedXContentRegistry namedXContentRegistry,

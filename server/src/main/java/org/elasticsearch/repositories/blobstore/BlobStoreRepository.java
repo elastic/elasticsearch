@@ -73,7 +73,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -111,6 +110,7 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryData.SnapshotDetails;
@@ -122,6 +122,7 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.PausedSnapshotException;
@@ -131,6 +132,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -198,6 +200,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private static final Logger shutdownLogger = LogManager.getLogger(ShutdownLogger.class);
     }
 
+    @Nullable
     private final ProjectId projectId;
     protected volatile RepositoryMetadata metadata;
 
@@ -357,13 +360,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean cacheRepositoryData;
 
+    private final BlobStoreSnapshotMetrics blobStoreSnapshotMetrics;
+
     private volatile RateLimiter snapshotRateLimiter;
 
     private volatile RateLimiter restoreRateLimiter;
-
-    private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
-
-    private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
@@ -498,13 +499,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     @SuppressWarnings("this-escape")
     protected BlobStoreRepository(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final BlobPath basePath
+        final BlobPath basePath,
+        final SnapshotMetrics snapshotMetrics
     ) {
         this.projectId = projectId;
         this.metadata = metadata;
@@ -538,6 +540,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
+        this.blobStoreSnapshotMetrics = new BlobStoreSnapshotMetrics(projectId, metadata, snapshotMetrics);
     }
 
     @Override
@@ -2202,12 +2205,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public long getSnapshotThrottleTimeInNanos() {
-        return snapshotRateLimitingTimeInNanos.count();
+        return blobStoreSnapshotMetrics.snapshotRateLimitingTimeInNanos();
     }
 
     @Override
     public long getRestoreThrottleTimeInNanos() {
-        return restoreRateLimitingTimeInNanos.count();
+        return blobStoreSnapshotMetrics.restoreRateLimitingTimeInNanos();
     }
 
     private void assertSnapshotOrStatelessPermittedThreadPool() {
@@ -3233,6 +3236,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
+        blobStoreSnapshotMetrics.shardSnapshotStarted();
+        context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;
@@ -3775,7 +3780,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * recorded in the value returned by {@link BlobStoreRepository#getRestoreThrottleTimeInNanos}.
      */
     public InputStream maybeRateLimitRestores(InputStream stream) {
-        return maybeRateLimitRestores(stream, restoreRateLimitingTimeInNanos::inc);
+        return maybeRateLimitRestores(stream, blobStoreSnapshotMetrics::incrementRestoreRateLimitingTimeInNanos);
     }
 
     /**
@@ -3798,7 +3803,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * `indices.recovery.max_bytes_per_sec` speed.
      */
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimitSnapshots(stream, snapshotRateLimitingTimeInNanos::inc);
+        return maybeRateLimitSnapshots(stream, blobStoreSnapshotMetrics::incrementSnapshotRateLimitingTimeInNanos);
     }
 
     /**
@@ -4135,13 +4140,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read() throws IOException {
                         checkAborted();
-                        return super.read();
+                        final long beforeReadNanos = System.nanoTime();
+                        int value = super.read();
+                        blobStoreSnapshotMetrics.incrementUploadReadTime(System.nanoTime() - beforeReadNanos);
+                        return value;
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
-                        return super.read(b, off, len);
+                        final long beforeReadNanos = System.nanoTime();
+                        int amountRead = super.read(b, off, len);
+                        blobStoreSnapshotMetrics.incrementUploadReadTime(System.nanoTime() - beforeReadNanos);
+                        return amountRead;
                     }
 
                     private void checkAborted() {
@@ -4150,18 +4161,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
                 final String partName = fileInfo.partName(i);
                 logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
-                final long startMS = threadPool.relativeTimeInMillis();
+                final long startNanos = System.nanoTime();
                 shardContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, partName, inputStream, partBytes, false);
+                final long uploadTimeInNanos = System.nanoTime() - startNanos;
+                blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInNanos);
                 logger.trace(
                     "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
                     metadata.name(),
                     partName,
                     partBytes,
                     shardContainer.path(),
-                    threadPool.relativeTimeInMillis() - startMS
+                    TimeUnit.NANOSECONDS.toMillis(uploadTimeInNanos)
                 );
             }
             Store.verify(indexInput);
+            blobStoreSnapshotMetrics.incrementNumberOfBlobsUploaded();
             snapshotStatus.addProcessedFile(fileInfo.length());
         } catch (Exception t) {
             failStoreIfCorrupted(store, t);
@@ -4233,5 +4247,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected Set<String> getExtraUsageFeatures() {
         return Set.of();
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return blobStoreSnapshotMetrics.getShardSnapshotsInProgress();
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return blobStoreSnapshotMetrics.getSnapshotStats();
     }
 }

@@ -1069,7 +1069,7 @@ public class NodeStatsTests extends ESTestCase {
             );
         }
         RepositoriesStats repositoriesStats = new RepositoriesStats(
-            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+            Map.of("test-repository", new RepositoriesStats.SnapshotStats(100, 200))
         );
         NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
             randomIntBetween(0, 10000),

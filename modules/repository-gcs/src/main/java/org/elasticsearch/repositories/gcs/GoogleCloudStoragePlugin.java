@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
@@ -53,7 +54,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,
@@ -65,7 +67,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
+                snapshotMetrics
             )
         );
     }

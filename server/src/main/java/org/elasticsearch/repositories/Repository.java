@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -352,5 +353,19 @@ public interface Repository extends LifecycleComponent {
 
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
+    }
+
+    /**
+     * Get the current count of snapshots in progress
+     *
+     * @return The current number of shard snapshots in progress metric value, or null if this repository doesn't track that
+     */
+    @Nullable
+    default LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    default RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return new RepositoriesStats.SnapshotStats(getRestoreThrottleTimeInNanos(), getSnapshotThrottleTimeInNanos());
     }
 }

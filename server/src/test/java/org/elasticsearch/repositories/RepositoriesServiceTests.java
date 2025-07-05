@@ -155,7 +155,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             threadPool,
             client,
-            List.of()
+            List.of(),
+            SnapshotMetrics.NOOP
         );
 
         clusterService.start();
@@ -832,7 +833,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-a")
+                Map.of("bucket", "bucket-a"),
+                SnapshotMetrics.NOOP
             );
         }
 
@@ -860,7 +862,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-b")
+                Map.of("bucket", "bucket-b"),
+                SnapshotMetrics.NOOP
             );
         }
 

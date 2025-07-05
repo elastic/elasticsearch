@@ -159,6 +159,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`split` processor](/reference/enrich-processor/split-processor.md)
 :   Splits a field into an array of values.
 
+[`xml` processor](/reference/enrich-processor/xml-processor.md)
+:   Parses XML documents and converts them to JSON objects.
+
 [`trim` processor](/reference/enrich-processor/trim-processor.md)
 :   Trims whitespace from field.
 

@@ -5065,7 +5065,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
                 config.getEngineResetLock(),
-                config.getMergeMetrics()
+                config.getMergeMetrics(),
+                Function.identity()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -5348,7 +5349,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     config.isPromotableToPrimary(),
                     config.getMapperService(),
                     config.getEngineResetLock(),
-                    config.getMergeMetrics()
+                    config.getMergeMetrics(),
+                    Function.identity()
                 );
                 lazyEngineConfig.set(engineConfigWithBlockingRefreshListener);
                 return new InternalEngine(engineConfigWithBlockingRefreshListener) {

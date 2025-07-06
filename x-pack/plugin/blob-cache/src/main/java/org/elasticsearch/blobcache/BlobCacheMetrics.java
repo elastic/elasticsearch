@@ -51,7 +51,7 @@ public class BlobCacheMetrics {
         /**
          * When data is prefetched upon new commit notifications
          */
-        PreFetching
+        PreFetchingNewCommit
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {

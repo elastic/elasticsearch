@@ -584,6 +584,9 @@ tests:
 - class: org.elasticsearch.search.sort.FieldSortIT
   method: testSortMixedFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/129445
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=dlm/10_usage/Test data stream lifecycle usage stats}
+  issue: https://github.com/elastic/elasticsearch/issues/130677
 
 # Examples:
 #

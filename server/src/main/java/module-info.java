@@ -398,7 +398,8 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
-            org.elasticsearch.internal.security;
+            org.elasticsearch.internal.security,
+            org.elasticsearch.serverless.crossproject;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;

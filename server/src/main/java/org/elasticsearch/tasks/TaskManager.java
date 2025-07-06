@@ -97,9 +97,12 @@ public class TaskManager implements ClusterStateApplier {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
+    // For testing (especially the creating a random node ID, which some tests rely on)
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
     }
+
+    // TODO Both of the above overloads should be moved to the test package.
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
         this.threadPool = threadPool;

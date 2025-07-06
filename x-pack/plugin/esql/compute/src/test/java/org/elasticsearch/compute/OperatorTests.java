@@ -9,6 +9,8 @@ package org.elasticsearch.compute;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -28,10 +30,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -64,6 +69,12 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
@@ -71,12 +82,14 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -85,12 +98,15 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
@@ -173,7 +189,7 @@ public class OperatorTests extends MapperServiceTestCase {
         BlockFactory blockFactory = driverContext.blockFactory();
 
         final String gField = "g";
-        final int numDocs = 2856; // between(100, 10000);
+        final int numDocs = 10000;
         final Map<BytesRef, Long> expectedCounts = new HashMap<>();
         int keyLength = randomIntBetween(1, 10);
         try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -465,6 +481,123 @@ public class OperatorTests extends MapperServiceTestCase {
                 verifier.accept(reader);
             }
         }
+    }
+
+    public void testTopNThingy() throws Exception {
+        // Create the lowest driver level: LuceneSourceOperator -> ValueSourceReaderOperator -> TopNOperator -> ExchangeSinkOperator
+        final int numDocs = 1000;
+        var tuples = new ArrayList<Tuple<Integer, Long>>();
+        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                long value = random().nextLong();
+                doc.add(new IntField("id", i, Field.Store.YES));
+                doc.add(new LongField("x", value, Field.Store.YES));
+                tuples.add(Tuple.tuple(i, value));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+
+            System.out.println("Expected result is: " + tuples.stream().sorted(Comparator.comparingLong(Tuple::v2)).limit(10).toList());
+
+            var exchangeSinkHandler = new ExchangeSinkHandler(driverContext().blockFactory(), 2, () -> System.currentTimeMillis());
+            var exchangeSourceHandler = new ExchangeSourceHandler(2, Executors.newSingleThreadExecutor());
+            exchangeSourceHandler.addRemoteSink(
+                exchangeSinkHandler::fetchPageAsync,
+                true,
+                () -> {},
+                1,
+                ActionListener.<Void>noop().delegateResponse((l, e) -> {
+                    throw new AssertionError("unexpected failure", e);
+                })
+            );
+            try (DirectoryReader reader = writer.getReader()) {
+                var lowLevel = IntStream.range(0, 10).mapToObj(i -> createBottomDriver(i, reader, exchangeSinkHandler)).toList();
+                try (var unused = Releasables.wrap(lowLevel); var midLevelDriver = createMidDriver(reader, exchangeSourceHandler);) {
+                    OperatorTestCase.runDriver(CollectionUtils.concatLists(lowLevel, List.of(midLevelDriver)));
+                }
+
+                // assertThat(results, contains(values.stream().limit(limit).toArray()));
+                // assertDriverContext(driverContext());
+                // Create the second driver level (midway reduction): ExchangeSourceOperator -> Some TopNLogic -> Some
+                // ValueSourceReaderOperator
+                // logic -> ExchangeSinkOperator
+                // Create the third driver level (final reduction): ExchangeSourceOperator -> TopNOperator -> OutputOperator
+            }
+        }
+    }
+
+    private Driver createBottomDriver(int i, DirectoryReader reader, ExchangeSinkHandler exchangeSinkHandler) {
+        final Query query = IntPoint.newRangeQuery("id", i * 100, (i + 1) * 100);
+        var driverContext = driverContext();
+        return TestDriverFactory.create(
+            driverContext,
+            luceneOperatorFactory(reader, List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())), LuceneOperator.NO_LIMIT).get(
+                driverContext
+            ),
+            List.of(
+                new ValuesSourceReaderOperator(
+                    driverContext.blockFactory(),
+                    List.of(
+                        new ValuesSourceReaderOperator.FieldInfo(
+                            "x",
+                            ElementType.LONG,
+                            unused -> new NumberFieldMapper.NumberFieldType("x", NumberFieldMapper.NumberType.LONG).blockLoader(
+                                mockBlContext()
+                            )
+                        )
+                    ),
+                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
+                    0
+                ),
+                new TopNOperator(
+                    driverContext.blockFactory(),
+                    new TestCircuitBreaker(),
+                    5,
+                    List.of(ElementType.DOC, ElementType.LONG),
+                    List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+                    List.of(new TopNOperator.SortOrder(1, true, true)),
+                    1
+                )
+            ),
+            new ExchangeSinkOperator(exchangeSinkHandler.createExchangeSink(() -> {}))
+        );
+    }
+
+    private Driver createMidDriver(DirectoryReader reader, ExchangeSourceHandler exchangeSourceHandler) {
+        DriverContext driverContext = driverContext();
+        return TestDriverFactory.create(
+            driverContext,
+            new ExchangeSourceOperator(exchangeSourceHandler.createExchangeSource()),
+            List.of(
+                new TopNOperator(
+                    driverContext.blockFactory(),
+                    new TestCircuitBreaker(),
+                    5,
+                    List.of(ElementType.DOC, ElementType.LONG),
+                    List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+                    List.of(new TopNOperator.SortOrder(1, true, true)),
+                    1
+                ),
+                new ValuesSourceReaderOperator(
+                    driverContext.blockFactory(),
+                    List.of(
+                        new ValuesSourceReaderOperator.FieldInfo(
+                            "id",
+                            ElementType.INT,
+                            unused -> new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER).blockLoader(
+                                mockBlContext()
+                            )
+                        )
+                    ),
+                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                        throw new UnsupportedOperationException();
+                    }, 0.2)),
+                    0
+                )
+            ),
+            new PageConsumerOperator(p -> System.out.println(IntStream.range(0, p.getBlockCount()).mapToObj(p::getBlock).toList()))
+        );
     }
 
     private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {

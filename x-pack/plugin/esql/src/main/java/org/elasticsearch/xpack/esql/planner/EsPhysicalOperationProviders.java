@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -411,8 +412,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
+        // FIXME(gal, NOCOMMIT) for debugging
+        private static Set<Releasable> rs = new LinkedHashSet<>();
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+            synchronized (rs) {
+                rs.add(releasable);
+            }
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;

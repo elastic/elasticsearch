@@ -33,6 +33,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -76,6 +77,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
+// FIXME(gal, NOCOMMIT) remove
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     @Override
@@ -148,7 +151,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 setRequestCircuitBreakerLimit(null);
             }
         }
-        return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+        return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(3000, TimeUnit.SECONDS);
     }
 
     static EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));

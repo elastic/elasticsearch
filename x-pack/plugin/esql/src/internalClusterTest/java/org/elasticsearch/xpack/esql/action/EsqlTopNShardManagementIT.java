@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Verifies that the TopNOperator can release shard contexts as it processes its input.
@@ -76,7 +77,7 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
         scriptPermits.drainPermits();
         return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
             // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
-            .query("from test | sort foo + 1 | limit 1 | where pause_me + 1 > 42 | stats sum(pause_me)")
+            .query("from test | sort foo + 1 | limit 5 | where pause_me + 1 > 42 | stats sum(pause_me)")
             .pragmas(
                 new QueryPragmas(
                     Settings.builder()
@@ -88,6 +89,7 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
                         .build()
                 )
             )
+            .profile(true)
             .execute()
             .actionGet(1, TimeUnit.MINUTES);
     }
@@ -111,6 +113,7 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
                 closed,
                 greaterThanOrEqualTo(open)
             );
+            assertThat("At least some context should still be open", open, greaterThan(0));
             return scriptPermits.tryAcquire(1, 1, TimeUnit.MINUTES);
         }
     }

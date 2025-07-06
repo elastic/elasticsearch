@@ -33,7 +33,8 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
+    private static final List<Batch<PhysicalPlan>> RULES = rules(true, false);
+    private static final List<Batch<PhysicalPlan>> RULES_NO_HACK = rules(true, false);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
@@ -55,10 +56,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return RULES;
+        return context().configuration().applyTopNHack() ? RULES : RULES_NO_HACK;
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
+        return rules(optimizeForEsSource, true);
+    }
+
+    private static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
@@ -68,6 +73,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
+            // if (applyTopNHack) {
+            // esSourceRules.add(new RemoveProjectAfterTopNHack());
+            // }
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down

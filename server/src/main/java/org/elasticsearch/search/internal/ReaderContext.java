@@ -21,9 +21,11 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -116,6 +118,8 @@ public class ReaderContext implements Releasable {
         this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
+    private static Set<ReaderContext> released = new LinkedHashSet<>();
+
     /**
      * Returns a releasable to indicate that the caller has stopped using this reader.
      * The time to live of the reader after usage can be extended using the provided
@@ -127,6 +131,9 @@ public class ReaderContext implements Releasable {
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
             refCounted.decRef();
+            synchronized (released) {
+                released.add(this);
+            }
         });
     }
 

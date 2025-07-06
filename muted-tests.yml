@@ -578,6 +578,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/70_dense_vector_telemetry/Field mapping stats}
   issue: https://github.com/elastic/elasticsearch/issues/130672
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
 
 # Examples:
 #

@@ -233,9 +233,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636
-- class: org.elasticsearch.index.shard.StoreRecoveryTests
-  method: testAddIndices
-  issue: https://github.com/elastic/elasticsearch/issues/124104
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726
@@ -290,9 +287,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test023InstallPluginUsingConfigFile
   issue: https://github.com/elastic/elasticsearch/issues/126145
-- class: org.elasticsearch.search.SearchWithRejectionsIT
-  method: testOpenContextsAfterRejections
-  issue: https://github.com/elastic/elasticsearch/issues/126340
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
   issue: https://github.com/elastic/elasticsearch/issues/123200
@@ -419,9 +413,6 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
-- class: org.elasticsearch.xpack.ml.integration.InferenceIngestIT
-  method: testPipelineIngestWithModelAliases
-  issue: https://github.com/elastic/elasticsearch/issues/128417
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/128418
@@ -449,18 +440,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120
-- class: org.elasticsearch.xpack.inference.InferenceGetServicesIT
-  method: testGetServicesWithCompletionTaskType
-  issue: https://github.com/elastic/elasticsearch/issues/128952
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test073RunEsAsDifferentUserAndGroupWithoutBindMounting
   issue: https://github.com/elastic/elasticsearch/issues/128996
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=upgraded_cluster/70_ilm/Test Lifecycle Still There And Indices Are Still Managed}
-  issue: https://github.com/elastic/elasticsearch/issues/129097
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=upgraded_cluster/90_ml_data_frame_analytics_crud/Get mixed cluster outlier_detection job}
-  issue: https://github.com/elastic/elasticsearch/issues/129098
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test081SymlinksAreFollowedWithEnvironmentVariableFiles
   issue: https://github.com/elastic/elasticsearch/issues/128867
@@ -482,15 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanManageIndexWithNoPermissions
-  issue: https://github.com/elastic/elasticsearch/issues/129471
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanManageIndexAndPolicyDifferentUsers
-  issue: https://github.com/elastic/elasticsearch/issues/129479
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanViewExplainOnUnmanagedIndex
-  issue: https://github.com/elastic/elasticsearch/issues/129480
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -509,31 +482,16 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testSnapshotShutdownProgressTracker
-  issue: https://github.com/elastic/elasticsearch/issues/129752
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
 - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
   method: testLuceneVersionConstant
   issue: https://github.com/elastic/elasticsearch/issues/125638
-- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
-  method: testPreload
-  issue: https://github.com/elastic/elasticsearch/issues/129852
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/129888
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/119871
-- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
-  method: testRerank
-  issue: https://github.com/elastic/elasticsearch/issues/130009
-- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
-  method: testCohereEmbeddings
-  issue: https://github.com/elastic/elasticsearch/issues/130010
 - class: geoip.GeoIpMultiProjectIT
   issue: https://github.com/elastic/elasticsearch/issues/130073
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
@@ -578,36 +536,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/130505
-- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
-  method: testGetSystemTrustStoreWithNoSystemProperties
-  issue: https://github.com/elastic/elasticsearch/issues/130517
-- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
-  method: testGetNonPKCS11TrustStoreWithPasswordSet
-  issue: https://github.com/elastic/elasticsearch/issues/130519
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/130568
-- class: org.elasticsearch.reindex.ReindexRestClientSslTests
-  method: testClientPassesClientCertificate
-  issue: https://github.com/elastic/elasticsearch/issues/130584
-- class: org.elasticsearch.reindex.ReindexRestClientSslTests
-  method: testClientFailsWithUntrustedCertificate
-  issue: https://github.com/elastic/elasticsearch/issues/130585
-- class: org.elasticsearch.reindex.ReindexRestClientSslTests
-  method: testClientSucceedsWithCertificateAuthorities
-  issue: https://github.com/elastic/elasticsearch/issues/130586
-- class: org.elasticsearch.reindex.ReindexFromRemoteBuildRestClientTests
-  method: testHeaders
-  issue: https://github.com/elastic/elasticsearch/issues/130587
-- class: org.elasticsearch.reindex.ReindexFromRemoteBuildRestClientTests
-  method: testBuildRestClient
-  issue: https://github.com/elastic/elasticsearch/issues/130588
-- class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
-  method: testRespondAfterServiceCloseWithClientCancel
-  issue: https://github.com/elastic/elasticsearch/issues/130590
-- class: org.elasticsearch.http.netty4.Netty4HttpServerTransportTests
-  method: testRespondAfterServiceCloseWithServerCancel
-  issue: https://github.com/elastic/elasticsearch/issues/130591
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
@@ -620,9 +551,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/130497
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/40_knn_search/Dimensions are dynamically set}
+  issue: https://github.com/elastic/elasticsearch/issues/130626
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {match-operator.MatchWithMoreComplexDisjunctionAndConjunction SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/130640
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyFromRow ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/130642
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130205
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text single fvh source order}
+  issue: https://github.com/elastic/elasticsearch/issues/130657
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/40_knn_search/Dimensions are dynamically set}
+  issue: https://github.com/elastic/elasticsearch/issues/130661
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_half_byte_quantized/Test create, merge, and search cosine}
+  issue: https://github.com/elastic/elasticsearch/issues/130663
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/70_dense_vector_telemetry/Field mapping stats}
+  issue: https://github.com/elastic/elasticsearch/issues/130672
 
 # Examples:
 #

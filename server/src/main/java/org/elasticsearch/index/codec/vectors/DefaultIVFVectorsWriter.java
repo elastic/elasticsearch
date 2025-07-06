@@ -122,8 +122,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     static void writeCentroids(float[][] centroids, FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
         throws IOException {
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        byte[] quantizedScratch = new byte[fieldInfo.getVectorDimension()];
+        int[] quantizedScratch = new int[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
+        final byte[] quantized = new byte[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
         // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
@@ -135,7 +136,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 (byte) 4,
                 globalCentroid
             );
-            writeQuantizedValue(centroidOutput, quantizedScratch, result);
+            for (int i = 0; i < quantizedScratch.length; i++) {
+                quantized[i] = (byte) quantizedScratch[i];
+            }
+            writeQuantizedValue(centroidOutput, quantized, result);
         }
         final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (float[] centroid : centroids) {

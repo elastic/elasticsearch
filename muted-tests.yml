@@ -279,6 +279,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130205
 
 # Examples:
 #

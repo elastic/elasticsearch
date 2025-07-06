@@ -15,7 +15,7 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.logging.LogManager;
@@ -34,11 +34,20 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     public static final String NAME = "GPUVectorsFormat";
     public static final String GPU_IDX_EXTENSION = "gpuidx";
     public static final String GPU_META_EXTENSION = "mgpu";
-
     public static final int VERSION_START = 0;
+
+    static final String LUCENE99_HNSW_META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";
+    static final String LUCENE99_HNSW_VECTOR_INDEX_CODEC_NAME = "Lucene99HnswVectorsFormatIndex";
+    static final String LUCENE99_HNSW_META_EXTENSION = "vem";
+    static final String LUCENE99_HNSW_VECTOR_INDEX_EXTENSION = "vex";
+    static final int LUCENE99_VERSION_CURRENT = VERSION_START;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    static final int DEFAULT_MAX_CONN = 16;
+    static final int DEFAULT_BEAM_WIDTH = 100;
+    static final int MIN_NUM_VECTORS_FOR_GPU_BUILD = 2;
+
+    private static final FlatVectorsFormat flatVectorsFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
@@ -48,12 +57,22 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new GPUVectorsWriter(state, rawVectorFormat.fieldsWriter(state));
+        CuVSResources cuVSResources = cuVSResourcesOrNull();
+        if (cuVSResources == null) {
+            throw new IllegalArgumentException("GPU based vector search is not supported on this platform or java version");
+        }
+        return new GPUToHNSWVectorsWriter(
+            cuVSResources,
+            state,
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            flatVectorsFormat.fieldsWriter(state)
+        );
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new GPUVectorsReader(state, rawVectorFormat.fieldsReader(state));
+        return new Lucene99HnswVectorsReader(state, flatVectorsFormat.fieldsReader(state));
     }
 
     @Override
@@ -64,16 +83,6 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     @Override
     public String toString() {
         return NAME + "()";
-    }
-
-    static GPUVectorsReader getGPUReader(KnnVectorsReader vectorsReader, String fieldName) {
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
-            vectorsReader = candidateReader.getFieldReader(fieldName);
-        }
-        if (vectorsReader instanceof GPUVectorsReader reader) {
-            return reader;
-        }
-        return null;
     }
 
     /** Tells whether the platform supports cuvs. */

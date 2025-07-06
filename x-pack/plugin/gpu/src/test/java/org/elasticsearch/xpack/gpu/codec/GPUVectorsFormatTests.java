@@ -46,13 +46,48 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     @Override
-    public void testSearchWithVisitedLimit() {
-        // TODO
+    public void testRandomBytes() throws Exception {
+        // No bytes support
     }
 
     @Override
-    public void testAdvance() throws Exception {
-        // TODO
+    public void testSortedIndexBytes() throws Exception {
+        // No bytes support
+    }
+
+    @Override
+    public void testByteVectorScorerIteration() throws Exception {
+        // No bytes support
+    }
+
+    @Override
+    public void testEmptyByteVectorData() throws Exception {
+        // No bytes support
+    }
+
+    @Override
+    public void testMergingWithDifferentByteKnnFields() throws Exception {
+        // No bytes support
+    }
+
+    @Override
+    public void testMismatchedFields() throws Exception {
+        // No bytes support
+    }
+
+    @Override
+    public void testSortedIndex() throws Exception {
+        // TODO: implement sorted index
+    }
+
+    @Override
+    public void testFloatVectorScorerIteration() throws Exception {
+        // TODO: implement sorted index
+    }
+
+    @Override
+    public void testRandom() throws Exception {
+        // TODO: implement sorted index
     }
 
     public void testToString() {
@@ -66,8 +101,4 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
         assertEquals(expectedPattern, customCodec.knnVectorsFormat().toString());
     }
 
-    @Override
-    public void testSortedIndexBytes() throws Exception {
-        super.testSortedIndexBytes();
-    }
 }

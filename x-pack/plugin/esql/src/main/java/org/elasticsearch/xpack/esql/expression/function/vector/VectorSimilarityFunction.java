@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
  */
-abstract class VectorSimilarityFunction extends EsqlScalarFunction implements VectorFunction {
+public abstract class VectorSimilarityFunction extends EsqlScalarFunction implements VectorFunction {
 
     private final Expression left;
     private final Expression right;

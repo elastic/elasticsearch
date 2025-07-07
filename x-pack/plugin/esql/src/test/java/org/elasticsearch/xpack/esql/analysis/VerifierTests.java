@@ -2238,8 +2238,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorSimilarityFunctionsNullArgs("v_cosine_similarity(null, vector)", "first");
-            checkVectorSimilarityFunctionsNullArgs("v_cosine_similarity(vector, null)", "second");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
         }
     }
 

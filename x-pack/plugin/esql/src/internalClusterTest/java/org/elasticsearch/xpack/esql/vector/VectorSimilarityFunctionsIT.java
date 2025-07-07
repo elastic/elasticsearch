@@ -35,7 +35,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        params.add(new Object[] { "v_cosine_similarity", VectorSimilarityFunction.COSINE });
+        params.add(new Object[] { "v_cosine", VectorSimilarityFunction.COSINE });
 
         return params;
     }

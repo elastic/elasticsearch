@@ -20,6 +20,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -98,7 +99,8 @@ public class MockSearchService extends SearchService {
             circuitBreakerService,
             executorSelector,
             tracer,
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            new CrossClusterSearchExtension.Default()
         );
     }
 

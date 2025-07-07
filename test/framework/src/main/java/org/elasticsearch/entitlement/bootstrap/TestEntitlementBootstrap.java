@@ -87,6 +87,10 @@ public class TestEntitlementBootstrap {
         policyManager.setTriviallyAllowingTestCode(newValue);
     }
 
+    public static void addEntitledTestPackages(String[] entitledTestPackages) {
+        policyManager.addEntitledTestPackages(entitledTestPackages);
+    }
+
     public static void reset() {
         if (policyManager != null) {
             policyManager.reset();

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
@@ -17,6 +18,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,7 @@ public class TestPolicyManager extends PolicyManager {
 
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
+    String[] entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
 
     /**
      * We don't have modules in tests, so we can't use the inherited map of entitlements per module.
@@ -58,6 +61,12 @@ public class TestPolicyManager extends PolicyManager {
 
     public void setTriviallyAllowingTestCode(boolean newValue) {
         this.isTriviallyAllowingTestCode = newValue;
+    }
+
+    public void addEntitledTestPackages(String[] entitledTestPackages) {
+        String[] packages = ArrayUtils.concat(this.entitledTestPackages, entitledTestPackages);
+        Arrays.sort(packages);
+        this.entitledTestPackages = packages;
     }
 
     /**
@@ -110,17 +119,14 @@ public class TestPolicyManager extends PolicyManager {
             && (requestingClass.getName().contains("Test") == false);
     }
 
-    @Deprecated // TODO: reevaluate whether we want this.
-    // If we can simply check for dependencies the gradle worker has that aren't
-    // declared in the gradle config (namely org.gradle) that would be simpler.
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
         String packageName = requestingClass.getPackageName();
-        for (String prefix : TEST_FRAMEWORK_PACKAGE_PREFIXES) {
-            if (packageName.startsWith(prefix)) {
-                return true;
-            }
+        int idx = Arrays.binarySearch(entitledTestPackages, packageName);
+        if (idx >= 0) {
+            return true;
         }
-        return false;
+        idx = -idx - 2; // candidate package (insertion point - 1)
+        return idx >= 0 && idx < entitledTestPackages.length && packageName.startsWith(entitledTestPackages[idx]);
     }
 
     private boolean isTestCode(Class<?> requestingClass) {
@@ -162,6 +168,10 @@ public class TestPolicyManager extends PolicyManager {
 
         "org.bouncycastle.jsse.provider" // Used in test code if FIPS is enabled, support more fine-grained config in ES-12128
     };
+
+    static {
+        Arrays.sort(TEST_FRAMEWORK_PACKAGE_PREFIXES);
+    }
 
     @Override
     protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {

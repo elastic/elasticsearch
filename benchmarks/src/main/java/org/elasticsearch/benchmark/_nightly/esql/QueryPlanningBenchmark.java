@@ -9,6 +9,9 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -49,6 +52,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -115,15 +119,22 @@ public class QueryPlanningBenchmark {
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
     }
 
-    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
+    private void plan(
+        EsqlParser parser,
+        Analyzer analyzer,
+        LogicalPlanOptimizer optimizer,
+        String query,
+        ActionListener<LogicalPlan> listener
+    ) {
         var parsed = parser.createStatement(query, new QueryParams(), telemetry);
-        var analyzed = analyzer.analyze(parsed);
-        var optimized = optimizer.optimize(analyzed);
-        return optimized;
+        SubscribableListener.<LogicalPlan>newForked(analyzedPlanListener -> analyzer.analyze(parsed, analyzedPlanListener))
+            .addListener(listener.map(optimizer::optimize));
     }
 
     @Benchmark
-    public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+    public void manyFields(Blackhole blackhole) throws ExecutionException, InterruptedException {
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10", optimizedPlanFuture);
+        blackhole.consume(optimizedPlanFuture.get());
     }
 }

@@ -96,13 +96,11 @@ public class HierarchicalKMeans {
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
         int[] centroidVectorCount = new int[centroids.length];
+        int effectiveK = 0;
         for (int assigment : assignments) {
             centroidVectorCount[assigment]++;
-        }
-
-        int effectiveK = 0;
-        for (int j : centroidVectorCount) {
-            if (j > 0) {
+            // this cluster has received an assignment, its now effective, but only count it once
+            if (centroidVectorCount[assigment] == 1) {
                 effectiveK++;
             }
         }
@@ -155,18 +153,6 @@ public class HierarchicalKMeans {
 
             // append the remainder
             System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
-
-            // create a top "parent" layer for faster query
-            if (depth == 0) {
-                int[] newParentLayer = new int[newCentroids.length];
-                System.arraycopy(current.parentLayer(), 0, newParentLayer, 0, current.parentLayer().length);
-                current.setParentLayer(newParentLayer);
-                current.parentLayer()[cluster] = cluster;
-                for (int i = current.centroids().length; i < newCentroids.length; i++) {
-                    current.parentLayer()[i] = cluster;
-                }
-            }
-
             current.setCentroids(newCentroids);
 
             for (int i = 0; i < subPartitions.assignments().length; i++) {

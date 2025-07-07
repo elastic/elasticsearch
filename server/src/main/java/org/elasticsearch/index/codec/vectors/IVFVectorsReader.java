@@ -292,12 +292,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-            updateCentroidQueueWNextParent(
-                parentCentroidQueryScorer,
-                parentCentroidQueue,
-                centroidQueryScorer,
-                centroidQueue
-            );
+            updateCentroidQueueWNextParent(parentCentroidQueryScorer, parentCentroidQueue, centroidQueryScorer, centroidQueue);
 
             PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
             // initially we visit only the "centroids to search"
@@ -316,13 +311,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 // ... would be centroidScore < (nextParentScore + furthestCentroidScore) which is better than just a buffer
                 // TODO: try a ParentNProbe here that's for instance the sqrt(nProbe) that forces a fixed
                 // ... number of parents to be explored at each step
-                while (parentCentroidQueue.size() > 0 && centroidScore < (nextParentScore + nextParentScore * 0.05) ) {
-                    updateCentroidQueueWNextParent(
-                        parentCentroidQueryScorer,
-                        parentCentroidQueue,
-                        centroidQueryScorer,
-                        centroidQueue
-                    );
+                while (parentCentroidQueue.size() > 0 && centroidScore < (nextParentScore + nextParentScore * 0.05)) {
+                    updateCentroidQueueWNextParent(parentCentroidQueryScorer, parentCentroidQueue, centroidQueryScorer, centroidQueue);
                     if (parentCentroidQueue.size() > 0) {
                         nextParentScore = parentCentroidQueue.topScore();
                     } else {

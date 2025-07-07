@@ -9,41 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-final class CentroidAssignments {
-
-    private final int numParentCentroids;
-    private final int numCentroids;
-    private final float[][] cachedCentroids;
-    private final int[][] assignmentsByCluster;
-
-    private CentroidAssignments(int numParentCentroids, int numCentroids, float[][] cachedCentroids, int[][] assignmentsByCluster) {
-        this.numParentCentroids = numParentCentroids;
-        this.numCentroids = numCentroids;
-        this.cachedCentroids = cachedCentroids;
-        this.assignmentsByCluster = assignmentsByCluster;
-    }
+record CentroidAssignments(int numParentCentroids, int numCentroids, float[][] centroids, int[][] assignmentsByCluster) {
 
     CentroidAssignments(int numParentCentroids, float[][] centroids, int[][] assignmentsByCluster) {
         this(numParentCentroids, centroids.length, centroids, assignmentsByCluster);
-    }
-
-    CentroidAssignments(int numParentCentroids, int numCentroids, int[][] assignmentsByCluster) {
-        this(numParentCentroids, numCentroids, null, assignmentsByCluster);
-    }
-
-    public int numCentroids() {
-        return numCentroids;
-    }
-
-    public int numParentCentroids() {
-        return numParentCentroids;
-    }
-
-    public float[][] cachedCentroids() {
-        return cachedCentroids;
-    }
-
-    public int[][] assignmentsByCluster() {
-        return assignmentsByCluster;
+        assert centroids.length == assignmentsByCluster.length;
     }
 }

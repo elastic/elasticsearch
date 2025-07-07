@@ -185,6 +185,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
     }
 
+    @Override
     CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
@@ -193,16 +194,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         // TODO: take advantage of prior generated clusters from mergeState in the future
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, false);
-    }
-
-    CentroidAssignments calculateAndWriteCentroids(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        IndexOutput centroidOutput,
-        float[] globalCentroid
-    ) throws IOException {
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, true);
+        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid);
     }
 
     record CentroidPartition(float[] centroid, int childOrdinal, int size) {}
@@ -215,16 +207,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
      * @param floatVectorValues the float vector values to merge
      * @param centroidOutput the centroid output
      * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
-     * @param cacheCentroids whether the centroids are kept or discarded once computed
      * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
      * @throws IOException if an I/O error occurs
      */
+    @Override
     CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
-        float[] globalCentroid,
-        boolean cacheCentroids
+        float[] globalCentroid
     ) throws IOException {
 
         long nanoTime = System.nanoTime();
@@ -232,9 +223,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
-        int[] assignments = kMeansResult.assignments();
-        int[] soarAssignments = kMeansResult.soarAssignments();
-
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation
         // TODO: push this logic into vector util?
@@ -264,17 +252,17 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[][] parentCentroids = result.centroids();
         int[] parentChildAssignments = result.assignments();
         // TODO: explore using soar assignments here as well
-        //int[] parentChildSoarAssignments = result.soarAssignments();
+        // int[] parentChildSoarAssignments = result.soarAssignments();
 
         AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, parentChildAssignments);
         sorter.sort(0, centroids.length);
 
-        for(int i = 0; i < parentChildAssignments.length; i++) {
+        for (int i = 0; i < parentChildAssignments.length; i++) {
             int label = parentChildAssignments[i];
             int centroidCount = 0;
             int j = i;
-            for(; j < parentChildAssignments.length; j++) {
-                if(parentChildAssignments[j] != label) {
+            for (; j < parentChildAssignments.length; j++) {
+                if (parentChildAssignments[j] != label) {
                     break;
                 }
                 centroidCount++;
@@ -295,19 +283,18 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         IntIntMap centroidOrdsToIdx = new IntIntHashMap(centroidOrds.length);
-        for(int i = 0; i < centroidOrds.length; i++) {
+        for (int i = 0; i < centroidOrds.length; i++) {
             centroidOrdsToIdx.put(centroidOrds[i], i);
         }
-        int[][] assignmentsByCluster = mapAssignmentsByCluster(centroids.length, assignments, soarAssignments, centroidOrdsToIdx);
 
-        if (cacheCentroids) {
-            return new CentroidAssignments(centroidPartitions.size(), centroids, assignmentsByCluster);
-        } else {
-            return new CentroidAssignments(centroidPartitions.size(), centroids.length, assignmentsByCluster);
-        }
+        int[] assignments = kMeansResult.assignments();
+        int[] soarAssignments = kMeansResult.soarAssignments();
+
+        int[][] assignmentsByCluster = buildCentroidAssignments(centroids.length, assignments, soarAssignments, centroidOrdsToIdx);
+        return new CentroidAssignments(centroidPartitions.size(), centroids, assignmentsByCluster);
     }
 
-    static int[][] mapAssignmentsByCluster(int centroidCount, int[] assignments, int[] soarAssignments, IntIntMap centroidOrds) {
+    static int[][] buildCentroidAssignments(int centroidCount, int[] assignments, int[] soarAssignments, IntIntMap centroidOrds) {
         int[] centroidVectorCount = new int[centroidCount];
         for (int i = 0; i < assignments.length; i++) {
             int c = centroidOrds.get(assignments[i]);

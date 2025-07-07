@@ -21,7 +21,7 @@ setup:
               name:
                 type: keyword
               vector:
-                type: rank_vector
+                type: rank_vectors
                 dims: 3
 
               nested:
@@ -30,7 +30,7 @@ setup:
                   paragraph_id:
                     type: keyword
                   vector:
-                    type: rank_vector
+                    type: rank_vectors
                     dims: 3
 
   - do:
@@ -146,7 +146,9 @@ setup:
   - match:      { hits.hits.3._source.name: "zoolander.jpg" }
   - length:     { hits.hits.3._source.nested: 3 }
   - exists:       hits.hits.3._source.nested.0.vector
-  - length:      { hits.hits.3._source.nested.0.vector: 3 }
+  - length:     { hits.hits.3._source.nested.0.vector: 2 }
+  - length:     { hits.hits.3._source.nested.0.vector.0: 3 }
+  - length:     { hits.hits.3._source.nested.0.vector.1: 3 }
   - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
 
   - do:
@@ -178,10 +180,13 @@ setup:
   - length:          { hits.hits.3._source: 1 }
   - length:          { hits.hits.3._source.nested: 2 }
   - exists:            hits.hits.3._source.nested.0.vector
-  - length:          { hits.hits.3._source.nested.0.vector: 3 }
+  - length:          { hits.hits.3._source.nested.0.vector: 2 }
+  - length:          { hits.hits.3._source.nested.0.vector.0: 3 }
+  - length:          { hits.hits.3._source.nested.0.vector.1: 3 }
   - not_exists:        hits.hits.3._source.nested.0.paragraph_id
   - exists:            hits.hits.3._source.nested.1.vector
-  - length:          { hits.hits.3._source.nested.1.vector: 3 }
+  - length:          { hits.hits.3._source.nested.1.vector: 1 }
+  - length:          { hits.hits.3._source.nested.1.vector.0: 3 }
   - not_exists:        hits.hits.3._source.nested.1.paragraph_id
 
   - do:
@@ -199,7 +204,7 @@ setup:
   - match:      { hits.hits.0._id: "1"}
   - match:      { hits.hits.0._source.name: "cow.jpg"}
   - not_exists:   hits.hits.0._source.vector
-  - match:      { hits.hits.0.fields.vector: [[1, 2, 3], [4, 5, 6]]}
+  - match:      { hits.hits.0.fields.vector: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]}
 
   - match:      { hits.hits.1._id: "2"}
   - match:      { hits.hits.1._source.name: "moose.jpg"}
@@ -240,11 +245,14 @@ setup:
   - length:     { items.0.update.get._source.nested: 3}
   - exists:       items.0.update.get._source.nested.0.vector
   - match:      { items.0.update.get._source.nested.0.paragraph_id: 0 }
-  - length:     { items.0.update.get._source.nested.0.vector: 3 }
+  - length:     { items.0.update.get._source.nested.0.vector: 2 }
+  - length:     { items.0.update.get._source.nested.0.vector.0: 3 }
+  - length:     { items.0.update.get._source.nested.0.vector.1: 3 }
   - not_exists:   items.0.update.get._source.nested.1.vector
   - match:      { items.0.update.get._source.nested.1.paragraph_id: 1 }
   - exists:       items.0.update.get._source.nested.2.vector
-  - length:     { items.0.update.get._source.nested.2.vector: 3 }
+  - length:     { items.0.update.get._source.nested.2.vector: 1 }
+  - length:     { items.0.update.get._source.nested.2.vector.0: 3 }
   - match:      { items.0.update.get._source.nested.2.paragraph_id: 2 }
   - set:        { items.0.update.get._source.nested: original_nested }
 
@@ -303,11 +311,14 @@ setup:
   - length:     { get._source.nested: 3}
   - exists:       get._source.nested.0.vector
   - match:      { get._source.nested.0.paragraph_id: 0 }
-  - length:     { get._source.nested.0.vector: 3 }
+  - length:     { get._source.nested.0.vector: 2 }
+  - length:     { get._source.nested.0.vector.0: 3 }
+  - length:     { get._source.nested.0.vector.1: 3 }
   - not_exists:   get._source.nested.1.vector
   - match:      { get._source.nested.1.paragraph_id: 1 }
   - exists:       get._source.nested.2.vector
-  - length:     { get._source.nested.2.vector: 3 }
+  - length:     { get._source.nested.2.vector: 1 }
+  - length:     { get._source.nested.2.vector.0: 3 }
   - match:      { get._source.nested.2.paragraph_id: 2 }
   - set:        { get._source.nested: original_nested }
 

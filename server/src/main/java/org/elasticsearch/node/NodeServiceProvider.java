@@ -37,6 +37,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -135,7 +136,8 @@ class NodeServiceProvider {
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        CrossClusterSearchExtension crossClusterSearchExtension
     ) {
         return new SearchService(
             clusterService,
@@ -147,7 +149,8 @@ class NodeServiceProvider {
             circuitBreakerService,
             executorSelector,
             tracer,
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            crossClusterSearchExtension
         );
     }
 

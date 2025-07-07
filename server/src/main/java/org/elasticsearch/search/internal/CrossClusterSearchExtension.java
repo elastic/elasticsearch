@@ -13,13 +13,13 @@ import java.util.function.Supplier;
 
 public interface CrossClusterSearchExtension {
 
-    Supplier<Boolean> forceReconnectBehaviorSupplier();
+    Supplier<Boolean> forceRefreshRemoteConnections();
 
     class Default implements CrossClusterSearchExtension {
         public Default() {}
 
         @Override
-        public Supplier<Boolean> forceReconnectBehaviorSupplier() {
+        public Supplier<Boolean> forceRefreshRemoteConnections() {
             return () -> false;
         }
     }

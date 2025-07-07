@@ -23,7 +23,6 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
-import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -204,6 +203,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
@@ -1021,7 +1021,7 @@ class NodeConstruction {
             CrossClusterSearchExtension.Default::new
         );
 
-        logger.info("Cross-cluster search force reconnect: [{}]", crossClusterSearchExtension.forceReconnectBehaviorSupplier().get());
+        logger.info("Cross-cluster search force reconnect: [{}]", crossClusterSearchExtension.forceRefreshRemoteConnections().get());
 
         ActionModule actionModule = new ActionModule(
             settings,
@@ -1213,7 +1213,8 @@ class NodeConstruction {
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
             telemetryProvider.getTracer(),
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            crossClusterSearchExtension
         );
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);

@@ -104,6 +104,7 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -368,6 +369,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
+    private final CrossClusterSearchExtension crossClusterSearchExtension;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -378,7 +381,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        CrossClusterSearchExtension crossClusterSearchExtension
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -444,6 +448,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
         prewarmingMaxPoolFactorThreshold = PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE.get(settings);
+
+        this.crossClusterSearchExtension = crossClusterSearchExtension;
     }
 
     public CircuitBreaker getCircuitBreaker() {
@@ -456,6 +462,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             searchExecutor = null;
         }
+    }
+
+    public boolean forceRefreshRemoteConnections() {
+        return crossClusterSearchExtension.forceRefreshRemoteConnections().get();
     }
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {

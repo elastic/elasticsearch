@@ -42,6 +42,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
@@ -103,7 +104,8 @@ public class MockNode extends Node {
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer,
-            OnlinePrewarmingService onlinePrewarmingService
+            OnlinePrewarmingService onlinePrewarmingService,
+            CrossClusterSearchExtension crossClusterSearchExtension
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -117,7 +119,8 @@ public class MockNode extends Node {
                     circuitBreakerService,
                     executorSelector,
                     tracer,
-                    onlinePrewarmingService
+                    onlinePrewarmingService,
+                    crossClusterSearchExtension
                 );
             }
 

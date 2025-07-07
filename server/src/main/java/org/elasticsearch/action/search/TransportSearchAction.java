@@ -215,6 +215,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
+        // just showing injection
+        logger.info("Refresh remote connections: {}", searchService.forceRefreshRemoteConnections());
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

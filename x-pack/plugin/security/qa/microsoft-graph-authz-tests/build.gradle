@@ -13,7 +13,7 @@ String msGraphTenantId = System.getenv("ms_graph_tenant_id")
 String msGraphClientId = System.getenv("ms_graph_client_id")
 String msGraphClientSecret = System.getenv("ms_graph_client_secret")
 String msGraphUsername = System.getenv("ms_graph_username")
-String msGraphGroupId = System.getenv("ms_graph_groupid")
+String msGraphGroupId = System.getenv("ms_graph_group_id")
 
 if (!msGraphTenantId || !msGraphClientId || !msGraphClientSecret || !msGraphUsername || !msGraphGroupId) {
   msGraphTenantId = "tenant-id"

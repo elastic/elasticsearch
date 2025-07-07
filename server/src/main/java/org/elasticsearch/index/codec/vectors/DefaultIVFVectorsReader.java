@@ -134,7 +134,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             @Override
             public void bulkScore(NeighborQueue queue, int start, int end) throws IOException {
                 // TODO: bulk score centroids like we do with posting lists
-                assert start > 0;
+                assert start >= 0;
                 assert end > 0;
                 assert start + end <= numCentroids;
                 centroids.seek(quantizedCentroidsOffset + quantizedVectorByteSize * start);

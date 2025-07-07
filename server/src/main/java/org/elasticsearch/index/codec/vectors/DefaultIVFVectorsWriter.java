@@ -244,32 +244,34 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
         List<CentroidPartition> centroidPartitions = new ArrayList<>();
 
-        List<float[]> centroidsList = Arrays.stream(centroids).toList();
-        FloatVectorValues centroidsAsFVV = FloatVectorValues.fromFloats(centroidsList, fieldInfo.getVectorDimension());
+        if(centroids.length > IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER) {
+            List<float[]> centroidsList = Arrays.stream(centroids).toList();
+            FloatVectorValues centroidsAsFVV = FloatVectorValues.fromFloats(centroidsList, fieldInfo.getVectorDimension());
 
-        HierarchicalKMeans hierarchicalKMeans = new HierarchicalKMeans(fieldInfo.getVectorDimension());
-        KMeansResult result = hierarchicalKMeans.cluster(centroidsAsFVV, centroids.length / (int) Math.sqrt(centroids.length));
-        float[][] parentCentroids = result.centroids();
-        int[] parentChildAssignments = result.assignments();
-        // TODO: explore using soar assignments here as well
-        // int[] parentChildSoarAssignments = result.soarAssignments();
+            HierarchicalKMeans hierarchicalKMeans = new HierarchicalKMeans(fieldInfo.getVectorDimension());
+            KMeansResult result = hierarchicalKMeans.cluster(centroidsAsFVV, centroids.length / (int) Math.sqrt(centroids.length));
+            float[][] parentCentroids = result.centroids();
+            int[] parentChildAssignments = result.assignments();
+            // TODO: explore using soar assignments here as well
+            // int[] parentChildSoarAssignments = result.soarAssignments();
 
-        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, parentChildAssignments);
-        sorter.sort(0, centroids.length);
+            AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, parentChildAssignments);
+            sorter.sort(0, centroids.length);
 
-        for (int i = 0; i < parentChildAssignments.length; i++) {
-            int label = parentChildAssignments[i];
-            int centroidCount = 0;
-            int j = i;
-            for (; j < parentChildAssignments.length; j++) {
-                if (parentChildAssignments[j] != label) {
-                    break;
+            for (int i = 0; i < parentChildAssignments.length; i++) {
+                int label = parentChildAssignments[i];
+                int centroidCount = 0;
+                int j = i;
+                for (; j < parentChildAssignments.length; j++) {
+                    if (parentChildAssignments[j] != label) {
+                        break;
+                    }
+                    centroidCount++;
                 }
-                centroidCount++;
+                int childOrdinal = i;
+                i = j;
+                centroidPartitions.add(new CentroidPartition(parentCentroids[label], childOrdinal, centroidCount));
             }
-            int childOrdinal = i;
-            i = j;
-            centroidPartitions.add(new CentroidPartition(parentCentroids[label], childOrdinal, centroidCount));
         }
 
         writeCentroidsAndPartitions(centroidPartitions, centroids, fieldInfo, globalCentroid, centroidOutput);

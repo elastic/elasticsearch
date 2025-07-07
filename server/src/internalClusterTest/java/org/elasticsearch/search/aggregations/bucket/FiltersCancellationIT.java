@@ -33,29 +33,26 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Semaphore;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.SuiteScopeTestCase
+@ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class FiltersCancellationIT extends ESIntegTestCase {
 
     private static final String INDEX = "idx";
-    private static final String SLEEP_FIELD = "sleep";
+    private static final String PAUSE_FIELD = "pause";
     private static final String NUMERIC_FIELD = "value";
 
     private static final int NUM_DOCS = 100_000;
-    /**
-     * The number of milliseconds to sleep in the script that simulates a long-running operation.
-     * <p>
-     *     As CancellableBulkScorer does a minimum of 4096 docs per batch, this number must be low to avoid long test times.
-     * </p>
-     */
-    private static final long SLEEP_SCRIPT_MS = 1;
+    private static final int SEMAPHORE_PERMITS = NUM_DOCS - 1000;
+    private static final Semaphore SCRIPT_SEMAPHORE = new Semaphore(0);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -63,34 +60,43 @@ public class FiltersCancellationIT extends ESIntegTestCase {
     }
 
     protected Class<? extends Plugin> pausableFieldPluginClass() {
-        return SleepScriptPlugin.class;
+        return PauseScriptPlugin.class;
     }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
-        mapping.startObject("runtime");
-        {
-            mapping.startObject(SLEEP_FIELD);
+        try (XContentBuilder mapping = JsonXContent.contentBuilder()) {
+            mapping.startObject();
+            mapping.startObject("runtime");
             {
-                mapping.field("type", "long");
-                mapping.startObject("script").field("source", "").field("lang", SleepScriptPlugin.PAUSE_SCRIPT_LANG).endObject();
+                mapping.startObject(PAUSE_FIELD);
+                {
+                    mapping.field("type", "long");
+                    mapping.startObject("script").field("source", "").field("lang", PauseScriptPlugin.PAUSE_SCRIPT_LANG).endObject();
+                }
+                mapping.endObject();
+                mapping.startObject(NUMERIC_FIELD);
+                {
+                    mapping.field("type", "long");
+                }
+                mapping.endObject();
             }
             mapping.endObject();
-            mapping.startObject(NUMERIC_FIELD);
-            {
-                mapping.field("type", "long");
-            }
             mapping.endObject();
-        }
-        mapping.endObject();
-        client().admin().indices().prepareCreate(INDEX).setMapping(mapping.endObject()).get();
 
-        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < NUM_DOCS; i++) {
-            bulk.add(prepareIndex(INDEX).setId(Integer.toString(i)).setSource(NUMERIC_FIELD, i));
+            client().admin().indices().prepareCreate(INDEX).setMapping(mapping).get();
         }
-        bulk.get();
+
+        int DOCS_PER_BULK = 100_000;
+        for (int i = 0; i < NUM_DOCS; i += DOCS_PER_BULK) {
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < DOCS_PER_BULK; j++) {
+                int docId = i + j;
+                bulk.add(prepareIndex(INDEX).setId(Integer.toString(docId)).setSource(NUMERIC_FIELD, docId));
+            }
+            bulk.get();
+        }
+
         client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get();
     }
 
@@ -101,8 +107,8 @@ public class FiltersCancellationIT extends ESIntegTestCase {
                     filters(
                         "filters",
                         new KeyedFilter[] {
-                            new KeyedFilter("filter1", termQuery(SLEEP_FIELD, 1)),
-                            new KeyedFilter("filter2", termQuery(SLEEP_FIELD, 2)) }
+                            new KeyedFilter("filter1", termQuery(PAUSE_FIELD, 1)),
+                            new KeyedFilter("filter2", termQuery(PAUSE_FIELD, 2)) }
                     )
                 )
         );
@@ -115,9 +121,9 @@ public class FiltersCancellationIT extends ESIntegTestCase {
                     filters(
                         "filters",
                         new KeyedFilter[] {
-                            new KeyedFilter("filter1", termQuery(SLEEP_FIELD, 1)),
-                            new KeyedFilter("filter2", termQuery(SLEEP_FIELD, 2)) }
-                    ).subAggregation(terms("sub").field(SLEEP_FIELD))
+                            new KeyedFilter("filter1", termQuery(PAUSE_FIELD, 1)),
+                            new KeyedFilter("filter2", termQuery(PAUSE_FIELD, 2)) }
+                    ).subAggregation(terms("sub").field(PAUSE_FIELD))
                 )
         );
     }
@@ -130,27 +136,20 @@ public class FiltersCancellationIT extends ESIntegTestCase {
         // Check that there are search tasks running
         assertThat(getSearchTasks(), not(empty()));
 
-        // Wait to ensure scripts started executing and that we don't cancel too early
-        safeSleep(2000);
-
-        // CancellableBulkScorer does a starting batch of 4096 items, x2 after each iteration.
-        // That times SLEEP_SCRIPT_MS gives us the maximum time to wait (x2 to avoid flakiness)
-        long maxWaitMs = 3 * (4096 * SLEEP_SCRIPT_MS);
+        // Wait for the script field to get blocked
+        assertBusy(() -> { assertThat(SCRIPT_SEMAPHORE.getQueueLength(), greaterThan(0)); });
 
         // Cancel the tasks
-        client().admin()
-            .cluster()
-            .prepareCancelTasks()
-            .setActions(TransportSearchAction.NAME + "*")
-            .waitForCompletion(true)
-            .setTimeout(TimeValue.timeValueMillis(maxWaitMs))
-            .get();
+        // Warning: Adding a waitForCompletion(true)/execute() here sometimes causes tasks to not get canceled and threads to get stuck
+        client().admin().cluster().prepareCancelTasks().setActions(TransportSearchAction.NAME + "*").get();
+
+        SCRIPT_SEMAPHORE.release(SEMAPHORE_PERMITS);
 
         // Ensure the search request finished and that there are no more search tasks
         assertBusy(() -> {
-            assertThat(getSearchTasks(), empty());
             assertTrue(searchRequestFuture.isDone());
-        }, maxWaitMs, TimeUnit.MILLISECONDS);
+            assertThat(getSearchTasks(), empty());
+        });
     }
 
     private List<TaskInfo> getSearchTasks() {
@@ -163,7 +162,7 @@ public class FiltersCancellationIT extends ESIntegTestCase {
             .getTasks();
     }
 
-    public static class SleepScriptPlugin extends Plugin implements ScriptPlugin {
+    public static class PauseScriptPlugin extends Plugin implements ScriptPlugin {
         public static final String PAUSE_SCRIPT_LANG = "pause";
 
         @Override
@@ -195,7 +194,7 @@ public class FiltersCancellationIT extends ESIntegTestCase {
                                     @Override
                                     public void execute() {
                                         try {
-                                            Thread.sleep(SLEEP_SCRIPT_MS);
+                                            SCRIPT_SEMAPHORE.acquire();
                                         } catch (InterruptedException e) {
                                             throw new AssertionError(e);
                                         }

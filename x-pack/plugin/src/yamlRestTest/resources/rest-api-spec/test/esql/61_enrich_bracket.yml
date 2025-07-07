@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/130740"
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
@@ -69,6 +71,13 @@ setup:
           - { "name": "Mario", "city_id": "rom", "city_name": "Rome" }
           - { "index": { } }
           - { "name": "Denise", "city_id": "sgn", "city_name": "Tan Son Nhat" }
+
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: city_codes)policy
 
 ---
 "Enrich on keyword":

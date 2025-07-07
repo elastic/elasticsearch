@@ -84,6 +84,15 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+    private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
+    private static final String[] SUPPORTED_NAMES = new String[] {
+        "long",
+        "int",
+        "double",
+        "keyword",
+        "stored_keyword",
+        "3_stored_keywords" };
+
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
@@ -102,8 +111,8 @@ public class ValuesSourceReaderBenchmark {
             ValuesSourceReaderBenchmark benchmark = new ValuesSourceReaderBenchmark();
             benchmark.setupIndex();
             try {
-                for (String layout : ValuesSourceReaderBenchmark.class.getField("layout").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String name : ValuesSourceReaderBenchmark.class.getField("name").getAnnotationsByType(Param.class)[0].value()) {
+                for (String layout : ValuesSourceReaderBenchmark.SUPPORTED_LAYOUTS) {
+                    for (String name : ValuesSourceReaderBenchmark.SUPPORTED_NAMES) {
                         benchmark.layout = layout;
                         benchmark.name = name;
                         try {
@@ -117,7 +126,7 @@ public class ValuesSourceReaderBenchmark {
             } finally {
                 benchmark.teardownIndex();
             }
-        } catch (IOException | NoSuchFieldException e) {
+        } catch (IOException e) {
             throw new AssertionError(e);
         }
     }
@@ -319,10 +328,10 @@ public class ValuesSourceReaderBenchmark {
      *     each page has a single document rather than {@code BLOCK_SIZE} docs.</li>
      * </ul>
      */
-    @Param({ "in_order", "shuffled", "shuffled_singles" })
+    @Param({ "in_order", "shuffled" })
     public String layout;
 
-    @Param({ "long", "int", "double", "keyword", "stored_keyword", "3_stored_keywords" })
+    @Param({ "long", "keyword", "stored_keyword" })
     public String name;
 
     private Directory directory;

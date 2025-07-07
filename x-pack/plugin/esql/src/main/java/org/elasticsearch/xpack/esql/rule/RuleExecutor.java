@@ -138,6 +138,8 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
     }
 
+
+    @Deprecated(forRemoval = true)
     protected final TreeType execute(TreeType plan) {
         // TODO: remove when all implementinc classes are using the async version.
         PlainActionFuture<ExecutionInfo> executionInfoFuture = new PlainActionFuture<>();

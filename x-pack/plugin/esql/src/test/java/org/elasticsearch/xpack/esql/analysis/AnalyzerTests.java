@@ -2413,6 +2413,24 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(right.value(), equalTo(List.of(0.342, 0.164, 0.234)));;
     }
 
+    public void testNoDenseVectorFailsSimilarityFunction() {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_cosine([0, 1, 2], 0.342)");
+        }
+    }
+
+    private void checkNoDenseVectorFailsSimilarityFunction(String similarityFunction) {
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval similarity = %s", similarityFunction);
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "second argument of [" + similarityFunction + "] must be"
+                    + " [dense_vector], found value [0.342] type [double]"
+            )
+        );
+    }
+
     public void testRateRequiresCounterTypes() {
         assumeTrue("rate requires snapshot builds", Build.current().isSnapshot());
         Analyzer analyzer = analyzer(tsdbIndexResolution());

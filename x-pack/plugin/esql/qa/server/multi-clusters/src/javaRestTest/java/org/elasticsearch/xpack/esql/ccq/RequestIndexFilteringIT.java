@@ -159,7 +159,16 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     public void testIndicesDontExistWithRemoteLookupJoin() throws IOException {
         assumeTrue("Only works with remote LOOKUP JOIN support", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         // This check is for "local" cluster - which is different from test runner actually, so it could be old
-        assumeTrue("Only works with remote LOOKUP JOIN support", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.2.0")));
+        assumeTrue(
+            "Only works with remote LOOKUP JOIN support",
+            clusterHasCapability(
+                client(),
+                "POST",
+                "_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName())
+            ).orElse(false)
+        );
 
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");

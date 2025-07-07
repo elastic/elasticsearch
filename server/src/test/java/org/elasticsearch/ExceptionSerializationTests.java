@@ -148,7 +148,9 @@ public class ExceptionSerializationTests extends ESTestCase {
             CancellableThreadsTests.CustomException.class,
             RestResponseTests.WithHeadersException.class,
             AbstractClientHeadersTestCase.InternalException.class,
-            ElasticsearchExceptionTests.ExceptionSubclass.class
+            ElasticsearchExceptionTests.TimeoutSubclass.class,
+            ElasticsearchExceptionTests.Exception4xx.class,
+            ElasticsearchExceptionTests.Exception5xx.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();
@@ -217,7 +219,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         };
 
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final Path testStartPath = PathUtils.get(
+            ElasticsearchExceptionTests.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+        ).resolve("org").resolve("elasticsearch");
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));

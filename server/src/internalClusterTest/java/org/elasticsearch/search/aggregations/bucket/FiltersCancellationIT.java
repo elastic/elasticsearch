@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.SuiteScopeTestCase
-@ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class FiltersCancellationIT extends ESIntegTestCase {
 
     private static final String INDEX = "idx";

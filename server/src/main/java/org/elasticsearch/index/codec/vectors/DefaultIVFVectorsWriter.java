@@ -148,6 +148,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
     }
 
+    @Override
     CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
@@ -156,16 +157,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         // TODO: take advantage of prior generated clusters from mergeState in the future
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, false);
-    }
-
-    CentroidAssignments calculateAndWriteCentroids(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        IndexOutput centroidOutput,
-        float[] globalCentroid
-    ) throws IOException {
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, true);
+        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid);
     }
 
     /**
@@ -176,26 +168,22 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
      * @param floatVectorValues the float vector values to merge
      * @param centroidOutput the centroid output
      * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
-     * @param cacheCentroids whether the centroids are kept or discarded once computed
      * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
      * @throws IOException if an I/O error occurs
      */
+    @Override
     CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
-        float[] globalCentroid,
-        boolean cacheCentroids
-    ) throws IOException {
+        float[] globalCentroid
+    )       throws IOException {
 
         long nanoTime = System.nanoTime();
 
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
-        int[] assignments = kMeansResult.assignments();
-        int[] soarAssignments = kMeansResult.soarAssignments();
-
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation
         // TODO: push this logic into vector util?
@@ -215,7 +203,13 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
             logger.debug("final centroid count: {}", centroids.length);
         }
+        return buildCentroidAssignments(kMeansResult);
+    }
 
+    static CentroidAssignments buildCentroidAssignments(KMeansResult kMeansResult) {
+        float[][] centroids = kMeansResult.centroids();
+        int[] assignments = kMeansResult.assignments();
+        int[] soarAssignments = kMeansResult.soarAssignments();
         int[] centroidVectorCount = new int[centroids.length];
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
@@ -242,12 +236,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 }
             }
         }
-
-        if (cacheCentroids) {
-            return new CentroidAssignments(centroids, assignmentsByCluster);
-        } else {
-            return new CentroidAssignments(centroids.length, assignmentsByCluster);
-        }
+        return new CentroidAssignments(centroids, assignmentsByCluster);
     }
 
     static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)

@@ -264,17 +264,17 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[][] parentCentroids = result.centroids();
         int[] parentChildAssignments = result.assignments();
         // TODO: explore using soar assignments here as well
-        //int[] parentChildSoarAssignments = result.soarAssignments();
+        // int[] parentChildSoarAssignments = result.soarAssignments();
 
         AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, parentChildAssignments);
         sorter.sort(0, centroids.length);
 
-        for(int i = 0; i < parentChildAssignments.length; i++) {
+        for (int i = 0; i < parentChildAssignments.length; i++) {
             int label = parentChildAssignments[i];
             int centroidCount = 0;
             int j = i;
-            for(; j < parentChildAssignments.length; j++) {
-                if(parentChildAssignments[j] != label) {
+            for (; j < parentChildAssignments.length; j++) {
+                if (parentChildAssignments[j] != label) {
                     break;
                 }
                 centroidCount++;
@@ -295,7 +295,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         IntIntMap centroidOrdsToIdx = new IntIntHashMap(centroidOrds.length);
-        for(int i = 0; i < centroidOrds.length; i++) {
+        for (int i = 0; i < centroidOrds.length; i++) {
             centroidOrdsToIdx.put(centroidOrds[i], i);
         }
         int[][] assignmentsByCluster = mapAssignmentsByCluster(centroids.length, assignments, soarAssignments, centroidOrdsToIdx);

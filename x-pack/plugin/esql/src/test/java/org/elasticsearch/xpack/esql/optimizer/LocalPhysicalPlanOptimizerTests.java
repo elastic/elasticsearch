@@ -795,7 +795,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
-                logger.info("Query: " + query);
+                logger.info("Query: {}", query);
                 EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));

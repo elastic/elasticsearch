@@ -492,7 +492,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta
         ) {
-            super(name, true, store, tsi, isSyntheticSource, syntheticSourceDelegate, meta, false, false);
+            super(name, true, store, tsi, isSyntheticSource, syntheticSourceDelegate, meta, false, false, false);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {

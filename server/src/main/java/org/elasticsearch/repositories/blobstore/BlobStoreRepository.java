@@ -4174,8 +4174,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     TimeUnit.NANOSECONDS.toMillis(uploadTimeInNanos)
                 );
             }
-            Store.verify(indexInput);
             blobStoreSnapshotMetrics.incrementNumberOfBlobsUploaded();
+            Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());
         } catch (Exception t) {
             failStoreIfCorrupted(store, t);

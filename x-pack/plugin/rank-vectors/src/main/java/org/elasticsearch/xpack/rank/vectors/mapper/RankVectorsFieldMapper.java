@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -112,11 +113,18 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final XPackLicenseState licenseState;
+        private final boolean isSyntheticVector;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, XPackLicenseState licenseState) {
+        public Builder(String name, IndexVersion indexCreatedVersion, XPackLicenseState licenseState, boolean isSyntheticVector) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.licenseState = licenseState;
+            this.isSyntheticVector = isSyntheticVector;
+        }
+
+        public Builder dimensions(int dimensions) {
+            this.dims.setValue(dimensions);
+            return this;
         }
 
         @Override
@@ -133,6 +141,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
+            boolean isSyntheticVectorFinal = context.isSourceSynthetic() == false && isSyntheticVector;
             return new RankVectorsFieldMapper(
                 leafName(),
                 new RankVectorsFieldType(
@@ -144,7 +153,8 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 indexCreatedVersion,
-                licenseState
+                licenseState,
+                isSyntheticVectorFinal
             );
         }
     }
@@ -242,17 +252,20 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     private final IndexVersion indexCreatedVersion;
     private final XPackLicenseState licenseState;
+    private final boolean isSyntheticVector;
 
     private RankVectorsFieldMapper(
         String simpleName,
         MappedFieldType fieldType,
         BuilderParams params,
         IndexVersion indexCreatedVersion,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        boolean isSyntheticVector
     ) {
         super(simpleName, fieldType, params);
         this.indexCreatedVersion = indexCreatedVersion;
         this.licenseState = licenseState;
+        this.isSyntheticVector = isSyntheticVector;
     }
 
     @Override
@@ -299,14 +312,9 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     );
                 }
             }
-            RankVectorsFieldType updatedFieldType = new RankVectorsFieldType(
-                fieldType().name(),
-                fieldType().elementType,
-                currentDims,
-                licenseState,
-                fieldType().meta()
-            );
-            Mapper update = new RankVectorsFieldMapper(leafName(), updatedFieldType, builderParams, indexCreatedVersion, licenseState);
+            var builder = (Builder) getMergeBuilder();
+            builder.dimensions(currentDims);
+            Mapper update = builder.build(context.createDynamicMapperBuilderContext());
             context.addDynamicMapper(update);
             return;
         }
@@ -388,12 +396,17 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, licenseState).init(this);
+        return new Builder(leafName(), indexCreatedVersion, licenseState, isSyntheticVector).init(this);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(DocValuesSyntheticFieldLoader::new);
+    }
+
+    @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        return isSyntheticVector ? new SyntheticRankVectorPatchLoader(new DocValuesSyntheticFieldLoader()) : null;
     }
 
     private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
@@ -407,8 +420,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 return null;
             }
             return docId -> {
-                hasValue = docId == values.advance(docId);
-                return hasValue;
+                if (values.docID() > docId) {
+                    return hasValue = false;
+                }
+                return hasValue = values.docID() == docId || values.advance(docId) == docId;
             };
         }
 
@@ -440,9 +455,65 @@ public class RankVectorsFieldMapper extends FieldMapper {
             b.endArray();
         }
 
+        private Object copyVectorsAsList() throws IOException {
+            assert hasValue : "rank vector is null";
+            BytesRef ref = values.binaryValue();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
+            assert ref.length % fieldType().elementType.getNumBytes(fieldType().dims) == 0;
+            int numVecs = ref.length / fieldType().elementType.getNumBytes(fieldType().dims);
+            List<List<?>> vectors = new ArrayList<>(numVecs);
+            for (int i = 0; i < numVecs; i++) {
+                int dims = fieldType().elementType == DenseVectorFieldMapper.ElementType.BIT
+                    ? fieldType().dims / Byte.SIZE
+                    : fieldType().dims;
+
+                switch (fieldType().elementType) {
+                    case FLOAT -> {
+                        List<Float> vec = new ArrayList<>(dims);
+                        for (int dim = 0; dim < dims; dim++) {
+                            vec.add(byteBuffer.getFloat());
+                        }
+                        vectors.add(vec);
+                    }
+                    case BYTE, BIT -> {
+                        List<Byte> vec = new ArrayList<>(dims);
+                        for (int dim = 0; dim < dims; dim++) {
+                            vec.add(byteBuffer.get());
+                        }
+                        vectors.add(vec);
+                    }
+                }
+            }
+            return vectors;
+        }
+
         @Override
         public String fieldName() {
             return fullPath();
+        }
+    }
+
+    private class SyntheticRankVectorPatchLoader implements SourceLoader.SyntheticVectorsLoader {
+        private final DocValuesSyntheticFieldLoader syntheticFieldLoader;
+
+        private SyntheticRankVectorPatchLoader(DocValuesSyntheticFieldLoader syntheticFieldLoader) {
+            this.syntheticFieldLoader = syntheticFieldLoader;
+        }
+
+        @Override
+        public SourceLoader.SyntheticVectorsLoader.Leaf leaf(LeafReaderContext context) throws IOException {
+            var dvLoader = syntheticFieldLoader.docValuesLoader(context.reader(), null);
+            return (doc, acc) -> {
+                if (dvLoader == null) {
+                    return;
+                }
+                if (dvLoader.advanceToDoc(doc) && syntheticFieldLoader.hasValue()) {
+                    // add vectors as list since that's how they're parsed from xcontent.
+                    acc.add(
+                        new SourceLoader.LeafSyntheticVectorPath(syntheticFieldLoader.fieldName(), syntheticFieldLoader.copyVectorsAsList())
+                    );
+                }
+            };
         }
     }
 }

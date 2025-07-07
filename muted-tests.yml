@@ -492,11 +492,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/119871
-- class: geoip.GeoIpMultiProjectIT
-  issue: https://github.com/elastic/elasticsearch/issues/130073
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testTopN
-  issue: https://github.com/elastic/elasticsearch/issues/130122
 - class: org.elasticsearch.action.support.ThreadedActionListenerTests
   method: testRejectionHandling
   issue: https://github.com/elastic/elasticsearch/issues/130129
@@ -518,12 +513,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
   method: testSuccessfulExecution
   issue: https://github.com/elastic/elasticsearch/issues/130306
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=cluster.stats/10_basic/Dense vector stats}
-  issue: https://github.com/elastic/elasticsearch/issues/130307
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=nodes.stats/11_indices_metrics/Lucene segment level fields stats}
-  issue: https://github.com/elastic/elasticsearch/issues/130360
 - class: org.elasticsearch.ingest.PipelineFactoryTests
   method: testCreateUnsupportedFieldAccessPattern
   issue: https://github.com/elastic/elasticsearch/issues/130422
@@ -536,9 +525,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/130505
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
-  issue: https://github.com/elastic/elasticsearch/issues/130568
 - class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
   method: testExporterWithHostOnly
   issue: https://github.com/elastic/elasticsearch/issues/130599
@@ -569,21 +555,24 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_half_byte_quantized/Test create, merge, and search cosine}
   issue: https://github.com/elastic/elasticsearch/issues/130663
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/70_dense_vector_telemetry/Field mapping stats}
-  issue: https://github.com/elastic/elasticsearch/issues/130672
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
 - class: org.elasticsearch.search.sort.FieldSortIT
   method: testSortMixedFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/129445
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=dlm/10_usage/Test data stream lifecycle usage stats}
-  issue: https://github.com/elastic/elasticsearch/issues/130677
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on mapped ip field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/130730
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/130067
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/130067
 
 # Examples:
 #

@@ -139,19 +139,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             logger
         );
         try (SearchContext ctx = new TestSearchContext((SearchExecutionContext) null)) {
-            compositeListener.onDfsPhase(ctx, timeInNanos.get());
-            assertEquals(0, preFetch.get());
-            assertEquals(0, preQuery.get());
-            assertEquals(0, failedFetch.get());
-            assertEquals(0, failedQuery.get());
-            assertEquals(0, onQuery.get());
-            assertEquals(0, onFetch.get());
-            assertEquals(0, newContext.get());
-            assertEquals(0, newScrollContext.get());
-            assertEquals(0, freeContext.get());
-            assertEquals(0, freeScrollContext.get());
-            assertEquals(0, validateSearchContext.get());
-
             compositeListener.onQueryPhase(ctx, timeInNanos.get());
             assertEquals(0, preFetch.get());
             assertEquals(0, preQuery.get());
@@ -166,19 +153,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, validateSearchContext.get());
 
             compositeListener.onFetchPhase(ctx, timeInNanos.get());
-            assertEquals(0, preFetch.get());
-            assertEquals(0, preQuery.get());
-            assertEquals(0, failedFetch.get());
-            assertEquals(0, failedQuery.get());
-            assertEquals(2, onQuery.get());
-            assertEquals(2, onFetch.get());
-            assertEquals(0, newContext.get());
-            assertEquals(0, newScrollContext.get());
-            assertEquals(0, freeContext.get());
-            assertEquals(0, freeScrollContext.get());
-            assertEquals(0, validateSearchContext.get());
-
-            compositeListener.onPreDfsPhase(ctx);
             assertEquals(0, preFetch.get());
             assertEquals(0, preQuery.get());
             assertEquals(0, failedFetch.get());
@@ -206,19 +180,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, validateSearchContext.get());
 
             compositeListener.onPreFetchPhase(ctx);
-            assertEquals(2, preFetch.get());
-            assertEquals(2, preQuery.get());
-            assertEquals(0, failedFetch.get());
-            assertEquals(0, failedQuery.get());
-            assertEquals(2, onQuery.get());
-            assertEquals(2, onFetch.get());
-            assertEquals(0, newContext.get());
-            assertEquals(0, newScrollContext.get());
-            assertEquals(0, freeContext.get());
-            assertEquals(0, freeScrollContext.get());
-            assertEquals(0, validateSearchContext.get());
-
-            compositeListener.onFailedDfsPhase(ctx);
             assertEquals(2, preFetch.get());
             assertEquals(2, preQuery.get());
             assertEquals(0, failedFetch.get());

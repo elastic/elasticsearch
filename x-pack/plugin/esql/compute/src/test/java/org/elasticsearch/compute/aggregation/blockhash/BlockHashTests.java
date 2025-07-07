@@ -1235,10 +1235,14 @@ public class BlockHashTests extends BlockHashTestCase {
         }, blockFactory.newLongArrayVector(values, values.length).asBlock(), blockFactory.newConstantNullBlock(values.length));
     }
 
-    public void test2BytesRefsKeys() {
+    public void test2BytesRefsHighCardinalityKey() {
         final Page page;
-        final int positions1 = 100_000;
-        final int positions2 = 10;
+        int positions1 = 10;
+        int positions2 = 100_000;
+        if (randomBoolean()) {
+            positions1 = 100_000;
+            positions2 = 10;
+        }
         final int totalPositions = positions1 * positions2;
         try (
             BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(totalPositions);

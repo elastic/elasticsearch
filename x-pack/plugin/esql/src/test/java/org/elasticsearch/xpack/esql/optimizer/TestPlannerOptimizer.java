@@ -23,6 +23,8 @@ public class TestPlannerOptimizer {
     private final Analyzer analyzer;
     private final LogicalPlanOptimizer logicalOptimizer;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
+    private final LocalPhysicalPlanOptimizer localPhysicalPlanOptimizer;
+
     private final Mapper mapper;
     private final Configuration config;
 
@@ -38,6 +40,9 @@ public class TestPlannerOptimizer {
         parser = new EsqlParser();
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         mapper = new Mapper();
+        localPhysicalPlanOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(config, FoldContext.small(), SearchStats.EMPTY)
+        );
 
     }
 
@@ -83,5 +88,13 @@ public class TestPlannerOptimizer {
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         return physical;
+    }
+
+    public PhysicalPlan localPhysicalOptimize(PhysicalPlan plan) {
+        return localPhysicalPlanOptimizer.localOptimize(plan);
+    }
+
+    public PhysicalPlan localPhysicalVerify(PhysicalPlan plan) {
+        return localPhysicalPlanOptimizer.verify(plan);
     }
 }

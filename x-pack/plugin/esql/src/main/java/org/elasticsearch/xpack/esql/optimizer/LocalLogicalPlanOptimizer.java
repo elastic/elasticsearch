@@ -88,7 +88,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         LogicalPlan optimized = execute(plan);
         Failures failures = verifier.verify(optimized);
         if (failures.hasFailures()) {
-            throw new VerificationException("Plan after optimize not valid: " + failures + " for plan: " + plan.nodeString());
+            throw new VerificationException(failures);
         }
         return optimized;
     }

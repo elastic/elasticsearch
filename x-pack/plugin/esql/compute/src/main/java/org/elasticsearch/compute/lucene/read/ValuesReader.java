@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 public abstract class ValuesReader implements ReleasableIterator<Block[]> {
-    final ValuesSourceReaderOperator operator;
+    protected final ValuesSourceReaderOperator operator;
     protected final DocVector docs;
     private int offset;
 

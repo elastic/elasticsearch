@@ -175,8 +175,6 @@ class ValuesFromSingleReader extends ValuesReader {
         return range * storedFieldsSequentialProportion <= count;
     }
 
-    private record ColumnAtATimeReaderWork(BlockLoader.ColumnAtATimeReader reader, int offset) {}
-
     private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int offset)
         implements
             Releasable {

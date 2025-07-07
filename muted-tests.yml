@@ -470,9 +470,6 @@ tests:
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
   issue: https://github.com/elastic/elasticsearch/issues/129481
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/129533
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader
   issue: https://github.com/elastic/elasticsearch/issues/98560

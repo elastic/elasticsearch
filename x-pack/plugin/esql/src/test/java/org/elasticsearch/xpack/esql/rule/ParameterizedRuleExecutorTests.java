@@ -21,7 +21,7 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
     static class TestParameterizedRuleExecutor extends ParameterizedRuleExecutor<TestNode, String> {
         public List<RuleExecutor.Batch<TestNode>> batches = new ArrayList<>();
 
-        public TestParameterizedRuleExecutor(String context) {
+        TestParameterizedRuleExecutor(String context) {
             super(context);
         }
 
@@ -34,7 +34,7 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
     static class TestContextParameterizedRuleExecutor extends ParameterizedRuleExecutor<TestNode, TestContext> {
         public List<RuleExecutor.Batch<TestNode>> batches = new ArrayList<>();
 
-        public TestContextParameterizedRuleExecutor(TestContext context) {
+        TestContextParameterizedRuleExecutor(TestContext context) {
             super(context);
         }
 

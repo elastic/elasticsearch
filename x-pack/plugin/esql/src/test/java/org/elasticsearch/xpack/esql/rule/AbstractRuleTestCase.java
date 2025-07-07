@@ -75,7 +75,7 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (!(obj instanceof TestNode)) return false;
+            if ((obj instanceof TestNode) == false) return false;
             TestNode other = (TestNode) obj;
             return value.equals(other.value) && children.equals(other.children);
         }

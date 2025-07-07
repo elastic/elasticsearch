@@ -308,8 +308,7 @@ PUT my-index-000001
 }
 ```
 
-::::{admonition} Disabling the `_source` field
-:class: warning
+::::{warning}
 
 Do not disable the `_source` field, unless absolutely necessary. If you disable it, the following critical features will not be supported:
 
@@ -319,7 +318,6 @@ Do not disable the `_source` field, unless absolutely necessary. If you disable 
 * The ability to reindex from one Elasticsearch index to another, either to change mappings or analysis, or to upgrade an index to a new major version.
 * The ability to debug queries or aggregations by viewing the original document used at index time.
 * Potentially in the future, the ability to repair index corruption automatically.
-
 
 ::::
 

@@ -1969,7 +1969,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
     }
 
-    public void testDropWildcardedFields_AfterRename() {
+    public void testDropWildcardFieldsAfterRename() {
         assertFieldNames(
             """
                 from employees
@@ -1982,7 +1982,30 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testDropWildcardFields_WithLookupJoin() {
+    public void testDropWildcardFieldsAfterLookupJoins() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames("""
+            FROM sample_data
+            | EVAL client_ip = client_ip::keyword
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | LOOKUP JOIN message_types_lookup ON message
+            | SORT @timestamp
+            | DROP *e""", Set.of("*"), Set.of());
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoins2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames("""
+            FROM sample_data
+            | EVAL client_ip = client_ip::keyword
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | DROP *e, client_ip
+            | LOOKUP JOIN message_types_lookup ON message
+            | SORT @timestamp
+            | DROP *e""", Set.of("*"), Set.of());
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoinsAndKeep() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
@@ -1995,6 +2018,55 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | DROP *e""",
             Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
             Set.of()
+        );
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoinKeepLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("message_types_lookup")
+        );
+    }
+
+    public void testDropWildcardFieldsAfterKeepAndLookupJoins() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("clientips_lookup", "message_types_lookup")
+        );
+    }
+
+    public void testDropWildcardFieldsAfterKeepAndLookupJoins2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | DROP *e
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e, client_ip""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("clientips_lookup", "message_types_lookup")
         );
     }
 

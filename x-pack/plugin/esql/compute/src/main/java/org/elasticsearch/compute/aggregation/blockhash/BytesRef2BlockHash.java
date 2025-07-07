@@ -145,7 +145,7 @@ final class BytesRef2BlockHash extends BlockHash {
         try {
             try (BytesRefBlock.Builder b1 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k1 = (int) (finalHash.get(i) & 0xffffL);
+                    int k1 = (int) (finalHash.get(i) & 0xffffffffL);
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {

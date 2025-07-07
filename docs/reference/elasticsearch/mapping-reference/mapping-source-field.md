@@ -308,7 +308,7 @@ PUT my-index-000001
 }
 ```
 
-::::{admonition} Think before you disable the _source field!
+::::{admonition} Disabling the `_source` field
 :class: warning
 
 Do not disable the `_source` field, unless absolutely necessary. If you disable it, the following critical features will not be supported:

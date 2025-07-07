@@ -7,7 +7,7 @@ mapped_pages:
 
 Authentication plugins extend the functionality provided by the built-in [authentication realms](https://www.elastic.co/docs/deploy-manage/users-roles/cluster-or-deployment-auth/authentication-realms)
 
-# Core authentication plugins
+## Core authentication plugins
 
 [Microsoft Graph Authz](/reference/elasticsearch-plugins/ms-graph-authz.md)
 :   The Microsoft Graph Authz plugin uses [Microsoft Graph](https://learn.microsoft.com/en-us/graph/api/user-list-memberof) to look up group membership information from Microsoft Entra ID

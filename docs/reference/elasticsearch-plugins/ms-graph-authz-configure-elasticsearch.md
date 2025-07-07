@@ -20,16 +20,16 @@ Once the plugin is installed, the following configuration settings are available
 :   The client secret value for the Application you registered in the previous section. This is a sensitive setting, and must be configured in the Elasticsearch keystore. This setting is required.
 
 `xpack.security.authc.realms.microsoft_graph.*.access_token_host`
-:   A Microsoft login URL. This is optional, and defaults to `https://login.microsoftonline.com`.
+:   A Microsoft login URL. Defaults to `https://login.microsoftonline.com`.
 
 `xpack.security.authc.realms.microsoft_graph.*.graph_host`
-:   The Microsoft Graph base address. This is optional, and defaults to `https://graph.microsoft.com/v1.0`.
+:   The Microsoft Graph base address. Defaults to `https://graph.microsoft.com/v1.0`.
 
 `xpack.security.authc.realms.microsoft_graph.*.http_request_timeout`
-:   The timeout for individual Graph HTTP requests. This setting is optional, and defaults to `10s`.
+:   The timeout for individual Graph HTTP requests. Defaults to `10s`.
 
 `xpack.security.authc.realms.microsoft_graph.*.execution_timeout`
-:   The overall timeout for authorization requests to this plugin. This setting is optional, and defaults to `30s`.
+:   The overall timeout for authorization requests to this plugin. Defaults to `30s`.
 
 Create a Microsoft Graph realm, following the above settings, then configure an existing realm to delegate to it using `authorization_realms`.
 

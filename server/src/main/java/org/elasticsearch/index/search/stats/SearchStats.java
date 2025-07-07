@@ -437,11 +437,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SEARCH = "search";
         static final String OPEN_CONTEXTS = "open_contexts";
         static final String GROUPS = "groups";
-        static final String DFS_TOTAL = "dfs_total";
-        static final String DFS_TIME = "dfs_time";
-        static final String DFS_TIME_IN_MILLIS = "dfs_time_in_millis";
-        static final String DFS_CURRENT = "dfs_current";
-        static final String DFS_FAILURE = "dfs_failure";
         static final String QUERY_TOTAL = "query_total";
         static final String QUERY_TIME = "query_time";
         static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";

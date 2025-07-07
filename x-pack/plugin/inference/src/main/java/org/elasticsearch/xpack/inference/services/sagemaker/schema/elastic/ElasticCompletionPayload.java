@@ -102,7 +102,11 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
                 );
             return new StreamingUnifiedChatCompletionResults.Results(results);
         } catch (Exception e) {
-            throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), responseData, e);
+            throw new OpenAiUnifiedChatCompletionResponseHandler(null, null).buildMidStreamChatCompletionError(
+                model.getInferenceEntityId(),
+                responseData,
+                e
+            );
         }
     }
 

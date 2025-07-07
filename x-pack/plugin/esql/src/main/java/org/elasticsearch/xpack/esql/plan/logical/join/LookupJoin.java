@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -105,14 +107,14 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     }
 
     private void checkRemoteJoin(Failures failures) {
-        Set<String> fails = new HashSet<>();
+        List<Source> fails = new LinkedList<>();
 
         this.forEachUp(UnaryPlan.class, u -> {
             if (u instanceof PipelineBreaker) {
-                fails.add(u.nodeName());
+                fails.add(u.source());
             }
             if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                fails.add("ENRICH with coordinator policy");
+                fails.add(u.source());
             }
         });
 

@@ -210,9 +210,6 @@ tests:
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/124315
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
-  issue: https://github.com/elastic/elasticsearch/issues/124518
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/150_tsdb/created the data stream}
   issue: https://github.com/elastic/elasticsearch/issues/124575
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT

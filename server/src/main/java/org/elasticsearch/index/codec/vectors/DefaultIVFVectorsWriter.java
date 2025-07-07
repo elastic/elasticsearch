@@ -177,7 +177,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
         float[] globalCentroid
-    )       throws IOException {
+    ) throws IOException {
 
         long nanoTime = System.nanoTime();
 

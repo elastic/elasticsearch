@@ -539,18 +539,12 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=indices.resolve_index/10_basic_resolve_index/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/130568
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
   method: testExporterWithHostOnly
   issue: https://github.com/elastic/elasticsearch/issues/130599
 - class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
   method: testCreateRestClient
   issue: https://github.com/elastic/elasticsearch/issues/130600
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/40_knn_search/Dimensions are dynamically set}
   issue: https://github.com/elastic/elasticsearch/issues/130626

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -35,19 +36,21 @@ record CmdLineArgs(
     KnnIndexTester.IndexType indexType,
     int numCandidates,
     int k,
-    int nProbe,
+    int[] nProbes,
     int ivfClusterSize,
     int overSamplingFactor,
     int hnswM,
     int hnswEfConstruction,
     int searchThreads,
+    int numSearchers,
     int indexThreads,
     boolean reindex,
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
     VectorEncoding vectorEncoding,
-    int dimensions
+    int dimensions,
+    boolean earlyTermination
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -62,6 +65,7 @@ record CmdLineArgs(
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
     static final ParseField HNSW_EF_CONSTRUCTION_FIELD = new ParseField("hnsw_ef_construction");
+    static final ParseField NUM_SEARCHERS_FIELD = new ParseField("num_searchers");
     static final ParseField SEARCH_THREADS_FIELD = new ParseField("search_threads");
     static final ParseField INDEX_THREADS_FIELD = new ParseField("index_threads");
     static final ParseField REINDEX_FIELD = new ParseField("reindex");
@@ -70,6 +74,7 @@ record CmdLineArgs(
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
+    static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -86,12 +91,13 @@ record CmdLineArgs(
         PARSER.declareString(Builder::setIndexType, INDEX_TYPE_FIELD);
         PARSER.declareInt(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
         PARSER.declareInt(Builder::setK, K_FIELD);
-        PARSER.declareInt(Builder::setNProbe, N_PROBE_FIELD);
+        PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
         PARSER.declareInt(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
         PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
+        PARSER.declareInt(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
         PARSER.declareInt(Builder::setIndexThreads, INDEX_THREADS_FIELD);
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
@@ -99,6 +105,7 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
+        PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
     }
 
     @Override
@@ -115,12 +122,13 @@ record CmdLineArgs(
         builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
         builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
         builder.field(K_FIELD.getPreferredName(), k);
-        builder.field(N_PROBE_FIELD.getPreferredName(), nProbe);
+        builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
         builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
         builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
         builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
         builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
         builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+        builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
         builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
         builder.field(REINDEX_FIELD.getPreferredName(), reindex);
         builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
@@ -144,12 +152,13 @@ record CmdLineArgs(
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private int numCandidates = 1000;
         private int k = 10;
-        private int nProbe = 10;
+        private int[] nProbes = new int[] { 10 };
         private int ivfClusterSize = 1000;
         private int overSamplingFactor = 1;
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
         private int searchThreads = 1;
+        private int numSearchers = 1;
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
@@ -157,6 +166,7 @@ record CmdLineArgs(
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
         private int dimensions;
+        private boolean earlyTermination;
 
         public Builder setDocVectors(String docVectors) {
             this.docVectors = PathUtils.get(docVectors);
@@ -193,8 +203,8 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setNProbe(int nProbe) {
-            this.nProbe = nProbe;
+        public Builder setNProbe(List<Integer> nProbes) {
+            this.nProbes = nProbes.stream().mapToInt(Integer::intValue).toArray();
             return this;
         }
 
@@ -220,6 +230,11 @@ record CmdLineArgs(
 
         public Builder setSearchThreads(int searchThreads) {
             this.searchThreads = searchThreads;
+            return this;
+        }
+
+        public Builder setNumSearchers(int numSearchers) {
+            this.numSearchers = numSearchers;
             return this;
         }
 
@@ -258,6 +273,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setEarlyTermination(Boolean patience) {
+            this.earlyTermination = patience;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -275,19 +295,21 @@ record CmdLineArgs(
                 indexType,
                 numCandidates,
                 k,
-                nProbe,
+                nProbes,
                 ivfClusterSize,
                 overSamplingFactor,
                 hnswM,
                 hnswEfConstruction,
                 searchThreads,
+                numSearchers,
                 indexThreads,
                 reindex,
                 forceMerge,
                 vectorSpace,
                 quantizeBits,
                 vectorEncoding,
-                dimensions
+                dimensions,
+                earlyTermination
             );
         }
     }

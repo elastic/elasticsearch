@@ -11,6 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,5 +99,21 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
             : (randomBoolean()
                 ? new WildcardLikeList(source, expression, wildcardPatternList)
                 : new WildcardLikeList(source, expression, wildcardPatternList, false));
+    }
+
+    public void testNotPushableOverCanMatch() {
+        TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
+        assertThat(
+            translatable.translatable(LucenePushdownPredicates.forCanMatch(TransportVersion.current())).finish(),
+            equalTo(TranslationAware.FinishedTranslatable.NO)
+        );
+    }
+
+    public void testPushable() {
+        TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
+        assertThat(
+            translatable.translatable(LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats())).finish(),
+            equalTo(TranslationAware.FinishedTranslatable.YES)
+        );
     }
 }

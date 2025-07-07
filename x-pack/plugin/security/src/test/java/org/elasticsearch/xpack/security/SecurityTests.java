@@ -1235,9 +1235,9 @@ public class SecurityTests extends ESTestCase {
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), hasSize(expectedValues.length));
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), hasSize(expectedValues.length));
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
     }
 
     private String randomCacheHashSetting() {

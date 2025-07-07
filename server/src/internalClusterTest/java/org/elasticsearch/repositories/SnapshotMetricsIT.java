@@ -12,14 +12,20 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,17 +33,21 @@ import org.hamcrest.Matcher;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
@@ -170,6 +180,65 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // assert we throttled on restore
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
+
+        // assert appropriate attributes are present
+        final Map<String, Object> expectedAttrs = Map.of(
+            "project_id",
+            ProjectId.DEFAULT.id(),
+            "repo_name",
+            repositoryName,
+            "repo_type",
+            "mock"
+        );
+        final Map<String, Object> expectedAttrsWithShardStage = Maps.copyMapWithAddedEntry(
+            expectedAttrs,
+            "stage",
+            IndexShardSnapshotStatus.Stage.DONE.name()
+        );
+        final Map<String, Object> expectedAttrsWithSnapshotState = Maps.copyMapWithAddedEntry(
+            expectedAttrs,
+            "state",
+            SnapshotState.SUCCESS.name()
+        );
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOTS_STARTED, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_IN_PROGRESS, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOTS_COMPLETED, expectedAttrsWithSnapshotState);
+        assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_DURATION, expectedAttrsWithSnapshotState);
+
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_STARTED, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
+        assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
+
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
+    }
+
+    private static void assertMetricsHaveAttributes(
+        InstrumentType instrumentType,
+        String metricName,
+        Map<String, Object> expectedAttributes
+    ) {
+        final List<Measurement> clusterMeasurements = getClusterMeasurements(instrumentType, metricName);
+        assertThat(clusterMeasurements, not(empty()));
+        clusterMeasurements.forEach(recordingMetric -> {
+            for (Map.Entry<String, Object> entry : expectedAttributes.entrySet()) {
+                assertThat(recordingMetric.attributes(), hasEntry(entry.getKey(), entry.getValue()));
+            }
+        });
+    }
+
+    private static List<Measurement> getClusterMeasurements(InstrumentType instrumentType, String metricName) {
+        return allTestTelemetryPlugins().flatMap(
+            testTelemetryPlugin -> ((RecordingMeterRegistry) testTelemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry())
+                .getRecorder()
+                .getMeasurements(instrumentType, metricName)
+                .stream()
+        ).toList();
     }
 
     private static void assertDoubleHistogramMetrics(String metricName, Matcher<? super List<Double>> matcher) {

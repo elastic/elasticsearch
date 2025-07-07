@@ -1654,13 +1654,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
                                 completeListenersIgnoringException(actionListeners, snapshotInfo);
-                                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
-                                    snapshot.getProjectId(),
-                                    repo.getMetadata()
+                                final Map<String, Object> attributesWithState = Maps.copyMapWithAddedEntry(
+                                    SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repo.getMetadata()),
+                                    "state",
+                                    snapshotInfo.state().name()
                                 );
-                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
+                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithState);
                                 snapshotMetrics.snapshotsDurationHistogram()
-                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributes);
+                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributesWithState);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
 

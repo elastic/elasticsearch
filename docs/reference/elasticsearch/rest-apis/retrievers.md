@@ -1045,7 +1045,7 @@ The multi-field query format groups queried fields into two categories:
 - **Semantic fields**: [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 Each field group is queried separately and the scores/ranks are normalized such that each contributes 50% to the final score/rank.
-This is done to balance the importance of lexical and semantic fields.
+This balances the importance of lexical and semantic fields.
 Most indices contain more lexical than semantic fields, and without this grouping the results would often bias towards lexical field matches.
 
 ::::{warning}

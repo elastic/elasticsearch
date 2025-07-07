@@ -146,7 +146,11 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
         try (var response = run(syncEsqlQueryRequest().query("FROM *-index-1"))) {
             assertOk(response);
-            assertResultCount(response, 10); // only non hidden index matches
+            assertResultCount(response, 10); // only non-hidden index matches when specifying pattern
+        }
+        try (var response = run(syncEsqlQueryRequest().query("FROM .hidden-*"))) {
+            assertOk(response);
+            assertResultCount(response, 15); // hidden indices do match when specifying hidden/dot pattern
         }
     }
 
@@ -171,9 +175,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     private static void assertResultCount(EsqlQueryResponse response, long rows) {
         long count = 0;
-        var iterator = response.column(0);
-        while (iterator.hasNext()) {
-            iterator.next();
+        for (var iterator = response.column(0); iterator.hasNext(); iterator.next()) {
             count++;
         }
         assertThat(count, equalTo(rows));

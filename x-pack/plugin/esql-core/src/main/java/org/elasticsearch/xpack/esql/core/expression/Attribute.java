@@ -134,4 +134,16 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
+
+    public static boolean semanticEquals(List<Attribute> left, List<Attribute> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).semanticEquals(right.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

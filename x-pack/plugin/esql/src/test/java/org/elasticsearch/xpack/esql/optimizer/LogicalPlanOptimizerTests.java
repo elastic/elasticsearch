@@ -5554,7 +5554,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             List<Attribute> initialGeneratedExprs = ((GeneratingPlan) initialPlan).generatedAttributes();
             LogicalPlan optimizedPlan = testCase.rule.apply(initialPlan);
 
-            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan, false);
+            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan, false, initialPlan);
             assertFalse(inconsistencies.hasFailures());
 
             Project project = as(optimizedPlan, Project.class);
@@ -5605,7 +5605,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             List<Attribute> initialGeneratedExprs = ((GeneratingPlan) initialPlan).generatedAttributes();
             LogicalPlan optimizedPlan = testCase.rule.apply(initialPlan);
 
-            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan, false);
+            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan, false, initialPlan);
             assertFalse(inconsistencies.hasFailures());
 
             Project project = as(optimizedPlan, Project.class);
@@ -5661,7 +5661,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
             // This ensures that our generating plan doesn't use invalid references, resp. that any rename from the Project has
             // been propagated into the generating plan.
-            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan, false);
+            Failures inconsistencies = LogicalVerifier.INSTANCE.verify(optimizedPlan, false, initialPlan);
             assertFalse(inconsistencies.hasFailures());
 
             Project project = as(optimizedPlan, Project.class);

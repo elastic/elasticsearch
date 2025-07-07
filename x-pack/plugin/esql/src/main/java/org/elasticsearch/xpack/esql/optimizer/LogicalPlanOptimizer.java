@@ -112,7 +112,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, false);
+        Failures failures = verifier.verify(optimized, false, verified);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

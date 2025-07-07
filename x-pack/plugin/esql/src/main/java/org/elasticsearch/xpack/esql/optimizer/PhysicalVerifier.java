@@ -27,19 +27,19 @@ public final class PhysicalVerifier {
     private PhysicalVerifier() {}
 
     /** Verifies the physical plan. */
-    public Failures verify(PhysicalPlan plan, boolean skipRemoteEnrichVerification) {
+    public Failures verify(PhysicalPlan planAfter, boolean skipRemoteEnrichVerification, PhysicalPlan planBefore) {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
 
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-            var enriches = plan.collectFirstChildren(EnrichExec.class::isInstance);
+            var enriches = planAfter.collectFirstChildren(EnrichExec.class::isInstance);
             if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
                 return failures;
             }
         }
 
-        plan.forEachDown(p -> {
+        planAfter.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {
@@ -66,6 +66,12 @@ public final class PhysicalVerifier {
                 });
             }
         });
+
+        if (planBefore.output().equals(planAfter.output()) == false) {
+            failures.add(
+                fail(planAfter, "Layout has changed from [{}] to [{}]. ", planBefore.output().toString(), planAfter.output().toString())
+            );
+        }
 
         if (depFailures.hasFailures()) {
             throw new IllegalStateException(depFailures.toString());

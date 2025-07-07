@@ -157,23 +157,21 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     public void testIndicesDontExistWithRemoteLookupJoin() throws IOException {
-        assumeTrue("Only works with remote LOOKUP JOIN support", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.2.0")));
+        assumeTrue("Only works with remote LOOKUP JOIN support", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
 
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
-        if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled()) {
-            var pattern = "FROM test1,*:test1";
-            ResponseException e = expectThrows(
-                ResponseException.class,
-                () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
-            );
-            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-            assertThat(
-                e.getMessage(),
-                allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
-            );
-        }
+        var pattern = "FROM test1,*:test1";
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
+        );
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(
+            e.getMessage(),
+            allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
+        );
     }
 
     // We need a separate test since remote missing indices and local missing indices now work differently

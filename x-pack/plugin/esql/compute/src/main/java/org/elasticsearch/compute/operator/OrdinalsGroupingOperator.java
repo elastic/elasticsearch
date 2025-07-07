@@ -13,7 +13,13 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
@@ -36,7 +42,9 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -100,6 +108,23 @@ public class OrdinalsGroupingOperator implements Operator {
 
     private boolean finished = false;
 
+    /**
+     * Nanoseconds this operator has spent processing the rows.
+     */
+    private long processNanos;
+    /**
+     * Count of pages this operator has processed.
+     */
+    private int pagesProcessed;
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
+
     // used to extract and aggregate values
     private final int maxPageSize;
     private ValuesAggregator valuesAggregator;
@@ -135,6 +160,7 @@ public class OrdinalsGroupingOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
+        long start = System.nanoTime();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         final int shardIndex = docVector.shards().getInt(0);
         RefCounted shardRefCounter = docVector.shardRefCounted().get(shardIndex);
@@ -184,6 +210,9 @@ public class OrdinalsGroupingOperator implements Operator {
             if (pagePassed == false) {
                 Releasables.closeExpectNoException(page::releaseBlocks);
             }
+            pagesProcessed++;
+            rowsReceived += page.getPositionCount();
+            processNanos += System.nanoTime() - start;
         }
     }
 
@@ -208,25 +237,28 @@ public class OrdinalsGroupingOperator implements Operator {
         if (finished == false) {
             return null;
         }
+        Page page = null;
         if (valuesAggregator != null) {
             try {
-                return valuesAggregator.getOutput();
+                page = valuesAggregator.getOutput();
             } finally {
                 final ValuesAggregator aggregator = this.valuesAggregator;
                 this.valuesAggregator = null;
                 Releasables.close(aggregator);
             }
-        }
-        if (ordinalAggregators.isEmpty() == false) {
+        } else if (ordinalAggregators.isEmpty() == false) {
             try {
-                return mergeOrdinalsSegmentResults();
+                page = mergeOrdinalsSegmentResults();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
                 Releasables.close(() -> Releasables.close(ordinalAggregators.values()), ordinalAggregators::clear);
             }
         }
-        return null;
+        if (page != null) {
+            rowsEmitted += page.getPositionCount();
+        }
+        return page;
     }
 
     @Override
@@ -322,6 +354,11 @@ public class OrdinalsGroupingOperator implements Operator {
         Releasables.close(() -> Releasables.close(ordinalAggregators.values()), valuesAggregator);
     }
 
+    @Override
+    public Operator.Status status() {
+        return new Status(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
+    }
+
     private static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
@@ -335,6 +372,133 @@ public class OrdinalsGroupingOperator implements Operator {
             .collect(Collectors.joining(", "));
 
         return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "ordinals_grouping",
+            Status::new
+        );
+
+        /**
+         * Nanoseconds this operator has spent processing the rows.
+         */
+        private final long processNanos;
+        /**
+         * Count of pages this operator has processed.
+         */
+        private final int pagesProcessed;
+        /**
+         * Count of rows this operator has received.
+         */
+        private final long rowsReceived;
+        /**
+         * Count of rows this operator has emitted.
+         */
+        private final long rowsEmitted;
+
+        /**
+         * Build.
+         * @param processNanos Nanoseconds this operator has spent processing the rows.
+         * @param pagesProcessed Count of pages this operator has processed.
+         * @param rowsReceived Count of rows this operator has received.
+         * @param rowsEmitted Count of rows this operator has emitted.
+         */
+        public Status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+            this.processNanos = processNanos;
+            this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
+        }
+
+        protected Status(StreamInput in) throws IOException {
+            processNanos = in.readVLong();
+            pagesProcessed = in.readVInt();
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(processNanos);
+            out.writeVInt(pagesProcessed);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        /**
+         * Nanoseconds this operator has spent processing the rows.
+         */
+        public long processNanos() {
+            return processNanos;
+        }
+
+        /**
+         * Count of pages this operator has processed.
+         */
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        /**
+         * Count of rows this operator has received.
+         */
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        /**
+         * Count of rows this operator has emitted.
+         */
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("process_nanos", processNanos);
+            if (builder.humanReadable()) {
+                builder.field("process_time", TimeValue.timeValueNanos(processNanos));
+            }
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return processNanos == status.processNanos
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS;
+        }
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {

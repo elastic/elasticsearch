@@ -305,8 +305,7 @@ PUT my-index-000001
 }
 ```
 
-::::{admonition} Think before disabling the _source field
-:class: warning
+::::{warning}
 
 Users often disable the `_source` field without thinking about the consequences, and then live to regret it. If the `_source` field isn’t available then a number of features are not supported:
 

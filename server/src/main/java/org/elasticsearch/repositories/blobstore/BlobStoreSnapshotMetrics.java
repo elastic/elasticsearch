@@ -36,8 +36,14 @@ public class BlobStoreSnapshotMetrics {
     private final Map<String, Object> metricAttributes;
 
     public BlobStoreSnapshotMetrics(@Nullable ProjectId projectId, RepositoryMetadata repositoryMetadata, SnapshotMetrics snapshotMetrics) {
-        this.snapshotMetrics = snapshotMetrics;
-        metricAttributes = SnapshotMetrics.createAttributesMap(projectId, repositoryMetadata);
+        if (projectId != null) {
+            this.snapshotMetrics = snapshotMetrics;
+            metricAttributes = SnapshotMetrics.createAttributesMap(projectId, repositoryMetadata);
+        } else {
+            // Project ID should only be null for the stateless main blobstore, which is not used for snapshots
+            this.snapshotMetrics = SnapshotMetrics.NOOP;
+            this.metricAttributes = Map.of();
+        }
     }
 
     public void incrementSnapshotRateLimitingTimeInNanos(long throttleTimeNanos) {

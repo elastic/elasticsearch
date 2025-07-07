@@ -19,6 +19,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.function.Consumer;

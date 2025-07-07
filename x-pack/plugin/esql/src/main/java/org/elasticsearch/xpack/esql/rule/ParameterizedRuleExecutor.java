@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.rule;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-
-import java.util.function.Function;
 
 public abstract class ParameterizedRuleExecutor<TreeType extends Node<TreeType>, Context> extends RuleExecutor<TreeType> {
 
@@ -25,7 +24,11 @@ public abstract class ParameterizedRuleExecutor<TreeType extends Node<TreeType>,
 
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {
-        return (rule instanceof ParameterizedRule pr) ? t -> (TreeType) pr.apply(t, context) : t -> rule.apply(t);
+    protected void applyRule(Rule<?, TreeType> rule, TreeType plan, ActionListener<TreeType> listener) {
+        if (rule instanceof ParameterizedRule pr) {
+            pr.apply(plan, context, listener);
+        } else {
+            rule.apply(plan, listener);
+        }
     }
 }

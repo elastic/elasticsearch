@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.rule;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -16,7 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
@@ -86,10 +88,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         private final String name;
         private Boolean lazyHasChanged;
 
-        Transformation(String name, TreeType plan, Function<TreeType, TreeType> transform) {
+        Transformation(String name, TreeType before, TreeType after) {
             this.name = name;
-            this.before = plan;
-            this.after = transform.apply(before);
+            this.before = before;
+            this.after = after;
         }
 
         public boolean hasChanged() {
@@ -137,60 +139,91 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     }
 
     protected final TreeType execute(TreeType plan) {
-        return executeWithInfo(plan).after;
+        // TODO: remove when all implementinc classes are using the async version.
+        PlainActionFuture<ExecutionInfo> executionInfoFuture = new PlainActionFuture<>();
+        executeWithInfo(plan, executionInfoFuture);
+        return executionInfoFuture.actionGet().after;
     }
 
-    protected final ExecutionInfo executeWithInfo(TreeType plan) {
-        TreeType currentPlan = plan;
+    protected final void execute(TreeType plan, ActionListener<TreeType> listener) {
+        executeWithInfo(plan, ActionListener.wrap(executionInfo -> listener.onResponse(executionInfo.after()), listener::onFailure));
+    }
+
+    protected final void executeWithInfo(TreeType plan, ActionListener<ExecutionInfo> listener) {
+        AtomicReference<TreeType> currentPlan = new AtomicReference<>(plan);
 
         long totalDuration = 0;
-
         Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
+
         if (batches == null) {
             batches = batches();
         }
 
-        for (Batch<TreeType> batch : batches) {
-            int batchRuns = 0;
-            List<Transformation> tfs = new ArrayList<>();
-            transformations.put(batch, tfs);
+        executeBatches(plan, currentPlan, transformations, batches.iterator(), totalDuration, listener);
+    }
 
-            boolean hasChanged = false;
-            long batchStart = System.currentTimeMillis();
-            long batchDuration = 0;
+    private void executeBatches(
+        TreeType originalPlan,
+        AtomicReference<TreeType> currentPlan,
+        Map<Batch<TreeType>, List<Transformation>> transformations,
+        java.util.Iterator<Batch<TreeType>> batchIterator,
+        long totalDuration,
+        ActionListener<ExecutionInfo> listener
+    ) {
+        if (!batchIterator.hasNext()) {
+            TreeType finalPlan = currentPlan.get();
+            if (false == finalPlan.equals(originalPlan) && log.isDebugEnabled()) {
+                log.debug(
+                    "Tree transformation took {}\n{}",
+                    TimeValue.timeValueMillis(totalDuration),
+                    NodeUtils.diffString(originalPlan, finalPlan)
+                );
+            }
+            listener.onResponse(new ExecutionInfo(originalPlan, finalPlan, transformations));
+            return;
+        }
 
-            // run each batch until no change occurs or the limit is reached
-            do {
-                hasChanged = false;
-                batchRuns++;
+        Batch<TreeType> batch = batchIterator.next();
+        List<Transformation> tfs = new ArrayList<>();
+        transformations.put(batch, tfs);
 
-                for (Rule<?, TreeType> rule : batch.rules) {
-                    if (log.isTraceEnabled()) {
-                        log.trace("About to apply rule {}", rule);
+        long batchStart = System.currentTimeMillis();
+        executeBatch(batch, currentPlan, tfs, 0, batchStart, ActionListener.wrap(batchDuration -> {
+            long newTotalDuration = totalDuration + batchDuration;
+            executeBatches(originalPlan, currentPlan, transformations, batchIterator, newTotalDuration, listener);
+        }, listener::onFailure));
+    }
+
+    private void executeBatch(
+        Batch<TreeType> batch,
+        AtomicReference<TreeType> currentPlan,
+        List<Transformation> tfs,
+        int batchRuns,
+        long batchStart,
+        ActionListener<Long> listener
+    ) {
+        int currentBatchRuns = batchRuns + 1;
+
+        executeRules(currentPlan, tfs, batch.rules, 0, false, ActionListener.wrap(batchHasChanged -> {
+            long batchDuration = System.currentTimeMillis() - batchStart;
+
+            if (batchHasChanged) {
+                try {
+                    if (batch.limit.reached(currentBatchRuns) == false) {
+                        // Continue with another batch iteration - reset the batch start time
+                        executeBatch(batch, currentPlan, tfs, currentBatchRuns, System.currentTimeMillis(), listener);
+                        return;
                     }
-                    Transformation tf = new Transformation(rule.name(), currentPlan, transform(rule));
-                    tfs.add(tf);
-                    currentPlan = tf.after;
-
-                    if (tf.hasChanged()) {
-                        hasChanged = true;
-                        if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
-                        }
-                    } else {
-                        if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied w/o changes", rule);
-                        }
-                    }
+                } catch (RuleExecutionException e) {
+                    listener.onFailure(e);
+                    return;
                 }
-                batchDuration = System.currentTimeMillis() - batchStart;
-            } while (hasChanged && batch.limit.reached(batchRuns) == false);
+            }
 
-            totalDuration += batchDuration;
-
+            // Batch is complete
             if (log.isTraceEnabled()) {
-                TreeType before = plan;
-                TreeType after = plan;
+                TreeType before = currentPlan.get();
+                TreeType after = currentPlan.get();
                 if (tfs.isEmpty() == false) {
                     before = tfs.get(0).before;
                     after = tfs.get(tfs.size() - 1).after;
@@ -202,16 +235,54 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     NodeUtils.diffString(before, after)
                 );
             }
-        }
-
-        if (false == currentPlan.equals(plan) && log.isDebugEnabled()) {
-            log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
-        }
-
-        return new ExecutionInfo(plan, currentPlan, transformations);
+            listener.onResponse(batchDuration);
+        }, listener::onFailure));
     }
 
-    protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {
-        return rule::apply;
+    private void executeRules(
+        AtomicReference<TreeType> currentPlan,
+        List<Transformation> tfs,
+        Rule<?, TreeType>[] rules,
+        int ruleIndex,
+        boolean hasChanged,
+        ActionListener<Boolean> listener
+    ) {
+        if (ruleIndex >= rules.length) {
+            listener.onResponse(hasChanged);
+            return;
+        }
+
+        Rule<?, TreeType> rule = rules[ruleIndex];
+        if (log.isTraceEnabled()) {
+            log.trace("About to apply rule {}", rule);
+        }
+
+        TreeType planBeforeRule = currentPlan.get();
+        applyRule(rule, planBeforeRule, listener.delegateFailureAndWrap((l, transformedPlan) -> {
+            Transformation tf = new Transformation(rule.name(), planBeforeRule, transformedPlan);
+            tfs.add(tf);
+            currentPlan.set(tf.after());
+
+            boolean ruleHasChanged = tf.hasChanged();
+            if (ruleHasChanged) {
+                if (log.isTraceEnabled()) {
+                    log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before(), tf.after()));
+                }
+            } else {
+                if (log.isTraceEnabled()) {
+                    log.trace("Rule {} applied w/o changes", rule);
+                }
+            }
+
+            executeRules(currentPlan, tfs, rules, ruleIndex + 1, hasChanged || ruleHasChanged, l);
+        }));
+    }
+
+    protected void applyRule(Rule<?, TreeType> rule, TreeType plan, ActionListener<TreeType> listener) {
+        try {
+            rule.apply(plan, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

@@ -1233,7 +1233,7 @@ public class EsqlCapabilities {
          * Support avg with aggregate metric doubles
          */
         AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-            
+
         /**
          * Cosine vector similarity function
          */

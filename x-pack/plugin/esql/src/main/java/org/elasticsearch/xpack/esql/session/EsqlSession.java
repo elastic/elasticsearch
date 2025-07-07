@@ -578,16 +578,20 @@ public class EsqlSession {
         }
 
         AttributeSet references = new AttributeSet();
-        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
-        // attributes ("lookup join" generated columns among others) and steps like removal of Aliases should ignore the fields
-        // to remove if their name matches one of these wildcards.
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
+        // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
+        // wildcards.
         //
-        // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        // "from test | eval first_name = 1 | drop first_name | drop *name should also consider "*name" as valid field to ask for
+        // E.g. "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
+        // "from test | eval first_name = 1 | drop first_name | drop *name" should also consider "*name" as valid field to ask for
         //
         // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
-        var shadowingRefs = new AttributeSet();
-        var keepJoinRefs = new AttributeSet();
+        // Except in KEEP and DROP.
+        var keepRefs = new AttributeSet();
+        var dropWildcardRefs = new AttributeSet();
+        // fields required to request for lookup joins to work
+        var joinRefs = new AttributeSet();
+        // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         boolean[] canRemoveAliases = new boolean[] { true };
@@ -605,14 +609,14 @@ public class EsqlSession {
                 references.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinRefs.addAll(usingJoinType.columns());
+                    joinRefs.addAll(usingJoinType.columns());
                 }
-                if (shadowingRefs.isEmpty()) {
+                if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefs.addAll(shadowingRefs);
+                    joinRefs.addAll(keepRefs);
                 }
             } else {
                 references.addAll(p.references());
@@ -624,10 +628,16 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     references.add(ua);
-                    shadowingRefs.add(ua);
+                    if (p instanceof Keep) {
+                        keepRefs.add(ua);
+                    } else if (p instanceof Drop) {
+                        dropWildcardRefs.add(ua);
+                    } else {
+                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
+                    }
                 });
                 if (p instanceof Keep) {
-                    shadowingRefs.addAll(p.references());
+                    keepRefs.addAll(p.references());
                 }
             }
 
@@ -661,13 +671,15 @@ public class EsqlSession {
                     if (fieldNames.contains(ne.name())) {
                         return;
                     }
-                    references.removeIf(attr -> matchByName(attr, ne.name(), shadowingRefs.contains(attr)));
+                    references.removeIf(
+                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
+                    );
                 });
             }
         });
 
         // Add JOIN ON column references afterward to avoid Alias removal
-        references.addAll(keepJoinRefs);
+        references.addAll(joinRefs);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);

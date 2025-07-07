@@ -65,7 +65,9 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
     }
 
     private TypeResolution checkDenseVectorParam(Expression param, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return isNotNull(param, sourceText(), paramOrdinal).and(isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector"));
+        return isNotNull(param, sourceText(), paramOrdinal).and(
+            isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector")
+        );
     }
 
     @Override

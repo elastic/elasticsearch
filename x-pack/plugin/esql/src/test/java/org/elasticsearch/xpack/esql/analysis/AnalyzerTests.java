@@ -2410,7 +2410,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("vector", left.name());
         var right = as(similarity.right(), Literal.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
-        assertThat(right.value(), equalTo(List.of(0.342, 0.164, 0.234)));;
+        assertThat(right.value(), equalTo(List.of(0.342, 0.164, 0.234)));
+        ;
     }
 
     public void testNoDenseVectorFailsSimilarityFunction() {
@@ -2424,10 +2425,7 @@ public class AnalyzerTests extends ESTestCase {
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(
             error.getMessage(),
-            containsString(
-                "second argument of [" + similarityFunction + "] must be"
-                    + " [dense_vector], found value [0.342] type [double]"
-            )
+            containsString("second argument of [" + similarityFunction + "] must be" + " [dense_vector], found value [0.342] type [double]")
         );
     }
 

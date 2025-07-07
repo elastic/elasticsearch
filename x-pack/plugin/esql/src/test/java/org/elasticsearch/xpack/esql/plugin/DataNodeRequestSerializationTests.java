@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -303,7 +304,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyze(analyzer, new EsqlParser().createStatement(query)));
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(analyze(analyzer, new EsqlParser().createStatement(query)), optimizedPlanFuture);
+        return optimizedPlanFuture.actionGet();
     }
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -181,35 +182,33 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyze(analyzer, parser.createStatement(query));
-        // System.out.println(analyzed);
-        var optimized = optimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return optimizedPlan(analyze(analyzer, parser.createStatement(query)), optimizer);
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyze(analyzerAirports, parser.createStatement(query));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return optimizedPlan(analyze(analyzerAirports, parser.createStatement(query)));
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyze(analyzerExtra, parser.createStatement(query));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return optimizedPlan(analyze(analyzerExtra, parser.createStatement(query)));
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyze(analyzerTypes, parser.createStatement(query)));
+        return optimizedPlan(analyze(analyzerTypes, parser.createStatement(query)));
     }
 
     protected LogicalPlan planMultiIndex(String query) {
-        return logicalOptimizer.optimize(analyze(multiIndexAnalyzer, parser.createStatement(query)));
+        return optimizedPlan(analyze(multiIndexAnalyzer, parser.createStatement(query)));
+    }
+
+    protected LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+        return optimizedPlan(logicalPlan, logicalOptimizer);
+    }
+
+    protected LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer optimizer) {
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        optimizer.optimize(logicalPlan, optimizedPlanFuture);
+        return optimizedPlanFuture.actionGet();
     }
 
     @Override

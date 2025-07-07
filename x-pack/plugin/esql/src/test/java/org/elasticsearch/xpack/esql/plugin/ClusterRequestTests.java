@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -202,7 +203,9 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyze(analyzer, new EsqlParser().createStatement(query)));
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(analyze(analyzer, new EsqlParser().createStatement(query)), optimizedPlanFuture);
+        return optimizedPlanFuture.actionGet();
     }
 
     @Override

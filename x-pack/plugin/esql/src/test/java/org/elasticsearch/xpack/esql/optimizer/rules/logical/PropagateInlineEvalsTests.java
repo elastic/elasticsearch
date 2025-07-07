@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -170,7 +171,9 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(analyze(analyzer, parser.createStatement(query)));
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        optimizer.optimize(analyze(analyzer, parser.createStatement(query)), optimizedPlanFuture);
+        return optimizedPlanFuture.actionGet();
     }
 
     @Override

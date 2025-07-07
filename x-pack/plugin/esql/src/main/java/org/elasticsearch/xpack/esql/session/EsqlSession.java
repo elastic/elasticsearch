@@ -198,10 +198,10 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                preMapper.preMapper(
-                    analyzedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l))
-                );
+                SubscribableListener.<LogicalPlan>newForked(l -> preMapper.preMapper(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> optimizedPlan(p, l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
     }
@@ -827,13 +827,15 @@ public class EsqlSession {
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 
-    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
         if (logicalPlan.analyzed() == false) {
-            throw new IllegalStateException("Expected analyzed plan");
+            listener.onFailure(new IllegalStateException("Expected analyzed plan"));
+            return;
         }
-        var plan = logicalPlanOptimizer.optimize(logicalPlan);
-        LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
-        return plan;
+        logicalPlanOptimizer.optimize(logicalPlan, listener.map(optimizedPlan -> {
+            LOGGER.debug("Optimized logicalPlan plan:\n{}", optimizedPlan);
+            return optimizedPlan;
+        }));
     }
 
     public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {

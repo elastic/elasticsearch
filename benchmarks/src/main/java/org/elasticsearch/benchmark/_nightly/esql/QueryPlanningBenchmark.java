@@ -128,7 +128,8 @@ public class QueryPlanningBenchmark {
     ) {
         var parsed = parser.createStatement(query, new QueryParams(), telemetry);
         SubscribableListener.<LogicalPlan>newForked(analyzedPlanListener -> analyzer.analyze(parsed, analyzedPlanListener))
-            .addListener(listener.map(optimizer::optimize));
+            .<LogicalPlan>andThen((optimizedPlanListener, analyzedPlan) -> optimizer.optimize(analyzedPlan, optimizedPlanListener))
+            .addListener(listener);
     }
 
     @Benchmark

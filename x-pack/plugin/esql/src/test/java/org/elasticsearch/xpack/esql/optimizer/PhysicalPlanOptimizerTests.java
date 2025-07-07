@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -7558,7 +7559,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec exchange = as(outerTopN.child(), ExchangeExec.class);
         FragmentExec frag = as(exchange.child(), FragmentExec.class);
 
-        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(frag.fragment(), optimizedPlanFuture);
+        LogicalPlan opt = optimizedPlanFuture.actionGet();
         TopN innerTopN = as(opt, TopN.class);
         assertMap(
             innerTopN.order().stream().map(o -> o.child().toString()).toList(),
@@ -7899,7 +7902,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec exchange = as(limitExec.child(), ExchangeExec.class);
         FragmentExec frag = as(exchange.child(), FragmentExec.class);
 
-        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(frag.fragment(), optimizedPlanFuture);
+        LogicalPlan opt = optimizedPlanFuture.actionGet();
         Limit limit = as(opt, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
 
@@ -7926,7 +7931,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec exchange = as(topNExec.child(), ExchangeExec.class);
         FragmentExec frag = as(exchange.child(), FragmentExec.class);
 
-        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(frag.fragment(), optimizedPlanFuture);
+        LogicalPlan opt = optimizedPlanFuture.actionGet();
         TopN topN = as(opt, TopN.class);
         List<Order> order = topN.order();
         Order scoreOrer = order.getFirst();
@@ -8247,7 +8254,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
-        var logical = logicalOptimizer.optimize(analyze(dataSource.analyzer, parser.createStatement(query)));
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(analyze(dataSource.analyzer, parser.createStatement(query)), optimizedPlanFuture);
+        var logical = optimizedPlanFuture.actionGet();
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);

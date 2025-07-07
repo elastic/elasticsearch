@@ -671,9 +671,7 @@ public class EsqlSession {
                     if (fieldNames.contains(ne.name())) {
                         return;
                     }
-                    references.removeIf(
-                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
-                    );
+                    references.removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
                 });
             }
         });

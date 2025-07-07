@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -21,10 +20,8 @@ import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;

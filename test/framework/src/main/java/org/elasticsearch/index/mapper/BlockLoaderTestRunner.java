@@ -215,7 +215,7 @@ public class BlockLoaderTestRunner {
             try {
                 if (expected instanceof BytesRef bytesRef) {
                     expected = bytesRef.utf8ToString();
-                } else if (expected instanceof List<?> list && list.getFirst() instanceof BytesRef) {
+                } else if (expected instanceof List<?> list && list.isEmpty() == false && list.get(0) instanceof BytesRef) {
                     List<String> expectedList = new ArrayList<>(list.size());
                     for (Object e : list) {
                         expectedList.add(((BytesRef) e).utf8ToString());

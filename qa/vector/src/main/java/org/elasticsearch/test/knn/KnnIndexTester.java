@@ -178,10 +178,20 @@ public class KnnIndexTester {
                 ? cmdLineArgs.nProbes()
                 : new int[] { 0 };
             String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
-            Results indexResults = new Results(cmdLineArgs.docVectors().getFileName().toString(), indexType, cmdLineArgs.numDocs());
+            Results indexResults = new Results(
+                cmdLineArgs.docVectors().getFileName().toString(),
+                indexType,
+                cmdLineArgs.numDocs(),
+                cmdLineArgs.filterSelectivity()
+            );
             Results[] results = new Results[nProbes.length];
             for (int i = 0; i < nProbes.length; i++) {
-                results[i] = new Results(cmdLineArgs.docVectors().getFileName().toString(), indexType, cmdLineArgs.numDocs());
+                results[i] = new Results(
+                    cmdLineArgs.docVectors().getFileName().toString(),
+                    indexType,
+                    cmdLineArgs.numDocs(),
+                    cmdLineArgs.filterSelectivity()
+                );
             }
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
@@ -244,7 +254,9 @@ public class KnnIndexTester {
                 "avg_cpu_count",
                 "QPS",
                 "recall",
-                "visited" };
+                "visited",
+                "filter_selectivity"
+            };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -274,7 +286,9 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
-                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited) };
+                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
+                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -339,6 +353,7 @@ public class KnnIndexTester {
     static class Results {
         final String indexType, indexName;
         final int numDocs;
+        final float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
@@ -350,10 +365,11 @@ public class KnnIndexTester {
         double netCpuTimeMS;
         double avgCpuCount;
 
-        Results(String indexName, String indexType, int numDocs) {
+        Results(String indexName, String indexType, int numDocs, float filterSelectivity) {
             this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
+            this.filterSelectivity = filterSelectivity;
         }
     }
 

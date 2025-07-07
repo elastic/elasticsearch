@@ -166,7 +166,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, validateSearchContext.get());
 
             compositeListener.onPreQueryPhase(ctx);
-
             assertEquals(0, preFetch.get());
             assertEquals(2, preQuery.get());
             assertEquals(0, failedFetch.get());

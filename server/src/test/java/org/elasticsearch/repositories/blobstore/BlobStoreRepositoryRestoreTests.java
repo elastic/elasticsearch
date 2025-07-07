@@ -180,6 +180,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final RepositoryData ignoredRepositoryData = safeAwait(
                 listener -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
+                        false,
                         snapshotShardGenerations,
                         RepositoryData.EMPTY_REPO_GEN,
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),

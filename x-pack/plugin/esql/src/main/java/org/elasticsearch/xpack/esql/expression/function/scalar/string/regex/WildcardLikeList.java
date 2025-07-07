@@ -92,8 +92,12 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
-
+        if (pushdownPredicates.minTransportVersion() == null) {
+            return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
+        } else {
+            // The AutomatonQuery that we use right now isn't serializable.
+            return Translatable.NO;
+        }
     }
 
     /**

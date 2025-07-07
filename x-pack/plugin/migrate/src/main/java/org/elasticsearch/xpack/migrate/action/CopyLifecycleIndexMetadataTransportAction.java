@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,7 +20,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -36,20 +36,22 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
+import java.util.Objects;
 
 public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNodeAction<
     CopyLifecycleIndexMetadataAction.Request,
     AcknowledgedResponse> {
-    private static final Logger logger = LogManager.getLogger(CopyLifecycleIndexMetadataTransportAction.class);
     private final ClusterStateTaskExecutor<UpdateIndexMetadataTask> executor;
     private final MasterServiceTaskQueue<UpdateIndexMetadataTask> taskQueue;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public CopyLifecycleIndexMetadataTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             CopyLifecycleIndexMetadataAction.NAME,
@@ -63,11 +65,14 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         );
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateIndexMetadataTask task, ClusterState clusterState) {
-                return new Tuple<>(applyUpdate(clusterState, task), task);
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateIndexMetadataTask task, ClusterState state) {
+                var projectMetadata = state.metadata().getProject(task.projectId);
+                var updatedMetadata = applyUpdate(projectMetadata, task);
+                return new Tuple<>(ClusterState.builder(state).putProjectMetadata(updatedMetadata).build(), task);
             }
         };
         this.taskQueue = clusterService.createTaskQueue("migrate-copy-index-metadata", Priority.NORMAL, this.executor);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -79,7 +84,13 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
     ) {
         taskQueue.submitTask(
             "migrate-copy-index-metadata",
-            new UpdateIndexMetadataTask(request.sourceIndex(), request.destIndex(), request.ackTimeout(), listener),
+            new UpdateIndexMetadataTask(
+                projectResolver.getProjectId(),
+                request.sourceIndex(),
+                request.destIndex(),
+                request.ackTimeout(),
+                listener
+            ),
             request.masterNodeTimeout()
         );
     }
@@ -89,13 +100,15 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
+    private static ProjectMetadata applyUpdate(ProjectMetadata projectMetadata, UpdateIndexMetadataTask updateTask) {
+        assert projectMetadata != null && updateTask != null;
+        assert Objects.equals(updateTask.projectId, projectMetadata.id());
 
-        IndexMetadata sourceMetadata = state.metadata().getProject().index(updateTask.sourceIndex);
+        IndexMetadata sourceMetadata = projectMetadata.index(updateTask.sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(updateTask.sourceIndex);
         }
-        IndexMetadata destMetadata = state.metadata().getProject().index(updateTask.destIndex);
+        IndexMetadata destMetadata = projectMetadata.index(updateTask.destIndex);
         if (destMetadata == null) {
             throw new IndexNotFoundException(updateTask.destIndex);
         }
@@ -113,19 +126,26 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
             // creation date updates settings so must increment settings version
             .settingsVersion(destMetadata.getSettingsVersion() + 1);
 
-        var indices = new HashMap<>(state.metadata().getProject().indices());
+        var indices = new HashMap<>(projectMetadata.indices());
         indices.put(updateTask.destIndex, newDestMetadata.build());
 
-        Metadata newMetadata = Metadata.builder(state.metadata()).indices(indices).build();
-        return ClusterState.builder(state).metadata(newMetadata).build();
+        return ProjectMetadata.builder(projectMetadata).indices(indices).build();
     }
 
     static class UpdateIndexMetadataTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
         private final String sourceIndex;
         private final String destIndex;
 
-        UpdateIndexMetadataTask(String sourceIndex, String destIndex, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+        UpdateIndexMetadataTask(
+            ProjectId projectId,
+            String sourceIndex,
+            String destIndex,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.sourceIndex = sourceIndex;
             this.destIndex = destIndex;
         }

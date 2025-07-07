@@ -570,6 +570,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=nodes.stats/11_indices_metrics/Metric - blank for indices mappings}
   issue: https://github.com/elastic/elasticsearch/issues/130772
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/70_dense_vector_telemetry/Field mapping stats with field details}
+  issue: https://github.com/elastic/elasticsearch/issues/130777
 
 # Examples:
 #

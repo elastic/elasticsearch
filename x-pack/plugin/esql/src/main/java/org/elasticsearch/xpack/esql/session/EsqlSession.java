@@ -13,8 +13,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Releasables;
@@ -45,6 +47,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -65,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -88,7 +93,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -105,6 +112,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
@@ -136,6 +144,10 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private Set<String> configuredClusters;
     private final InferenceRunner inferenceRunner;
+
+    private boolean explainMode;
+    private String parsedPlanString;
+    private String optimizedLogicalPlanString;
 
     public EsqlSession(
         String sessionId,
@@ -177,22 +189,21 @@ public class EsqlSession {
     public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        analyzedPlan(
-            parse(request.query(), request.params()),
-            executionInfo,
-            request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
-                @Override
-                public void onResponse(LogicalPlan analyzedPlan) {
-                    preMapper.preMapper(
-                        analyzedPlan,
-                        listener.delegateFailureAndWrap(
-                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l)
-                        )
-                    );
-                }
+        LogicalPlan parsed = parse(request.query(), request.params());
+        if (parsed instanceof Explain explain) {
+            explainMode = true;
+            parsed = explain.query();
+            parsedPlanString = parsed.toString();
+        }
+        analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            @Override
+            public void onResponse(LogicalPlan analyzedPlan) {
+                preMapper.preMapper(
+                    analyzedPlan,
+                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l))
+                );
             }
-        );
+        });
     }
 
     /**
@@ -207,6 +218,20 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+        if (explainMode) {
+            String physicalPlanString = physicalPlan.toString();
+            List<Attribute> fields = List.of(
+                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
+                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+            );
+            List<List<Object>> values = new ArrayList<>();
+            values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
+            values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+            values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
+            var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
+            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+        }
         // TODO: this could be snuck into the underlying listener
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         // execute any potential subplans
@@ -333,7 +358,7 @@ public class EsqlSession {
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(
                 e -> new EnrichPolicyResolver.UnresolvedPolicy(
-                    (String) e.policyName().fold(FoldContext.small() /* TODO remove me*/),
+                    BytesRefs.toString(e.policyName().fold(FoldContext.small() /* TODO remove me*/)),
                     e.mode()
                 )
             )
@@ -602,16 +627,20 @@ public class EsqlSession {
         }
 
         var referencesBuilder = AttributeSet.builder();
-        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can shadow some
-        // attributes ("lookup join" generated columns among others) and steps like removal of Aliases should ignore the fields
-        // to remove if their name matches one of these wildcards.
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
+        // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
+        // wildcards.
         //
-        // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        // "from test | eval first_name = 1 | drop first_name | drop *name should also consider "*name" as valid field to ask for
+        // E.g. "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
+        // "from test | eval first_name = 1 | drop first_name | drop *name" should also consider "*name" as valid field to ask for
         //
         // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
-        var shadowingRefsBuilder = AttributeSet.builder();
-        var keepJoinRefsBuilder = AttributeSet.builder();
+        // Except in KEEP and DROP.
+        var keepRefs = AttributeSet.builder();
+        var dropWildcardRefs = AttributeSet.builder();
+        // fields required to request for lookup joins to work
+        var joinRefs = AttributeSet.builder();
+        // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         boolean[] canRemoveAliases = new boolean[] { true };
@@ -629,14 +658,14 @@ public class EsqlSession {
                 referencesBuilder.addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinRefsBuilder.addAll(usingJoinType.columns());
+                    joinRefs.addAll(usingJoinType.columns());
                 }
-                if (shadowingRefsBuilder.isEmpty()) {
+                if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
+                    joinRefs.addAll(keepRefs);
                 }
             } else {
                 referencesBuilder.addAll(p.references());
@@ -648,10 +677,16 @@ public class EsqlSession {
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
                     referencesBuilder.add(ua);
-                    shadowingRefsBuilder.add(ua);
+                    if (p instanceof Keep) {
+                        keepRefs.add(ua);
+                    } else if (p instanceof Drop) {
+                        dropWildcardRefs.add(ua);
+                    } else {
+                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
+                    }
                 });
                 if (p instanceof Keep) {
-                    shadowingRefsBuilder.addAll(p.references());
+                    keepRefs.addAll(p.references());
                 }
             }
 
@@ -685,13 +720,15 @@ public class EsqlSession {
                     if (fieldNames.contains(ne.name())) {
                         return;
                     }
-                    referencesBuilder.removeIf(attr -> matchByName(attr, ne.name(), shadowingRefsBuilder.contains(attr)));
+                    referencesBuilder.removeIf(
+                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
+                    );
                 });
             }
         });
 
         // Add JOIN ON column references afterward to avoid Alias removal
-        referencesBuilder.addAll(keepJoinRefsBuilder);
+        referencesBuilder.addAll(joinRefs);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);
@@ -791,6 +828,7 @@ public class EsqlSession {
         if (optimizedPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
+        optimizedLogicalPlanString = optimizedPlan.toString();
         var plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;

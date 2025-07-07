@@ -124,6 +124,6 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
 
     @Override
     protected ClusterBlockException checkBlock(PutEnrichPolicyAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

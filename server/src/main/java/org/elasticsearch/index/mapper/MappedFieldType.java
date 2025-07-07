@@ -196,6 +196,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
+     *
+     * @return true if this field contains vector embeddings.
+     */
+    public boolean isVectorEmbedding() {
+        return false;
+    }
+
+    /**
      * @return true if field has script values.
      */
     public boolean hasScriptValues() {
@@ -362,7 +371,7 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+        if (hasDocValues() || (isIndexed() && getTextSearchInfo().hasNorms())) {
             return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));

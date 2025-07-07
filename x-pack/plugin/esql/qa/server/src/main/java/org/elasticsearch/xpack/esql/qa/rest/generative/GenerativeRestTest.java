@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
@@ -44,18 +45,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
 
-        // warnings
-        "Field '.*' shadowed by field at line .*",
-        "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
-
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
+        "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
 
         // Awaiting fixes for correctness
-        "Expecting the following columns \\[.*\\], got" // https://github.com/elastic/elasticsearch/issues/129000
+        "Expecting the following columns \\[.*\\], got", // https://github.com/elastic/elasticsearch/issues/129000
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -98,10 +97,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
             if (result.exception() != null) {
                 checkException(result);
-                break;
+                continue;
             }
             if (checkResults(List.of(), commandGenerator, desc, null, result).success() == false) {
-                break;
+                continue;
             }
             previousResult = result;
             previousCommands.add(desc);
@@ -167,7 +166,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
+            Map<String, Object> a = RestEsqlTestCase.runEsql(
+                new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
+                new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
+                RestEsqlTestCase.Mode.SYNC
+            );
             List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
             List<List<Object>> values = (List<List<Object>>) a.get("values");
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);

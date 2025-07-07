@@ -70,6 +70,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -98,6 +99,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -109,6 +111,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -162,6 +165,11 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -489,6 +497,44 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
+
+    /**
+     * Marks a test suite or a test method that should run without checking for entitlements.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface WithoutEntitlements {
+    }
+
+    /**
+     * Marks a test suite or a test method that enforce entitlements on the test code itself.
+     * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface WithEntitlementsOnTestCode {
+    }
+
+    @BeforeClass
+    public static void setupEntitlementsForClass() {
+        boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
+        boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
+        if (TestEntitlementBootstrap.isEnabledForTest()) {
+            TestEntitlementBootstrap.setActive(false == withoutEntitlements);
+            TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
+        } else if (withEntitlementsOnTestCode) {
+            throw new AssertionError(
+                "Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
+            );
+        }
+    }
+
+    @AfterClass
+    public static void resetEntitlements() {
+        TestEntitlementBootstrap.reset();
+    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -996,6 +1042,13 @@ public abstract class ESTestCase extends LuceneTestCase {
             remaining -= sliceLen;
         }
         return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
+    }
+
+    public ReleasableBytesReference randomReleasableBytesReference(int length) {
+        return new ReleasableBytesReference(randomBytesReference(length), LeakTracker.wrap(new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {}
+        }));
     }
 
     public static short randomShort() {
@@ -2743,7 +2796,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 future.run();
             } else {
                 threads[i] = new Thread(future);
-                threads[i].setName("runInParallel-T#" + i);
+                threads[i].setName("TEST-runInParallel-T#" + i);
                 threads[i].start();
             }
         }

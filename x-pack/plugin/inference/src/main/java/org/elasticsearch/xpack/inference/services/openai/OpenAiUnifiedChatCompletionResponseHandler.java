@@ -91,7 +91,6 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
      * @param e the exception that occurred
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
-    @Override
     public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
         // Use the custom type StreamingErrorResponse for mid-stream errors
         return buildMidStreamChatCompletionError(inferenceEntityId, message, e, StreamingErrorResponse.class);

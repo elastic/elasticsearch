@@ -83,8 +83,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         );
     }
 
-    @Override
-    public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
+    private UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
         return buildMidStreamChatCompletionError(inferenceEntityId, message, e, GoogleVertexAiErrorResponse.class);
     }
 

@@ -40,7 +40,14 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
  * Each chunk should be in a valid JSON format, as that is the format the Elastic API uses.
  */
 public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, ElasticPayload {
-    private static final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+    private static final OpenAiUnifiedChatCompletionResponseHandler ERROR_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+        "sagemaker openai chat completion",
+        ((request, result) -> {
+            assert false : "do not call this";
+            throw new UnsupportedOperationException("SageMaker should not call this object's response parser.");
+        })
+    );
+    private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withDeprecationHandler(
         LoggingDeprecationHandler.INSTANCE
     );
 
@@ -94,7 +101,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
     public StreamingUnifiedChatCompletionResults.Results chatCompletionResponseBody(SageMakerModel model, SdkBytes response) {
         var responseData = response.asUtf8String();
         try {
-            var results = OpenAiUnifiedStreamingProcessor.parse(parserConfig, responseData)
+            var results = OpenAiUnifiedStreamingProcessor.parse(PARSER_CONFIGURATION, responseData)
                 .collect(
                     () -> new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(),
                     ArrayDeque::offer,
@@ -102,11 +109,7 @@ public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, E
                 );
             return new StreamingUnifiedChatCompletionResults.Results(results);
         } catch (Exception e) {
-            throw new OpenAiUnifiedChatCompletionResponseHandler(null, null).buildMidStreamChatCompletionError(
-                model.getInferenceEntityId(),
-                responseData,
-                e
-            );
+            throw ERROR_HANDLER.buildMidStreamChatCompletionError(model.getInferenceEntityId(), responseData, e);
         }
     }
 

@@ -91,8 +91,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
      * @param e The exception that occurred, if any.
      * @return An instance of {@link UnifiedChatCompletionException} representing the mid-stream error.
      */
-    @Override
-    public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
+    private UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
         var errorResponse = extractMidStreamChatCompletionErrorResponse(message);
         // Check if the error response contains a specific structure
         if (errorResponse.errorStructureFound()) {

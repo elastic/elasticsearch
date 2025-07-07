@@ -225,23 +225,6 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     }
 
     /**
-     * Builds a mid-stream error for a streaming request.
-     * This method is used when an error occurs while processing a streaming response.
-     * It must be implemented by subclasses to handle specific error response formats.
-     * Only streaming requests should use this method.
-     *
-     * @param inferenceEntityId the ID of the inference entity
-     * @param message           the error message
-     * @param e                the exception that caused the error, can be null
-     * @return a {@link UnifiedChatCompletionException} representing the mid-stream error
-     */
-    public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
-        throw new UnsupportedOperationException(
-            "Mid-stream error handling is not implemented. Please override buildMidStreamChatCompletionError method."
-        );
-    }
-
-    /**
      * Builds a mid-stream error for a streaming request with a custom error type.
      * This method is used when an error occurs while processing a streaming response and allows for custom error handling.
      * Only streaming requests should use this method.

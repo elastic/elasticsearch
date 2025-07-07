@@ -445,9 +445,8 @@ $if(BytesRef)$
                         // no longer need the bytes
                         bytes.close();
                         bytes = null;
-                        int[] ids = sortedForOrdinalMerging.ids;
-                        for (int i = 0; i < ids.length; i++) {
-                            ids[i] = mappedIds[Math.toIntExact(values.getKey2(ids[i]))];
+                        for (int i = 0; i < sortedForOrdinalMerging.ids.length; i++) {
+                            sortedForOrdinalMerging.ids[i] = mappedIds[Math.toIntExact(values.getKey2(sortedForOrdinalMerging.ids[i]))];
                         }
                     } finally {
                         blockFactory.adjustBreaker(-(long) totalValue * Integer.BYTES);

@@ -23,7 +23,7 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
-import org.elasticsearch.action.search.CrossClusterSearchExtension;
+import org.elasticsearch.search.internal.CrossClusterSearchExtension;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -1018,11 +1018,10 @@ class NodeConstruction {
 
         var crossClusterSearchExtension = pluginsService.loadSingletonServiceProvider(
             CrossClusterSearchExtension.class,
-            CrossClusterSearchExtension.Noop::new
+            CrossClusterSearchExtension.Default::new
         );
 
-        logger.info("Using cross-cluster search extension: [{}]", crossClusterSearchExtension.getClass().getName());
-        logger.info("Cross-cluster search force reconnect: [{}]", crossClusterSearchExtension.forceReconnect());
+        logger.info("Cross-cluster search force reconnect: [{}]", crossClusterSearchExtension.forceReconnectBehaviorSupplier().get());
 
         ActionModule actionModule = new ActionModule(
             settings,

@@ -7,18 +7,20 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.search;
+package org.elasticsearch.search.internal;
+
+import java.util.function.Supplier;
 
 public interface CrossClusterSearchExtension {
 
-    boolean forceReconnect();
+    Supplier<Boolean> forceReconnectBehaviorSupplier();
 
-    class Noop implements CrossClusterSearchExtension {
-        public Noop() {}
+    class Default implements CrossClusterSearchExtension {
+        public Default() {}
 
         @Override
-        public boolean forceReconnect() {
-            return false;
+        public Supplier<Boolean> forceReconnectBehaviorSupplier() {
+            return () -> false;
         }
     }
 }

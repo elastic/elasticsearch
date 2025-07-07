@@ -30,11 +30,11 @@ public class ImmediateLocalSupplier implements LocalSupplier {
 
     final Block[] blocks;
 
-    public ImmediateLocalSupplier(Block[] blocks) {
+    ImmediateLocalSupplier(Block[] blocks) {
         this.blocks = blocks;
     }
 
-    public ImmediateLocalSupplier(StreamInput in) throws IOException {
+    ImmediateLocalSupplier(StreamInput in) throws IOException {
         this(((PlanStreamInput) in).readCachedBlockArray());
     }
 

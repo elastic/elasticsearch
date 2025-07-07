@@ -72,7 +72,9 @@ public class LocalSourceExec extends LeafExec {
         } else {
             if (supplier == EmptyLocalSupplier.EMPTY) {
                 out.writeVInt(0);
-            } else {// here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
+            } else {
+                // here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
+                // for earlier versions
                 ((ImmediateLocalSupplier) supplier).writeTo(out);
             }
         }

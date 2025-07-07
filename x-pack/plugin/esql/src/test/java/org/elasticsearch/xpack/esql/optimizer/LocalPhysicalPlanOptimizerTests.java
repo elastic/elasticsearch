@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -2062,7 +2063,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(expected.toString(), is(esQuery.query().toString()));
     }
 
-    public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
+    public void testVerifierOnMissingReferences() throws Exception {
 
         PhysicalPlan plan = plannerOptimizer.plan("""
             from test
@@ -2079,7 +2080,17 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         List<Order> orders = List.of(new Order(plan.source(), missingAttr, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
         TopNExec topNExec = new TopNExec(plan.source(), plan, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
 
-        Exception e = expectThrows(IllegalStateException.class, () -> plannerOptimizer.localPhysicalVerify(topNExec));
+        // We want to verify that the localOptimize detects the missing attribute.
+        // However, it also throws an error in one of the rules before we get to the verifier.
+        // So we use an implementation of LocalPhysicalPlanOptimizer that does not have any rules.
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(config, FoldContext.small(), SearchStats.EMPTY);
+        LocalPhysicalPlanOptimizer optimizerWithNoopExecute = new LocalPhysicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return List.of();
+            }
+        };
+        Exception e = expectThrows(IllegalStateException.class, () -> optimizerWithNoopExecute.localOptimize(topNExec));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [missing attr"));
     }
 

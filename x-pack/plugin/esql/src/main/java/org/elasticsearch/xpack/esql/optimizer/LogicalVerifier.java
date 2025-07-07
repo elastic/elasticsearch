@@ -24,7 +24,7 @@ public final class LogicalVerifier {
         Failures failures = new Failures();
         Failures dependencyFailures = new Failures();
 
-        if(skipRemoteEnrichVerification) {
+        if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
             var enriches = plan.collectFirstChildren(Enrich.class::isInstance);
             if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {

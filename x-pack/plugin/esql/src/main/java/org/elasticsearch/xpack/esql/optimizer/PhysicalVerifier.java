@@ -31,7 +31,7 @@ public final class PhysicalVerifier {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
 
-        if (skipRemoteEnrichVerification){
+        if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
             var enriches = plan.collectFirstChildren(EnrichExec.class::isInstance);
             if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {

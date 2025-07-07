@@ -17,6 +17,10 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -126,6 +130,35 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         try (
             EsqlQueryResponse resp = runQuery(
                 "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+    }
+
+    public void testLookupJoinWithDatemath() throws IOException {
+        setupClusters(2);
+
+        ZonedDateTime nowUtc = ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime nextMidnight = nowUtc.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        // If we're too close to midnight, we could create index with one day and query with another, and it'd fail.
+        assumeTrue("Skip if too close to midnight", Duration.between(nowUtc, nextMidnight).toMinutes() >= 5);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+        String lookupIndexName = "values_lookup_" + nowUtc.format(formatter);
+
+        populateLookupIndex(LOCAL_CLUSTER, lookupIndexName, 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, lookupIndexName, 10);
+
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN \"<values_lookup_{now/d}>\" ON lookup_key",
                 randomBoolean()
             )
         ) {

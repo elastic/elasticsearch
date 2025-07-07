@@ -21,8 +21,8 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
-public class RrfWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
-    private static final String LICENSE_ERROR_MESSAGE = "current license is non-compliant for [RRF]";
+public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
+    private static final String LICENSE_ERROR_MESSAGE = "current license is non-compliant for [FUSE]";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -31,7 +31,7 @@ public class RrfWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
@@ -52,7 +52,7 @@ public class RrfWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
             | FORK
                ( WHERE content:"fox" )
                ( WHERE content:"dog" )
-            | RRF
+            | FUSE
             """;
 
         ElasticsearchException e = expectThrows(VerificationException.class, () -> run(query));

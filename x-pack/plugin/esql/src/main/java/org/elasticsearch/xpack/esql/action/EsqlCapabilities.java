@@ -909,6 +909,13 @@ public class EsqlCapabilities {
         DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
 
         /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
+
+        /**
          * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
          * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
          */

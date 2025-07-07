@@ -9,6 +9,10 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,6 +62,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -162,6 +167,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
+    /**
+     * We publish metrics of how many shards are in each of the following states
+     * these should be the list of status that potentially block movement in
+     * {@link SnapshotInProgressAllocationDecider}
+     */
+    private static final List<ShardState> TRACKED_SHARD_STATES = List.of(
+        ShardState.INIT,
+        ShardState.PAUSED_FOR_NODE_REMOVAL,
+        ShardState.WAITING,
+        ShardState.QUEUED
+    );
+
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
@@ -243,6 +260,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.transportService = transportService;
         this.snapshotMetrics = snapshotMetrics;
         snapshotMetrics.createSnapshotsInProgressMetric(this::getSnapshotsInProgress);
+        snapshotMetrics.createSnapshotShardsByStatusMetric(this::getShardsByState);
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(transportService, clusterService, threadPool, actionFilters);
@@ -4465,7 +4483,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
         final List<LongWithAttributes> snapshotsInProgressMetrics = new ArrayList<>();
         currentState.metadata().projects().forEach((projectId, project) -> {
-            RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
             if (repositoriesMetadata != null) {
                 repositoriesMetadata.repositories().forEach(repository -> {
                     int snapshotCount = snapshotsInProgress.forRepo(projectId, repository.name()).size();
@@ -4476,6 +4494,39 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
         });
         return snapshotsInProgressMetrics;
+    }
+
+    private Collection<LongWithAttributes> getShardsByState() {
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on shards-by-state
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final List<LongWithAttributes> shardsByState = new ArrayList<>();
+        final ObjectIntMap<ShardState> shardCounts = new ObjectIntHashMap<>(TRACKED_SHARD_STATES.size());
+        currentState.metadata().projects().forEach((projectId, project) -> {
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
+                    TRACKED_SHARD_STATES.forEach(shardState -> shardCounts.put(shardState, 0));
+                    for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.forRepo(projectId, repository.name())) {
+                        for (ShardSnapshotStatus shardSnapshotStatus : snapshot.shards().values()) {
+                            if (shardCounts.containsKey(shardSnapshotStatus.state())) {
+                                shardCounts.put(shardSnapshotStatus.state(), shardCounts.get(shardSnapshotStatus.state()) + 1);
+                            }
+                        }
+                    }
+                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
+                    for (ObjectIntCursor<ShardState> entry : shardCounts) {
+                        shardsByState.add(
+                            new LongWithAttributes(entry.value, Maps.copyMapWithAddedEntry(attributesMap, "state", entry.key.name()))
+                        );
+                    }
+                }
+            }
+        });
+        return shardsByState;
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {

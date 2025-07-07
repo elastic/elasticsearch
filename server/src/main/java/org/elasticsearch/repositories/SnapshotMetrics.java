@@ -45,6 +45,7 @@ public record SnapshotMetrics(
     public static final String SNAPSHOT_SHARDS_STARTED = "es.repositories.snapshots.shards.started.total";
     public static final String SNAPSHOT_SHARDS_COMPLETED = "es.repositories.snapshots.shards.completed.total";
     public static final String SNAPSHOT_SHARDS_IN_PROGRESS = "es.repositories.snapshots.shards.current";
+    public static final String SNAPSHOT_SHARDS_BY_STATUS = "es.repositories.snapshots.shards.by_status.current";
     public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
     public static final String SNAPSHOT_BYTES_UPLOADED = "es.repositories.snapshots.upload.bytes.total";
@@ -82,6 +83,15 @@ public record SnapshotMetrics(
 
     public void createSnapshotsInProgressMetric(Supplier<Collection<LongWithAttributes>> snapshotsInProgressObserver) {
         meterRegistry.registerLongsGauge(SNAPSHOTS_IN_PROGRESS, "snapshots in progress", "unit", snapshotsInProgressObserver);
+    }
+
+    public void createSnapshotShardsByStatusMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
+        meterRegistry.registerLongsGauge(
+            SNAPSHOT_SHARDS_BY_STATUS,
+            "snapshotting shards by (potentially movement-blocking) status",
+            "unit",
+            shardSnapshotsByStatusObserver
+        );
     }
 
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {

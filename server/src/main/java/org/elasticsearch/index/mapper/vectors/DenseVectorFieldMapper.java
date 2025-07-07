@@ -2853,10 +2853,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         this.isSyntheticVector = isSyntheticVector;
     }
 
-    public boolean isSyntheticVector() {
-        return isSyntheticVector;
-    }
-
     @Override
     public DenseVectorFieldType fieldType() {
         return (DenseVectorFieldType) super.fieldType();
@@ -3032,7 +3028,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        return isSyntheticVector()
+        return isSyntheticVector
             ? new SyntheticDenseVectorPatchLoader(new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity))
             : null;
     }
@@ -3131,7 +3127,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          *
          * @throws IOException if reading fails
          */
-        public Object copyVectorAsList() throws IOException {
+        private Object copyVectorAsList() throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
             if (floatValues != null) {
                 float[] raw = floatValues.vectorValue(ord);
@@ -3235,8 +3231,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (dvLoader == null) {
                     return;
                 }
-                dvLoader.advanceToDoc(doc);
-                if (syntheticFieldLoader.hasValue()) {
+                if (dvLoader.advanceToDoc(doc) && syntheticFieldLoader.hasValue()) {
                     // add vectors as list since that's how they're parsed from xcontent.
                     acc.add(
                         new SourceLoader.LeafSyntheticVectorPath(syntheticFieldLoader.fieldName(), syntheticFieldLoader.copyVectorAsList())

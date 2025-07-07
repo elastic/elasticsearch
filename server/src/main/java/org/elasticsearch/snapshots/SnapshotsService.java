@@ -4457,9 +4457,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private Collection<LongWithAttributes> getSnapshotsInProgress() {
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on snapshots-in-progress
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
         final List<LongWithAttributes> snapshotsInProgressMetrics = new ArrayList<>();
-        clusterService.state().metadata().projects().forEach((projectId, project) -> {
+        currentState.metadata().projects().forEach((projectId, project) -> {
             RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
             if (repositoriesMetadata != null) {
                 repositoriesMetadata.repositories().forEach(repository -> {

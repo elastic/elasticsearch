@@ -494,7 +494,7 @@ public class LlamaServiceTests extends ESTestCase {
 
         var e = assertThrows(ElasticsearchStatusException.class, this::streamCompletion);
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(e.getMessage(), equalTo(String.format("""
+        assertThat(e.getMessage(), equalTo(String.format(Locale.ROOT, """
             Resource not found at [%s] for request from inference entity id [id] status [404]. Error message: [{
                 "detail": "Not Found"
             }]""", getUrl(webServer))));

@@ -41,7 +41,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "deepseek",
                     "elastic",
                     "elasticsearch",
@@ -90,7 +89,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "elastic",
                     "elasticsearch",
                     "googleaistudio",
@@ -118,7 +116,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "alibabacloud-ai-search",
                     "cohere",
-                    "custom",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
@@ -147,7 +144,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "deepseek",
                     "googleaistudio",
                     "googlevertexai",
@@ -188,7 +184,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
-                    "custom",
                     "elastic",
                     "elasticsearch",
                     "hugging_face",

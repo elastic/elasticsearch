@@ -35,6 +35,11 @@ public class EqualsSyntheticSourceDelegate extends Query {
         return fieldName + "(delegate):" + value;
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     private class Builder extends BaseTermQueryBuilder<Builder> {
         private Builder(String name, String value) {
             super(name, value);

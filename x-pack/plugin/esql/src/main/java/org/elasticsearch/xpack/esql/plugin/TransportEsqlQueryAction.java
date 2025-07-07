@@ -181,6 +181,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+
     }
 
     @Override
@@ -233,7 +234,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            request.allowPartialResults()
+            request.allowPartialResults(),
+            clusterService.getClusterSettings().get(EsqlPlugin.ESQL_STRING_LIKE_ON_INDEX)
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task

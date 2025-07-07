@@ -2,4 +2,5 @@ pr: 130019
 summary: Fix behavior for `_index` LIKE for ESQL
 area: ES|QL
 type: bug
-issues: []
+issues:
+ - 129511

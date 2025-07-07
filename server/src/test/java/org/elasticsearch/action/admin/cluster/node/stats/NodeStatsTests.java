@@ -469,9 +469,9 @@ public class NodeStatsTests extends ESTestCase {
                 }
 
                 RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
-                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
-                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
-                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
+                assertTrue(repoThrottlingStats.getRepositorySnapshotStats().containsKey("test-repository"));
+                assertEquals(100, repoThrottlingStats.getRepositorySnapshotStats().get("test-repository").totalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.getRepositorySnapshotStats().get("test-repository").totalWriteThrottledNanos());
 
             }
         }

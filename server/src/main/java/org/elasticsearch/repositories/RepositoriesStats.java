@@ -27,35 +27,35 @@ import java.util.concurrent.TimeUnit;
 
 public class RepositoriesStats implements Writeable, ToXContentFragment {
 
-    private final Map<String, SnapshotStats> repositoryThrottlingStats;
+    private final Map<String, SnapshotStats> repositorySnapshotStats;
 
     public RepositoriesStats(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            repositoryThrottlingStats = in.readMap(SnapshotStats::readFrom);
+            repositorySnapshotStats = in.readMap(SnapshotStats::readFrom);
         } else {
-            repositoryThrottlingStats = new HashMap<>();
+            repositorySnapshotStats = new HashMap<>();
         }
     }
 
-    public RepositoriesStats(Map<String, SnapshotStats> repositoryThrottlingStats) {
-        this.repositoryThrottlingStats = new HashMap<>(repositoryThrottlingStats);
+    public RepositoriesStats(Map<String, SnapshotStats> repositorySnapshotStats) {
+        this.repositorySnapshotStats = new HashMap<>(repositorySnapshotStats);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeMap(repositoryThrottlingStats, StreamOutput::writeWriteable);
+            out.writeMap(repositorySnapshotStats, StreamOutput::writeWriteable);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("repositories", repositoryThrottlingStats);
+        builder.field("repositories", repositorySnapshotStats);
         return builder;
     }
 
-    public Map<String, SnapshotStats> getRepositoryThrottlingStats() {
-        return Collections.unmodifiableMap(repositoryThrottlingStats);
+    public Map<String, SnapshotStats> getRepositorySnapshotStats() {
+        return Collections.unmodifiableMap(repositorySnapshotStats);
     }
 
     public record SnapshotStats(

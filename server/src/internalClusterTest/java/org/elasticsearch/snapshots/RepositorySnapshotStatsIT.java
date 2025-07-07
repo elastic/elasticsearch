@@ -76,8 +76,8 @@ public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
         RepositoriesStats stats = response.getNodes().get(0).getRepositoriesStats();
 
         // These are just broad sanity checks on the values. There are more detailed checks in SnapshotMetricsIT
-        assertTrue(stats.getRepositoryThrottlingStats().containsKey("test-repo"));
-        RepositoriesStats.SnapshotStats snapshotStats = stats.getRepositoryThrottlingStats().get("test-repo");
+        assertTrue(stats.getRepositorySnapshotStats().containsKey("test-repo"));
+        RepositoriesStats.SnapshotStats snapshotStats = stats.getRepositorySnapshotStats().get("test-repo");
         assertThat(snapshotStats.totalWriteThrottledNanos(), greaterThan(0L));
         assertThat(snapshotStats.totalReadThrottledNanos(), greaterThan(0L));
         assertThat(snapshotStats.shardSnapshotsStarted(), equalTo((long) numberOfShards));

@@ -32,6 +32,10 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
+    static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
+    }
+
     public void testDotProduct() throws Exception {
         for (int i = 0; i < 100; i++) {
             var bench = new Int7uScorerBenchmark();
@@ -42,8 +46,10 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
                 assertEquals(expected, bench.dotProductLucene(), delta);
                 assertEquals(expected, bench.dotProductNative(), delta);
 
-                expected = bench.dotProductLuceneQuery();
-                assertEquals(expected, bench.dotProductNativeQuery(), delta);
+                if (supportsHeapSegments()) {
+                    expected = bench.dotProductLuceneQuery();
+                    assertEquals(expected, bench.dotProductNativeQuery(), delta);
+                }
             } finally {
                 bench.teardown();
             }
@@ -60,8 +66,10 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
                 assertEquals(expected, bench.squareDistanceLucene(), delta);
                 assertEquals(expected, bench.squareDistanceNative(), delta);
 
-                expected = bench.squareDistanceLuceneQuery();
-                assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
+                if (supportsHeapSegments()) {
+                    expected = bench.squareDistanceLuceneQuery();
+                    assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
+                }
             } finally {
                 bench.teardown();
             }

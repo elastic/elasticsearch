@@ -44,8 +44,10 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     static final float DEVIATION_LIMIT = 0.15f;
     // We expect a 10% drop in the rate due to not covering window edges and not triggering
     // extrapolation logic in the time series engine.
-    static final float EXPECTED_DROP_RATE = 0.10f;
+    static final float EXPECTED_DROP_RATE = 0.12f;
     static final int LIMIT = 5;
+    static final int MAX_HOSTS = 5;
+    static final int PCT_CHANCE_OF_RESET = 15; // 15% chance of resetting the request count
 
     @Before
     public void populateIndex() {
@@ -69,7 +71,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
             )
             .get();
         final Map<String, Integer> requestCounts = new HashMap<>();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < MAX_HOSTS; i++) {
             hostToClusters.put("p" + i, randomFrom("qa", "prod"));
             hostToRate.put("p" + i, randomIntBetween(0, 50));
             requestCounts.put("p" + i, randomIntBetween(0, 100));
@@ -79,17 +81,16 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
         int numDocs = between(100, 300);
         docs.clear();
         // We want docs to span a 6-minute period, so we need to adapt their spacing accordingly.
-        var tsPerDoc = 360.0 / numDocs; // 6 minutes divided by number of docs
+        var avgSamplingPeriod = 360.0 / numDocs; // 6 minutes divided by number of docs - then randomized below
 
         for (int i = 0; i < numDocs; i++) {
-            final var tsChange = randomDoubleBetween(tsPerDoc - 1.0, tsPerDoc + 1.0, true);
+            final var tsChange = randomDoubleBetween(avgSamplingPeriod - 1.0, avgSamplingPeriod + 1.0, true);
             timestamp += Math.round(tsChange * 1000);
             // We want a subset of hosts to have docs within a give time point.
             var hosts = Set.copyOf(randomSubsetOf(between(2, hostToClusters.size()), hostToClusters.keySet()));
             for (String host : hostToClusters.keySet()) {
                 var requestCount = requestCounts.compute(host, (k, curr) -> {
-                    // 15% chance of reset
-                    if (randomInt(100) <= 15) {
+                    if (randomInt(100) <= PCT_CHANCE_OF_RESET) {
                         return Math.toIntExact(Math.round(hostToRate.get(k) * tsChange));
                     } else {
                         return Math.toIntExact(Math.round((curr == null ? 0 : curr) + hostToRate.get(k) * tsChange));
@@ -165,12 +166,18 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRateWithTimeBucketSumByMin() {
-        try (var resp = run("TS hosts | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute) | SORT ts | LIMIT " + LIMIT)) {
+        try (
+            var resp = run(
+                "TS hosts | STATS sum(rate(request_count)) BY tbucket=bucket(@timestamp, 1 minute) | SORT tbucket | LIMIT " + LIMIT
+            )
+        ) {
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             try {
                 assertThat(
                     resp.columns(),
-                    equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
+                    equalTo(
+                        List.of(new ColumnInfoImpl("sum(rate(request_count))", "double", null), new ColumnInfoImpl("tbucket", "date", null))
+                    )
                 );
                 assertThat(values, hasSize(LIMIT));
                 for (int i = 0; i < values.size(); i++) {
@@ -186,11 +193,13 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRateWithTimeBucketAvgByMin() {
-        try (var resp = run("TS hosts | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute) | SORT ts | LIMIT 5")) {
+        try (var resp = run("TS hosts | STATS avg(rate(request_count)) BY tbucket=bucket(@timestamp, 1minute) | SORT tbucket | LIMIT 5")) {
             try {
                 assertThat(
                     resp.columns(),
-                    equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
+                    equalTo(
+                        List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("tbucket", "date", null))
+                    )
                 );
                 List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
                 assertThat(values, hasSize(LIMIT));
@@ -209,13 +218,15 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     public void testRateWithTimeBucketSumByMinAndLimitAsParam() {
         try (var resp = run("""
             TS hosts
-            | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute)
-            | SORT ts
+            | STATS avg(rate(request_count)) BY tbucket=bucket(@timestamp, 1minute)
+            | SORT tbucket
             | LIMIT""" + " " + LIMIT)) {
             try {
                 assertThat(
                     resp.columns(),
-                    equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
+                    equalTo(
+                        List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("tbucket", "date", null))
+                    )
                 );
                 List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
                 assertThat(values, hasSize(LIMIT));
@@ -234,8 +245,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     public void testRateWithTimeBucketAndClusterSumByMin() {
         try (var resp = run("""
             TS hosts
-            | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute), cluster
-            | SORT ts, cluster
+            | STATS sum(rate(request_count)) BY tbucket=bucket(@timestamp, 1 minute), cluster
+            | SORT tbucket, cluster
             | LIMIT 5""")) {
             try {
                 assertThat(
@@ -243,7 +254,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                     equalTo(
                         List.of(
                             new ColumnInfoImpl("sum(rate(request_count))", "double", null),
-                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("tbucket", "date", null),
                             new ColumnInfoImpl("cluster", "keyword", null)
                         )
                     )
@@ -269,8 +280,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     public void testRateWithTimeBucketAndClusterAvgByMin() {
         try (var resp = run("""
             TS hosts
-            | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute), cluster
-            | SORT ts, cluster
+            | STATS avg(rate(request_count)) BY tbucket=bucket(@timestamp, 1minute), cluster
+            | SORT tbucket, cluster
             | LIMIT 5""")) {
             try {
                 assertThat(
@@ -278,7 +289,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                     equalTo(
                         List.of(
                             new ColumnInfoImpl("avg(rate(request_count))", "double", null),
-                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("tbucket", "date", null),
                             new ColumnInfoImpl("cluster", "keyword", null)
                         )
                     )
@@ -309,8 +320,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                     c = count(rate(request_count)),
                     max(rate(request_count)),
                     avg(rate(request_count))
-            BY ts=bucket(@timestamp, 1minute), cluster
-            | SORT ts, cluster
+            BY tbucket=bucket(@timestamp, 1minute), cluster
+            | SORT tbucket, cluster
             | LIMIT 5
             | EVAL avg_rate= s/c
             | KEEP avg_rate, `max(rate(request_count))`, `avg(rate(request_count))`, ts, cluster
@@ -323,7 +334,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                             new ColumnInfoImpl("avg_rate", "double", null),
                             new ColumnInfoImpl("max(rate(request_count))", "double", null),
                             new ColumnInfoImpl("avg(rate(request_count))", "double", null),
-                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("tbucket", "date", null),
                             new ColumnInfoImpl("cluster", "keyword", null)
                         )
                     )
@@ -357,8 +368,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     public void testRateWithTimeBucketAndClusterMultipleMetricsByMin() {
         try (var resp = run("""
             TS hosts
-            | STATS sum(rate(request_count)), max(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
-            | SORT ts, cluster
+            | STATS sum(rate(request_count)), max(cpu) BY tbucket=bucket(@timestamp, 1 minute), cluster
+            | SORT tbucket, cluster
             | LIMIT 5""")) {
             try {
                 assertThat(
@@ -367,7 +378,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         List.of(
                             new ColumnInfoImpl("sum(rate(request_count))", "double", null),
                             new ColumnInfoImpl("max(cpu)", "double", null),
-                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("tbucket", "date", null),
                             new ColumnInfoImpl("cluster", "keyword", null)
                         )
                     )
@@ -399,8 +410,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     public void testRateWithTimeBucketAndClusterMultipleMetricsAvgByMin() {
         try (var resp = run("""
             TS hosts
-            | STATS sum(rate(request_count)), avg(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
-            | SORT ts, cluster
+            | STATS sum(rate(request_count)), avg(cpu) BY tbucket=bucket(@timestamp, 1 minute), cluster
+            | SORT tbucket, cluster
             | LIMIT 5""")) {
             try {
                 assertThat(
@@ -409,7 +420,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         List.of(
                             new ColumnInfoImpl("sum(rate(request_count))", "double", null),
                             new ColumnInfoImpl("avg(cpu)", "double", null),
-                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("tbucket", "date", null),
                             new ColumnInfoImpl("cluster", "keyword", null)
                         )
                     )

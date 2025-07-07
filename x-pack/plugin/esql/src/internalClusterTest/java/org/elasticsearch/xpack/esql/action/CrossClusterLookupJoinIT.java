@@ -22,6 +22,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -150,7 +151,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         ZonedDateTime nextMidnight = nowUtc.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         // If we're too close to midnight, we could create index with one day and query with another, and it'd fail.
         assumeTrue("Skip if too close to midnight", Duration.between(nowUtc, nextMidnight).toMinutes() >= 5);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT);
         String lookupIndexName = "values_lookup_" + nowUtc.format(formatter);
 
         populateLookupIndex(LOCAL_CLUSTER, lookupIndexName, 10);

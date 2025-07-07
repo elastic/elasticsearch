@@ -21,13 +21,14 @@ public final class VectorWritables {
 
     private VectorWritables() {
         // Utility class
+        throw new UnsupportedOperationException();
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWritables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
-            return List.of(Knn.ENTRY);
+            entries.add(Knn.ENTRY);
         }
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(CosineSimilarity.ENTRY);

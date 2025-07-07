@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.info;
 
 import org.elasticsearch.gradle.Version;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
@@ -19,7 +20,7 @@ import java.util.Objects;
  * @param name Name of the development branch
  * @param version Elasticsearch version on the development branch
  */
-public record DevelopmentBranch(String name, Version version) {
+public record DevelopmentBranch(String name, Version version) implements Serializable {
     public DevelopmentBranch {
         Objects.requireNonNull(name);
         Objects.requireNonNull(version);

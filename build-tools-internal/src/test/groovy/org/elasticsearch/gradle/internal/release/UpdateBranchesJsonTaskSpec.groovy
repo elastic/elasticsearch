@@ -33,6 +33,7 @@ class UpdateBranchesJsonTaskSpec extends Specification {
     def setup() {
         Project project = ProjectBuilder.builder().withProjectDir(projectRoot).build()
         task = project.tasks.register("updateBranchesJson", UpdateBranchesJsonTask).get()
+        task.branchesFile = new File(projectRoot, "branches.json")
     }
 
     def "add new branch to branches.json (sorted by version) when --add-branch is specified"() {

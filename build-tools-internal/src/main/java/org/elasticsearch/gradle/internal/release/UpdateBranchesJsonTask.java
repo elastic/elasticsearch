@@ -17,14 +17,16 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BranchesFileParser;
 import org.elasticsearch.gradle.internal.info.DevelopmentBranch;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Project;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 
@@ -36,7 +38,6 @@ import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.List;
 
-import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 /**
@@ -46,22 +47,47 @@ public class UpdateBranchesJsonTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(UpdateBranchesJsonTask.class);
 
-    private final Project project;
     private final ObjectMapper objectMapper;
     private final BranchesFileParser branchesFileParser;
 
-    @Nullable
+    @OutputFile
+    private File branchesFile;
+
+    @Input
+    @Optional
     private DevelopmentBranch addBranch;
-    @Nullable
+    @Input
+    @Optional
     private String removeBranch;
-    @Nullable
+    @Input
+    @Optional
     private DevelopmentBranch updateBranch;
 
     @Inject
-    public UpdateBranchesJsonTask(Project project) {
-        this.project = project;
+    public UpdateBranchesJsonTask(ProjectLayout projectLayout) {
         this.objectMapper = new ObjectMapper();
         this.branchesFileParser = new BranchesFileParser(objectMapper);
+        this.branchesFile = projectLayout.getSettingsDirectory().file("branches.json").getAsFile();
+    }
+
+    public File getBranchesFile() {
+        return branchesFile;
+    }
+
+    public void setBranchesFile(File branchesFile) {
+        this.branchesFile = branchesFile;
+    }
+
+    public DevelopmentBranch getAddBranch() {
+        return addBranch;
+    }
+
+    public String getRemoveBranch() {
+        return removeBranch;
+    }
+
+    public DevelopmentBranch getUpdateBranch() {
+        return updateBranch;
     }
 
     @Option(option = "add-branch", description = "Specifies the branch and corresponding version to add in format <branch>:<version>")
@@ -89,7 +115,6 @@ public class UpdateBranchesJsonTask extends DefaultTask {
 
     @TaskAction
     public void executeTask() throws IOException {
-        File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
         List<DevelopmentBranch> developmentBranches = readBranches(branchesFile);
 
         if (addBranch == null && removeBranch == null && updateBranch == null) {
@@ -133,7 +158,6 @@ public class UpdateBranchesJsonTask extends DefaultTask {
 
         DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
         prettyPrinter.indentArraysWith(new DefaultIndenter("  ", DefaultIndenter.SYS_LF));
-        prettyPrinter.withoutSpacesInObjectEntries();
         objectMapper.writer(prettyPrinter).writeValue(branchesFile, jsonNode);
     }
 

@@ -30,7 +30,7 @@ import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
 /**
  * Implements an Expression query builder, which matches documents based on a given expression.
- * The expression itself must provide the asLuceneQuery and getLuceneQueryDescription methods
+ * The expression itself must provide the {@link TranslationAware#asLuceneQuery} interface to be translated into a Lucene query.
  * It allows for serialization of the expression and generate an AutomatonQuery on the data node
  * as Automaton does not support serialization.
  */
@@ -94,7 +94,7 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) {
         if (expression instanceof TranslationAware translationAware) {
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {

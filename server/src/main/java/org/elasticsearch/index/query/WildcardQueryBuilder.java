@@ -56,7 +56,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
-    // forces a string like match instead of a wildcard match
+    /**
+     * Force string matching instead of the field-type-aware wildcard matching.
+     * When this is true the {@link org.elasticsearch.index.mapper.IndexFieldMapper} will always match of the
+     * {@code cluster_name:index_name} instead of emulating the glob pattern on the URL.
+     */
     private boolean forceStringMatch = false;
 
     /**
@@ -81,9 +85,14 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         this.value = value;
     }
 
-    public WildcardQueryBuilder(String fieldName, String value, boolean isForESQL) {
+    /**
+     * @param forceStringMatch Force string matching instead of the field-type-aware wildcard matching.
+     * When this is true the {@link org.elasticsearch.index.mapper.IndexFieldMapper} will always match of the
+     * {@code cluster_name:index_name} instead of emulating the glob pattern on the URL.
+     */
+    public WildcardQueryBuilder(String fieldName, String value, boolean forceStringMatch) {
         this(fieldName, value);
-        this.forceStringMatch = isForESQL;
+        this.forceStringMatch = forceStringMatch;
     }
 
     /**

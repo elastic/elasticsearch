@@ -308,13 +308,12 @@ PUT my-index-000001
 }
 ```
 
-::::{admonition} Think before disabling the _source field
-:class: warning
+::::{warning}
 
-Users often disable the `_source` field without thinking about the consequences, and then live to regret it. If the `_source` field isn’t available then a number of features are not supported:
+Do not disable the `_source` field, unless absolutely necessary. If you disable it, the following critical features will not be supported:
 
 * The [`update`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update), [`update_by_query`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query), and [`reindex`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) APIs.
-* In the {{kib}} [Discover](docs-content://explore-analyze/discover.md) application, field data will not be displayed.
+* Display of field data in the {{kib}} [Discover](docs-content://explore-analyze/discover.md) application.
 * On the fly [highlighting](/reference/elasticsearch/rest-apis/highlighting.md).
 * The ability to reindex from one Elasticsearch index to another, either to change mappings or analysis, or to upgrade an index to a new major version.
 * The ability to debug queries or aggregations by viewing the original document used at index time.

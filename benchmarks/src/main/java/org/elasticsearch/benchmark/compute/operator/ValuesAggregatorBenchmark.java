@@ -65,7 +65,7 @@ import java.util.stream.LongStream;
 @Fork(1)
 public class ValuesAggregatorBenchmark {
     static final int MIN_BLOCK_LENGTH = 8 * 1024;
-    private static final int OP_COUNT = 20;
+    private static final int OP_COUNT = 1024;
     private static final int UNIQUE_VALUES = 6;
     private static final BytesRef[] KEYWORDS = new BytesRef[] {
         new BytesRef("Tokyo"),

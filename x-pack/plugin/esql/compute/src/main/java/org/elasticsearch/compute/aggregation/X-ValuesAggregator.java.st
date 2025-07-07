@@ -347,12 +347,12 @@ $endif$
                 selectedCountsSize = adjust;
                 int[] selectedCounts = new int[selectedCountsLen];
                 for (int id = 0; id < values.size(); id++) {
-        $if(long||BytesRef||double)$
+$if(long||BytesRef||double)$
                     int group = (int) values.getKey1(id);
-        $elseif(float||int)$
+$elseif(float||int)$
                     long both = values.get(id);
                     int group = (int) (both >>> Float.SIZE);
-        $endif$
+$endif$
                     if (group < selectedCounts.length) {
                         selectedCounts[group]--;
                     }

@@ -41,7 +41,7 @@ public class BlobStoreSnapshotMetrics {
     }
 
     public void incrementSnapshotRateLimitingTimeInNanos(long throttleTimeNanos) {
-        snapshotMetrics.snapshotCreateThrottleDurationCounter().incrementBy(throttleTimeNanos, metricAttributes);
+        snapshotMetrics.createThrottleDurationCounter().incrementBy(throttleTimeNanos, metricAttributes);
         snapshotRateLimitingTimeInNanos.inc(throttleTimeNanos);
     }
 
@@ -50,7 +50,7 @@ public class BlobStoreSnapshotMetrics {
     }
 
     public void incrementRestoreRateLimitingTimeInNanos(long throttleTimeNanos) {
-        snapshotMetrics.snapshotRestoreThrottleDurationCounter().incrementBy(throttleTimeNanos, metricAttributes);
+        snapshotMetrics.restoreThrottleDurationCounter().incrementBy(throttleTimeNanos, metricAttributes);
         restoreRateLimitingTimeInNanos.inc(throttleTimeNanos);
     }
 
@@ -59,33 +59,33 @@ public class BlobStoreSnapshotMetrics {
     }
 
     public void incrementCountersForPartUpload(long partSizeInBytes, long partWriteTimeNanos) {
-        snapshotMetrics.snapshotBytesUploadedCounter().incrementBy(partSizeInBytes, metricAttributes);
-        snapshotMetrics.snapshotUploadDurationCounter().incrementBy(partWriteTimeNanos, metricAttributes);
+        snapshotMetrics.bytesUploadedCounter().incrementBy(partSizeInBytes, metricAttributes);
+        snapshotMetrics.uploadDurationCounter().incrementBy(partWriteTimeNanos, metricAttributes);
         numberOfBytesUploaded.inc(partSizeInBytes);
         uploadTimeInNanos.inc(partWriteTimeNanos);
     }
 
     public void incrementNumberOfBlobsUploaded() {
-        snapshotMetrics.snapshotBlobsUploadedCounter().incrementBy(1, metricAttributes);
+        snapshotMetrics.blobsUploadedCounter().incrementBy(1, metricAttributes);
         numberOfBlobsUploaded.inc();
     }
 
     public void shardSnapshotStarted() {
-        snapshotMetrics.snapshotsShardsStartedCounter().incrementBy(1, metricAttributes);
+        snapshotMetrics.shardsStartedCounter().incrementBy(1, metricAttributes);
         numberOfShardSnapshotsStarted.inc();
         shardSnapshotsInProgress.inc();
     }
 
     public void shardSnapshotCompleted(IndexShardSnapshotStatus status) {
         final Map<String, Object> attrsWithStage = Maps.copyMapWithAddedEntry(metricAttributes, "stage", status.getStage().name());
-        snapshotMetrics.snapshotsShardsCompletedCounter().incrementBy(1, attrsWithStage);
-        snapshotMetrics.snapshotShardsDurationHistogram().record(status.getTotalTime() / 1_000f, attrsWithStage);
+        snapshotMetrics.shardsCompletedCounter().incrementBy(1, attrsWithStage);
+        snapshotMetrics.shardsDurationHistogram().record(status.getTotalTime() / 1_000f, attrsWithStage);
         numberOfShardSnapshotsCompleted.inc();
         shardSnapshotsInProgress.dec();
     }
 
     public void incrementUploadReadTime(long readTimeInNanos) {
-        snapshotMetrics.snapshotUploadReadDurationCounter().incrementBy(readTimeInNanos, metricAttributes);
+        snapshotMetrics.uploadReadDurationCounter().incrementBy(readTimeInNanos, metricAttributes);
         uploadReadTimeInNanos.inc(readTimeInNanos);
     }
 

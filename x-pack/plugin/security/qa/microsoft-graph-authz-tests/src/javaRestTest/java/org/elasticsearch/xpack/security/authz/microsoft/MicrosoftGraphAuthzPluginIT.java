@@ -22,7 +22,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -126,9 +125,9 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
         if (USE_FIXTURE) {
             clusterBuilder.setting(
-                    "xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host",
-                    () -> graphFixture.getBaseUrl() + "/v1.0"
-                )
+                "xpack.security.authc.realms.microsoft_graph.microsoft_graph1.graph_host",
+                () -> graphFixture.getBaseUrl() + "/v1.0"
+            )
                 .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.access_token_host", graphFixture::getBaseUrl)
                 .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
                 .systemProperty("javax.net.ssl.trustStoreType", "jks")

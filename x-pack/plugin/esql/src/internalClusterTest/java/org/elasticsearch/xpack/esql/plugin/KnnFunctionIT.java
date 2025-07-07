@@ -121,7 +121,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE KNN(lookup_vector, %s, 5) OR id > 10
+            | WHERE KNN(lookup_vector, %s, {"k": 5}) OR id > 10
             """, Arrays.toString(queryVector));
 
         var error = expectThrows(VerificationException.class, () -> run(query));

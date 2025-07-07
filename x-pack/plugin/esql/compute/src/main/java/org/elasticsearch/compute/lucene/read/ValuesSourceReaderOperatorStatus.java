@@ -92,8 +92,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         } else {
             /*
              * Before we knew how to split pages when reading large values
-             * our status just contained one int for pages - just like the
-             * superclass serialization.
+             * our status just contained one int per page - just like AbstractPageMappingOperator.Status.
              */
             new AbstractPageMappingOperator.Status(processNanos(), pagesEmitted(), rowsReceived(), rowsEmitted()).writeTo(out);
         }

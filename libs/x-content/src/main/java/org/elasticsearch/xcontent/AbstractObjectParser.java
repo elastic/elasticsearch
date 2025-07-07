@@ -10,6 +10,7 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 
@@ -245,6 +246,7 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);

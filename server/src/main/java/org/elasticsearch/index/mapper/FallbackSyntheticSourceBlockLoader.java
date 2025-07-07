@@ -59,7 +59,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(false, false, Set.of(IgnoredSourceFieldMapper.NAME));
+        return new StoredFieldsSpec(false, false, Set.of(IgnoredSourceFieldMapper.NAME + "." + fieldName));
     }
 
     @Override
@@ -72,7 +72,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    static Set<String> splitIntoFieldPaths(String fieldName) {
+    public static Set<String> splitIntoFieldPaths(String fieldName) {
         var paths = new HashSet<String>();
         paths.add("_doc");
         var current = new StringBuilder();
@@ -107,7 +107,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
             for (Object value : ignoredSource) {
-                IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                IgnoredSourceFieldMapper.NameValue nameValue = (IgnoredSourceFieldMapper.NameValue) value;
                 if (fieldPaths.contains(nameValue.name())) {
                     valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
                 }

@@ -13,24 +13,39 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class IgnoredSourceFieldLoader extends StoredFieldLoader {
+
+    final Set<String> potentialFieldsInIgnoreSource;
+
+    IgnoredSourceFieldLoader(StoredFieldsSpec spec) {
+        Set<String> potentialFieldsInIgnoreSource = new HashSet<>();
+        for (String requiredStoredField : spec.requiredStoredFields()) {
+            if (requiredStoredField.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                String fieldName = requiredStoredField.substring(IgnoredSourceFieldMapper.NAME.length());
+                potentialFieldsInIgnoreSource.addAll(FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(fieldName));
+            }
+        }
+        this.potentialFieldsInIgnoreSource = potentialFieldsInIgnoreSource;
+    }
 
     @Override
     public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
         var reader = sequentialReader(ctx);
-        var visitor = new SFV();
+        var visitor = new SFV(potentialFieldsInIgnoreSource);
         return new LeafStoredFieldLoader() {
 
             private int doc = -1;
@@ -73,29 +88,37 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
     static class SFV extends StoredFieldVisitor {
 
-        boolean processing;
+        boolean done;
         final List<Object> values = new ArrayList<>();
+        final Set<String> potentialFieldsInIgnoreSource;
+
+        SFV(Set<String> potentialFieldsInIgnoreSource) {
+            this.potentialFieldsInIgnoreSource = potentialFieldsInIgnoreSource;
+        }
 
         @Override
         public Status needsField(FieldInfo fieldInfo) throws IOException {
-            if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                processing = true;
-                return Status.YES;
-            } else if (processing) {
+            if (done) {
                 return Status.STOP;
+            } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                return Status.YES;
+            } else {
+                return Status.NO;
             }
-
-            return Status.NO;
         }
 
         @Override
         public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            values.add(new BytesRef(value));
+            var result = IgnoredSourceFieldMapper.decodeIfMatch(value, potentialFieldsInIgnoreSource);
+            if (result != null) {
+                done = true;
+                values.add(result);
+            }
         }
 
         void reset() {
             values.clear();
-            processing = false;
+            done = false;
         }
 
     }
@@ -104,7 +127,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
         return spec.requiresSource() == false
             && spec.requiresMetadata() == false
             && spec.requiredStoredFields().size() == 1
-            && spec.requiredStoredFields().contains(IgnoredSourceFieldMapper.NAME);
+            && spec.requiredStoredFields().iterator().next().startsWith(IgnoredSourceFieldMapper.NAME);
     }
 
     // TODO: use provided one

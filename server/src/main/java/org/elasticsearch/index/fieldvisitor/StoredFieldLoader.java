@@ -51,7 +51,7 @@ public abstract class StoredFieldLoader {
             return StoredFieldLoader.empty();
         }
         if (IgnoredSourceFieldLoader.supports(spec)) {
-            return new IgnoredSourceFieldLoader();
+            return new IgnoredSourceFieldLoader(spec);
         }
         return create(spec.requiresSource(), spec.requiredStoredFields());
     }
@@ -95,7 +95,7 @@ public abstract class StoredFieldLoader {
             return StoredFieldLoader.empty();
         }
         if (IgnoredSourceFieldLoader.supports(spec)) {
-            return new IgnoredSourceFieldLoader();
+            return new IgnoredSourceFieldLoader(spec);
         }
 
         List<String> fieldsToLoad = fieldsToLoad(spec.requiresSource(), spec.requiredStoredFields());

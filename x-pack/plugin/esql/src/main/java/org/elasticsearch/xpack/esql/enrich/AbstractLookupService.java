@@ -350,8 +350,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 warnings
             );
             releasables.add(queryOperator);
-            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
-            releasables.add(extractFieldsOperator);
+
+            List<Operator> operators = new ArrayList<>();
+            if (request.extractFields.isEmpty() == false) {
+                var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
+                releasables.add(extractFieldsOperator);
+                operators.add(extractFieldsOperator);
+            }
+            operators.add(finishPages);
 
             /*
              * Collect all result Pages in a synchronizedList mostly out of paranoia. We'll
@@ -373,7 +379,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driverContext,
                 request::toString,
                 queryOperator,
-                List.of(extractFieldsOperator, finishPages),
+                operators,
                 outputOperator,
                 Driver.DEFAULT_STATUS_INTERVAL,
                 Releasables.wrap(shardContext.release, localBreaker)

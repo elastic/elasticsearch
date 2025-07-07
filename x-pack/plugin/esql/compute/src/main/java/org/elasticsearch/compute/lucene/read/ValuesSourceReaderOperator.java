@@ -43,6 +43,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
     public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) implements OperatorFactory {
+        public Factory {
+            if (fields.isEmpty()) {
+                throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
+            }
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new ValuesSourceReaderOperator(driverContext.blockFactory(), fields, shardContexts, docChannel);
@@ -96,6 +102,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
     public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
+        if (fields.isEmpty()) {
+            throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
+        }
         this.fields = fields.stream().map(FieldWork::new).toArray(FieldWork[]::new);
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;

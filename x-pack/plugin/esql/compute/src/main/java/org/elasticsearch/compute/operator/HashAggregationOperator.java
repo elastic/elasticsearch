@@ -66,7 +66,7 @@ public class HashAggregationOperator implements Operator {
 
     private final BlockHash blockHash;
 
-    private final List<GroupingAggregator> aggregators;
+    protected final List<GroupingAggregator> aggregators;
 
     private final DriverContext driverContext;
 

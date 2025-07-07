@@ -186,10 +186,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             if (TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) && mainSourceSet != null && testSourceSet != null) {
                 FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
                 FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
-                FileCollection internalClusterTestRuntime = "internalClusterTest".equals(test.getName())
-                    && internalClusterTestSourceSet == null
-                        ? project.files() // empty file collection
-                        : internalClusterTestSourceSet.getRuntimeClasspath();
+                FileCollection internalClusterTestRuntime = ("internalClusterTest".equals(test.getName())
+                    && internalClusterTestSourceSet != null) ? internalClusterTestSourceSet.getRuntimeClasspath() : project.files();
                 FileCollection testOnlyFiles = testRuntime.plus(internalClusterTestRuntime).minus(mainRuntime);
 
                 test.doFirst(task -> test.environment("es.entitlement.testOnlyPath", testOnlyFiles.getAsPath()));

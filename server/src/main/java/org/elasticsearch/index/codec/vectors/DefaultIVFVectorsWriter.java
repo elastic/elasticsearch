@@ -244,7 +244,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
         List<CentroidPartition> centroidPartitions = new ArrayList<>();
 
-        if(centroids.length > IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER) {
+        if (centroids.length > IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER) {
             List<float[]> centroidsList = Arrays.stream(centroids).toList();
             FloatVectorValues centroidsAsFVV = FloatVectorValues.fromFloats(centroidsList, fieldInfo.getVectorDimension());
 

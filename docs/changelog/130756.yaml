@@ -1,5 +1,0 @@
-pr: 130756
-summary: Add synthetic vectors support for `sparse_vector`
-area: Vector Search
-type: enhancement
-issues: []

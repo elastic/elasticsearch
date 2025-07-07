@@ -223,16 +223,13 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         private final AtomicReference<Throwable> error = new AtomicReference<>();
 
         public ActionListener<T> listener() {
-            return ActionListener.wrap(
-                res -> {
-                    result.set(res);
-                    latch.countDown();
-                },
-                err -> {
-                    error.set(err);
-                    latch.countDown();
-                }
-            );
+            return ActionListener.wrap(res -> {
+                result.set(res);
+                latch.countDown();
+            }, err -> {
+                error.set(err);
+                latch.countDown();
+            });
         }
 
         public boolean await() throws InterruptedException {

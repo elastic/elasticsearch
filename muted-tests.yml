@@ -548,12 +548,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/130205
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/129888
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/129888
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/40_knn_search/Dimensions are dynamically set}
   issue: https://github.com/elastic/elasticsearch/issues/130626

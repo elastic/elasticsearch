@@ -61,9 +61,6 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-            assertEquals(0, stats.getDfsCurrent());
-            assertEquals(1, stats.getDfsCount());
-            assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -75,15 +72,9 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
 
             SearchStats searchStats = shardSearchStatsListener.stats("_all");
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-            assertEquals(0, stats.getDfsCurrent());
-            assertEquals(1, stats.getDfsCount());
-            assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
 
             stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-            assertEquals(0, stats.getDfsCurrent());
-            assertEquals(1, stats.getDfsCount());
-            assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
             assertTrue(stats.getSearchLoadRate() > 0.0);
         }
     }
@@ -94,9 +85,6 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             shardSearchStatsListener.onFailedDfsPhase(sc);
 
             SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
-            assertEquals(0, stats.getDfsCurrent());
-            assertEquals(0, stats.getDfsCount());
-            assertEquals(1, stats.getDfsFailure());
             assertEquals(0.0, stats.getSearchLoadRate(), 0);
         }
     }

@@ -118,25 +118,8 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onPreDfsPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> statsHolder.dfsCurrent.inc());
-    }
-
-    @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        computeStats(searchContext, statsHolder -> {
-            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
-            statsHolder.dfsMetric.inc(tookInNanos);
-            statsHolder.dfsCurrent.dec();
-        });
-    }
-
-    @Override
-    public void onFailedDfsPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> {
-            statsHolder.dfsCurrent.dec();
-            statsHolder.dfsFailure.inc();
-        });
+        computeStats(searchContext, statsHolder -> { statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime()); });
     }
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
@@ -186,7 +169,6 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     static final class StatsHolder {
-        final MeanMetric dfsMetric = new MeanMetric();
         final MeanMetric queryMetric = new MeanMetric();
         final MeanMetric fetchMetric = new MeanMetric();
         /* We store scroll statistics in microseconds because with nanoseconds we run the risk of overflowing the total stats if there are
@@ -198,13 +180,11 @@ public final class ShardSearchStats implements SearchOperationListener {
          */
         final MeanMetric scrollMetric = new MeanMetric();
         final MeanMetric suggestMetric = new MeanMetric();
-        final CounterMetric dfsCurrent = new CounterMetric();
         final CounterMetric queryCurrent = new CounterMetric();
         final CounterMetric fetchCurrent = new CounterMetric();
         final CounterMetric scrollCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
 
-        final CounterMetric dfsFailure = new CounterMetric();
         final CounterMetric queryFailure = new CounterMetric();
         final CounterMetric fetchFailure = new CounterMetric();
 
@@ -217,10 +197,6 @@ public final class ShardSearchStats implements SearchOperationListener {
 
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
-                dfsMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(dfsMetric.sum()),
-                dfsCurrent.count(),
-                dfsFailure.count(),
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
                 queryCurrent.count(),

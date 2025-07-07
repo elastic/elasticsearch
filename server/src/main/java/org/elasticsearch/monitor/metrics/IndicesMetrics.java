@@ -53,7 +53,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        final int TOTAL_METRICS = 64;
+        final int TOTAL_METRICS = 52;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();
@@ -129,30 +129,6 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                     "current fetch failures of " + name + " indices",
                     "unit",
                     diffGauge(() -> cache.getOrRefresh().get(indexMode).search.getFetchFailure())
-                )
-            );
-            metrics.add(
-                registry.registerLongGauge(
-                    "es.indices." + name + ".dfs.total",
-                    "current fetches of " + name + " indices",
-                    "unit",
-                    diffGauge(() -> cache.getOrRefresh().get(indexMode).search.getDfsCount())
-                )
-            );
-            metrics.add(
-                registry.registerLongGauge(
-                    "es.indices." + name + ".dfs.time",
-                    "current fetch time of " + name + " indices",
-                    "ms",
-                    diffGauge(() -> cache.getOrRefresh().get(indexMode).search.getDfsTimeInMillis())
-                )
-            );
-            metrics.add(
-                registry.registerLongGauge(
-                    "es.indices." + name + ".dfs.failure.total",
-                    "current fetch failures of " + name + " indices",
-                    "unit",
-                    diffGauge(() -> cache.getOrRefresh().get(indexMode).search.getDfsFailure())
                 )
             );
             // indexing

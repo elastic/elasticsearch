@@ -443,7 +443,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(0, service.getActiveContexts());
 
         SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
-        assertEquals(0, totalStats.getDfsCurrent());
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
@@ -1224,7 +1223,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(0, service.getActiveContexts());
 
         SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
-        assertEquals(0, totalStats.getDfsCurrent());
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());

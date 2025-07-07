@@ -130,8 +130,6 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getDfsCount(), equalTo(0L));
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getDfsTimeInMillis(), equalTo(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0L));
@@ -140,8 +138,6 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         indicesStats = indicesAdmin().prepareStats().setGroups("group1").get();
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), notNullValue());
-        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getDfsCount(), equalTo(0L));
-        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getDfsTimeInMillis(), equalTo(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0L));

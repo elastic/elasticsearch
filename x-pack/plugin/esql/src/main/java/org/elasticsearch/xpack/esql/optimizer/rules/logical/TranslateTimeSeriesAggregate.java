@@ -144,7 +144,7 @@ import java.util.Map;
  * | STATS max(rate_$1 + rate_$2) BY host_values, time_bucket
  * </pre>
  */
-public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class TranslateTimeSeriesAggregate extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
 
     public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);

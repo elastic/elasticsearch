@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-public final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
+public final class SetAsOptimized extends Rule.Sync<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {

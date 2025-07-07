@@ -29,7 +29,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class CombineProjections extends OptimizerRules.OptimizerRule.Sync<UnaryPlan> {
     // don't drop groupings from a local plan, as the layout has already been agreed upon
     private final boolean local;
 

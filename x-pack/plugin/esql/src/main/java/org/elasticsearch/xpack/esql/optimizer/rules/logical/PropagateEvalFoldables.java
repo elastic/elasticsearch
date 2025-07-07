@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
  * Replace any reference attribute with its source, if it does not affect the result.
  * This avoids ulterior look-ups between attributes and its source across nodes.
  */
-public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
+public final class PropagateEvalFoldables extends ParameterizedRule.Sync<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {

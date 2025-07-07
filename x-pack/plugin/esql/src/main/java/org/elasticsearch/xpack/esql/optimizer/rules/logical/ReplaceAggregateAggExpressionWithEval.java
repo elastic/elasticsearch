@@ -43,7 +43,7 @@ import java.util.Map;
  * becomes
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
-public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
     public ReplaceAggregateAggExpressionWithEval() {
         super(OptimizerRules.TransformDirection.UP);
     }

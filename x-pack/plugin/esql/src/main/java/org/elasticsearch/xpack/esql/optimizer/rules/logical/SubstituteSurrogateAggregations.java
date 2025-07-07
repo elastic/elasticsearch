@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class SubstituteSurrogateAggregations extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class SubstituteSurrogateAggregations extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
     public SubstituteSurrogateAggregations() {
         super(OptimizerRules.TransformDirection.UP);
     }

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunctio
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
-public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
+public final class FoldNull extends OptimizerRules.OptimizerExpressionRule.Sync<Expression> {
 
     public FoldNull() {
         super(OptimizerRules.TransformDirection.UP);

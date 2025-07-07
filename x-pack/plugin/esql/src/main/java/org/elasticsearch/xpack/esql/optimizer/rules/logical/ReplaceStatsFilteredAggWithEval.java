@@ -36,7 +36,7 @@ import java.util.List;
  *     ... | STATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
  * </pre>
  */
-public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         int oldAggSize = aggregate.aggregates().size();

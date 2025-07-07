@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 
-public final class SubstituteSurrogatePlans extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public final class SubstituteSurrogatePlans extends OptimizerRules.OptimizerRule.Sync<LogicalPlan> {
 
     public SubstituteSurrogatePlans() {
         super(OptimizerRules.TransformDirection.UP);

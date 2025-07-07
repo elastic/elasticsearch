@@ -212,7 +212,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return RULES;
     }
 
-    private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
+    private static class ResolveTable extends ParameterizedAnalyzerRule.Sync<UnresolvedRelation, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
@@ -312,7 +312,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveEnrich extends ParameterizedAnalyzerRule<Enrich, AnalyzerContext> {
+    private static class ResolveEnrich extends ParameterizedAnalyzerRule.Sync<Enrich, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(Enrich plan, AnalyzerContext context) {
@@ -398,7 +398,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan<?>, AnalyzerContext> {
+    private static class ResolveInference extends ParameterizedAnalyzerRule.Sync<InferencePlan<?>, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
@@ -426,7 +426,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveLookupTables extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
+    private static class ResolveLookupTables extends ParameterizedAnalyzerRule.Sync<Lookup, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(Lookup lookup, AnalyzerContext context) {
@@ -474,7 +474,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+    public static class ResolveRefs extends ParameterizedAnalyzerRule.Sync<LogicalPlan, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -1286,7 +1286,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return named.withLocation(u.source());
     }
 
-    private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+    private static class ResolveFunctions extends ParameterizedAnalyzerRule.Sync<LogicalPlan, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
@@ -1319,7 +1319,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    private static class AddImplicitLimit extends ParameterizedRule.Sync<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
@@ -1338,7 +1338,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class AddImplicitForkLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    private static class AddImplicitForkLimit extends ParameterizedRule.Sync<LogicalPlan, LogicalPlan, AnalyzerContext> {
         private final AddImplicitLimit addImplicitLimit = new AddImplicitLimit();
 
         @Override
@@ -1386,7 +1386,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * </ul>
      * Coalesce(Int, Long) will NOT be converted to Coalesce(Long, Long) or Coalesce(Int, Int).
      */
-    private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    private static class ImplicitCasting extends ParameterizedRule.Sync<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             // do implicit casting for function arguments
@@ -1634,15 +1634,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
-     * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
-     * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
-     * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
-     * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
-     * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
-     * (See {@link UnionTypesCleanup} below).
+     * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
+     * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
+     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link MultiTypeEsField}s.
+     * These need to be converted back to actual {@code UnresolvedAttribute} in order for validation to generate appropriate failures.
+     * <p>
+     * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
+     * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
+     * This should not spill into the query output, so we drop such attributes at the end.
      */
-    private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ResolveUnionTypes extends Rule.Sync<LogicalPlan, LogicalPlan> {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
@@ -1652,6 +1653,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan) {
             unionFieldAttributes = new ArrayList<>();
             return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
@@ -1850,7 +1852,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
      * This should not spill into the query output, so we drop such attributes at the end.
      */
-    private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
+    private static class UnionTypesCleanup extends Rule.Sync<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
             LogicalPlan planWithCheckedUnionTypes = plan.transformUp(
                 LogicalPlan.class,
@@ -1898,7 +1900,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
      */
-    private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+    private static class DateMillisToNanosInEsRelation extends Rule.Sync<LogicalPlan, LogicalPlan> {
 
         private final boolean isSnapshot;
 

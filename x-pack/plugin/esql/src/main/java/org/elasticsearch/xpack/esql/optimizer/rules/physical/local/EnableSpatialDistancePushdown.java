@@ -69,7 +69,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFi
  * Note that the WHERE clause is both rewritten to an intersection and pushed down closer to the <code>EsQueryExec</code>,
  * which allows the predicate to be pushed down to Lucene in a later rule, <code>PushFiltersToSource</code>.
  */
-public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync<
     FilterExec,
     LocalPhysicalOptimizerContext> {
 

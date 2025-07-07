@@ -59,7 +59,7 @@ import java.util.function.BiFunction;
  *     </li>
  * </ol>
  */
-public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
+public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync<TopNExec, LocalPhysicalOptimizerContext> {
 
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {

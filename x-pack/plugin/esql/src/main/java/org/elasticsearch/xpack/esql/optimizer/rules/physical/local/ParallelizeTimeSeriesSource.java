@@ -33,7 +33,7 @@ import java.util.Set;
  * and time-series aggregation so that they can run parallel to speed up time-series query.
  * For the field-extraction part, it will use a specialized version for time-series indices.
  */
-public class ParallelizeTimeSeriesSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+public class ParallelizeTimeSeriesSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync<
     TimeSeriesAggregateExec,
     LocalPhysicalOptimizerContext> {
 

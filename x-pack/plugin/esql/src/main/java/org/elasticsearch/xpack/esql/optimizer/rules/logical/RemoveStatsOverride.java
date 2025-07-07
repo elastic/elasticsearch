@@ -35,7 +35,7 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * becomes
  * {@code STATS max($x + 1) BY $x = a + b}
  */
-public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {

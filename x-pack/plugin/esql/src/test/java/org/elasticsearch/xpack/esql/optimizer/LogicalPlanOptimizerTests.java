@@ -5460,7 +5460,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     record PushdownShadowingGeneratingPlanTestCase(
         BiFunction<LogicalPlan, Attribute, LogicalPlan> applyLogicalPlan,
-        OptimizerRules.OptimizerRule<? extends LogicalPlan> rule
+        OptimizerRules.OptimizerRule.Sync<? extends LogicalPlan> rule
     ) {};
 
     static PushdownShadowingGeneratingPlanTestCase[] PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES = {

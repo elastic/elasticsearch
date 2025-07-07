@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class PruneLiteralsInOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
+public final class PruneLiteralsInOrderBy extends OptimizerRules.OptimizerRule.Sync<OrderBy> {
 
     @Override
     protected LogicalPlan rule(OrderBy ob) {

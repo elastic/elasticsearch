@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOptimizerRule.Sync<Limit, LogicalOptimizerContext> {
     public SkipQueryOnLimitZero() {
         super(OptimizerRules.TransformDirection.DOWN);
     }

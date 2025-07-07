@@ -35,7 +35,7 @@ import static java.util.Collections.singletonList;
  * This is done here to localize the project close to the data source and simplify the upcoming field
  * extraction.
  */
-public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
+public class ProjectAwayColumns extends Rule.Sync<PhysicalPlan, PhysicalPlan> {
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {

@@ -34,7 +34,9 @@ import java.util.Set;
  * Unfortunately this optimization cannot be applied when grouping is necessary since it can filter out
  * groups containing only null values
  */
-public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LocalLogicalOptimizerContext> {
+public final class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptimizerRule.Sync<
+    Aggregate,
+    LocalLogicalOptimizerContext> {
     public InferNonNullAggConstraint() {
         super(OptimizerRules.TransformDirection.UP);
     }

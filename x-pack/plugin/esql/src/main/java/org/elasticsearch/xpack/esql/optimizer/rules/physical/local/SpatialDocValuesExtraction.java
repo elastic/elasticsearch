@@ -68,7 +68,7 @@ import java.util.Set;
  * is the only place where this information is available. This also means that the knowledge of the usage of doc-values does not need
  * to be serialized between nodes, and is only used locally.
  */
-public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync<
     AggregateExec,
     LocalPhysicalOptimizerContext> {
     @Override

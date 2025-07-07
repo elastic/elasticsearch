@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 /**
  * Uses the standard index mode if the special index mode is not required in the query.
  */
-public final class PruneUnusedIndexMode extends OptimizerRules.OptimizerRule<EsRelation> {
+public final class PruneUnusedIndexMode extends OptimizerRules.OptimizerRule.Sync<EsRelation> {
     public PruneUnusedIndexMode() {
         super(OptimizerRules.TransformDirection.UP);
     }

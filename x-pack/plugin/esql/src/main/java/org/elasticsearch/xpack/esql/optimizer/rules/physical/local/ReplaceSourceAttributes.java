@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 
-public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRule<EsSourceExec> {
+public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRule.Sync<EsSourceExec> {
 
     public ReplaceSourceAttributes() {
         super(UP);

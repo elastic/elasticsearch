@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.ParameterizedOptimizerRule;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  *     not a check like {@code isNotNull}.</li>
  * </ul>
  */
-public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
+public class SpatialShapeBoundsExtraction extends Sync<AggregateExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         Set<Attribute> foundAttributes = findSpatialShapeBoundsAttributes(aggregate, ctx);

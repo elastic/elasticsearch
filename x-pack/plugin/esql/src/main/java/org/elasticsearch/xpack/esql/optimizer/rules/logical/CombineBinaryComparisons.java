@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
+public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpressionRule.Sync<BinaryLogic> {
 
     public CombineBinaryComparisons() {
         super(OptimizerRules.TransformDirection.DOWN);

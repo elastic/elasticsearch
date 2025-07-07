@@ -38,7 +38,7 @@ import java.util.Set;
  * {@code ... | EVAL $$field = field | LOOKUP JOIN lu_idx ON key | RENAME $$field AS otherfield}.
  * Leaving {@code EVAL $$field = field} in place of the original projection, rather than a Project, avoids infinite loops.
  */
-public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<Join> {
+public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule.Sync<Join> {
     @Override
     protected LogicalPlan rule(Join join) {
         if (join instanceof InlineJoin) {

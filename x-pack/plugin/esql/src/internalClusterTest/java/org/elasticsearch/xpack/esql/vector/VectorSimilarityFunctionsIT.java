@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -96,6 +97,18 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDifferentDimensions() {
+        var randomVector = randomVectorArray(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2));
+        var query = String.format(Locale.ROOT, """
+                FROM test
+                | EVAL similarity = %s(left_vector, %s)
+                | KEEP left_vector, similarity
+            """, functionName, Arrays.toString(randomVector));
+
+        EsqlClientException iae = expectThrows(EsqlClientException.class, () -> { run(query); });
+        assertTrue(iae.getMessage().contains("Vectors must have the same dimensions"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testSimilarityBetweenConstantVectors() {
         var vectorLeft = randomVectorArray();
@@ -155,8 +168,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     private float[] randomVectorArray() {
         assert numDims != 0 : "numDims must be set before calling randomVectorArray()";
-        float[] vector = new float[numDims];
-        for (int j = 0; j < numDims; j++) {
+        return randomVectorArray(numDims);
+    }
+
+    private static float[] randomVectorArray(int dimensions) {
+        float[] vector = new float[dimensions];
+        for (int j = 0; j < dimensions; j++) {
             vector[j] = randomFloat();
         }
         return vector;

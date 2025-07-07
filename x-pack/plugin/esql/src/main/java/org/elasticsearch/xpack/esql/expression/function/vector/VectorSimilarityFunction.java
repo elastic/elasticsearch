@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -124,8 +125,13 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
 
                         int dimensions = leftBlock.getValueCount(0);
                         int dimsRight = rightBlock.getValueCount(0);
-                        assert dimensions == dimsRight
-                            : "Left and right vector must have the same value count, but got left: " + dimensions + ", right: " + dimsRight;
+                        if (dimensions != dimsRight) {
+                            throw new EsqlClientException(
+                                "Vectors must have the same dimensions; first vector has {}, and second has {}",
+                                dimensions,
+                                dimsRight
+                            );
+                        }
                         float[] leftScratch = new float[dimensions];
                         float[] rightScratch = new float[dimensions];
                         try (DoubleVector.Builder builder = context.blockFactory().newDoubleVectorBuilder(positionCount * dimensions)) {

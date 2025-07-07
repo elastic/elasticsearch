@@ -20,14 +20,16 @@ public final class LogicalVerifier {
     private LogicalVerifier() {}
 
     /** Verifies the optimized logical plan. */
-    public Failures verify(LogicalPlan plan) {
+    public Failures verify(LogicalPlan plan, boolean skipRemoteEnrichVerification) {
         Failures failures = new Failures();
         Failures dependencyFailures = new Failures();
 
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-        var enriches = plan.collectFirstChildren(Enrich.class::isInstance);
-        if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-            return failures;
+        if(skipRemoteEnrichVerification) {
+            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+            var enriches = plan.collectFirstChildren(Enrich.class::isInstance);
+            if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
+                return failures;
+            }
         }
 
         plan.forEachUp(p -> {

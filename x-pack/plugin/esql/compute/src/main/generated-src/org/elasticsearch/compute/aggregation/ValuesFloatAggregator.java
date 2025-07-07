@@ -118,6 +118,8 @@ class ValuesFloatAggregator {
      * Values are collected in a hash. Iterating over them in order (row by row) to build the output,
      * or merging with other state, can be expensive. To optimize this, we build a sorted structure once,
      * and then use it to iterate over the values in order.
+     *
+     * @param ids positions of the {@link GroupingState#values} to read.
      */
     private record Sorted(Releasable releasable, int[] counts, int[] ids) implements Releasable {
         @Override

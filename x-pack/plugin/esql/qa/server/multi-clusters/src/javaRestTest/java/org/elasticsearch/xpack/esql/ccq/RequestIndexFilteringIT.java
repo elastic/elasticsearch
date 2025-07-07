@@ -156,7 +156,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
     }
 
-    public void testIndicesDontExistWithRemotePattern() throws IOException {
+    public void testIndicesDontExistWithRemoteLookupJoin() throws IOException {
         assumeTrue("Only works with remote LOOKUP JOIN support", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.2.0")));
 
         int docsTest1 = randomIntBetween(1, 5);

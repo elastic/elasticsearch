@@ -255,8 +255,7 @@ public class KnnIndexTester {
                 "QPS",
                 "recall",
                 "visited",
-                "filter_selectivity"
-            };
+                "filter_selectivity" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -287,8 +286,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
-                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
-                };
+                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity), };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

@@ -1070,6 +1070,13 @@ public class EsqlCapabilities {
         DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
 
         /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
+
+        /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
         LAST_OVER_TIME(Build.current().isSnapshot()),
@@ -1195,7 +1202,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot()),
+        KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
@@ -1215,7 +1222,17 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot()),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

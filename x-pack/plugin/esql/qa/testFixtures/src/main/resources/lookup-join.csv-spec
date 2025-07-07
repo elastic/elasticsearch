@@ -1754,6 +1754,41 @@ emp_no:integer | language_code:integer | language_name:keyword
 10004          |null           |null
 ;
 
+wildcardDropAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: drop_with_wildcard_after_lookup_join
+
+ROW somefield = 0, type = "Production"
+| KEEP somefield, type
+| LOOKUP JOIN message_types_lookup ON type
+| DROP *field
+;
+
+type:keyword | message:keyword
+Production   | Production environment
+;
+
+
+wildcardDropAfterLookupJoinTwice
+required_capability: join_lookup_v12
+required_capability: drop_with_wildcard_after_lookup_join
+
+ROW somefield = 0, type = "Production"
+| KEEP somefield, type
+| EVAL otherfield = 123, language_code = 3
+| LOOKUP JOIN message_types_lookup ON type
+| DROP *field
+| EVAL foofield = 123
+| KEEP *
+| LOOKUP JOIN languages_lookup ON language_code
+| DROP *ge, *field
+;
+
+type:keyword | language_code:integer | language_name:keyword
+Production   | 3                     | Spanish
+;
+
+
 ###############################################
 # LOOKUP JOIN on mixed numerical fields
 ###############################################

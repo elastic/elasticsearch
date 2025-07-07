@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.InternalSearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -83,6 +84,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
+    SimpleQueryRewriter simpleQueryRewriter = null;
     SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
         @Override
         public SlowLogFields create() {
@@ -300,6 +302,27 @@ public class IndicesServiceBuilder {
                 );
             }));
         queryRewriteInterceptor = QueryRewriteInterceptor.multi(queryRewriteInterceptors);
+
+        var simpleQueryRewriters = pluginsService.filterPlugins(InternalSearchPlugin.class)
+            .map(InternalSearchPlugin::getSimpleQueryRewriters)
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(SimpleQueryRewriter::getName, interceptor -> {
+                if (interceptor.getName() == null) {
+                    throw new IllegalArgumentException("SimpleQueryRewriter [" + interceptor.getClass().getName() + "] requires name");
+                }
+                return interceptor;
+            }, (a, b) -> {
+                throw new IllegalStateException(
+                    "Conflicting simple rewriters ["
+                        + a.getName()
+                        + "] found in ["
+                        + a.getClass().getName()
+                        + "] and ["
+                        + b.getClass().getName()
+                        + "]"
+                );
+            }));
+        simpleQueryRewriter = SimpleQueryRewriter.multi(simpleQueryRewriters);
 
         return new IndicesService(this);
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -561,5 +562,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SimpleQueryRewriter simpleQueryRewriter() {
+        return new SimpleQueryRewriter.NoOpSimpleQueryRewriter();
     }
 }

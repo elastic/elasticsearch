@@ -239,7 +239,8 @@ public class IndexModuleTests extends ESTestCase {
             null,
             indexDeletionListener,
             emptyMap(),
-            new MockQueryRewriteInterceptor()
+            new MockQueryRewriteInterceptor(),
+            null
         );
     }
 

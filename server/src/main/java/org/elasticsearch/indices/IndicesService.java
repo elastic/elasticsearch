@@ -146,6 +146,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -281,7 +282,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PostRecoveryMerger postRecoveryMerger;
     private final List<SearchOperationListener> searchOperationListeners;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
-    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
+    private final SimpleQueryRewriter simpleQueryRewriter;
+    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testing
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
@@ -359,6 +361,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.snapshotCommitSuppliers = builder.snapshotCommitSuppliers;
         this.requestCacheKeyDifferentiator = builder.requestCacheKeyDifferentiator;
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
+        this.simpleQueryRewriter = builder.simpleQueryRewriter;
         this.mapperMetrics = builder.mapperMetrics;
         this.mergeMetrics = builder.mergeMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
@@ -834,7 +837,8 @@ public class IndicesService extends AbstractLifecycleComponent
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers,
-            queryRewriteInterceptor
+            queryRewriteInterceptor,
+            simpleQueryRewriter
         );
     }
 
@@ -1863,6 +1867,10 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> clusterService.state().projectState(projectId),
             this::getTimestampFieldTypeInfo
         );
+    }
+
+    public SimpleQueryRewriter getSimpleQueryRewriter() {
+        return simpleQueryRewriter;
     }
 
     /**

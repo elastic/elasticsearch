@@ -190,7 +190,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
                 randomInt(),
-                MEMORY_ACCOUNTING_BUFFER_SIZE
+                MEMORY_ACCOUNTING_BUFFER_SIZE,
+                null
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -233,7 +234,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
-                    MEMORY_ACCOUNTING_BUFFER_SIZE
+                    MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null
 
                 )
             ) {
@@ -317,7 +319,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
-                    MEMORY_ACCOUNTING_BUFFER_SIZE
+                    MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null
                 )
             ) {
 
@@ -360,7 +363,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
-                    MEMORY_ACCOUNTING_BUFFER_SIZE
+                    MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null
                 )
             ) {
                 context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
@@ -392,7 +396,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
                     randomInt(),
-                    MEMORY_ACCOUNTING_BUFFER_SIZE
+                    MEMORY_ACCOUNTING_BUFFER_SIZE,
+                    null
                 )
             ) {
                 context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
@@ -464,7 +469,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
                 randomInt(),
-                MEMORY_ACCOUNTING_BUFFER_SIZE
+                MEMORY_ACCOUNTING_BUFFER_SIZE,
+                null
             );
 
             assertThat(context.searcher().hasCancellations(), is(false));
@@ -1084,7 +1090,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
                 randomInt(),
-                MEMORY_ACCOUNTING_BUFFER_SIZE
+                MEMORY_ACCOUNTING_BUFFER_SIZE,
+                null
             );
         }
     }

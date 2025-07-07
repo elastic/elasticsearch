@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -161,6 +162,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
+    private final SimpleQueryRewriter simpleQueryRewriter;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -174,7 +176,8 @@ final class DefaultSearchContext extends SearchContext {
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
-        long memoryAccountingBufferSize
+        long memoryAccountingBufferSize,
+        SimpleQueryRewriter simpleQueryRewriter
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -186,6 +189,7 @@ final class DefaultSearchContext extends SearchContext {
             this.indexService = readerContext.indexService();
             this.indexShard = readerContext.indexShard();
             this.memoryAccountingBufferSize = memoryAccountingBufferSize;
+            this.simpleQueryRewriter = simpleQueryRewriter;
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
             int maximumNumberOfSlices = determineMaximumNumberOfSlices(
@@ -975,5 +979,10 @@ final class DefaultSearchContext extends SearchContext {
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }
+    }
+
+    @Override
+    public SimpleQueryRewriter simpleQueryRewriter() {
+        return simpleQueryRewriter;
     }
 }

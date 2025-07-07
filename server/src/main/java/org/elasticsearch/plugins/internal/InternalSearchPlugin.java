@@ -10,6 +10,7 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 
 import java.util.List;
 
@@ -22,6 +23,10 @@ public interface InternalSearchPlugin {
      * Note: This is internal to Elasticsearch's API and not extensible by external plugins.
      */
     default List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        return emptyList();
+    }
+
+    default List<SimpleQueryRewriter> getSimpleQueryRewriters() {
         return emptyList();
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -449,4 +450,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
 
     public abstract IdLoader newIdLoader();
+
+    public abstract SimpleQueryRewriter simpleQueryRewriter();
 }

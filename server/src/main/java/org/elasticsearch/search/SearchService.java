@@ -1402,7 +1402,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice,
-                memoryAccountingBufferSize
+                memoryAccountingBufferSize,
+                indicesService.getSimpleQueryRewriter()
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

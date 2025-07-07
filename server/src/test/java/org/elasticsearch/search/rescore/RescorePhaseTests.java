@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -76,6 +77,11 @@ public class RescorePhaseTests extends IndexShardTestCase {
                         @Override
                         public boolean lowLevelCancellation() {
                             return true;
+                        }
+
+                        @Override
+                        public SimpleQueryRewriter simpleQueryRewriter() {
+                            return null;
                         }
 
                         @Override

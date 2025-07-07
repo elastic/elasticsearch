@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.plugins.internal.rewriter.SimpleQueryRewriter;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -304,5 +305,10 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public float getMaxScore() {
         return querySearchResult.getMaxScore();
+    }
+
+    @Override
+    public SimpleQueryRewriter simpleQueryRewriter() {
+        throw new UnsupportedOperationException("Not supported");
     }
 }

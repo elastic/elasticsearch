@@ -24,6 +24,8 @@ import java.util.Objects;
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
 import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES;
+import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES_8_19;
+import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES_9_1;
 
 public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToIteratorOperator.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -55,7 +57,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         int pagesEmitted;
         long rowsReceived;
         long rowsEmitted;
-        if (in.getTransportVersion().onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)) {
+        if (supportsSplitOnBigValues(in.getTransportVersion())) {
             AbstractPageMappingToIteratorOperator.Status status = new AbstractPageMappingToIteratorOperator.Status(in);
             processNanos = status.processNanos();
             pagesReceived = status.pagesReceived();
@@ -85,7 +87,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)) {
+        if (supportsSplitOnBigValues(out.getTransportVersion())) {
             super.writeTo(out);
         } else {
             /*
@@ -99,6 +101,12 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(valuesLoaded);
         }
+    }
+
+    private static boolean supportsSplitOnBigValues(TransportVersion version) {
+        return version.onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)
+            || version.isPatchFrom(ESQL_SPLIT_ON_BIG_VALUES_9_1)
+            || version.isPatchFrom(ESQL_SPLIT_ON_BIG_VALUES_8_19);
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {

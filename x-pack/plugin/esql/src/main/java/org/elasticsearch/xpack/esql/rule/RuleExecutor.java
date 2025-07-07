@@ -171,7 +171,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         long totalDuration,
         ActionListener<ExecutionInfo> listener
     ) {
-        if (!batchIterator.hasNext()) {
+        if (batchIterator.hasNext() == false) {
             TreeType finalPlan = currentPlan.get();
             if (false == finalPlan.equals(originalPlan) && log.isDebugEnabled()) {
                 log.debug(

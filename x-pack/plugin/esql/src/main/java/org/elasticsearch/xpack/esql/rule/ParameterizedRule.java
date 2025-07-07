@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 
 public interface ParameterizedRule<E extends T, T extends Node<T>, P> extends Rule<E, T> {
 
-    public abstract void apply(T t, P p, ActionListener<T> listener);
+    void apply(T t, P p, ActionListener<T> listener);
 
     /**
      * Abstract base class for asynchronous parameterized rules that use ActionListener callbacks.

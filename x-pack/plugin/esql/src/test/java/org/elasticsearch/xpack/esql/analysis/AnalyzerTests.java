@@ -159,7 +159,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-        var plan = analyzer.analyze(UNRESOLVED_RELATION);
+        var plan = analyze(analyzer, UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
         assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
@@ -168,7 +168,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testFailOnUnresolvedIndex() {
         Analyzer analyzer = analyzer(IndexResolution.invalid("Unknown index [idx]"));
 
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(UNRESOLVED_RELATION));
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze(analyzer, UNRESOLVED_RELATION));
 
         assertThat(e.getMessage(), containsString("Unknown index [idx]"));
     }
@@ -177,7 +177,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
-        var plan = analyzer.analyze(UNRESOLVED_RELATION);
+        var plan = analyze(analyzer, UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
         assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
@@ -187,7 +187,8 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
-        var plan = analyzer.analyze(
+        var plan = analyze(
+            analyzer,
             new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
         );
 
@@ -208,7 +209,8 @@ public class AnalyzerTests extends ESTestCase {
     public void testAttributeResolutionOfChainedReferences() {
         Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
 
-        var plan = analyzer.analyze(
+        var plan = analyze(
+            analyzer,
             new Eval(
                 EMPTY,
                 new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))),
@@ -240,7 +242,8 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = new EsIndex("idx", Map.of());
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
-        var plan = analyzer.analyze(
+        var plan = analyze(
+            analyzer,
             new Eval(
                 EMPTY,
                 new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataType.INTEGER)))),
@@ -271,7 +274,8 @@ public class AnalyzerTests extends ESTestCase {
 
         VerificationException ve = expectThrows(
             VerificationException.class,
-            () -> analyzer.analyze(
+            () -> analyze(
+                analyzer,
                 new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_nos"))))
             )
         );

@@ -509,7 +509,9 @@ public class CsvTests extends ESTestCase {
             new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies, emptyInferenceResolution()),
             TEST_VERIFIER
         );
-        LogicalPlan plan = analyzer.analyze(parsed);
+        PlainActionFuture<LogicalPlan> analyzedPlanFuture = new PlainActionFuture<>();
+        analyzer.analyze(parsed, analyzedPlanFuture);
+        LogicalPlan plan = analyzedPlanFuture.actionGet();
         plan.setAnalyzed();
         LOGGER.debug("Analyzed plan:\n{}", plan);
         return plan;

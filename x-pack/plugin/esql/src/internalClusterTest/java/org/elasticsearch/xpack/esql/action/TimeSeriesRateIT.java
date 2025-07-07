@@ -324,7 +324,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
             | SORT tbucket, cluster
             | LIMIT 5
             | EVAL avg_rate= s/c
-            | KEEP avg_rate, `max(rate(request_count))`, `avg(rate(request_count))`, ts, cluster
+            | KEEP avg_rate, `max(rate(request_count))`, `avg(rate(request_count))`, tbucket, cluster
             """)) {
             try {
                 assertThat(

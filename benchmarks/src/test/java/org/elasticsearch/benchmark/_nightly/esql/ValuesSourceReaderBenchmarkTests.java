@@ -7,9 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.compute.operator;
+package org.elasticsearch.benchmark._nightly.esql;
 
-import org.elasticsearch.benchmark._nightly.esql.ValuesSourceReaderBenchmark;
 import org.elasticsearch.test.ESTestCase;
 
 public class ValuesSourceReaderBenchmarkTests extends ESTestCase {

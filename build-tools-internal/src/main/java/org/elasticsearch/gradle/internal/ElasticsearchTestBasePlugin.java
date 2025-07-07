@@ -324,29 +324,30 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         }
         FileCollection bridgeFiles = bridgeConfig;
 
-        project.getTasks().withType(Test.class)
+        project.getTasks()
+            .withType(Test.class)
             .matching(test -> TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()))
             .configureEach(test -> {
-            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+                // See also SystemJvmOptions.maybeAttachEntitlementAgent.
 
-            // Agent
-            if (agentFiles.isEmpty() == false) {
-                test.getInputs().files(agentFiles);
-                test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
-                test.systemProperty("jdk.attach.allowAttachSelf", true);
-            }
+                // Agent
+                if (agentFiles.isEmpty() == false) {
+                    test.getInputs().files(agentFiles);
+                    test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+                    test.systemProperty("jdk.attach.allowAttachSelf", true);
+                }
 
-            // Bridge
-            if (bridgeFiles.isEmpty() == false) {
-                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                test.getInputs().files(bridgeFiles);
-                // Tests may not be modular, but the JDK still is
-                test.jvmArgs(
-                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
-                        + modulesContainingEntitlementInstrumentation
-                );
-            }
-        });
+                // Bridge
+                if (bridgeFiles.isEmpty() == false) {
+                    String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                    test.getInputs().files(bridgeFiles);
+                    // Tests may not be modular, but the JDK still is
+                    test.jvmArgs(
+                        "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                            + modulesContainingEntitlementInstrumentation
+                    );
+                }
+            });
     }
 
 }

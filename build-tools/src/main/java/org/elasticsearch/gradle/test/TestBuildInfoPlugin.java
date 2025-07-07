@@ -18,10 +18,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.jvm.tasks.ProcessResources;
-
-import java.util.List;
 
 import javax.inject.Inject;
 

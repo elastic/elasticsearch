@@ -100,6 +100,7 @@ public class IndexResolver {
             return IndexResolution.notFound(indexPattern);
         }
 
+        // For each field name, store a list of the field caps responses from each index
         Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse);
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
@@ -121,7 +122,8 @@ public class IndexResolver {
                 String parent = name.substring(0, nextDot);
                 EsField obj = fields.get(parent);
                 if (obj == null) {
-                    obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
+                    // Object fields can't be dimensions, so we can safely hard code that here
+                    obj = new EsField(parent, OBJECT, new HashMap<>(), false, true, EsField.TimeSeriesFieldType.NONE);
                     isAlias = true;
                     fields.put(parent, obj);
                 } else if (firstUnsupportedParent == null && obj instanceof UnsupportedEsField unsupportedParent) {
@@ -204,10 +206,16 @@ public class IndexResolver {
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         boolean aggregatable = first.isAggregatable();
+        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.UNKNOWN;
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {
                     return conflictingMetricTypes(name, fullName, fieldCapsResponse);
+                }
+                try {
+                    timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
+                } catch (IllegalArgumentException e) {
+                    return new InvalidMappedField(name, e.getMessage());
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -223,7 +231,7 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return new TextEsField(name, new HashMap<>(), false, isAlias);
+            return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;

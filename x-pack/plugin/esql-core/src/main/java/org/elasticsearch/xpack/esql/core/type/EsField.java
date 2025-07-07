@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,10 +32,36 @@ public class EsField implements Writeable {
      * roles within the ESQL query processing pipeline.
      */
     public enum TimeSeriesFieldType implements Writeable {
-        UNKNOWN(0),
-        NONE(1),
-        METRIC(2),
-        DIMENSION(3);
+        UNKNOWN(0) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                return other;
+            }
+        },
+        NONE(1) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                return other;
+            }
+        },
+        METRIC(2) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                if (other != DIMENSION) {
+                    return METRIC;
+                }
+                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
+            }
+        },
+        DIMENSION(3) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                if (other != METRIC) {
+                    return DIMENSION;
+                }
+                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
+            }
+        };
 
         private final int id;
 
@@ -57,6 +84,18 @@ public class EsField implements Writeable {
                 default -> throw new IOException("Unexpected value for TimeSeriesFieldType: " + id);
             };
         }
+
+        public static TimeSeriesFieldType fromIndexFieldCapabilities(IndexFieldCapabilities capabilities) {
+            if (capabilities.isDimension()) {
+                return DIMENSION;
+            }
+            if (capabilities.metricType() != null) {
+                return METRIC;
+            }
+            return NONE;
+        }
+
+        public abstract TimeSeriesFieldType merge(TimeSeriesFieldType other);
     }
 
     private static Map<String, Reader<? extends EsField>> readers = Map.ofEntries(
@@ -83,7 +122,6 @@ public class EsField implements Writeable {
     private final Map<String, EsField> properties;
     private final String name;
     private final boolean isAlias;
-    // Because the subclasses all reimplement serialization, this needs to be writeable from subclass constructors
     private final TimeSeriesFieldType timeSeriesFieldType;
 
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
@@ -245,6 +283,10 @@ public class EsField implements Writeable {
      */
     public Exact getExactInfo() {
         return Exact.EXACT_FIELD;
+    }
+
+    public TimeSeriesFieldType getTimeSeriesFieldType() {
+        return timeSeriesFieldType;
     }
 
     @Override

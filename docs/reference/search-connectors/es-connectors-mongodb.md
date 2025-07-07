@@ -249,8 +249,6 @@ The full host in this example will look like this:
 
 A bug introduced in **8.12.0** causes the Connectors docker image to error out if run using MongoDB as its source. The command line will output the error `cannot import name 'coroutine' from 'asyncio'`. *** This issue is fixed in versions *8.12.2** and **8.13.0**. ** This bug does not affect Elastic managed connectors.
 
-See [Known issues](/release-notes/known-issues.md) for any issues affecting all connectors.
-
 #### UUIDs are not correctly deserialized, causing problems with ingesting documents into Elasticsearch
 
 MongoDB has special handling of UUID type: there is a legacy and a modern approach. You can read [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html) about the details.
@@ -266,6 +264,8 @@ If you’re using a legacy UUID representation, you should adjust the connection
 - Python: `uuidRepresentation=pythonLegacy`
 
 You can find a full explanation in the [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html#configuring-a-uuid-representation).
+
+See [Known issues](/release-notes/known-issues.md) for any issues affecting all connectors.
 
 ### Troubleshooting [es-connectors-mongodb-client-troubleshooting]
 

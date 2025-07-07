@@ -25,7 +25,6 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;
@@ -47,8 +46,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     @Override
     protected MockTransportService createTransportService() {
-        return new MockTransportService(
-            Settings.EMPTY,
+        return MockTransportService.createMockTransportService(
             new Netty4Transport(
                 Settings.EMPTY,
                 TransportVersion.current(),
@@ -59,9 +57,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                 new NoneCircuitBreakerService(),
                 new SharedGroupFactory(Settings.EMPTY)
             ),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            threadPool
         );
     }
 

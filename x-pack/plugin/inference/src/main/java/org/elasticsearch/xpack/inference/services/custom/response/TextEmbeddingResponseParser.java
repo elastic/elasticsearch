@@ -79,8 +79,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
     public TextEmbeddingResponseParser(StreamInput in) throws IOException {
         this.textEmbeddingsPath = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE_8_19)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
             this.embeddingType = in.readEnum(CustomServiceEmbeddingType.class);
         } else {
             this.embeddingType = CustomServiceEmbeddingType.FLOAT;
@@ -90,8 +89,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(textEmbeddingsPath);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE_8_19)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
             out.writeEnum(embeddingType);
         }
     }

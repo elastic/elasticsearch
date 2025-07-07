@@ -113,7 +113,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
+        this.enrichPolicyResolver = new EnrichPolicyResolver(
+            clusterService,
+            transportService,
+            planExecutor.indexResolver(),
+            projectResolver
+        );
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
@@ -123,7 +128,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             transportService,
             indexNameExpressionResolver,
             bigArrays,
-            blockFactoryProvider.blockFactory()
+            blockFactoryProvider.blockFactory(),
+            projectResolver
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
@@ -132,7 +138,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             transportService,
             indexNameExpressionResolver,
             bigArrays,
-            blockFactoryProvider.blockFactory()
+            blockFactoryProvider.blockFactory(),
+            projectResolver
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(

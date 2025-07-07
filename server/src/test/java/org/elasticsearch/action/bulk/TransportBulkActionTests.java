@@ -61,7 +61,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -126,7 +125,15 @@ public class TransportBulkActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE,
+                new SystemIndices(
+                    List.of(
+                        new SystemIndices.Feature(
+                            "plugin",
+                            "test feature",
+                            List.of(SystemIndexDescriptorUtils.createUnmanaged(".transport_bulk_tests_system*", ""))
+                        )
+                    )
+                ),
                 new ProjectResolver() {
                     @Override
                     public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
@@ -386,7 +393,7 @@ public class TransportBulkActionTests extends ESTestCase {
         });
     }
 
-    public void testDispatchesToWriteCoordinationThreadPoolOnce() throws Exception {
+    public void testDispatchesToWriteCoordinationThreadPool() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         ThreadPoolStats.Stats stats = threadPool.stats()
@@ -401,13 +408,43 @@ public class TransportBulkActionTests extends ESTestCase {
 
         assertBusy(() -> {
             // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the
-            // index
-            // is created.
+            // index is created.
             assertThat(
                 threadPool.stats()
                     .stats()
                     .stream()
                     .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+                    .findAny()
+                    .get()
+                    .completed(),
+                equalTo(2L)
+            );
+        });
+    }
+
+    public void testSystemWriteDispatchesToSystemWriteCoordinationThreadPool() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest(".transport_bulk_tests_system_1").id("id").source(Collections.emptyMap())
+        );
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))
+            .findAny()
+            .get();
+        assertThat(stats.completed(), equalTo(0L));
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        future.actionGet();
+
+        assertBusy(() -> {
+            // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the
+            // index is created.
+            assertThat(
+                threadPool.stats()
+                    .stats()
+                    .stream()
+                    .filter(s -> s.name().equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))
                     .findAny()
                     .get()
                     .completed(),

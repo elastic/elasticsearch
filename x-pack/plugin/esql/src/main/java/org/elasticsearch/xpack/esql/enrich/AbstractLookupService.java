@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -134,6 +134,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final ProjectResolver projectResolver;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
      * If this is {@code true} we'll run a {@link MergePositionsOperator} to merge
@@ -154,7 +155,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         BigArrays bigArrays,
         BlockFactory blockFactory,
         boolean mergePages,
-        CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
+        CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest,
+        ProjectResolver projectResolver
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
@@ -167,6 +169,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.blockFactory = blockFactory;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
+        this.projectResolver = projectResolver;
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -227,8 +230,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
+        var projectState = projectResolver.getProjectState(clusterState);
         List<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
+            .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
@@ -278,12 +282,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-
-            ProjectMetadata projMeta = clusterService.state().metadata().getProject();
+            var projectState = projectResolver.getProjectState(clusterService.state());
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
-                clusterService.state().projectState(),
+                projectState,
                 request.shardId.getIndex().getName(),
-                indexNameExpressionResolver.resolveExpressions(projMeta, request.indexPattern)
+                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
             );
 
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);

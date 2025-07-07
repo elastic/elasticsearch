@@ -1,5 +1,0 @@
-pr: 130715
-summary: Add synthetic vectors support for `rank_vectors`
-area: Vector Search
-type: enhancement
-issues: []

@@ -167,17 +167,19 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         float[] targetQuery
     ) throws IOException {
         FieldEntry fieldEntry = fields.get(fieldInfo.number);
-        float[] globalCentroid = fieldEntry.globalCentroid();
         float globalCentroidDp = fieldEntry.globalCentroidDp();
         OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        byte[] quantized = new byte[targetQuery.length];
-        float[] targetScratch = ArrayUtil.copyArray(targetQuery);
-        OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
-            targetScratch,
-            quantized,
+        final int[] scratch = new int[targetQuery.length];
+        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
+            ArrayUtil.copyArray(targetQuery),
+            scratch,
             (byte) 4,
-            globalCentroid
+            fieldEntry.globalCentroid()
         );
+        final byte[] quantized = new byte[targetQuery.length];
+        for (int i = 0; i < quantized.length; i++) {
+            quantized[i] = (byte) scratch[i];
+        }
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
         return new ParentCentroidQueryScorer() {
             int currentCentroid = -1;

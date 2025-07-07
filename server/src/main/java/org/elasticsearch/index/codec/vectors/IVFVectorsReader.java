@@ -221,10 +221,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return rawVectorsReader.getByteVectorValues(field);
     }
 
-    // FIXME: remove the diagnostics
-    int centroidsRead = 0;
-    int ii = 0;
-
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -296,8 +292,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-            centroidsRead++;
-            centroidsRead += updateCentroidQueueWNextParent(
+            updateCentroidQueueWNextParent(
                 parentCentroidQueryScorer,
                 parentCentroidQueue,
                 centroidQueryScorer,
@@ -317,9 +312,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 ++centroidsVisited;
                 float centroidScore = centroidQueue.topScore();
                 // the next parent likely contains centroids we need to evaluate prior to evaluating this next centroid
-                while (parentCentroidQueue.size() > 0 && centroidScore < nextParentScore) {
-                    centroidsRead++;
-                    centroidsRead += updateCentroidQueueWNextParent(
+                // TODO: for each parent centroid I could store furtherest centroid distance from that parent and then the comparison here
+                // ... would be centroidScore < (nextParentScore + furthestCentroidScore) which is better than just a buffer
+                // TODO: try a ParentNProbe here that's for instance the sqrt(nProbe) that forces a fixed
+                // ... number of parents to be explored at each step
+                while (parentCentroidQueue.size() > 0 && centroidScore < (nextParentScore + nextParentScore * 0.05) ) {
+                    updateCentroidQueueWNextParent(
                         parentCentroidQueryScorer,
                         parentCentroidQueue,
                         centroidQueryScorer,
@@ -350,11 +348,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 }
             }
         }
-
-        if (ii == 1999) {
-            System.out.println("total centroids (parent & child) read:" + (centroidsRead / (ii + 1)));
-        }
-        ii++;
     }
 
     private static int updateCentroidQueueWNextParent(

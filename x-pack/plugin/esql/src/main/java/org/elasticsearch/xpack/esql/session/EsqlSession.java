@@ -273,43 +273,44 @@ public class EsqlSession {
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
+        logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request, ActionListener.wrap(physicalSubPlan -> {
+            runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
+                try {
+                    // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+                    completionInfoAccumulator.accumulate(result.completionInfo());
+                    LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
 
-        runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
-            try {
-                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-                completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                    // replace the original logical plan with the backing result
+                    LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+                        InlineJoin.class,
+                        // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+                        // and equals would have ignored name IDs anyway
+                        ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                    );
+                    // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+                    newLogicalPlan.setOptimized();
+                    LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
+                    // look for the next inlinejoin plan
+                    var newSubPlan = firstSubPlan(newLogicalPlan);
 
-                // replace the original logical plan with the backing result
-                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
-                    InlineJoin.class,
-                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
-                    // and equals would have ignored name IDs anyway
-                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                );
-                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-                newLogicalPlan.setOptimized();
-                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
-                // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan);
-
-                if (newSubPlan == null) {// run the final "main" plan
-                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
-                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
-                    runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                        completionInfoAccumulator.accumulate(finalResult.completionInfo());
-                        finalListener.onResponse(
-                            new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
-                        );
-                    }));
-                } else {// continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    if (newSubPlan == null) {// run the final "main" plan
+                        LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
+                        logicalPlanToPhysicalPlan(newLogicalPlan, request, ActionListener.wrap(newPhysicalPlan -> {
+                            runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                                finalListener.onResponse(
+                                    new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                                );
+                            }));
+                        }, listener::onFailure));
+                    } else {// continue executing the subplans
+                        executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    }
+                } finally {
+                    Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
                 }
-            } finally {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
-            }
-        }));
+            }));
+        }, listener::onFailure));
     }
 
     private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {

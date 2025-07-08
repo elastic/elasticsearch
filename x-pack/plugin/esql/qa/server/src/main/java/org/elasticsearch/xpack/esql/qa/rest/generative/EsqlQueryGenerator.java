@@ -107,6 +107,10 @@ public class EsqlQueryGenerator {
         return policies.stream().filter(x -> Set.of("languages_policy").contains(x.policyName())).toList();
     }
 
+    public static String randomNonVector(List<Column> previousOutput) {
+        return randomName(previousOutput.stream().filter(x -> x.type().contains("vector") == false).toList());
+    }
+
     public static String randomName(List<Column> previousOutput) {
         String result = randomRawName(previousOutput);
         if (result == null) {

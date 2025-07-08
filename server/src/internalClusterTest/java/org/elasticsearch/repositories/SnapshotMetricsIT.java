@@ -24,6 +24,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -37,7 +38,6 @@ import org.hamcrest.Matcher;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
@@ -63,10 +63,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        var plugins = new HashSet<>(super.nodePlugins());
-        plugins.add(TestTelemetryPlugin.class);
-        plugins.add(MockTransportService.TestPlugin.class);
-        return plugins;
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(TestTelemetryPlugin.class, MockTransportService.TestPlugin.class))
+            .toList();
     }
 
     @Override
@@ -102,9 +100,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             repositoryName,
             "mock",
             randomRepositorySettings().put(
-                "max_snapshot_bytes_per_sec",
+                BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
                 ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
-            ).put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling))
+            )
+                .put(
+                    BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(),
+                    ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
+                )
         );
 
         // Block the snapshot to test "snapshot shards in progress"

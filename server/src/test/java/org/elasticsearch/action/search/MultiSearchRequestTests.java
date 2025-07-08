@@ -539,11 +539,11 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testNullIndex() throws IOException {
-        try {
-            MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-null.json");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Expected a list of strings but got null"));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseMultiSearchRequestFromString("""
+            {"index": null}
+            { "query": {"match_all": {}}}
+            """));
+        assertThat(e.getMessage(), containsString("Expected a list of strings but got null"));
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {

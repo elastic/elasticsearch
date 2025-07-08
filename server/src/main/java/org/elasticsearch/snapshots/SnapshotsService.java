@@ -4505,7 +4505,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.forRepo(projectId, repository.name())) {
                         for (ShardSnapshotStatus shardSnapshotStatus : snapshot.shards().values()) {
                             if (shardCounts.containsKey(shardSnapshotStatus.state())) {
-                                shardCounts.put(shardSnapshotStatus.state(), shardCounts.get(shardSnapshotStatus.state()) + 1);
+                                shardCounts.addTo(shardSnapshotStatus.state(), 1);
                             }
                         }
                     }

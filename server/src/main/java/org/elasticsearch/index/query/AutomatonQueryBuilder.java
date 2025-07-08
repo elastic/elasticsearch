@@ -48,6 +48,10 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
         return fieldName;
     }
 
+    public String description() {
+        return description;
+    }
+
     @Override
     public String getWriteableName() {
         throw new UnsupportedOperationException("AutomatonQueryBuilder does not support getWriteableName");

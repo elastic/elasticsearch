@@ -114,7 +114,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      * This is within the bounds of 65536 on serverless.
      * For non-serverless, the limit is 10k, so Kibana sets `search.max_buckets` to 40k when setting up Universal Profiling.
      */
-    private static final int MAX_TRACE_EVENTS_RESULT_SIZE = 20_000 * 2;
+    private static final int MAX_TRACE_EVENTS_RESULT_SIZE = 40_000;
 
     /**
      * Users may provide a custom field via the API that is used to sub-divide profiling events. This is useful in the context of TopN
@@ -400,12 +400,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 StopWatch watch = new StopWatch("createStackTraceEvents");
                 SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
                 InternalComposite stacktraces = sample.getAggregations().get("group_by");
-                final long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for
-                                                                                              // profiling-events-5pow02
-                final int bucketCount = stacktraces.getBuckets().size();
-                final long eventCount = sample.getDocCount();
+                long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for profiling-events-5pow02
+                int bucketCount = stacktraces.getBuckets().size();
+                long eventCount = sample.getDocCount();
                 AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
-                final long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
+                long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
                     ? (long) DEFAULT_SAMPLING_FREQUENCY
                     : getAggValueAsLong(searchResponse, "max_freq");
 
@@ -452,7 +451,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 }
 
                 if (mixedFrequency) {
-                    final RandomGenerator r = new Random(rngSeed);
+                    RandomGenerator r = new Random(rngSeed);
                     upscaledEventCount.set(0);
 
                     // Events have different frequencies.
@@ -467,10 +466,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         // Use randomization, to avoid a systematic rounding issue that would happen
                         // if we naively do `event.count = Math.round(event.count * samplingFactor)`.
                         // For example, think of event.count = 1 and samplingFactor = 1.4: the naive approach would not change anything.
-                        final double samplingFactor = maxSamplingFrequency / eventID.samplingFrequency();
-                        final double newCount = event.count * samplingFactor;
-                        final long integerPart = (long) newCount;
-                        final double fractionalPart = newCount - integerPart;
+                        double samplingFactor = maxSamplingFrequency / eventID.samplingFrequency();
+                        double newCount = event.count * samplingFactor;
+                        long integerPart = (long) newCount;
+                        double fractionalPart = newCount - integerPart;
                         event.count = integerPart + (r.nextDouble() < fractionalPart ? 1 : 0);
                         upscaledEventCount.addAndGet(event.count);
                     });
@@ -722,7 +721,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 responseBuilder.getCustomCostPerCoreHour()
             );
 
-            final long samplingFrequency = responseBuilder.getSamplingFrequency();
+            long samplingFrequency = responseBuilder.getSamplingFrequency();
             responseBuilder.getStackTraceEvents().forEach((eventId, event) -> {
                 event.annualCO2Tons += co2Calculator.getAnnualCO2Tons(eventId.hostID(), event.count, samplingFrequency);
                 event.annualCostsUSD += costCalculator.annualCostsUSD(eventId.hostID(), event.count, samplingFrequency);

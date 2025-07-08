@@ -456,7 +456,6 @@ public final class DataStreamTestHelper {
         return getProjectWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false, false);
     }
 
-    @FixForMultiProject() // Remove this intermediate method when ProactiveStorageDeciderServiceTests no longer needs the default project ID
     public static ProjectMetadata getProjectWithDataStreams(
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
@@ -470,6 +469,8 @@ public final class DataStreamTestHelper {
         return getProjectWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
     }
 
+    @FixForMultiProject() // Remove this method overload when ProactiveStorageDeciderServiceTests no longer needs the default project ID
+    @Deprecated(forRemoval = true)
     public static ProjectMetadata getProjectWithDataStreams(
         ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,

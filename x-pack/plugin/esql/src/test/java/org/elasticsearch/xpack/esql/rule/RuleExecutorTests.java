@@ -104,7 +104,11 @@ public class RuleExecutorTests extends AbstractRuleTestCase {
             @Override
             public TestNode apply(TestNode node) {
                 executionOrder.add("rule1");
-                return new TestNode("B", node.children());
+                // Only transform A to B, avoid infinite loops
+                if ("A".equals(node.value())) {
+                    return new TestNode("B", node.children());
+                }
+                return node;
             }
 
             @Override
@@ -117,7 +121,11 @@ public class RuleExecutorTests extends AbstractRuleTestCase {
             @Override
             public TestNode apply(TestNode node) {
                 executionOrder.add("rule2");
-                return new TestNode("C", node.children());
+                // Only transform B to C, avoid infinite loops
+                if ("B".equals(node.value())) {
+                    return new TestNode("C", node.children());
+                }
+                return node;
             }
 
             @Override

@@ -179,7 +179,11 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
     protected static class TestParameterizedRule extends ParameterizedRule.Sync<TestNode, TestNode, String> {
         @Override
         public TestNode apply(TestNode node, String param) {
-            return new TestNode(node.value() + "_" + param, node.children());
+            // Only apply to specific values to prevent infinite loops
+            if (node.value().equals("test")) {
+                return new TestNode(node.value() + "_" + param, node.children());
+            }
+            return node;
         }
 
         @Override
@@ -191,12 +195,37 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
     protected static class TestContextParameterizedRule extends ParameterizedRule.Sync<TestNode, TestNode, TestContext> {
         @Override
         public TestNode apply(TestNode node, TestContext context) {
-            return new TestNode(context.prefix + node.value() + context.suffix, node.children());
+            // Only apply to specific values to prevent infinite loops
+            if (node.value().equals("middle")) {
+                return new TestNode(context.prefix + node.value() + context.suffix, node.children());
+            }
+            return node;
         }
 
         @Override
         public String name() {
             return "TestContextParameterizedRule";
+        }
+    }
+
+    protected static class ConditionalParameterizedRule extends ParameterizedRule.Sync<TestNode, TestNode, String> {
+        private final String trigger;
+
+        public ConditionalParameterizedRule(String trigger) {
+            this.trigger = trigger;
+        }
+
+        @Override
+        public TestNode apply(TestNode node, String param) {
+            if (node.value().equals(trigger)) {
+                return new TestNode(node.value() + "_" + param, node.children());
+            }
+            return node;
+        }
+
+        @Override
+        public String name() {
+            return "ConditionalParameterized_" + trigger;
         }
     }
 

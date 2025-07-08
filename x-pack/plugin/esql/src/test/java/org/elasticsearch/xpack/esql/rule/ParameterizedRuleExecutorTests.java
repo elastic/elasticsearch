@@ -77,10 +77,10 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
     public void testMultipleParameterizedRulesInBatch() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("X");
-        TestNode input = new TestNode("base");
+        TestNode input = new TestNode("test");  // Use "test" as trigger for TestParameterizedRule
 
-        TestParameterizedRule rule1 = new TestParameterizedRule();
-        TestParameterizedRule rule2 = new TestParameterizedRule();
+        ConditionalParameterizedRule rule1 = new ConditionalParameterizedRule("test");
+        ConditionalParameterizedRule rule2 = new ConditionalParameterizedRule("test_X");
 
         RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("MultiBatch", rule1, rule2);
         executor.batches.add(batch);
@@ -89,15 +89,15 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("base_X_X", result.get().after().value());
+        assertEquals("test_X_X", result.get().after().value());
 
         // Check transformations
         var transformations = result.get().transformations();
         assertThat(transformations.keySet().size(), equalTo(1));
         var batchTransformations = transformations.values().iterator().next();
         assertThat(batchTransformations.size(), equalTo(2));
-        assertEquals("TestParameterizedRule", batchTransformations.get(0).name());
-        assertEquals("TestParameterizedRule", batchTransformations.get(1).name());
+        assertEquals("ConditionalParameterized_test", batchTransformations.get(0).name());
+        assertEquals("ConditionalParameterized_test_X", batchTransformations.get(1).name());
     }
 
     public void testMixedRulesInParameterizedExecutor() {
@@ -105,7 +105,7 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
         TestNode input = new TestNode("test");
 
         // Mix parameterized and non-parameterized rules
-        AppendRule nonParamRule = new AppendRule("_suffix");
+        ConditionalRule nonParamRule = new ConditionalRule("test", "test_suffix");
         TestParameterizedRule paramRule = new TestParameterizedRule();
 
         RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("MixedBatch", nonParamRule, paramRule);
@@ -230,8 +230,8 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
         TestParameterizedRule paramRule = new TestParameterizedRule();
         RuleExecutor.Batch<TestNode> batch1 = new RuleExecutor.Batch<>("PrependBatch", paramRule);
 
-        // Second batch with non-parameterized rule
-        AppendRule appendRule = new AppendRule("_final");
+        // Second batch with non-parameterized rule that triggers on the result of first batch
+        ConditionalRule appendRule = new ConditionalRule("test_middle", "test_middle_final");
         RuleExecutor.Batch<TestNode> batch2 = new RuleExecutor.Batch<>("AppendBatch", appendRule);
 
         executor.batches.add(batch1);
@@ -270,8 +270,12 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
         ParameterizedRule<TestNode, TestNode, String> asyncRule = new ParameterizedRule.Async<TestNode, TestNode, String>() {
             @Override
             public void apply(TestNode node, String param, ActionListener<TestNode> listener) {
-                // Simulate async processing
-                listener.onResponse(new TestNode("async_" + node.value() + "_" + param, node.children()));
+                // Only apply to "test" nodes to prevent infinite loops
+                if (node.value().equals("test")) {
+                    listener.onResponse(new TestNode("async_" + node.value() + "_" + param, node.children()));
+                } else {
+                    listener.onResponse(node);
+                }
             }
 
             @Override

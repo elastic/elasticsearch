@@ -214,7 +214,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     // These are lookup indices, we want them on both remotes and locals
     public static final Set<String> LOOKUP_INDICES = CSV_DATASET_MAP.values()
         .stream()
-        .filter(td -> td.settingFileName().equals("lookup-settings.json"))
+        .filter(td -> td.settingFileName() != null && td.settingFileName().equals("lookup-settings.json"))
         .map(CsvTestsDataLoader.TestDataset::indexName)
         .collect(Collectors.toSet());
 

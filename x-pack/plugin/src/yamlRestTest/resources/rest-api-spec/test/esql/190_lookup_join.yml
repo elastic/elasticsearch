@@ -145,7 +145,7 @@ basic:
   - match: {values.1: [2, "yellow"]}
 
 ---
-fails with non-lookup index:
+fails with non-lookup index v2:
   - requires:
       capabilities:
         - method: POST

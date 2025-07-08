@@ -186,7 +186,7 @@ alias-repeated-index:
   - match: {values.1: [2, "yellow"]}
 
 ---
-fails when alias or pattern resolves to multiple:
+fails when alias or pattern resolves to multiple v2:
   - requires:
       capabilities:
         - method: POST

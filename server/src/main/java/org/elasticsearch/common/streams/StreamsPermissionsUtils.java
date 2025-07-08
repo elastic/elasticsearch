@@ -32,7 +32,7 @@ public class StreamsPermissionsUtils {
         return INSTANCE;
     }
 
-    public void throwIfRetrouteToSubstreamNotAllowed(ProjectMetadata projectMetadata, Set<String> indexHistory, String destination)
+    public void throwIfRerouteToSubstreamNotAllowed(ProjectMetadata projectMetadata, Set<String> indexHistory, String destination)
         throws IllegalArgumentException {
         for (StreamType streamType : StreamType.values()) {
             String streamName = streamType.getStreamName();

@@ -169,8 +169,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /**
      * We publish metrics of how many shards are in each of the following states
-     * these should be the list of status that potentially block movement in
-     * {@link SnapshotInProgressAllocationDecider}
+     * these should be the list of statuses that potentially block movement in
+     * {@link SnapshotInProgressAllocationDecider}, or states that might delay
+     * a snapshot's completion.
      */
     private static final List<ShardState> TRACKED_SHARD_STATES = List.of(
         ShardState.INIT,

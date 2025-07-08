@@ -25,8 +25,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * This abstract class defining basic {@link Decision} used during shard
- * allocation process.
+ * A {@link Decision} used during shard allocation process.
  *
  * @see AllocationDecider
  */

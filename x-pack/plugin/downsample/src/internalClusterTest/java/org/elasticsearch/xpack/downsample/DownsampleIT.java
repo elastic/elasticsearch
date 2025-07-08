@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -259,10 +258,6 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private EsqlQueryResponse esqlCommand(String command) throws IOException {
-        if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
-            // add a (high) limit to avoid warnings on default limit
-            command += " | limit 10000000";
-        }
         return client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS);
     }
 }

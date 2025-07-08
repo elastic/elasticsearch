@@ -11,19 +11,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
-
-public class RrfScoreEval extends UnaryPlan implements PostAnalysisVerificationAware, LicenseAware {
+public class RrfScoreEval extends UnaryPlan implements LicenseAware {
     private final Attribute forkAttr;
     private final Attribute scoreAttr;
 
@@ -64,19 +59,6 @@ public class RrfScoreEval extends UnaryPlan implements PostAnalysisVerificationA
 
     public Attribute forkAttribute() {
         return forkAttr;
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        if (this.child() instanceof Fork == false) {
-            failures.add(
-                fail(
-                    this,
-                    "Invalid use of RRF. RRF can only be used after FORK, but found {}",
-                    child().sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                )
-            );
-        }
     }
 
     @Override

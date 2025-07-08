@@ -3382,28 +3382,19 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
     }
 
-    public void testValidRrf() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
              | fork ( where first_name:"foo" )
                     ( where first_name:"bar" )
-             | rrf
+             | fuse
             """);
 
         Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
 
-        assertThat(orderBy.order().size(), equalTo(3));
-        assertThat(orderBy.order().get(0).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        Dedup dedup = as(orderBy.child(), Dedup.class);
+        Dedup dedup = as(limit.child(), Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.aggregates().size(), equalTo(15));
 
@@ -3416,37 +3407,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(rrf.child(), instanceOf(Fork.class));
     }
 
-    public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testFuseError() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | rrf
+            | fuse
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
         assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test metadata _score, _index, _id
-            | eval _fork = 1
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
-             from test metadata _id, _index, _score
-            | fork ( where first_name:"foo" )
-                   ( where first_name:"bar" )
-            | rrf
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
 
@@ -3454,7 +3429,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _id
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_index]"));
 
@@ -3462,7 +3437,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }

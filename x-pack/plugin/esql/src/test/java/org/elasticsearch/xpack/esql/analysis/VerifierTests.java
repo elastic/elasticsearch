@@ -2221,6 +2221,42 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testRemoteLookupJoinWithPipelineBreaker() {
+        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
+        assertEquals(
+            "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
+            error(
+                "FROM test,remote:test | STATS c = COUNT(*) by languages "
+                    + "| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+
+        assertEquals(
+            "1:72: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@1:25",
+            error(
+                "FROM test,remote:test | SORT emp_no | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+
+        assertEquals(
+            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
+            error(
+                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+        assertEquals(
+            "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
+            error(
+                "FROM test,remote:test | EVAL language_code = languages | ENRICH _coordinator:languages_coord "
+                    + "| LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+    }
+
     private void checkFullTextFunctionsInStats(String functionInvocation) {
         query("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer);
         query("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);

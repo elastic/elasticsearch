@@ -115,7 +115,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             }
         });
 
-        fails.forEach(f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after " + f)));
+        fails.forEach(
+            f -> failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.text() + "]" + f.source()))
+        );
+
     }
 
 }

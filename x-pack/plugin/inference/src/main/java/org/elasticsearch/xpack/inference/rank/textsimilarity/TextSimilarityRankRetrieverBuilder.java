@@ -228,7 +228,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
                 );
             } else {
                 QueryBuilder rewrittenSnippetQueryBuilder = snippetQueryBuilder.rewrite(ctx);
-                if (snippetQueryBuilder == rewrittenSnippetQueryBuilder == false) {
+                if (snippetQueryBuilder != rewrittenSnippetQueryBuilder) {
                     return new TextSimilarityRankRetrieverBuilder(
                         innerRetrievers,
                         inferenceId,

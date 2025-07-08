@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.rule;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -136,14 +135,6 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         public Map<Batch<TreeType>, List<Transformation>> transformations() {
             return transformations;
         }
-    }
-
-    @Deprecated(forRemoval = true)
-    protected final TreeType execute(TreeType plan) {
-        // TODO: remove when all implementinc classes are using the async version.
-        PlainActionFuture<ExecutionInfo> executionInfoFuture = new PlainActionFuture<>();
-        executeWithInfo(plan, executionInfoFuture);
-        return executionInfoFuture.actionGet().after;
     }
 
     protected final void execute(TreeType plan, ActionListener<TreeType> listener) {

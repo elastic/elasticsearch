@@ -167,6 +167,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -519,33 +520,81 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
-        final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+        // First pass: gather all shards, cache sizes, and compute totals
+        class ShardCacheInfo {
+            final IndexService indexService;
+            final IndexShard indexShard;
+            final org.elasticsearch.index.shard.ShardId shardId;
+            final long cacheSize;
 
+            ShardCacheInfo(IndexService is, IndexShard shard, org.elasticsearch.index.shard.ShardId id, long size) {
+                this.indexService = is;
+                this.indexShard = shard;
+                this.shardId = id;
+                this.cacheSize = size;
+            }
+        }
+        List<ShardCacheInfo> shardInfos = new ArrayList<>();
+        long totalSize = 0L;
+        int shardCount = 0;
+        boolean anyNonZero = false;
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
-                try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
-
-                    if (indexShardStats == null) {
-                        continue;
-                    }
-
-                    if (statsByShard.containsKey(indexService.index()) == false) {
-                        statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
-                    } else {
-                        statsByShard.get(indexService.index()).add(indexShardStats);
-                    }
-                } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
-                    // we can safely ignore illegal state on ones that are closing for example
-                    logger.trace(() -> format("%s ignoring shard stats", indexShard.shardId()), e);
+                org.elasticsearch.index.shard.ShardId shardId = indexShard.shardId();
+                long cacheSize = queryCache.getCacheSizeForShard(shardId);
+                shardInfos.add(new ShardCacheInfo(indexService, indexShard, shardId, cacheSize));
+                shardCount++;
+                if (cacheSize > 0L) {
+                    anyNonZero = true;
+                    totalSize += cacheSize;
                 }
             }
         }
-
+        long sharedRamBytesUsed = queryCache.getSharedRamBytesUsed();
+        final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+        // Second pass: build stats, compute shared RAM on the fly
+        for (ShardCacheInfo info : shardInfos) {
+            long sharedRam = 0L;
+            if (sharedRamBytesUsed != 0L) {
+                if (anyNonZero == false) {
+                    sharedRam = Math.round((double) sharedRamBytesUsed / shardCount);
+                } else if (totalSize != 0) {
+                    sharedRam = Math.round((double) sharedRamBytesUsed * info.cacheSize / totalSize);
+                }
+            }
+            try {
+                final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                    indicesService,
+                    info.indexShard,
+                    flags,
+                    Collections.singletonMap(info.shardId, sharedRam)
+                );
+                if (indexShardStats == null) {
+                    continue;
+                }
+                if (statsByShard.containsKey(info.indexService.index()) == false) {
+                    statsByShard.put(info.indexService.index(), arrayAsArrayList(indexShardStats));
+                } else {
+                    statsByShard.get(info.indexService.index()).add(indexShardStats);
+                }
+            } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
+                logger.trace(() -> format("%s ignoring shard stats", info.shardId), e);
+            }
+        }
         return statsByShard;
     }
 
     IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+        return indexShardStats(indicesService, indexShard, flags, null);
+    }
+
+    IndexShardStats indexShardStats(
+        final IndicesService indicesService,
+        final IndexShard indexShard,
+        final CommonStatsFlags flags,
+        Map<org.elasticsearch.index.shard.ShardId, Long> precomputedSharedRam
+    ) {
         if (indexShard.routingEntry() == null) {
             return null;
         }
@@ -570,7 +619,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags, precomputedSharedRam),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,

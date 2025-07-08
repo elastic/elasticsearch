@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +67,17 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
+
+    // Package-private for IndicesService efficient stats collection
+    long getCacheSizeForShard(ShardId shardId) {
+        Stats stats = shardStats.get(shardId);
+        return stats != null ? stats.cacheSize : 0L;
+    }
+
+    // Package-private for IndicesService efficient stats collection
+    long getSharedRamBytesUsed() {
+        return sharedRamBytesUsed;
+    }
 
     // This is a hack for the fact that the close listener for the
     // ShardCoreKeyMap will be called before onDocIdSetEviction
@@ -137,6 +149,57 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
         queryCacheStats.addRamBytesUsed(getShareOfAdditionalRamBytesUsed(queryCacheStats.getCacheSize()));
         return queryCacheStats;
+    }
+
+    /**
+     * Overload to allow passing in a precomputed shared RAM split for this shard.
+     */
+    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
+        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
+        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
+        return queryCacheStats;
+    }
+
+    /**
+     * Precompute the shared RAM split for all shards, returning a map of ShardId to the additional shared RAM bytes used.
+     * This avoids O(N^2) when collecting stats for all shards.
+     */
+    public Map<ShardId, Long> computeAllShardSharedRamBytesUsed() {
+        Map<ShardId, Long> result = new HashMap<>();
+        if (sharedRamBytesUsed == 0L) {
+            for (ShardId shardId : shardStats.keySet()) {
+                result.put(shardId, 0L);
+            }
+            return result;
+        }
+        long totalSize = 0L;
+        int shardCount = 0;
+        boolean anyNonZero = false;
+        for (Stats stats : shardStats.values()) {
+            shardCount += 1;
+            if (stats.cacheSize > 0L) {
+                anyNonZero = true;
+                totalSize += stats.cacheSize;
+            }
+        }
+        if (shardCount == 0) {
+            return result;
+        }
+        if (anyNonZero == false) {
+            // All shards have zero cache footprint, apportion equally
+            long perShard = Math.round((double) sharedRamBytesUsed / shardCount);
+            for (ShardId shardId : shardStats.keySet()) {
+                result.put(shardId, perShard);
+            }
+        } else {
+            // Apportion proportionally to cache footprint
+            for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
+                long cacheSize = entry.getValue().cacheSize;
+                long ram = (totalSize == 0) ? 0L : Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+                result.put(entry.getKey(), ram);
+            }
+        }
+        return result;
     }
 
     @Override

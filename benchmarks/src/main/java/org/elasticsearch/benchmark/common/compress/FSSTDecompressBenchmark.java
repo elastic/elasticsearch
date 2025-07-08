@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -37,8 +36,8 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class FSSTDecompressBenchmark {
 
-//    @Param({ "fsst", "lz4_high", "lz4_fast" })
-    @Param({"fsst", "lz4_fast"})
+    // @Param({ "fsst", "lz4_high", "lz4_fast" })
+    @Param({ "fsst", "lz4_fast" })
     public String compressionType;
 
     @Param("")
@@ -61,6 +60,7 @@ public class FSSTDecompressBenchmark {
     private FSST.SymbolTable symbolTable;
 
     private static final int MB_8 = 8 * 1024 * 1024;
+
     private byte[] concatenateTo8mb(byte[] contentBytes) {
         byte[] bytes = new byte[MB_8 + 8];
         int i = 0;
@@ -79,7 +79,7 @@ public class FSSTDecompressBenchmark {
         byte[] contentBytes = FSST.toBytes(content);
         originalSize = MB_8;
         input = concatenateTo8mb(contentBytes);
-        offsets = new int[]{0, originalSize};
+        offsets = new int[] { 0, originalSize };
 
         outBuf = new byte[input.length];
         outOffsets = new int[2];

@@ -15,7 +15,7 @@ package org.elasticsearch.script;
  * The wrapped {@link CtxMap} should be cleared after use to avoid leaks.
  */
 public class CtxMapWrapper {
-    private volatile CtxMap<?> ctxMap;
+    private CtxMap<?> ctxMap;
 
     public CtxMap<?> getCtxMap() {
         if (ctxMap == null) {

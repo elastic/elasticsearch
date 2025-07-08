@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.CtxMapWrapper;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;

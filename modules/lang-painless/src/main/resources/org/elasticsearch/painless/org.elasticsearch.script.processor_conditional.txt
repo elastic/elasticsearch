@@ -14,10 +14,7 @@ class org.elasticsearch.script.IngestConditionalScript {
 }
 
 class org.elasticsearch.script.field.SourceMapField {
-    String getName()
     boolean exists()
-    boolean isEmpty()
-    int size()
     Iterator iterator()
     def get(def)
     def get(int, def)

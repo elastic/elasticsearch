@@ -2387,16 +2387,17 @@ public class AnalyzerTests extends ESTestCase {
         var field = knn.field();
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        assertThat(queryVector.value(), equalTo(List.of(0.342, 0.164, 0.234)));
+        assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [0.342, 0.164, 0.234])");
+            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
     }
 
-    private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction) {
+    private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval similarity = %s
             """, similarityFunction), "mapping-dense_vector.json");
@@ -2410,8 +2411,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("vector", left.name());
         var right = as(similarity.right(), Literal.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
-        assertThat(right.value(), equalTo(List.of(0.342, 0.164, 0.234)));
-        ;
+        assertThat(right.value(), equalTo(expectedElems));
     }
 
     public void testNoDenseVectorFailsSimilarityFunction() {

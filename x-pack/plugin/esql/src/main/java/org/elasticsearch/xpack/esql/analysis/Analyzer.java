@@ -1613,6 +1613,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
+        @SuppressWarnings("unchecked")
         private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
@@ -1620,7 +1621,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
                     Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
                     if (folded instanceof List) {
-                        Literal denseVector = new Literal(arg.source(), folded, DataType.DENSE_VECTOR);
+                        // Convert to floats so blocks are created accordingly
+                        List<Float> floatVector;
+                        if (arg.dataType() == FLOAT) {
+                            floatVector = (List<Float>) folded;
+                        } else {
+                            floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+                        }
+                        Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
                         newArgs.add(denseVector);
                         continue;
                     }

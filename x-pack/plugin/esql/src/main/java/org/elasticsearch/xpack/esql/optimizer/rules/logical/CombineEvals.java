@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
  * TODO: eliminate unnecessary fields inside the eval as well
  */
-public final class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
+public final class CombineEvals extends OptimizerRules.OptimizerRule.Sync<Eval> {
 
     public CombineEvals() {
         super(OptimizerRules.TransformDirection.UP);

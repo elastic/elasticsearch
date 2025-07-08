@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
  * This rule does NOT check for type compatibility as that phase has been
  * already be verified in the analyzer.
  */
-public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressionRule<Or> {
+public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressionRule.Sync<Or> {
     public CombineDisjunctions() {
         super(OptimizerRules.TransformDirection.UP);
     }

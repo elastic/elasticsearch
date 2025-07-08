@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.subtract;
 
-public final class BooleanSimplification extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
+public final class BooleanSimplification extends OptimizerRules.OptimizerExpressionRule.Sync<ScalarFunction> {
 
     public BooleanSimplification() {
         super(OptimizerRules.TransformDirection.UP);

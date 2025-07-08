@@ -42,7 +42,7 @@ import static java.util.Collections.emptySet;
  * Implementation-wise this rule goes bottom-up, keeping an alias up to date to the current plan
  * and then looks for replacing the target.
  */
-public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
+public class InferIsNotNull extends Rule.Sync<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {

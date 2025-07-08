@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
-public final class PushDownInferencePlan extends OptimizerRules.OptimizerRule<InferencePlan<?>> {
+public final class PushDownInferencePlan extends OptimizerRules.OptimizerRule.Sync<InferencePlan<?>> {
     @Override
     protected LogicalPlan rule(InferencePlan<?> p) {
         return PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(p);

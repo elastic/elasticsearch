@@ -39,7 +39,7 @@ import java.util.Set;
  * <p>
  * This rule finds and prunes redundant SORTs, attempting to make the plan executable.
  */
-public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public final class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule.Sync<LogicalPlan> {
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {

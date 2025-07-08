@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -7558,7 +7560,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec exchange = as(outerTopN.child(), ExchangeExec.class);
         FragmentExec frag = as(exchange.child(), FragmentExec.class);
 
-        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(frag.fragment(), optimizedPlanFuture);
+        LogicalPlan opt = optimizedPlanFuture.actionGet();
         TopN innerTopN = as(opt, TopN.class);
         assertMap(
             innerTopN.order().stream().map(o -> o.child().toString()).toList(),
@@ -7842,7 +7846,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        PlainActionFuture<PhysicalPlan> localPlanFuture = new PlainActionFuture<>();
+        PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS, localPlanFuture);
+        plan = localPlanFuture.actionGet();
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7899,7 +7905,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec exchange = as(limitExec.child(), ExchangeExec.class);
         FragmentExec frag = as(exchange.child(), FragmentExec.class);
 
-        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(frag.fragment(), optimizedPlanFuture);
+        LogicalPlan opt = optimizedPlanFuture.actionGet();
         Limit limit = as(opt, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
 
@@ -7926,7 +7934,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec exchange = as(topNExec.child(), ExchangeExec.class);
         FragmentExec frag = as(exchange.child(), FragmentExec.class);
 
-        LogicalPlan opt = logicalOptimizer.optimize(frag.fragment());
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(frag.fragment(), optimizedPlanFuture);
+        LogicalPlan opt = optimizedPlanFuture.actionGet();
         TopN topN = as(opt, TopN.class);
         List<Order> order = topN.order();
         Order scoreOrer = order.getFirst();
@@ -8202,21 +8212,29 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
         // System.out.println("* Physical Before\n" + plan);
-        var p = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
-        // System.out.println("* Physical After\n" + p);
-        // the real execution breaks the plan at the exchange and then decouples the plan
-        // this is of no use in the unit tests, which checks the plan as a whole instead of each
-        // individually hence why here the plan is kept as is
+        PlainActionFuture<PhysicalPlan> result = new PlainActionFuture<>();
 
-        var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats);
-            return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
-        });
+        physicalPlanOptimizer.optimize(plan, ActionListener.wrap(optimizedPlan -> {
+            var p = EstimatesRowSize.estimateRowSize(0, optimizedPlan);
+            // System.out.println("* Physical After\n" + p);
+            // the real execution breaks the plan at the exchange and then decouples the plan
+            // this is of no use in the unit tests, which checks the plan as a whole instead of each
+            // individually hence why here the plan is kept as is
 
-        // handle local reduction alignment
-        l = localRelationshipAlignment(l);
-        // System.out.println("* Localized DataNode Plan\n" + l);
-        return l;
+            var l = p.transformUp(FragmentExec.class, fragment -> {
+                PlainActionFuture<PhysicalPlan> localPlanFuture = new PlainActionFuture<>();
+                PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats, localPlanFuture);
+                var localPlan = localPlanFuture.actionGet();
+                return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
+            });
+
+            // handle local reduction alignment
+            l = localRelationshipAlignment(l);
+            // System.out.println("* Localized DataNode Plan\n" + l);
+            result.onResponse(l);
+        }, result::onFailure));
+
+        return result.actionGet();
     }
 
     static SearchStats statsWithIndexedFields(String... names) {
@@ -8247,7 +8265,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(analyze(dataSource.analyzer, parser.createStatement(query)), optimizedPlanFuture);
+        var logical = optimizedPlanFuture.actionGet();
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);

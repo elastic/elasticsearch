@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 /**
  * Replace {@link SurrogateExpression}s with their {@link SurrogateExpression#surrogate surrogates}.
  */
-public final class SubstituteSurrogateExpressions extends OptimizerRules.OptimizerExpressionRule<Expression> {
+public final class SubstituteSurrogateExpressions extends OptimizerRules.OptimizerExpressionRule.Sync<Expression> {
 
     public SubstituteSurrogateExpressions() {
         super(OptimizerRules.TransformDirection.UP);

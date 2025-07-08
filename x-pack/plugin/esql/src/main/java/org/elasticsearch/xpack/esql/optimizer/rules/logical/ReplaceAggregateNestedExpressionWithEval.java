@@ -33,7 +33,7 @@ import java.util.Map;
  * becomes
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINESTATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
-public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {

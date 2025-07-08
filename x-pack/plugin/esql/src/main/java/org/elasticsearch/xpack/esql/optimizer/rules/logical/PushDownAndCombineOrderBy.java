@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
-public final class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
+public final class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule.Sync<OrderBy> {
     @Override
     protected LogicalPlan rule(OrderBy orderBy) {
         LogicalPlan child = orderBy.child();

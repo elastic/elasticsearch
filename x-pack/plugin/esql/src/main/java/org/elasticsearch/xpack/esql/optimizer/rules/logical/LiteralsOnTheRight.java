@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
-public final class LiteralsOnTheRight extends OptimizerRules.OptimizerExpressionRule<BinaryOperator<?, ?, ?, ?>> {
+public final class LiteralsOnTheRight extends OptimizerRules.OptimizerExpressionRule.Sync<BinaryOperator<?, ?, ?, ?>> {
 
     public LiteralsOnTheRight() {
         super(OptimizerRules.TransformDirection.UP);

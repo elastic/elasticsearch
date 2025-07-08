@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule.Sync<Limit, LogicalOptimizerContext> {
 
     public PushDownAndCombineLimits() {
         super(OptimizerRules.TransformDirection.DOWN);

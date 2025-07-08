@@ -107,7 +107,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -198,10 +198,10 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                preMapper.preMapper(
-                    analyzedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l))
-                );
+                SubscribableListener.<LogicalPlan>newForked(l -> preMapper.preMapper(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> optimizedPlan(p, l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
     }
@@ -218,20 +218,21 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-            String physicalPlanString = physicalPlan.toString();
-            List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
-            );
-            List<List<Object>> values = new ArrayList<>();
-            values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
-            values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
-            values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
-            var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
-            planRunner.run(physicalPlan, listener);
+            logicalPlanToPhysicalPlan(optimizedPlan, request, ActionListener.wrap(physicalPlan -> {
+                String physicalPlanString = physicalPlan.toString();
+                List<Attribute> fields = List.of(
+                    new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
+                    new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
+                    new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+                );
+                List<List<Object>> values = new ArrayList<>();
+                values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
+                values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+                values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
+                var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
+                physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+                planRunner.run(physicalPlan, listener);
+            }, listener::onFailure));
         } else {
             // TODO: this could be snuck into the underlying listener
             EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
@@ -254,9 +255,10 @@ public class EsqlSession {
             // code-path to execute subplans
             executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
         } else {
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-            // execute main plan
-            runner.run(physicalPlan, listener);
+            logicalPlanToPhysicalPlan(optimizedPlan, request, listener.delegateFailureAndWrap((l, physicalPlan) -> {
+                // execute main plan
+                runner.run(physicalPlan, listener);
+            }));
         }
     }
 
@@ -271,43 +273,44 @@ public class EsqlSession {
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
+        logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request, ActionListener.wrap(physicalSubPlan -> {
+            runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
+                try {
+                    // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+                    completionInfoAccumulator.accumulate(result.completionInfo());
+                    LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
 
-        runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
-            try {
-                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-                completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                    // replace the original logical plan with the backing result
+                    LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+                        InlineJoin.class,
+                        // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+                        // and equals would have ignored name IDs anyway
+                        ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                    );
+                    // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+                    newLogicalPlan.setOptimized();
+                    LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
+                    // look for the next inlinejoin plan
+                    var newSubPlan = firstSubPlan(newLogicalPlan);
 
-                // replace the original logical plan with the backing result
-                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
-                    InlineJoin.class,
-                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
-                    // and equals would have ignored name IDs anyway
-                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                );
-                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-                newLogicalPlan.setOptimized();
-                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
-                // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan);
-
-                if (newSubPlan == null) {// run the final "main" plan
-                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
-                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
-                    runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                        completionInfoAccumulator.accumulate(finalResult.completionInfo());
-                        finalListener.onResponse(
-                            new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
-                        );
-                    }));
-                } else {// continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    if (newSubPlan == null) {// run the final "main" plan
+                        LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
+                        logicalPlanToPhysicalPlan(newLogicalPlan, request, ActionListener.wrap(newPhysicalPlan -> {
+                            runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                                finalListener.onResponse(
+                                    new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                                );
+                            }));
+                        }, listener::onFailure));
+                    } else {// continue executing the subplans
+                        executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    }
+                } finally {
+                    Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
                 }
-            } finally {
-                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
-            }
-        }));
+            }));
+        }, listener::onFailure));
     }
 
     private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
@@ -335,14 +338,22 @@ public class EsqlSession {
             return;
         }
 
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
+        BiConsumer<PreAnalysisResult, ActionListener<LogicalPlan>> analyzeAction = (preAnalysisResult, listener) -> {
             Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
+                new AnalyzerContext(
+                    configuration,
+                    functionRegistry,
+                    preAnalysisResult.indices,
+                    preAnalysisResult.lookupIndices,
+                    preAnalysisResult.enrichResolution,
+                    preAnalysisResult.inferenceResolution
+                ),
                 verifier
             );
-            LogicalPlan plan = analyzer.analyze(parsed);
-            plan.setAnalyzed();
-            return plan;
+            analyzer.analyze(parsed, listener.map(analyzedPlan -> {
+                analyzedPlan.setAnalyzed();
+                return analyzedPlan;
+            }));
         };
         // Capture configured remotes list to ensure consistency throughout the session
         configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
@@ -397,13 +408,14 @@ public class EsqlSession {
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.unavailableClusters());
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
-                plan = analyzeAction.apply(result);
+                analyzeAction.accept(result, l.delegateFailureAndWrap((analyzedPlanListener, analyzedPlan) -> {
+                    LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", analyzedPlan);
+                    analyzedPlanListener.onResponse(analyzedPlan);
+                }));
             } catch (Exception e) {
                 l.onFailure(e);
                 return;
             }
-            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-            l.onResponse(plan);
         }).addListener(logicalPlanListener);
     }
 
@@ -521,7 +533,7 @@ public class EsqlSession {
     }
 
     private static void analyzeAndMaybeRetry(
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction,
+        BiConsumer<PreAnalysisResult, ActionListener<LogicalPlan>> analyzeAction,
         QueryBuilder requestFilter,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
@@ -533,14 +545,7 @@ public class EsqlSession {
         var attemptMessage = requestFilter == null ? "the only" : "first";
         LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
 
-        try {
-            if (result.indices.isValid() || requestFilter != null) {
-                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
-                // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
-            }
-            plan = analyzeAction.apply(result);
-        } catch (Exception e) {
+        logicalPlanListener = logicalPlanListener.delegateResponse((errorListener, e) -> {
             if (e instanceof VerificationException ve) {
                 LOGGER.debug(
                     "Analyzing the plan ({} attempt, {} filter) failed with {}",
@@ -550,7 +555,7 @@ public class EsqlSession {
                 );
                 if (requestFilter == null) {
                     // if the initial request didn't have a filter, then just pass the exception back to the user
-                    logicalPlanListener.onFailure(ve);
+                    errorListener.onFailure(ve);
                 } else {
                     // interested only in a VerificationException, but this time we are taking out the index filter
                     // to try and make the index resolution work without any index filtering. In the next step... to be continued
@@ -558,13 +563,23 @@ public class EsqlSession {
                 }
             } else {
                 // if the query failed with any other type of exception, then just pass the exception back to the user
-                logicalPlanListener.onFailure(e);
+                errorListener.onFailure(e);
             }
-            return;
+        });
+
+        try {
+            if (result.indices.isValid() || requestFilter != null) {
+                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
+                // when the resolution result is not valid for a different reason.
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
+            }
+            analyzeAction.accept(result, ActionListener.runBefore(logicalPlanListener, () -> {
+                LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
+                // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+            }));
+        } catch (Exception e) {
+            l.onFailure(e);
         }
-        LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
-        // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
-        logicalPlanListener.onResponse(plan);
     }
 
     private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {
@@ -790,31 +805,34 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan);
-        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
-            QueryBuilder filter = request.filter();
-            if (filter != null) {
-                var fragmentFilter = f.esFilter();
-                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                // This is an ugly hack to push the filter parameter to Lucene
-                // TODO: filter integration testing
-                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                f = f.withFilter(filter);
-            }
-            return f;
-        });
-        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+    private void logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+        optimizedPhysicalPlan(optimizedPlan, listener.map(physicalPlan -> {
+            physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
+                QueryBuilder filter = request.filter();
+                if (filter != null) {
+                    var fragmentFilter = f.esFilter();
+                    // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+                    // This is an ugly hack to push the filter parameter to Lucene
+                    // TODO: filter integration testing
+                    filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                    LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                    f = f.withFilter(filter);
+                }
+                return f;
+            });
+            return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        }));
     }
 
-    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
         if (logicalPlan.analyzed() == false) {
-            throw new IllegalStateException("Expected analyzed plan");
+            listener.onFailure(new IllegalStateException("Expected analyzed plan"));
+            return;
         }
-        var plan = logicalPlanOptimizer.optimize(logicalPlan);
-        LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
-        return plan;
+        logicalPlanOptimizer.optimize(logicalPlan, listener.map(optimizedPlan -> {
+            LOGGER.debug("Optimized logicalPlan plan:\n{}", optimizedPlan);
+            return optimizedPlan;
+        }));
     }
 
     public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {
@@ -827,10 +845,11 @@ public class EsqlSession {
         return plan;
     }
 
-    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
-        LOGGER.debug("Optimized physical plan:\n{}", plan);
-        return plan;
+    public void optimizedPhysicalPlan(LogicalPlan optimizedPlan, ActionListener<PhysicalPlan> listener) {
+        physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan), listener.map(plan -> {
+            LOGGER.debug("Optimized physical plan:\n{}", plan);
+            return plan;
+        }));
     }
 
     record PreAnalysisResult(

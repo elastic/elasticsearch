@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -239,10 +240,18 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
         Analyzer analyzer = analyzer(analyzerDefaultMapping(), TEST_VERIFIER, configuration);
         LogicalPlan logicalPlan = AnalyzerTestUtils.analyze(query, analyzer);
-        logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small())).optimize(logicalPlan);
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small())).optimize(
+            logicalPlan,
+            optimizedPlanFuture
+        );
+        logicalPlan = optimizedPlanFuture.actionGet();
 
         PhysicalPlan physicalPlan = new Mapper().map(logicalPlan);
-        physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan);
+
+        PlainActionFuture<PhysicalPlan> physicalPlanFuture = new PlainActionFuture<>();
+        new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan, physicalPlanFuture);
+        physicalPlan = physicalPlanFuture.actionGet();
 
         PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, configuration).v2();
 

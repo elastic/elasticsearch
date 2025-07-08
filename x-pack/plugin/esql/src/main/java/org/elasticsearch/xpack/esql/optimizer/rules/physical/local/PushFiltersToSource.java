@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.transla
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
-public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
+public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync<FilterExec, LocalPhysicalOptimizerContext> {
 
     @Override
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {

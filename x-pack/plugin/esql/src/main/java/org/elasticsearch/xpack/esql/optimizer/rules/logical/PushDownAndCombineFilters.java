@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {
+public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule.Sync<Filter> {
     @Override
     protected LogicalPlan rule(Filter filter) {
         LogicalPlan plan = filter;

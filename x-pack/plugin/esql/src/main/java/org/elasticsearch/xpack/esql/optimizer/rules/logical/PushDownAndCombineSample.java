@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  *      </li>
  *  </ul>
  */
-public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimizerRule<Sample, LogicalOptimizerContext> {
+public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimizerRule.Sync<Sample, LogicalOptimizerContext> {
 
     public PushDownAndCombineSample() {
         super(OptimizerRules.TransformDirection.DOWN);

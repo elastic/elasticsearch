@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class ReplaceRowAsLocalRelation extends OptimizerRules.ParameterizedOptimizerRule<Row, LogicalOptimizerContext> {
+public final class ReplaceRowAsLocalRelation extends OptimizerRules.ParameterizedOptimizerRule.Sync<Row, LogicalOptimizerContext> {
     public ReplaceRowAsLocalRelation() {
         super(OptimizerRules.TransformDirection.DOWN);
     }

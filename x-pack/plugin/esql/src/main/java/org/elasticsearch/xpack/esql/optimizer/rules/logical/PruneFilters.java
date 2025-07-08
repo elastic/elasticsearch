@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 
-public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
+public final class PruneFilters extends OptimizerRules.OptimizerRule.Sync<Filter> {
     @Override
     protected LogicalPlan rule(Filter filter) {
         Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);

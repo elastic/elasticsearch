@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
-public final class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPlan> {
+public final class PruneEmptyPlans extends OptimizerRules.OptimizerRule.Sync<UnaryPlan> {
 
     public static LogicalPlan skipPlan(UnaryPlan plan) {
         return new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY);

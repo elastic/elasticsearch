@@ -117,7 +117,7 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testOptimizerExpressionRuleShouldNotVisitExcludedNodes() {
-        var rule = new OptimizerRules.OptimizerExpressionRule<>(randomFrom(OptimizerRules.TransformDirection.values())) {
+        var rule = new OptimizerRules.OptimizerExpressionRule.Sync<>(randomFrom(OptimizerRules.TransformDirection.values())) {
             private final List<Expression> appliedTo = new ArrayList<>();
 
             @Override

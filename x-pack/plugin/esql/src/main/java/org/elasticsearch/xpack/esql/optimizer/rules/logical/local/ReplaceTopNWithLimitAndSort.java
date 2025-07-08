@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
 /**
  * Break TopN back into Limit + OrderBy to allow the order rules to kick in.
  */
-public class ReplaceTopNWithLimitAndSort extends OptimizerRules.OptimizerRule<TopN> {
+public final class ReplaceTopNWithLimitAndSort extends OptimizerRules.OptimizerRule.Sync<TopN> {
     public ReplaceTopNWithLimitAndSort() {
         super(UP);
     }

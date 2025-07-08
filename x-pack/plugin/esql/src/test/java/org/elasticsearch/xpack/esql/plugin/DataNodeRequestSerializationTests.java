@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
 
@@ -302,7 +304,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(analyze(analyzer, new EsqlParser().createStatement(query)), optimizedPlanFuture);
+        return optimizedPlanFuture.actionGet();
     }
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
@@ -310,7 +314,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {
-            physical = physicalPlanOptimizer.optimize(physical);
+            PlainActionFuture<PhysicalPlan> optimizedPhysicalFuture = new PlainActionFuture<>();
+            physicalPlanOptimizer.optimize(physical, optimizedPhysicalFuture);
+            physical = optimizedPhysicalFuture.actionGet();
         }
         return physical;
     }

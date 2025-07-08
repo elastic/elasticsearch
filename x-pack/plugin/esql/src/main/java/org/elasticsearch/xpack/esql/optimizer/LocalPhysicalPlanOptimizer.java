@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
@@ -41,8 +42,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         super(context);
     }
 
-    public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+    public void localOptimize(PhysicalPlan plan, ActionListener<PhysicalPlan> listener) {
+        execute(plan, listener.map(this::verify));
     }
 
     PhysicalPlan verify(PhysicalPlan plan) {

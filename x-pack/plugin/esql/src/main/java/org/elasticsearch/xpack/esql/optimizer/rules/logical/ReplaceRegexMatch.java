@@ -16,14 +16,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
-public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
+public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule.Sync<RegexMatch<? extends StringPattern>> {
 
     public ReplaceRegexMatch() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
     @Override
-    public Expression rule(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
+    public Expression rule(RegexMatch<? extends StringPattern> regexMatch, LogicalOptimizerContext ctx) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();
         boolean matchesAll;
@@ -49,7 +49,7 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         return e;
     }
 
-    protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+    protected Expression regexToEquals(RegexMatch<? extends StringPattern> regexMatch, Literal literal) {
         return new Equals(regexMatch.source(), regexMatch.field(), literal);
     }
 }

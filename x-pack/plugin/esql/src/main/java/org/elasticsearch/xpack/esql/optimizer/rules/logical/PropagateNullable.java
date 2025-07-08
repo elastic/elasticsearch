@@ -27,7 +27,7 @@ import java.util.function.BiFunction;
 // a IS NULL AND a IS NOT NULL -> FALSE
 // a IS NULL AND a > 10 -> a IS NULL and FALSE
 // can be extended to handle null conditions where available
-public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
+public final class PropagateNullable extends OptimizerRules.OptimizerExpressionRule.Sync<And> {
 
     public PropagateNullable() {
         super(OptimizerRules.TransformDirection.DOWN);

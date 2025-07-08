@@ -27,7 +27,7 @@ import java.util.Map;
  * As the grouping key is used to perform the join, the evaluation required for creating it has to be copied to the left side
  * as well.
  */
-public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoin> {
+public final class PropagateInlineEvals extends OptimizerRules.OptimizerRule.Sync<InlineJoin> {
 
     @Override
     protected LogicalPlan rule(InlineJoin plan) {

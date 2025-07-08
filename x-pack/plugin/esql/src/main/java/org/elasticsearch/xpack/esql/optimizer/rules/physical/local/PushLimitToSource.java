@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
-public class PushLimitToSource extends PhysicalOptimizerRules.OptimizerRule<LimitExec> {
+public class PushLimitToSource extends PhysicalOptimizerRules.OptimizerRule.Sync<LimitExec> {
     @Override
     protected PhysicalPlan rule(LimitExec limitExec) {
         PhysicalPlan plan = limitExec;

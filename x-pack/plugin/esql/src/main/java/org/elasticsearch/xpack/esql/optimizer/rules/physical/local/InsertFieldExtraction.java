@@ -34,7 +34,9 @@ import java.util.Set;
  *
  * @see ProjectAwayColumns
  */
-public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext> {
+public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule.Sync<
+    PhysicalPlan,
+    LocalPhysicalOptimizerContext> {
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {

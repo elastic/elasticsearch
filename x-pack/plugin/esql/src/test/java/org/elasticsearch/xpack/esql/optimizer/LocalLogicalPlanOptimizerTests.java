@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -82,6 +83,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -250,7 +252,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * EsqlProject[[first_name{f}#7, last_name{r}#17]]
      * \_Limit[1000[INTEGER],true]
      *   \_MvExpand[last_name{f}#10,last_name{r}#17]
-     *     \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     *     \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, langu
      * uages{f}#9, last_name{r}#10, long_noidx{f}#16, salary{f}#11]]
      *       \_Eval[[null[KEYWORD] AS last_name]]
      *         \_Limit[1000[INTEGER],false]
@@ -508,10 +510,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query));
-        var optimized = logicalOptimizer.optimize(analyzed);
+        var analyzed = analyze(analyzer, parser.createStatement(query));
+        var optimized = optimizedPlan(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+        PlainActionFuture<LogicalPlan> planFuture = new PlainActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized, planFuture);
+        var plan = planFuture.actionGet();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(10));
@@ -785,21 +789,30 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        analyzer.analyze(
+            parser.createStatement(query),
+            optimizedPlanFuture.delegateFailureAndWrap((l, analyzedPlan) -> logicalOptimizer.optimize(analyzedPlan, l))
+        );
+        return optimizedPlanFuture.actionGet();
     }
 
     private LogicalPlan plan(String query) {
         return plan(query, analyzer);
     }
 
+    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
+        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
+        logicalOptimizer.optimize(logicalPlan, optimizedPlanFuture);
+        return optimizedPlanFuture.actionGet();
+    }
+
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+        PlainActionFuture<LogicalPlan> localPlanFuture = new PlainActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(plan, localPlanFuture);
+        var localPlan = localPlanFuture.actionGet();
         // System.out.println(localPlan);
         return localPlan;
     }

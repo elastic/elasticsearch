@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.extra
  *         ... | WHERE b > 0 | STATS MIN(a), MIN(c) | ...
  *     </pre>
  */
-public final class ExtractAggregateCommonFilter extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class ExtractAggregateCommonFilter extends OptimizerRules.OptimizerRule.Sync<Aggregate> {
     public ExtractAggregateCommonFilter() {
         super(OptimizerRules.TransformDirection.UP);
     }

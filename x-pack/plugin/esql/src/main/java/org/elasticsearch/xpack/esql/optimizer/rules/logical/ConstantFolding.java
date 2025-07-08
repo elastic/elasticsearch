@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
-public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> {
+public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule.Sync<Expression> {
 
     public ConstantFolding() {
         super(OptimizerRules.TransformDirection.DOWN);

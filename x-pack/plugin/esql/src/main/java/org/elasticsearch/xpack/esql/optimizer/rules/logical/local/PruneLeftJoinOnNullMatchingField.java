@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * of it. The rule can apply on the coordinator already, but it's more likely to be effective on the data nodes, where null aliasing is
  * inserted due to locally missing fields. This rule relies on that behavior -- see {@link ReplaceFieldWithConstantOrNull}.
  */
-public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.ParameterizedOptimizerRule<Join, LogicalOptimizerContext> {
+public final class PruneLeftJoinOnNullMatchingField extends OptimizerRules.ParameterizedOptimizerRule.Sync<Join, LogicalOptimizerContext> {
 
     public PruneLeftJoinOnNullMatchingField() {
         super(OptimizerRules.TransformDirection.DOWN);

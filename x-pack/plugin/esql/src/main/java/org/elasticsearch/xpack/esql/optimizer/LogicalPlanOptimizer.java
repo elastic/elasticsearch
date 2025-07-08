@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -109,15 +110,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         super(optimizerContext);
     }
 
-    public LogicalPlan optimize(LogicalPlan verified) {
-        var optimized = execute(verified);
-
-        Failures failures = verifier.verify(optimized);
-        if (failures.hasFailures()) {
-            throw new VerificationException(failures);
-        }
-        optimized.setOptimized();
-        return optimized;
+    public void optimize(LogicalPlan verified, ActionListener<LogicalPlan> listener) {
+        execute(verified, listener.delegateFailureAndWrap((l, optimized) -> {
+            Failures failures = verifier.verify(optimized);
+            if (failures.hasFailures()) {
+                l.onFailure(new VerificationException(failures));
+                return;
+            }
+            optimized.setOptimized();
+            l.onResponse(optimized);
+        }));
     }
 
     @Override

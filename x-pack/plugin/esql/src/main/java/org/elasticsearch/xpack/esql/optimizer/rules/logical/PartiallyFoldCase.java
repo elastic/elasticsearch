@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
  * EVAL c=foo
  * }</pre>
  */
-public final class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
+public final class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule.Sync<Case> {
     public PartiallyFoldCase() {
         super(DOWN);
     }

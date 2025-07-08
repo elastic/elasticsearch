@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
-public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
+public final class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.OptimizerExpressionRule.Sync<ScalarFunction> {
 
     public ReplaceStringCasingWithInsensitiveEquals() {
         super(OptimizerRules.TransformDirection.DOWN);

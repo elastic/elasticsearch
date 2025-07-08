@@ -21,7 +21,7 @@ import java.util.ArrayList;
  * Merges unmapped fields into the output of the ES relation. This marking is necessary for the block loaders to force loading from _source
  * if the field is unmapped.
  */
-public class PropgateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
+public class PropgateUnmappedFields extends Rule.Sync<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan) {
         if (logicalPlan instanceof EsRelation) {

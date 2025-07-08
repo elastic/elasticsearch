@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals.unwrapCase;
 
-public class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules.OptimizerExpressionRule<
+public final class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules.OptimizerExpressionRule.Sync<
     RegexMatch<? extends StringPattern>> {
 
     public ReplaceStringCasingWithInsensitiveRegexMatch() {

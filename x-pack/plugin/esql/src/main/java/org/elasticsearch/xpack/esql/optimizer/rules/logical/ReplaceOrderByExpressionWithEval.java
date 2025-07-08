@@ -20,7 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 
-public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+public final class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule.Sync<OrderBy> {
     private static int counter = 0;
 
     @Override

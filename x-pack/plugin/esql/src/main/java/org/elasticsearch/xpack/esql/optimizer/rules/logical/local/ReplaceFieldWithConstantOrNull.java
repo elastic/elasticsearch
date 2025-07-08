@@ -36,7 +36,7 @@ import java.util.function.Predicate;
  * Look for any fields used in the plan that are missing and replaces them with null or look for fields that are constant.
  * This should minimize the plan execution, in the best scenario skipping its execution all together.
  */
-public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
+public class ReplaceFieldWithConstantOrNull extends ParameterizedRule.Sync<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {

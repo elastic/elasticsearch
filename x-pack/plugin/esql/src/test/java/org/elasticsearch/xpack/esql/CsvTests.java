@@ -502,17 +502,18 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+    private void analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.MultiIndexTestDataset datasets, ActionListener<LogicalPlan> listener) {
         var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(
             new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies, emptyInferenceResolution()),
             TEST_VERIFIER
         );
-        LogicalPlan plan = analyzer.analyze(parsed);
-        plan.setAnalyzed();
-        LOGGER.debug("Analyzed plan:\n{}", plan);
-        return plan;
+        analyzer.analyze(parsed, listener.map(analyzedPlan -> {
+            analyzedPlan.setAnalyzed();
+            LOGGER.debug("Analyzed plan:\n{}", analyzedPlan);
+            return analyzedPlan;
+        }));
     }
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
@@ -568,7 +569,6 @@ public class CsvTests extends ESTestCase {
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
         LogicalPlan parsed = parser.createStatement(testCase.query);
         var testDatasets = testDatasets(parsed);
-        LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -589,24 +589,29 @@ public class CsvTests extends ESTestCase {
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
 
-        session.executeOptimizedPlan(
-            new EsqlQueryRequest(),
-            new EsqlExecutionInfo(randomBoolean()),
-            planRunner(bigArrays, foldCtx, physicalOperationProviders),
-            session.optimizedPlan(analyzed),
-            listener.delegateFailureAndWrap(
-                // Wrap so we can capture the warnings in the calling thread
-                (next, result) -> next.onResponse(
-                    new ActualResults(
-                        result.schema().stream().map(Attribute::name).toList(),
-                        result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
-                        result.schema().stream().map(Attribute::dataType).toList(),
-                        result.pages(),
-                        threadPool.getThreadContext().getResponseHeaders()
+        analyzedPlan(parsed, testDatasets, listener.delegateFailureAndWrap((analyzedPlanListener, analyzedPlan) -> {
+            session.optimizedPlan(analyzedPlan, listener.delegateFailureAndWrap((optimizedPlanListener, optimizedPlan) -> {
+                session.executeOptimizedPlan(
+                    new EsqlQueryRequest(),
+                    new EsqlExecutionInfo(randomBoolean()),
+                    planRunner(bigArrays, foldCtx, physicalOperationProviders),
+                    optimizedPlan,
+                    listener.delegateFailureAndWrap(
+                        // Wrap so we can capture the warnings in the calling thread
+                        (next, result) -> next.onResponse(
+                            new ActualResults(
+                                result.schema().stream().map(Attribute::name).toList(),
+                                result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
+                                result.schema().stream().map(Attribute::dataType).toList(),
+                                result.pages(),
+                                threadPool.getThreadContext().getResponseHeaders()
+                            )
+                        )
                     )
-                )
-            )
-        );
+                );
+            }));
+        }));
+
         return listener.get();
     }
 
@@ -718,7 +723,10 @@ public class CsvTests extends ESTestCase {
                 new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
             );
 
-            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+            PlainActionFuture<PhysicalPlan> localPlanFuture = new PlainActionFuture<>();
+            PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, localPlanFuture);
+            var csvDataNodePhysicalPlan = localPlanFuture.actionGet();
+
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),

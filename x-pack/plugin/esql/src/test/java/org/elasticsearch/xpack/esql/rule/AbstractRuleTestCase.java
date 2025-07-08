@@ -29,15 +29,15 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
 
     // Test node implementation extending Dummy to avoid EsqlNodeSubclassTests scanning
     protected static class TestNode extends Dummy {
-        public TestNode(String value) {
+        protected TestNode(String value) {
             this(Source.EMPTY, Collections.emptyList(), value);
         }
 
-        public TestNode(String value, List<Dummy> children) {
+        protected TestNode(String value, List<Dummy> children) {
             this(Source.EMPTY, children, value);
         }
 
-        public TestNode(Source source, List<Dummy> children, String value) {
+        protected TestNode(Source source, List<Dummy> children, String value) {
             super(source, children, value);
         }
 

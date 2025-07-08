@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.rule;
 
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.NodeTests.Dummy;
 
 import java.util.ArrayList;
@@ -256,13 +255,13 @@ public class RuleExecutorTests extends AbstractRuleTestCase {
         assertEquals("modified", ((TestNode) second.before()).value());
         assertEquals("final", ((TestNode) second.after()).value());
         assertTrue("Should have changed", second.hasChanged());
-        
+
         // Second iteration transformations (no changes)
         TestRuleExecutor.Transformation third = batchTransformations.get(2);
         assertEquals("ConditionaloriginalTomodified", third.name());
         assertFalse("Should not have changed in second iteration", third.hasChanged());
-        
-        TestRuleExecutor.Transformation fourth = batchTransformations.get(3);  
+
+        TestRuleExecutor.Transformation fourth = batchTransformations.get(3);
         assertEquals("ConditionalmodifiedTofinal", fourth.name());
         assertFalse("Should not have changed in second iteration", fourth.hasChanged());
     }

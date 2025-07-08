@@ -829,7 +829,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             throw new IOException("Couldn't load " + location, e);
         }
 
-        if (false == Modifier.isAbstract(c.getModifiers()) && false == c.isAnonymousClass() && clazz.isAssignableFrom(c)) {
+        if (false == Modifier.isAbstract(c.getModifiers())
+            && false == c.isAnonymousClass()
+            && false == Modifier.isProtected(c.getModifiers())
+            && clazz.isAssignableFrom(c)) {
             Class<? extends T> s = c.asSubclass(clazz);
             results.add(s);
         }

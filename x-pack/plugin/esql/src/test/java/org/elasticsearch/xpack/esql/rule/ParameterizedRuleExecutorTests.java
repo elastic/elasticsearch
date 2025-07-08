@@ -93,21 +93,21 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
         assertEquals("test_X_X", ((TestNode) result.get().after()).value());
 
         // Check transformations - the batch runs twice:
-        // 1st iteration: rule1 applies (test -> test_X), then rule2 applies (test_X -> test_X_X) 
+        // 1st iteration: rule1 applies (test -> test_X), then rule2 applies (test_X -> test_X_X)
         // 2nd iteration: no rules apply (no changes), so execution stops
         var transformations = result.get().transformations();
         assertThat(transformations.keySet().size(), equalTo(1));
         var batchTransformations = transformations.values().iterator().next();
-        
+
         // We should have 4 transformations total: 2 from first iteration, 2 from second (no-change)
         assertThat(batchTransformations.size(), equalTo(4));
-        
+
         // First iteration transformations
         assertEquals("ConditionalParameterized_test", batchTransformations.get(0).name());
         assertTrue("First rule should have changed", batchTransformations.get(0).hasChanged());
-        assertEquals("ConditionalParameterized_test_X", batchTransformations.get(1).name());  
+        assertEquals("ConditionalParameterized_test_X", batchTransformations.get(1).name());
         assertTrue("Second rule should have changed", batchTransformations.get(1).hasChanged());
-        
+
         // Second iteration transformations (no changes)
         assertEquals("ConditionalParameterized_test", batchTransformations.get(2).name());
         assertFalse("First rule should not change in second iteration", batchTransformations.get(2).hasChanged());
@@ -121,7 +121,7 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
         // Mix parameterized and non-parameterized rules
         ConditionalRule nonParamRule = new ConditionalRule("test", "test_suffix");
-        
+
         // Use ConditionalParameterizedRule that triggers on the result of the first rule
         ConditionalParameterizedRule paramRule = new ConditionalParameterizedRule("test_suffix");
 

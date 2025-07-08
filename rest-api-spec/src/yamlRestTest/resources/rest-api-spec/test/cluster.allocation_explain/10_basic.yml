@@ -560,12 +560,12 @@
 ---
 "cluster shard allocation explanation test with empty body and no URL parameters":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -585,12 +585,12 @@
 ---
 "cluster shard allocation explanation test with only index provided in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -606,12 +606,12 @@
 ---
 "cluster shard allocation explanation test with only shard provided in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -627,12 +627,12 @@
 ---
 "cluster shard allocation explanation test with only primary provided in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -648,12 +648,12 @@
 ---
 "cluster shard allocation explanation test with only index and shard provided in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -670,12 +670,12 @@
 ---
 "cluster shard allocation explanation test with only shard and primary provided in the URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -692,12 +692,12 @@
 ---
 "cluster shard allocation explanation test with only index and primary provided in the URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -714,12 +714,12 @@
 ---
 "cluster shard allocation explanation test with 3 parameters in the URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -746,12 +746,12 @@
 ---
 "cluster shard allocation explanation test with all parameters in the URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -784,12 +784,12 @@
 ---
 "cluster shard allocation explanation test with parameters passed in both the body and URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -806,12 +806,12 @@
 ---
 "cluster shard allocation explanation test with numerical index parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -832,12 +832,12 @@
 ---
 "cluster shard allocation explanation test with incorrect index parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -858,12 +858,12 @@
 ---
 "cluster shard allocation explanation test with an invalid, string shard parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -881,12 +881,12 @@
 ---
 "cluster shard allocation explanation test with a valid, string shard parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -913,12 +913,12 @@
 ---
 "cluster shard allocation explanation test with float shard parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -936,12 +936,12 @@
 ---
 "cluster shard allocation explanation test with numerical primary parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -959,12 +959,12 @@
 ---
 "cluster shard allocation explanation test with invalid primary parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -982,12 +982,12 @@
 ---
 "cluster shard allocation explanation test with a valid, string primary parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -1014,12 +1014,12 @@
 ---
 "cluster shard allocation explanation test with an invalid, string primary parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -1037,12 +1037,12 @@
 ---
 "cluster shard allocation explanation test with numerical current node parameter passed in URL":
   - requires:
-      test_runner_features: capabilities
       capabilities:
         - method: GET
           path: /_cluster/allocation/explain
-          parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.2.0"
+          capabilities: [ query_parameter_support ]
+      test_runner_features: [ capabilities ]
+      reason: "Query parameter support was added in version 9.2.0"
 
   - do:
       indices.create:

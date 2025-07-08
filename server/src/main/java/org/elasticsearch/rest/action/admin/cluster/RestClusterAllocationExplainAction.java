@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -96,6 +97,11 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
             clusterAllocationExplainRequest,
             new RestRefCountedChunkedToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("query_parameter_support");
     }
 
     @Override

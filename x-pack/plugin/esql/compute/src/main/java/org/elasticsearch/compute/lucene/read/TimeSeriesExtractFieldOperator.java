@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.lucene;
+package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -191,7 +192,7 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
         Releasables.close(fieldsReader, super::close);
     }
 
-    static class BlockLoaderFactory extends ValuesSourceReaderOperator.DelegatingBlockLoaderFactory {
+    static class BlockLoaderFactory extends DelegatingBlockLoaderFactory {
         BlockLoaderFactory(BlockFactory factory) {
             super(factory);
         }

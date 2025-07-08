@@ -98,15 +98,6 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         );
     }
 
-    private boolean hasAnyParameterBeenPassed(RestRequest request) {
-        for (String parameter : ClusterAllocationExplainRequest.PATH_PARAMETERS) {
-            if (request.hasParam(parameter)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public boolean canTripCircuitBreaker() {
         return false;

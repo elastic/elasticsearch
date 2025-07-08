@@ -35,12 +35,6 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     public static final String CURRENT_NODE_PARAMETER_NAME = "current_node";
     public static final String INCLUDE_YES_DECISIONS_PARAMETER_NAME = "include_yes_decisions";
     public static final String INCLUDE_DISK_INFO_PARAMETER_NAME = "include_disk_info";
-    public static final Set<String> PATH_PARAMETERS = Set.of(
-        INDEX_PARAMETER_NAME,
-        SHARD_PARAMETER_NAME,
-        PRIMARY_PARAMETER_NAME,
-        CURRENT_NODE_PARAMETER_NAME
-    );
 
     private static final ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {

@@ -46,8 +46,8 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
 
         assumeFalse(
-            "Tests using FORK or RRF already are skipped since we don't support multiple FORKs",
-            testCase.requiredCapabilities.contains(FORK_V9.capabilityName()) || testCase.requiredCapabilities.contains(RRF.capabilityName())
+            "Tests using FORK are skipped since we don't support multiple FORKs",
+            testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
         );
 
         assumeFalse(

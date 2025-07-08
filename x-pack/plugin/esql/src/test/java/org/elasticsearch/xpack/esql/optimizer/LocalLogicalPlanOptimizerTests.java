@@ -53,9 +53,9 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
@@ -685,7 +685,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"VALÜ*\"");
 
         var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     // same plan as in testReplaceUpperStringCasingWithInsensitiveRLike, but with LIKE instead of RLIKE
@@ -724,7 +724,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
 
         var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     /**
@@ -784,7 +784,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private LocalRelation asEmptyRelation(Object o) {
         var empty = as(o, LocalRelation.class);
-        assertThat(empty.supplier(), is(LocalSupplier.EMPTY));
+        assertThat(empty.supplier(), is(EmptyLocalSupplier.EMPTY));
         return empty;
     }
 

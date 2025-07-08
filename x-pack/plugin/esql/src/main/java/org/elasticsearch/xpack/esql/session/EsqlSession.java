@@ -102,21 +102,18 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 
 public class EsqlSession {
 
@@ -220,9 +217,8 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        logicalPlanToPhysicalPlan(optimizedPlan, request, ActionListener.wrap(physicalPlan -> {
-            PhysicalPlan finalPhysicalPlan = physicalPlan;
-            if (explainMode) {
+        if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
+            logicalPlanToPhysicalPlan(optimizedPlan, request, ActionListener.wrap(physicalPlan -> {
                 String physicalPlanString = physicalPlan.toString();
                 List<Attribute> fields = List.of(
                     new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
@@ -234,118 +230,81 @@ public class EsqlSession {
                 values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
                 values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
                 var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-                finalPhysicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
-            }
+                physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+                planRunner.run(physicalPlan, listener);
+            }, listener::onFailure));
+        } else {
             // TODO: this could be snuck into the underlying listener
             EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
             // execute any potential subplans
-            executeSubPlans(finalPhysicalPlan, planRunner, executionInfo, request, listener);
-        }, listener::onFailure));
+            executeSubPlans(optimizedPlan, planRunner, executionInfo, request, listener);
+        }
     }
 
-    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}
-
     private void executeSubPlans(
-        PhysicalPlan physicalPlan,
+        LogicalPlan optimizedPlan,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        // Collect all logical subplans first
-        List<LogicalPlan> logicalSubplans = new ArrayList<>();
+        var subPlan = firstSubPlan(optimizedPlan);
 
-        // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
-        // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-        physicalPlan.forEachUp(FragmentExec.class, f -> {
-            f.fragment().forEachUp(InlineJoin.class, ij -> {
-                // extract the right side of the plan and replace its source
-                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                // mark the new root node as optimized
-                subplan.setOptimized();
-                logicalSubplans.add(subplan);
-            });
-        });
-
-        if (logicalSubplans.isEmpty()) {
-            // execute main plan
-            runner.run(physicalPlan, listener);
-            return;
-        }
-
-        // Convert all logical subplans to physical plans asynchronously
-        List<PlanTuple> subplans = new ArrayList<>(Collections.nCopies(logicalSubplans.size(), null));
-        AtomicInteger completed = new AtomicInteger(0);
-        AtomicReference<Exception> error = new AtomicReference<>();
-
-        for (int i = 0; i < logicalSubplans.size(); i++) {
-            final int index = i;
-            LogicalPlan logicalSubplan = logicalSubplans.get(i);
-
-            logicalPlanToPhysicalPlan(logicalSubplan, request, ActionListener.wrap(subqueryPlan -> {
-                synchronized (subplans) {
-                    if (error.get() == null) {
-                        // Find the corresponding InlineJoin to get the right side
-                        physicalPlan.forEachUp(FragmentExec.class, f -> {
-                            f.fragment().forEachUp(InlineJoin.class, ij -> {
-                                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                                if (subplan.equals(logicalSubplan)) {
-                                    subplans.set(index, new PlanTuple(subqueryPlan, ij.right()));
-                                }
-                            });
-                        });
-
-                        if (completed.incrementAndGet() == logicalSubplans.size()) {
-                            // All subplans are ready, execute them
-                            Iterator<PlanTuple> iterator = subplans.iterator();
-                            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
-                        }
-                    }
-                }
-            }, e -> {
-                if (error.compareAndSet(null, e instanceof Exception ex ? ex : new RuntimeException(e))) {
-                    listener.onFailure(error.get());
-                }
+        // TODO: merge into one method
+        if (subPlan != null) {
+            // code-path to execute subplans
+            executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
+        } else {
+            logicalPlanToPhysicalPlan(optimizedPlan, request, listener.delegateFailureAndWrap((l, physicalPlan) -> {
+                // execute main plan
+                runner.run(physicalPlan, listener);
             }));
         }
     }
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
-        PhysicalPlan plan,
-        Iterator<PlanTuple> subPlanIterator,
+        LogicalPlan optimizedPlan,
+        InlineJoin.LogicalPlanTuple subPlans,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
+        EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        PlanTuple tuple = subPlanIterator.next();
+        LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
+        // Create a physical plan out of the logical sub-plan
+        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
 
-        runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
+        runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
+                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
 
                 // replace the original logical plan with the backing result
-                PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
-                    LogicalPlan frag = f.fragment();
-                    return f.withFragment(
-                        frag.transformUp(
-                            InlineJoin.class,
-                            ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                        )
-                    );
-                });
+                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+                    InlineJoin.class,
+                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+                    // and equals would have ignored name IDs anyway
+                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                );
+                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+                newLogicalPlan.setOptimized();
+                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
+                // look for the next inlinejoin plan
+                var newSubPlan = firstSubPlan(newLogicalPlan);
 
-                if (subPlanIterator.hasNext() == false) {
-                    runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                if (newSubPlan == null) {// run the final "main" plan
+                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
+                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
+                    runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         completionInfoAccumulator.accumulate(finalResult.completionInfo());
                         finalListener.onResponse(
                             new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
                         );
                     }));
-                } else {
-                    // continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
+                } else {// continue executing the subplans
+                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
@@ -353,7 +312,7 @@ public class EsqlSession {
         }));
     }
 
-    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
         List<Page> pages = result.pages();
         List<Attribute> schema = result.schema();
         // if (pages.size() > 1) {

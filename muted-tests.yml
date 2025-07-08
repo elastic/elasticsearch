@@ -209,9 +209,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/124315
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
-  issue: https://github.com/elastic/elasticsearch/issues/124518
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
@@ -549,9 +546,6 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
-- class: org.elasticsearch.search.sort.FieldSortIT
-  method: testSortMixedFieldTypes
-  issue: https://github.com/elastic/elasticsearch/issues/129445
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
@@ -564,6 +558,36 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testForPushDownEnrichRule
+  issue: https://github.com/elastic/elasticsearch/issues/130426
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testAvgDurationByArtist
+  issue: https://github.com/elastic/elasticsearch/issues/130790
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testRejection
+  issue: https://github.com/elastic/elasticsearch/issues/130791
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testManyDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/130792
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testListeningRatio
+  issue: https://github.com/elastic/elasticsearch/issues/130793
+- class: org.elasticsearch.xpack.esql.action.EsqlRemoteErrorWrapIT
+  method: testThatRemoteErrorsAreWrapped
+  issue: https://github.com/elastic/elasticsearch/issues/130794
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/130270
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testSumDurationByArtist
+  issue: https://github.com/elastic/elasticsearch/issues/130788
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testTopN
+  issue: https://github.com/elastic/elasticsearch/issues/130122
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {ints.InCast SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/130796
 
 # Examples:
 #

@@ -57,11 +57,6 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
         // A request body was passed
         if (request.hasContentOrSourceParam()) {
-            // Supplying parameters alongside a request body is unsupported
-            if (hasAnyParameterBeenPassed(request)) {
-                throw new IllegalArgumentException("Parameters cannot be passed in both the URL and the request body");
-            }
-
             try (XContentParser parser = request.contentOrSourceParamParser()) {
                 ClusterAllocationExplainRequest.parse(clusterAllocationExplainRequest, parser);
             }

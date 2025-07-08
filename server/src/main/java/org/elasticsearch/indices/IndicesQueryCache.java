@@ -160,48 +160,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return queryCacheStats;
     }
 
-    /**
-     * Precompute the shared RAM split for all shards, returning a map of ShardId to the additional shared RAM bytes used.
-     * This avoids O(N^2) when collecting stats for all shards.
-     */
-    public Map<ShardId, Long> computeAllShardSharedRamBytesUsed() {
-        Map<ShardId, Long> result = new HashMap<>();
-        if (sharedRamBytesUsed == 0L) {
-            for (ShardId shardId : shardStats.keySet()) {
-                result.put(shardId, 0L);
-            }
-            return result;
-        }
-        long totalSize = 0L;
-        int shardCount = 0;
-        boolean anyNonZero = false;
-        for (Stats stats : shardStats.values()) {
-            shardCount += 1;
-            if (stats.cacheSize > 0L) {
-                anyNonZero = true;
-                totalSize += stats.cacheSize;
-            }
-        }
-        if (shardCount == 0) {
-            return result;
-        }
-        if (anyNonZero == false) {
-            // All shards have zero cache footprint, apportion equally
-            long perShard = Math.round((double) sharedRamBytesUsed / shardCount);
-            for (ShardId shardId : shardStats.keySet()) {
-                result.put(shardId, perShard);
-            }
-        } else {
-            // Apportion proportionally to cache footprint
-            for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
-                long cacheSize = entry.getValue().cacheSize;
-                long ram = (totalSize == 0) ? 0L : Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
-                result.put(entry.getKey(), ram);
-            }
-        }
-        return result;
-    }
-
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
         while (weight instanceof CachingWeightWrapper) {

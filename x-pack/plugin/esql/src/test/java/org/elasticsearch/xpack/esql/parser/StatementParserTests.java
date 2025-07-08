@@ -455,50 +455,63 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (Build.current().isSnapshot()) {
             commands.add("TS");
         }
+        String quote = randomBoolean() ? "\"" : "\"\"\"";
         for (String command : commands) {
-            assertStringAsIndexPattern("foo", command + " \"foo\"");
-            assertStringAsIndexPattern("foo,test-*", command + """
-                 "foo","test-*"
-                """);
-            assertStringAsIndexPattern("foo,test-*", command + " foo,test-*");
+            assertStringAsIndexPattern("foo", command + " " + randomQuoteAndPad("foo"));
+            assertStringAsIndexPattern("foo,test-*", command + " " + randomQuoteAndPad("foo") + "," + randomQuoteAndPad("test-*"));
+            assertStringAsIndexPattern(
+                "foo,test-*",
+                command + " " + quote + randomSpacePadding("foo") + "," + randomSpacePadding("test-*") + quote
+            );
             assertStringAsIndexPattern("123-test@foo_bar+baz1", command + " 123-test@foo_bar+baz1");
             assertStringAsIndexPattern("foo,test-*,abc", command + """
                  "foo","test-*",abc
                 """);
-            assertStringAsIndexPattern("foo, test-*, abc, xyz", command + """
+            assertStringAsIndexPattern("foo,test-*,abc,xyz", command + """
                      "foo, test-*, abc, xyz"
                 """);
-            assertStringAsIndexPattern("foo, test-*, abc, xyz,test123", command + """
+            assertStringAsIndexPattern("foo,test-*,abc,xyz,test123", command + """
                      "foo, test-*, abc, xyz", test123
                 """);
             assertStringAsIndexPattern("foo,test,xyz", command + " foo,   test,xyz");
             assertStringAsIndexPattern("<logstash-{now/M{yyyy.MM}}>", command + " <logstash-{now/M{yyyy.MM}}>");
             assertStringAsIndexPattern(
                 "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
-                command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+                command + " <logstash-{now/M{yyyy.MM}}>, " + randomQuoteAndPad("<logstash-{now/d{yyyy.MM.dd|+12:00}}>")
             );
-            assertStringAsIndexPattern("<logstash-{now/d{yyyy.MM.dd|+12:00}}>", command + " \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"");
+            assertStringAsIndexPattern(
+                "<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+                command + " " + randomQuoteAndPad("<logstash-{now/d{yyyy.MM.dd|+12:00}}>")
+            );
             assertStringAsIndexPattern(
                 "-<logstash-{now/M{yyyy.MM}}>,-<-logstash-{now/M{yyyy.MM}}>,"
                     + "-<logstash-{now/d{yyyy.MM.dd|+12:00}}>,-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>",
                 command
                     + " -<logstash-{now/M{yyyy.MM}}>, -<-logstash-{now/M{yyyy.MM}}>, "
-                    + "\"-<logstash-{now/d{yyyy.MM.dd|+12:00}}>\", \"-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+                    + randomQuoteAndPad("-<logstash-{now/d{yyyy.MM.dd|+12:00}}>")
+                    + ","
+                    + randomQuoteAndPad("-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>")
             );
-            assertStringAsIndexPattern("foo,test,xyz", command + " \"\"\"foo\"\"\",   test,\"xyz\"");
+            assertStringAsIndexPattern("foo,test,xyz", command + " " + randomQuoteAndPad("foo") + ",   test," + randomQuoteAndPad("xyz"));
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
-            assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
+            assertStringAsIndexPattern(
+                "test,metadata,metaata,.metadata",
+                command + " test," + randomQuoteAndPad("metadata") + ", metaata, .metadata"
+            );
             assertStringAsIndexPattern(".dot", command + " .dot");
             String lineNumber = command.equals("FROM") ? "line 1:14: " : "line 1:12: ";
             expectErrorWithLineNumber(
-                command + " cluster:\"index|pattern\"",
-                " cluster:\"index|pattern\"",
+                command + " cluster:" + quote + "index|pattern" + quote,
+                " cluster:" + quote + "index|pattern" + quote,
                 lineNumber,
-                "mismatched input '\"index|pattern\"' expecting UNQUOTED_SOURCE"
+                "mismatched input '" + quote + "index|pattern" + quote + "' expecting UNQUOTED_SOURCE"
             );
             // Entire index pattern is quoted. So it's not a parse error but a semantic error where the index name
             // is invalid.
-            expectError(command + " \"*:index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
+            expectError(
+                command + " " + quote + "*:index|pattern" + quote,
+                "Invalid index name [index|pattern], must not contain the following characters"
+            );
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
@@ -507,15 +520,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
             expectError(
-                command + " \"cluster:index|pattern\"",
+                command + " " + quote + "cluster:index|pattern" + quote,
                 "Invalid index name [index|pattern], must not contain the following characters"
             );
-            expectError(command + " *:\"index|pattern\"", "expecting UNQUOTED_SOURCE");
+            expectError(command + " *:" + quote + "index|pattern" + quote, "expecting UNQUOTED_SOURCE");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
                 expectErrorWithLineNumber(
-                    command + " *,\"-foo\"::data",
+                    command + " *," + quote + "-foo" + quote + "::data",
                     "*,-foo::data",
                     lineNumber,
                     "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
@@ -559,8 +572,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     private void clusterAndIndexAsIndexPattern(String command, String clusterAndIndex) {
         assertStringAsIndexPattern(clusterAndIndex, command + " " + clusterAndIndex);
         assertStringAsIndexPattern(clusterAndIndex, command + " \"" + clusterAndIndex + "\"");
+        assertStringAsIndexPattern(clusterAndIndex, command + " \"\"\"" + clusterAndIndex + "\"\"\"");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109353")
     public void testStringAsLookupIndexPattern() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP_🐔 \"foo\" ON j");
@@ -854,9 +869,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
             statement(command, indexString1 + ", \"" + indexString2 + "\"")
         );
         assertEquals(
-            unresolvedRelation(indexString1 + ", " + indexString2),
-            statement(command, "\"" + indexString1 + ", " + indexString2 + "\"")
+            unresolvedRelation(indexString1 + "," + indexString2),
+            statement(command, "\"" + randomSpacePadding(indexString1) + "," + randomSpacePadding(indexString2) + "\"")
         );
+        assertEquals(
+            unresolvedRelation(indexString1 + "," + indexString2),
+            statement(command, "\"\"\"" + randomSpacePadding(indexString1) + "," + randomSpacePadding(indexString2) + "\"\"\"")
+        );
+    }
+
+    private static String randomSpacePadding(String s) {
+        int leadingSpaces = randomBoolean() ? 0 : randomIntBetween(1, 3);
+        int trailingSpaces = randomBoolean() ? 0 : randomIntBetween(1, 3);
+
+        StringBuilder builder = new StringBuilder(s.length() + leadingSpaces + trailingSpaces);
+        for (int i = 0; i < leadingSpaces; i++) {
+            builder.append(" ");
+        }
+        builder.append(s);
+        for (int i = 0; i < trailingSpaces; i++) {
+            builder.append(" ");
+        }
+
+        return builder.toString();
+    }
+
+    private static String randomQuoteAndPad(String s) {
+        String quote = randomBoolean() ? "\"" : "\"\"\"";
+        return quote + randomSpacePadding(s) + quote;
     }
 
     public void testInvalidQuotingAsFromIndexPattern() {

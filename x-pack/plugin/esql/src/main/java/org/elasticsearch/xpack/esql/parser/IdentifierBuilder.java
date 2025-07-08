@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
@@ -112,7 +113,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     private static String reassembleIndexName(String clusterString, String indexPattern, String selectorString) {
         if (clusterString == null && selectorString == null) {
-            return indexPattern;
+            // If the pattern was quoted, it can still contain spaces, examples:
+            // - FROM " remote : index*"
+            // - FROM "idx1, idx2"
+            // - FROM "idx :: data"
+            // Remove such spaces to avoid considering such patterns invalid. This is safe because spaces are illegal characters both in
+            // index names, aliases and remote aliases; selector strings can also only be `data` or `failures`, resp. values from the
+            // IndexComponentSelector enum which all don't have spaces in them.
+            return removeLiteralSpaces(indexPattern);
         }
         StringBuilder expression = new StringBuilder();
         if (clusterString != null) {
@@ -123,6 +131,16 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             expression.append(SELECTOR_SEPARATOR).append(selectorString);
         }
         return expression.toString();
+    }
+
+    private static final Pattern LITERAL_SPACE = Pattern.compile(" ");
+
+    /**
+     * Remove all literal spaces (ASCII 32) only, but leave other white space intact. (Even just for leading/trailing spaces, this is
+     * different from {@link String#strip()}, as the latter also removes e.g. tabs and other kinds of white space.)
+     */
+    private static String removeLiteralSpaces(String s) {
+        return LITERAL_SPACE.matcher(s).replaceAll("");
     }
 
     protected static void validateClusterString(String clusterString, EsqlBaseParser.IndexPatternContext ctx) {

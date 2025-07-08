@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -381,20 +381,25 @@ public class FilterTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, QueryBuilder restFilter) {
-        PlainActionFuture<LogicalPlan> optimizedPlanFuture = new PlainActionFuture<>();
-        logicalOptimizer.optimize(analyze(analyzer, parser.createStatement(query)), optimizedPlanFuture);
-        var logical = optimizedPlanFuture.actionGet();
-        // System.out.println("Logical\n" + logical);
-        var physical = mapper.map(logical);
-        // System.out.println("physical\n" + physical);
-        physical = physical.transformUp(
-            FragmentExec.class,
-            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize())
-        );
-        physical = physicalPlanOptimizer.optimize(physical);
-        // System.out.println("optimized\n" + physical);
-        assertSerialization(physical);
-        return physical;
+        PlainActionFuture<PhysicalPlan> physicalPlanFuture = new PlainActionFuture<>();
+
+        logicalOptimizer.optimize(analyze(analyzer, parser.createStatement(query)), ActionListener.wrap(logical -> {
+            var physical = mapper.map(logical);
+            // System.out.println("physical\n" + physical);
+            physical = physical.transformUp(
+                FragmentExec.class,
+                f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize())
+            );
+
+            physicalPlanOptimizer.optimize(physical, ActionListener.wrap(optimized -> {
+                // System.out.println("optimized\n" + physical);
+                assertSerialization(optimized);
+                physicalPlanFuture.onResponse(optimized);
+            }, physicalPlanFuture::onFailure));
+
+        }, physicalPlanFuture::onFailure));
+
+        return physicalPlanFuture.actionGet();
     }
 
     private QueryBuilder restFilterQuery(String field) {

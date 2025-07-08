@@ -248,7 +248,10 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
         logicalPlan = optimizedPlanFuture.actionGet();
 
         PhysicalPlan physicalPlan = new Mapper().map(logicalPlan);
-        physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan);
+
+        PlainActionFuture<PhysicalPlan> physicalPlanFuture = new PlainActionFuture<>();
+        new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration)).optimize(physicalPlan, physicalPlanFuture);
+        physicalPlan = physicalPlanFuture.actionGet();
 
         PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, configuration).v2();
 

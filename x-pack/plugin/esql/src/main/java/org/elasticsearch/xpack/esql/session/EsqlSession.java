@@ -102,12 +102,15 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -217,25 +220,27 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-        if (explainMode) {
-            String physicalPlanString = physicalPlan.toString();
-            List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
-            );
-            List<List<Object>> values = new ArrayList<>();
-            values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
-            values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
-            values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
-            var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
-        }
-        // TODO: this could be snuck into the underlying listener
-        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-        // execute any potential subplans
-        executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
+        logicalPlanToPhysicalPlan(optimizedPlan, request, ActionListener.wrap(physicalPlan -> {
+            PhysicalPlan finalPhysicalPlan = physicalPlan;
+            if (explainMode) {
+                String physicalPlanString = physicalPlan.toString();
+                List<Attribute> fields = List.of(
+                    new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
+                    new ReferenceAttribute(EMPTY, "type", DataType.KEYWORD),
+                    new ReferenceAttribute(EMPTY, "plan", DataType.KEYWORD)
+                );
+                List<List<Object>> values = new ArrayList<>();
+                values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
+                values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+                values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
+                var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
+                finalPhysicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+            }
+            // TODO: this could be snuck into the underlying listener
+            EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+            // execute any potential subplans
+            executeSubPlans(finalPhysicalPlan, planRunner, executionInfo, request, listener);
+        }, listener::onFailure));
     }
 
     private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}
@@ -247,7 +252,8 @@ public class EsqlSession {
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        List<PlanTuple> subplans = new ArrayList<>();
+        // Collect all logical subplans first
+        List<LogicalPlan> logicalSubplans = new ArrayList<>();
 
         // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
         // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
@@ -257,20 +263,50 @@ public class EsqlSession {
                 LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
                 // mark the new root node as optimized
                 subplan.setOptimized();
-                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
+                logicalSubplans.add(subplan);
             });
         });
 
-        Iterator<PlanTuple> iterator = subplans.iterator();
-
-        // TODO: merge into one method
-        if (subplans.size() > 0) {
-            // code-path to execute subplans
-            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
-        } else {
+        if (logicalSubplans.isEmpty()) {
             // execute main plan
             runner.run(physicalPlan, listener);
+            return;
+        }
+
+        // Convert all logical subplans to physical plans asynchronously
+        List<PlanTuple> subplans = new ArrayList<>(Collections.nCopies(logicalSubplans.size(), null));
+        AtomicInteger completed = new AtomicInteger(0);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        for (int i = 0; i < logicalSubplans.size(); i++) {
+            final int index = i;
+            LogicalPlan logicalSubplan = logicalSubplans.get(i);
+
+            logicalPlanToPhysicalPlan(logicalSubplan, request, ActionListener.wrap(subqueryPlan -> {
+                synchronized (subplans) {
+                    if (error.get() == null) {
+                        // Find the corresponding InlineJoin to get the right side
+                        physicalPlan.forEachUp(FragmentExec.class, f -> {
+                            f.fragment().forEachUp(InlineJoin.class, ij -> {
+                                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
+                                if (subplan.equals(logicalSubplan)) {
+                                    subplans.set(index, new PlanTuple(subqueryPlan, ij.right()));
+                                }
+                            });
+                        });
+
+                        if (completed.incrementAndGet() == logicalSubplans.size()) {
+                            // All subplans are ready, execute them
+                            Iterator<PlanTuple> iterator = subplans.iterator();
+                            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
+                        }
+                    }
+                }
+            }, e -> {
+                if (error.compareAndSet(null, e instanceof Exception ex ? ex : new RuntimeException(e))) {
+                    listener.onFailure(error.get());
+                }
+            }));
         }
     }
 
@@ -809,22 +845,23 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan);
-        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
-            QueryBuilder filter = request.filter();
-            if (filter != null) {
-                var fragmentFilter = f.esFilter();
-                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                // This is an ugly hack to push the filter parameter to Lucene
-                // TODO: filter integration testing
-                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                f = f.withFilter(filter);
-            }
-            return f;
-        });
-        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+    private void logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
+        optimizedPhysicalPlan(optimizedPlan, listener.map(physicalPlan -> {
+            physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
+                QueryBuilder filter = request.filter();
+                if (filter != null) {
+                    var fragmentFilter = f.esFilter();
+                    // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+                    // This is an ugly hack to push the filter parameter to Lucene
+                    // TODO: filter integration testing
+                    filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                    LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                    f = f.withFilter(filter);
+                }
+                return f;
+            });
+            return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        }));
     }
 
     public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
@@ -848,10 +885,11 @@ public class EsqlSession {
         return plan;
     }
 
-    public PhysicalPlan optimizedPhysicalPlan(LogicalPlan optimizedPlan) {
-        var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
-        LOGGER.debug("Optimized physical plan:\n{}", plan);
-        return plan;
+    public void optimizedPhysicalPlan(LogicalPlan optimizedPlan, ActionListener<PhysicalPlan> listener) {
+        physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan), listener.map(plan -> {
+            LOGGER.debug("Optimized physical plan:\n{}", plan);
+            return plan;
+        }));
     }
 
     record PreAnalysisResult(

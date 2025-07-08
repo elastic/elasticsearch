@@ -314,7 +314,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {
-            physical = physicalPlanOptimizer.optimize(physical);
+            PlainActionFuture<PhysicalPlan> optimizedPhysicalFuture = new PlainActionFuture<>();
+            physicalPlanOptimizer.optimize(physical, optimizedPhysicalFuture);
+            physical = optimizedPhysicalFuture.actionGet();
         }
         return physical;
     }

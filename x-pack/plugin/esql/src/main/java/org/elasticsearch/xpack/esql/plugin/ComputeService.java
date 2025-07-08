@@ -576,39 +576,51 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            var localPlan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
-            // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
-            // it's doing this in the planning of EsQueryExec (the source of the data)
-            // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
-            }
-            var drivers = localExecutionPlan.createDrivers(context.sessionId());
-            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
-            // will hold a reference to the contexts where relevant.
-            contexts.forEach(RefCounted::decRef);
-            if (drivers.isEmpty()) {
-                throw new IllegalStateException("no drivers created");
-            }
-            LOGGER.debug("using {} drivers", drivers.size());
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-                ActionListener.releaseAfter(listener.map(ignored -> {
-                    if (context.configuration().profile()) {
-                        return DriverCompletionInfo.includingProfiles(
-                            drivers,
-                            context.description(),
-                            clusterService.getClusterName().value(),
-                            transportService.getLocalNode().getName(),
-                            localPlan.toString()
-                        );
-                    } else {
-                        return DriverCompletionInfo.excludingProfiles(drivers);
+            PlannerUtils.localPlan(
+                context.searchExecutionContexts(),
+                context.configuration(),
+                context.foldCtx(),
+                plan,
+                listener.delegateFailureAndWrap((l, localPlan) -> {
+                    // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
+                    // it's doing this in the planning of EsQueryExec (the source of the data)
+                    // see also EsPhysicalOperationProviders.sourcePhysicalOperation
+                    LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
+                        context.description(),
+                        context.foldCtx(),
+                        localPlan
+                    );
+                    if (LOGGER.isDebugEnabled()) {
+                        LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
                     }
-                }), () -> Releasables.close(drivers))
+                    var drivers = localExecutionPlan.createDrivers(context.sessionId());
+                    // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the
+                    // operators
+                    // will hold a reference to the contexts where relevant.
+                    contexts.forEach(RefCounted::decRef);
+                    if (drivers.isEmpty()) {
+                        throw new IllegalStateException("no drivers created");
+                    }
+                    LOGGER.debug("using {} drivers", drivers.size());
+                    driverRunner.executeDrivers(
+                        task,
+                        drivers,
+                        transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                        ActionListener.releaseAfter(l.map(ignored -> {
+                            if (context.configuration().profile()) {
+                                return DriverCompletionInfo.includingProfiles(
+                                    drivers,
+                                    context.description(),
+                                    clusterService.getClusterName().value(),
+                                    transportService.getLocalNode().getName(),
+                                    localPlan.toString()
+                                );
+                            } else {
+                                return DriverCompletionInfo.excludingProfiles(drivers);
+                            }
+                        }), () -> Releasables.close(drivers))
+                    );
+                })
             );
         } catch (Exception e) {
             listener.onFailure(e);

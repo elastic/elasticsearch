@@ -513,7 +513,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var analyzed = analyze(analyzer, parser.createStatement(query));
         var optimized = optimizedPlan(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+        PlainActionFuture<LogicalPlan> planFuture = new PlainActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized, planFuture);
+        var plan = planFuture.actionGet();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(10));
@@ -808,7 +810,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+        PlainActionFuture<LogicalPlan> localPlanFuture = new PlainActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(plan, localPlanFuture);
+        var localPlan = localPlanFuture.actionGet();
         // System.out.println(localPlan);
         return localPlan;
     }

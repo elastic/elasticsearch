@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
@@ -33,8 +34,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         super(context);
     }
 
-    public PhysicalPlan optimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+    public void optimize(PhysicalPlan plan, ActionListener<PhysicalPlan> listener) {
+        execute(plan, listener.safeMap(this::verify));
     }
 
     PhysicalPlan verify(PhysicalPlan plan) {

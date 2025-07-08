@@ -723,7 +723,10 @@ public class CsvTests extends ESTestCase {
                 new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
             );
 
-            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+            PlainActionFuture<PhysicalPlan> localPlanFuture = new PlainActionFuture<>();
+            PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, localPlanFuture);
+            var csvDataNodePhysicalPlan = localPlanFuture.actionGet();
+
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),

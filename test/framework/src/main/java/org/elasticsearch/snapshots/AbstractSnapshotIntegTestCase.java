@@ -803,11 +803,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }));
     }
 
-    protected static SubscribableListener<Void> createSnapshotPausedListener(
+    protected static SubscribableListener<Void> createSnapshotInStateListener(
         ClusterService clusterService,
         String repoName,
         String indexName,
-        int numShards
+        int numShards,
+        SnapshotsInProgress.ShardState shardState
     ) {
         return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
@@ -826,16 +827,28 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .toList();
             assertThat(shardSnapshotStatuses, hasSize(numShards));
             for (var shardStatus : shardSnapshotStatuses) {
-                assertThat(
-                    shardStatus.state(),
-                    oneOf(SnapshotsInProgress.ShardState.INIT, SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL)
-                );
+                assertThat(shardStatus.state(), oneOf(SnapshotsInProgress.ShardState.INIT, shardState));
                 if (shardStatus.state() == SnapshotsInProgress.ShardState.INIT) {
                     return false;
                 }
             }
             return true;
         });
+    }
+
+    protected static SubscribableListener<Void> createSnapshotPausedListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards
+    ) {
+        return createSnapshotInStateListener(
+            clusterService,
+            repoName,
+            indexName,
+            numShards,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
+        );
     }
 
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {

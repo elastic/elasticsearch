@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -31,13 +31,16 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -56,9 +59,14 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
+    private static final String REQUIRE_NODE_NAME_SETTING = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
+        var plugins = new HashSet<>(super.nodePlugins());
+        plugins.add(TestTelemetryPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -277,7 +285,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeForRemoval)
+                .put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval)
                 .build()
         );
         indexRandom(true, indexName, randomIntBetween(1000, 3000));
@@ -314,7 +322,68 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // clear shutdown metadata to allow snapshot to complete
         clearShutdownMetadata(clusterService);
 
-        // All statuses should return to zero when the snapshots complete
+        // All statuses should return to zero when the snapshot completes
+        awaitNumberOfSnapshotsInProgress(0);
+        getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+    }
+
+    public void testShardsByStateCounts_Waiting() throws Exception {
+        final String indexName = randomIdentifier();
+        final String boundNode = internalCluster().startDataOnlyNode();
+        final String destinationNode = internalCluster().startDataOnlyNode();
+
+        // Create with single shard so we can reliably delay relocation
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(REQUIRE_NODE_NAME_SETTING, boundNode)
+                .build()
+        );
+        indexRandom(true, indexName, randomIntBetween(100, 300));
+
+        final String repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        final MockTransportService transportService = MockTransportService.getInstance(destinationNode);
+        final CyclicBarrier handoffRequestBarrier = new CyclicBarrier(2);
+        transportService.addRequestHandlingBehavior(
+            PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
+            (handler, request, channel, task) -> {
+                safeAwait(handoffRequestBarrier);
+                safeAwait(handoffRequestBarrier);
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        // Force the index to move to another node
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, destinationNode).build())
+            .get();
+
+        // Wait for hand-off request to be blocked (the shard should be relocating now)
+        safeAwait(handoffRequestBarrier);
+
+        // Kick off a snapshot
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .get();
+
+        // Wait till we see a shard in WAITING state
+        createSnapshotInStateListener(clusterService(), repositoryName, indexName, 1, SnapshotsInProgress.ShardState.WAITING);
+
+        // Metrics should have a shard in waiting state
+        final Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
+        assertThat(shardStates.get(SnapshotsInProgress.ShardState.WAITING), equalTo(1L));
+
+        // allow the relocation to complete
+        safeAwait(handoffRequestBarrier);
+
+        // All statuses should return to zero when the snapshot completes
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
     }

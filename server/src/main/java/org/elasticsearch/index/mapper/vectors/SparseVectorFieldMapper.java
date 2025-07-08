@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -107,9 +108,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Objects::toString
         ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
 
-        public Builder(String name, IndexVersion indexVersionCreated) {
+        private boolean isSyntheticVector;
+
+        public Builder(String name, IndexVersion indexVersionCreated, boolean isSyntheticVector) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+            this.isSyntheticVector = isSyntheticVector;
         }
 
         public Builder setStored(boolean value) {
@@ -129,16 +133,19 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 builderIndexOptions = getDefaultIndexOptions(indexVersionCreated);
             }
 
+            final boolean syntheticVectorFinal = context.isSourceSynthetic() == false && isSyntheticVector;
+            final boolean storedFinal = stored.getValue() || syntheticVectorFinal;
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(
                     indexVersionCreated,
                     context.buildFullName(leafName()),
-                    stored.getValue(),
+                    storedFinal,
                     meta.getValue(),
                     builderIndexOptions
                 ),
-                builderParams(this, context)
+                builderParams(this, context),
+                syntheticVectorFinal
             );
         }
 
@@ -196,7 +203,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(ERROR_MESSAGE_8X);
         }
 
-        return new Builder(n, c.indexVersionCreated());
+        return new Builder(
+            n,
+            c.indexVersionCreated(),
+            INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+        );
     }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
@@ -302,8 +313,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+    private final boolean isSyntheticVector;
+
+    private SparseVectorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        boolean isSyntheticVector
+    ) {
         super(simpleName, mappedFieldType, builderParams);
+        this.isSyntheticVector = isSyntheticVector;
     }
 
     @Override
@@ -315,13 +334,22 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        if (isSyntheticVector) {
+            var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
+            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
+        }
+        return null;
+    }
+
+    @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.fieldType().indexVersionCreated).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isSyntheticVector).init(this);
     }
 
     @Override
@@ -369,9 +397,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     // based on recommendations from this paper: https://arxiv.org/pdf/2305.18494.pdf
                     IndexableField currentField = context.doc().getByKey(key);
                     if (currentField == null) {
-                        context.doc().addWithKey(key, new XFeatureField(fullPath(), feature, value, fieldType().isStored()));
-                    } else if (currentField instanceof XFeatureField && ((XFeatureField) currentField).getFeatureValue() < value) {
-                        ((XFeatureField) currentField).setFeatureValue(value);
+                        context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value, fieldType().isStored()));
+                    } else if (currentField instanceof FeatureField ff && ff.getFeatureValue() < value) {
+                        ff.setFeatureValue(value);
                     }
                 } else {
                     throw new IllegalArgumentException(
@@ -504,9 +532,26 @@ public class SparseVectorFieldMapper extends FieldMapper {
             b.endObject();
         }
 
+        /**
+         * Returns a deep-copied tokens map for the current document.
+         *
+         * @throws IOException if reading fails
+         */
+        private Map<String, Float> copyAsMap() throws IOException {
+            assert termsDocEnum != null;
+            Map<String, Float> tokenMap = new LinkedHashMap<>();
+            PostingsEnum reuse = null;
+            do {
+                reuse = termsDocEnum.postings(reuse);
+                reuse.nextDoc();
+                tokenMap.put(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
+            } while (termsDocEnum.next() != null);
+            return tokenMap;
+        }
+
         @Override
         public String fieldName() {
-            return leafName;
+            return fullPath;
         }
 
         @Override

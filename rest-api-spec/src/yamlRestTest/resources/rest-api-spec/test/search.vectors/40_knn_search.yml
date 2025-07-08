@@ -621,8 +621,14 @@ setup:
       index:
         index: test_index
         id: "0"
+        refresh: true
         body:
           embedding: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+
+  # wait and ensure that the mapping update is replicated
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:

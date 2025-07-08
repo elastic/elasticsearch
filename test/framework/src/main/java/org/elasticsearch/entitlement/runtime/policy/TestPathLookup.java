@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.apache.lucene.tests.mockfile.FilterFileSystem;
+
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -37,4 +39,14 @@ public class TestPathLookup implements PathLookup {
         return Stream.empty();
     }
 
+    @Override
+    public boolean isPathOnDefaultFilesystem(Path path) {
+        var fileSystem = path.getFileSystem();
+        if (fileSystem.getClass() != DEFAULT_FILESYSTEM_CLASS) {
+            while (fileSystem instanceof FilterFileSystem ffs) {
+                fileSystem = ffs.getDelegate();
+            }
+        }
+        return fileSystem.getClass() == DEFAULT_FILESYSTEM_CLASS;
+    }
 }

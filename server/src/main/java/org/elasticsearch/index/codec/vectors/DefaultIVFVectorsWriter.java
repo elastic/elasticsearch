@@ -18,6 +18,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -81,28 +82,27 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
         // write the posting lists
         final long[] offsets = new long[centroidSupplier.size()];
-        OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         DocIdsWriter docIdsWriter = new DocIdsWriter();
-        DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(
-            ES91OSQVectorsScorer.BULK_SIZE,
-            quantizer,
+        DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+        OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
-            postingsOutput
+            fieldInfo.getVectorDimension(),
+            new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
-            // TODO: add back in sorting vectors by distance to centroid
             int[] cluster = assignmentsByCluster[c];
             // TODO align???
             offsets[c] = postingsOutput.getFilePointer();
             int size = cluster.length;
             postingsOutput.writeVInt(size);
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[ord]);
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
-            bulkWriter.writeOrds(j -> cluster[j], cluster.length, centroid);
+            bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
 
         if (logger.isDebugEnabled()) {
@@ -161,6 +161,35 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 mergeState.segmentInfo.dir.deleteFile(quantizedVectorsTemp.getName());
             }
         }
+        int[] centroidVectorCount = new int[centroidSupplier.size()];
+        for (int i = 0; i < assignments.length; i++) {
+            centroidVectorCount[assignments[i]]++;
+            // if soar assignments are present, count them as well
+            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
+                centroidVectorCount[overspillAssignments[i]]++;
+            }
+        }
+
+        int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
+        boolean[][] isOverspillByCluster = new boolean[centroidSupplier.size()][];
+        for (int c = 0; c < centroidSupplier.size(); c++) {
+            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
+            isOverspillByCluster[c] = new boolean[centroidVectorCount[c]];
+        }
+        Arrays.fill(centroidVectorCount, 0);
+
+        for (int i = 0; i < assignments.length; i++) {
+            int c = assignments[i];
+            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
+            // if soar assignments are present, add them to the cluster as well
+            if (overspillAssignments.length > i) {
+                int s = overspillAssignments[i];
+                if (s != -1) {
+                    assignmentsByCluster[s][centroidVectorCount[s]] = i;
+                    isOverspillByCluster[s][centroidVectorCount[s]++] = true;
+                }
+            }
+        }
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
             final long[] offsets = new long[centroidSupplier.size()];
@@ -169,26 +198,22 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 fieldInfo.getVectorDimension()
             );
             DocIdsWriter docIdsWriter = new DocIdsWriter();
-            DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(
-                ES91OSQVectorsScorer.BULK_SIZE,
-                quantizer,
-                floatVectorValues,
-                postingsOutput
-            );
+            DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
-                // TODO: add back in sorting vectors by distance to centroid
                 int[] cluster = assignmentsByCluster[c];
+                boolean[] isOverspill = isOverspillByCluster[c];
                 // TODO align???
                 offsets[c] = postingsOutput.getFilePointer();
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
                 docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
-                bulkWriter.writeOrds(j -> cluster[j], cluster.length, centroid);
+                bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
             if (logger.isDebugEnabled()) {
@@ -370,7 +395,72 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    static class OffHeapQuantizedVectors {
+    interface QuantizedVectorValues {
+        int count();
+
+        byte[] next() throws IOException;
+
+        OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException;
+    }
+
+    interface IntToBooleanFunction {
+        boolean apply(int ord);
+    }
+
+    static class OnHeapQuantizedVectors implements QuantizedVectorValues {
+        private final FloatVectorValues vectorValues;
+        private final OptimizedScalarQuantizer quantizer;
+        private final byte[] quantizedVector;
+        private final int[] quantizedVectorScratch;
+        private OptimizedScalarQuantizer.QuantizationResult corrections;
+        private float[] currentCentroid;
+        private IntToIntFunction ordTransformer = null;
+        private int currOrd = -1;
+        private int count;
+
+        OnHeapQuantizedVectors(FloatVectorValues vectorValues, int dimension, OptimizedScalarQuantizer quantizer) {
+            this.vectorValues = vectorValues;
+            this.quantizer = quantizer;
+            this.quantizedVector = new byte[BQVectorUtils.discretize(dimension, 64) / 8];
+            this.quantizedVectorScratch = new int[dimension];
+            this.corrections = null;
+        }
+
+        private void reset(float[] centroid, int count, IntToIntFunction ordTransformer) {
+            this.currentCentroid = centroid;
+            this.ordTransformer = ordTransformer;
+            this.currOrd = -1;
+            this.count = count;
+        }
+
+        @Override
+        public int count() {
+            return count;
+        }
+
+        @Override
+        public byte[] next() throws IOException {
+            if (currOrd >= count() - 1) {
+                throw new IllegalStateException("No more vectors to read, current ord: " + currOrd + ", count: " + count());
+            }
+            currOrd++;
+            int ord = ordTransformer.apply(currOrd);
+            float[] vector = vectorValues.vectorValue(ord);
+            corrections = quantizer.scalarQuantize(vector, quantizedVectorScratch, (byte) 1, currentCentroid);
+            BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
+            return quantizedVector;
+        }
+
+        @Override
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+            if (currOrd == -1) {
+                throw new IllegalStateException("No vector read yet, call next first");
+            }
+            return corrections;
+        }
+    }
+
+    static class OffHeapQuantizedVectors implements QuantizedVectorValues {
         private final IndexInput quantizedVectorsInput;
         private final byte[] binaryScratch;
         private final float[] corrections = new float[3];
@@ -378,7 +468,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private final int vectorByteSize;
         private short bitSum;
         private int currOrd = -1;
-        private boolean isOverspill = false;
+        private int count;
+        private IntToBooleanFunction isOverspill = null;
+        private IntToIntFunction ordTransformer = null;
 
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
@@ -386,31 +478,48 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
         }
 
-        byte[] getVector(int ord, boolean isOverspill) throws IOException {
-            readQuantizedVector(ord, isOverspill);
-            return binaryScratch;
+        private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
+            this.count = count;
+            this.isOverspill = isOverspill;
+            this.ordTransformer = ordTransformer;
+            this.currOrd = -1;
         }
 
-        OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+        @Override
+        public int count() {
+            return count;
+        }
+
+        @Override
+        public byte[] next() throws IOException {
+            if (currOrd >= count - 1) {
+                throw new IllegalStateException("No more vectors to read, current ord: " + currOrd + ", count: " + count);
+            }
+            currOrd++;
+            int ord = ordTransformer.apply(currOrd);
+            boolean isOverspill = this.isOverspill.apply(currOrd);
+            return getVector(ord, isOverspill);
+        }
+
+        @Override
+        public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
             if (currOrd == -1) {
                 throw new IllegalStateException("No vector read yet, call readQuantizedVector first");
             }
             return new OptimizedScalarQuantizer.QuantizationResult(corrections[0], corrections[1], corrections[2], bitSum);
         }
 
+        byte[] getVector(int ord, boolean isOverspill) throws IOException {
+            readQuantizedVector(ord, isOverspill);
+            return binaryScratch;
+        }
+
         public void readQuantizedVector(int ord, boolean isOverspill) throws IOException {
-            if (ord == currOrd && isOverspill == this.isOverspill) {
-                return; // no need to read again
-            }
-            long offset = (long) ord * (vectorByteSize * 2) + (isOverspill ? vectorByteSize : 0);
+            long offset = (long) ord * (vectorByteSize * 2L) + (isOverspill ? vectorByteSize : 0);
             quantizedVectorsInput.seek(offset);
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
             bitSum = quantizedVectorsInput.readShort();
-            if (ord != currOrd) {
-                currOrd = ord;
-            }
-            this.isOverspill = isOverspill;
         }
     }
 }

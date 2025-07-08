@@ -117,10 +117,10 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
                 builder.field("shard_snapshots_in_progress", shardSnapshotsInProgress);
             }
             if (numberOfBlobsUploaded != -1) {
-                builder.field("blobs_uploaded", numberOfBlobsUploaded);
+                builder.field("uploaded_blobs", numberOfBlobsUploaded);
             }
             if (numberOfBytesUploaded != -1) {
-                builder.humanReadableField("bytes_uploaded", "bytes_uploaded", ByteSizeValue.ofBytes(numberOfBytesUploaded));
+                builder.humanReadableField("uploaded_size_in_bytes", "uploaded_size", ByteSizeValue.ofBytes(numberOfBytesUploaded));
             }
             if (totalUploadTimeInNanos != -1) {
                 builder.humanReadableField(

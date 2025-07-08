@@ -92,7 +92,8 @@ public class QueryPlanningBenchmark {
         var fields = 10_000;
         var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
         for (int i = 0; i < fields; i++) {
-            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true));
+            // We're creating a standard index, so none of these fields should be marked as dimensions.
+            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));

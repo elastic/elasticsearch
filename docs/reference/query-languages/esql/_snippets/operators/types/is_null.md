@@ -7,9 +7,6 @@
 | boolean | boolean |
 | cartesian_point | boolean |
 | cartesian_shape | boolean |
-| counter_double | boolean |
-| counter_integer | boolean |
-| counter_long | boolean |
 | date | boolean |
 | date_nanos | boolean |
 | double | boolean |

@@ -207,16 +207,6 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
-     * Returns snapshot throttle time in nanoseconds
-     */
-    long getSnapshotThrottleTimeInNanos();
-
-    /**
-     * Returns restore throttle time in nanoseconds
-     */
-    long getRestoreThrottleTimeInNanos();
-
-    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {
@@ -363,7 +353,5 @@ public interface Repository extends LifecycleComponent {
     @Nullable
     LongWithAttributes getShardSnapshotsInProgress();
 
-    default RepositoriesStats.SnapshotStats getSnapshotStats() {
-        return new RepositoriesStats.SnapshotStats(getRestoreThrottleTimeInNanos(), getSnapshotThrottleTimeInNanos());
-    }
+    RepositoriesStats.SnapshotStats getSnapshotStats();
 }

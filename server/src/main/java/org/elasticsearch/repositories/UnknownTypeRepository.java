@@ -106,16 +106,6 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createUnknownTypeException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createUnknownTypeException();
-    }
-
-    @Override
     public String startVerification() {
         throw createUnknownTypeException();
     }
@@ -182,6 +172,11 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public LongWithAttributes getShardSnapshotsInProgress() {
         return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createUnknownTypeException();
     }
 
     @Override

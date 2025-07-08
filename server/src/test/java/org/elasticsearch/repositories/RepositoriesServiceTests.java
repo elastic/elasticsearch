@@ -703,16 +703,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public long getSnapshotThrottleTimeInNanos() {
-            return 0;
-        }
-
-        @Override
-        public long getRestoreThrottleTimeInNanos() {
-            return 0;
-        }
-
-        @Override
         public String startVerification() {
             return null;
         }
@@ -776,6 +766,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public LongWithAttributes getShardSnapshotsInProgress() {
             return null;
+        }
+
+        @Override
+        public RepositoriesStats.SnapshotStats getSnapshotStats() {
+            return RepositoriesStats.SnapshotStats.ZERO;
         }
 
         @Override

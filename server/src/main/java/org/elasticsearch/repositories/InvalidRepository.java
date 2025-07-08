@@ -108,16 +108,6 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createCreationException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createCreationException();
-    }
-
-    @Override
     public String startVerification() {
         throw createCreationException();
     }
@@ -184,6 +174,11 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     @Override
     public LongWithAttributes getShardSnapshotsInProgress() {
         return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createCreationException();
     }
 
     @Override

@@ -99,16 +99,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        return in.getSnapshotThrottleTimeInNanos();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return in.getRestoreThrottleTimeInNanos();
-    }
-
-    @Override
     public String startVerification() {
         return in.startVerification();
     }
@@ -179,6 +169,11 @@ public class FilterRepository implements Repository {
     @Override
     public LongWithAttributes getShardSnapshotsInProgress() {
         return in.getShardSnapshotsInProgress();
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return in.getSnapshotStats();
     }
 
     @Override

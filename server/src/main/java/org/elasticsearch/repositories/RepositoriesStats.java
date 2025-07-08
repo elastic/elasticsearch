@@ -70,6 +70,8 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         long totalUploadReadTimeInMillis
     ) implements ToXContentObject, Writeable {
 
+        public static final SnapshotStats ZERO = new SnapshotStats(0, 0);
+
         public static SnapshotStats readFrom(StreamInput in) throws IOException {
             final long totalReadThrottledNanos = in.readVLong();
             final long totalWriteThrottledNanos = in.readVLong();

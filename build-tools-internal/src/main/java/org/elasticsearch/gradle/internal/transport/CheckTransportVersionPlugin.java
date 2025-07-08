@@ -20,20 +20,15 @@ public class CheckTransportVersionPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         // TODO figure out what the classpath needs to be to be able to scan the server classes
-        //  Does this need to be a lib (to limit scanning by making this a jar, to exclude gradle)? Ask Mark
+        // Does this need to be a lib (to limit scanning by making this a jar, to exclude gradle)? Ask Mark
         // "/Users/john.verwolf/code/elasticsearch/build-tools-internal/build/classes/java/main"
 
-        final var checkTransportVersion = project.getTasks().register(
-            "checkTransportVersion",
-            CheckTransportVersionTask.class,
-            t -> {
-                SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-                FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
-                t.getClassDirs().set(compiledPluginClasses);
+        final var checkTransportVersion = project.getTasks().register("checkTransportVersion", CheckTransportVersionTask.class, t -> {
+            SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
+            t.getClassDirs().set(compiledPluginClasses);
 
-                t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-transport-info/transport-version-set-names.txt"));
-            }
-        );
+            t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-transport-info/transport-version-set-names.txt"));
+        });
     }
 }
-

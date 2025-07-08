@@ -20,13 +20,11 @@ import java.io.IOException;
 
 public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
 
-
     @InputDirectory
     public abstract RegularFileProperty getManifestDirectory();
 
     @OutputFile
     public abstract RegularFileProperty getManifestFile();
-
 
     @TaskAction
     public void generateTransportVersionManifest() {

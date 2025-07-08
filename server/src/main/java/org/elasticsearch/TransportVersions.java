@@ -327,8 +327,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
 
-
-//    public static final TransportVersion2 FOO = TransportVersion2.declare("testPotato");
+    // public static final TransportVersion2 FOO = TransportVersion2.declare("testPotato");
 
     public static final TransportVersionSet FOO2 = TransportVersionSet.get("testPotato2");
 

@@ -55,7 +55,7 @@ public abstract class CheckTransportVersionTask extends DefaultTask {
 
     @TaskAction
     public void checkTransportVersion() {
-        ///Users/john.verwolf/code/elasticsearch/build-tools-internal/build/classes/java/main
+        /// Users/john.verwolf/code/elasticsearch/build-tools-internal/build/classes/java/main
 
         var tvNames = getTVDeclarationNames(getClassDirs().get().getFiles());
         File file = new File(getOutputFile().get().getAsFile().getAbsolutePath());
@@ -70,40 +70,51 @@ public abstract class CheckTransportVersionTask extends DefaultTask {
 
     public static Set<String> getTVDeclarationNames(Collection<File> classDirs) {
 
-
         var javaFiles = findJavaFiles(classDirs);
 
         var results = new HashSet<String>();
-        for (
-            File javaFile : javaFiles) {
+        for (File javaFile : javaFiles) {
             // Print the path of each Java file found
-//            System.out.println("Found Java file: " + javaFile.getAbsolutePath());
+            // System.out.println("Found Java file: " + javaFile.getAbsolutePath());
             try (InputStream inputStream = new FileInputStream(javaFile)) {
 
                 ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM9) {
                     @Override
                     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-//                        System.out.println("name: " + name + " descriptor: " + descriptor + " signature: " + signature);
+                        // System.out.println("name: " + name + " descriptor: " + descriptor + " signature: " + signature);
 
                         return new MethodNode(Opcodes.ASM9, access, name, descriptor, signature, exceptions) {
 
                             @Override
                             public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-//                                if (owner.equals(TRANSPORT_VERSION_CLASS) && name.equals("<init>")) {
+                                // if (owner.equals(TRANSPORT_VERSION_CLASS) && name.equals("<init>")) {
                                 if (owner.equals(TRANSPORT_VERSION_SET_CLASS) && name.equals("get")) {
-//                                    System.out.println("Potato: opcode: " + opcode + " owner: " + owner + " name: " + name);
+                                    // System.out.println("Potato: opcode: " + opcode + " owner: " + owner + " name: " + name);
                                     var abstractInstruction = this.instructions.getLast();
                                     if (abstractInstruction instanceof LdcInsnNode ldcInsnNode) {
                                         if (ldcInsnNode.cst instanceof String tvName && tvName.isEmpty() == false) {
                                             System.out.println("constant: " + tvName);
                                             results.add(tvName);
                                         } else {
-                                            System.out.println("Transport Versions must be declared with a constant string. " +
-                                                "file: " + javaFile.getPath());
+                                            System.out.println(
+                                                "Transport Versions must be declared with a constant string. "
+                                                    + "file: "
+                                                    + javaFile.getPath()
+                                            );
                                         }
                                     }
-                                    System.out.println("visitMethodInsn: opcode: " + opcode + " owner: " + owner
-                                        + " name: " + name + " descriptor: " + descriptor + " file: " + javaFile.getPath());
+                                    System.out.println(
+                                        "visitMethodInsn: opcode: "
+                                            + opcode
+                                            + " owner: "
+                                            + owner
+                                            + " name: "
+                                            + name
+                                            + " descriptor: "
+                                            + descriptor
+                                            + " file: "
+                                            + javaFile.getPath()
+                                    );
                                 }
                                 super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
                             }

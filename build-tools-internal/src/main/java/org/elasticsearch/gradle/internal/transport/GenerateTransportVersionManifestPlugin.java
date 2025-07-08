@@ -17,15 +17,13 @@ public class GenerateTransportVersionManifestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        var transportVersionManifestTask = project.getTasks().register(
-            "generateTransportVersionManifest",
-            GenerateTransportVersionManifestTask.class,
-            t -> {
+        var transportVersionManifestTask = project.getTasks()
+            .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 var dir = project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/");
                 t.getManifestDirectory().set(dir);
-                t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-transport-info/transport-versions-files-manifest.txt"));
-            }
-        );
+                t.getManifestFile()
+                    .set(project.getLayout().getBuildDirectory().file("generated-transport-info/transport-versions-files-manifest.txt"));
+            });
 
         // Add the manifest file to the jar
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {

@@ -29,12 +29,7 @@ public abstract class SourceMapFieldScript {
         return ctxMapWrapper.getCtxMap();
     }
 
-    /** Return the metadata for this script */
-    public Metadata metadata() {
-        return ctxMapWrapper.getCtxMap().getMetadata();
-    }
-
     public SourceMapField field(String path) {
-        return new SourceMapField(path, () -> ctxMapWrapper.getCtxMap().getSource());
+        return new SourceMapField(path, ctxMapWrapper::getCtxMap);
     }
 }

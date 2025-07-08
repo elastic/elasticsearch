@@ -20,7 +20,7 @@ import java.util.Map;
  */
 public abstract class IngestConditionalScript extends SourceMapFieldScript {
 
-    public static final String[] PARAMETERS = { "runtime-params" };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link IngestConditionalScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -45,7 +45,7 @@ public abstract class IngestConditionalScript extends SourceMapFieldScript {
         return params;
     }
 
-    public abstract boolean execute(Map<String, Object> params);
+    public abstract boolean execute();
 
     public interface Factory {
         IngestConditionalScript newInstance(Map<String, Object> params, CtxMapWrapper ctxMapWrapper);

@@ -150,9 +150,9 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
             script = factory.newInstance(condition.getParams(), ctxMapWrapper);
         }
-        ctxMapWrapper.setCtxMap(ingestDocument.getCtxMap());
+        ctxMapWrapper.setCtxMap(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
         try {
-            return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
+            return script.execute();
         } finally {
             ctxMapWrapper.clearCtxMap();
         }

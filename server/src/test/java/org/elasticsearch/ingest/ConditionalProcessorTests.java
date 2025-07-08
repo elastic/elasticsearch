@@ -208,7 +208,7 @@ public class ConditionalProcessorTests extends ESTestCase {
             } else {
                 return (params, ctxMap) -> new IngestConditionalScript(params, ctxMap) {
                     @Override
-                    public boolean execute(Map<String, Object> params) {
+                    public boolean execute() {
                         return false;
                     }
                 };
@@ -228,7 +228,7 @@ public class ConditionalProcessorTests extends ESTestCase {
             IngestConditionalScript.CONTEXT,
             code -> (params, ctxMapWrapper) -> new IngestConditionalScript(params, ctxMapWrapper) {
                 @Override
-                public boolean execute(Map<String, Object> params) {
+                public boolean execute() {
                     throw new IllegalArgumentException("runtime problem");
                 }
             },

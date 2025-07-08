@@ -9,22 +9,24 @@
 
 package org.elasticsearch.script;
 
+import java.util.Map;
+
 /**
  * A wrapper for a {@link CtxMap} that allows for ad-hoc setting for script execution.
  * This allows for precompilation of scripts that can be executed with different contexts.
  * The wrapped {@link CtxMap} should be cleared after use to avoid leaks.
  */
 public class CtxMapWrapper {
-    private CtxMap<?> ctxMap;
+    private Map<String, Object> ctxMap;
 
-    public CtxMap<?> getCtxMap() {
+    public Map<String, Object> getCtxMap() {
         if (ctxMap == null) {
             throw new IllegalStateException("CtxMap is not set");
         }
         return ctxMap;
     }
 
-    public void setCtxMap(CtxMap<?> ctxMap) {
+    public void setCtxMap(Map<String, Object> ctxMap) {
         this.ctxMap = ctxMap;
     }
 

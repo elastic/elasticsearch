@@ -174,8 +174,8 @@ public class MockScriptEngine implements ScriptEngine {
                 ctxMapWrapper
             ) {
                 @Override
-                public boolean execute(Map<String, Object> params) {
-                    return (boolean) script.apply(params);
+                public boolean execute() {
+                    return (boolean) script.apply(ctxMapWrapper.getCtxMap());
                 }
             };
             return context.factoryClazz.cast(factory);

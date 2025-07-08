@@ -97,12 +97,16 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (builder.humanReadable()) {
-                builder.field("total_read_throttled_time", new TimeValue(totalReadThrottledNanos, TimeUnit.NANOSECONDS));
-                builder.field("total_write_throttled_time", new TimeValue(totalWriteThrottledNanos, TimeUnit.NANOSECONDS));
-            }
-            builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
-            builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
+            builder.humanReadableField(
+                "total_read_throttled_time_nanos",
+                "total_read_throttled_time",
+                new TimeValue(totalReadThrottledNanos, TimeUnit.NANOSECONDS)
+            );
+            builder.humanReadableField(
+                "total_write_throttled_time_nanos",
+                "total_write_throttled_time",
+                new TimeValue(totalWriteThrottledNanos, TimeUnit.NANOSECONDS)
+            );
             if (shardSnapshotsStarted != -1) {
                 builder.field("shard_snapshots_started", shardSnapshotsStarted);
             }
@@ -116,25 +120,21 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
                 builder.field("blobs_uploaded", numberOfBlobsUploaded);
             }
             if (numberOfBytesUploaded != -1) {
-                if (builder.humanReadable()) {
-                    builder.field("bytes_uploaded", ByteSizeValue.ofBytes(numberOfBytesUploaded));
-                } else {
-                    builder.field("bytes_uploaded", numberOfBytesUploaded);
-                }
+                builder.humanReadableField("bytes_uploaded", "bytes_uploaded", ByteSizeValue.ofBytes(numberOfBytesUploaded));
             }
             if (totalUploadTimeInNanos != -1) {
-                if (builder.humanReadable()) {
-                    builder.field("total_upload_time", TimeValue.timeValueNanos(totalUploadTimeInNanos));
-                } else {
-                    builder.field("total_upload_time_in_nanos", totalUploadTimeInNanos);
-                }
+                builder.humanReadableField(
+                    "total_upload_time_in_millis",
+                    "total_upload_time",
+                    TimeValue.timeValueNanos(totalUploadTimeInNanos)
+                );
             }
             if (totalUploadReadTimeInNanos != -1) {
-                if (builder.humanReadable()) {
-                    builder.field("total_read_time", TimeValue.timeValueNanos(totalUploadReadTimeInNanos));
-                } else {
-                    builder.field("total_read_time_in_nanos", totalUploadReadTimeInNanos);
-                }
+                builder.humanReadableField(
+                    "total_read_time_in_millis",
+                    "total_read_time",
+                    TimeValue.timeValueNanos(totalUploadReadTimeInNanos)
+                );
             }
             builder.endObject();
             return builder;

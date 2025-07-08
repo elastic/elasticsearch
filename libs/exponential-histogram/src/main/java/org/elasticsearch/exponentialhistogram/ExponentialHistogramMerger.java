@@ -9,14 +9,54 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Arrays;
+import java.util.stream.Stream;
+
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.getMaximumScaleIncrease;
 
 public class ExponentialHistogramMerger {
 
+    FixedSizeExponentialHistogram result;
+    FixedSizeExponentialHistogram buffer;
+
+    private boolean isFinished;
+
+    public ExponentialHistogramMerger(int resultBucketCount) {
+        result = new FixedSizeExponentialHistogram(resultBucketCount);
+        buffer = new FixedSizeExponentialHistogram(resultBucketCount);
+    }
+
+    public void add(ExponentialHistogram toAdd) {
+        if (isFinished) {
+            throw new IllegalStateException("get() has already been called");
+        }
+        merge(buffer, result, toAdd);
+        FixedSizeExponentialHistogram temp = result;
+        result = buffer;
+        buffer = temp;
+    }
+
+    public ExponentialHistogram get() {
+        if (isFinished) {
+            throw new IllegalStateException("get() has already been called");
+        }
+        isFinished = true;
+        return result;
+    }
+
+    public static ExponentialHistogram merge(int bucketCount, ExponentialHistogram... histograms) {
+        return merge(bucketCount, Arrays.stream(histograms));
+    }
+
+    public static ExponentialHistogram merge(int bucketCount, Stream<ExponentialHistogram> histograms) {
+        ExponentialHistogramMerger merger = new ExponentialHistogramMerger(bucketCount);
+        histograms.forEach(merger::add);
+        return merger.get();
+    }
+
 
     // TODO: make this more efficient in case b is much smaller than a
-    public static void merge(ExponentialHistogramBuilder output, ExponentialHistogram a, ExponentialHistogram b) {
-        //first step: generate new zero threshold
+    private static void merge(ExponentialHistogramBuilder output, ExponentialHistogram a, ExponentialHistogram b) {
         ExponentialHistogram.BucketIterator posBucketsA = a.positiveBuckets();
         ExponentialHistogram.BucketIterator negBucketsA = a.negativeBuckets();
         ExponentialHistogram.BucketIterator posBucketsB = b.positiveBuckets();
@@ -32,15 +72,17 @@ public class ExponentialHistogramMerger {
         // we need to make sure to not exceed the numeric limits (64 bit) for those in this case
         int targetScale = a.scale();
         if (targetScale > b.scale()) {
-            long highestIndex  =  b.maximumBucketIndex();
-            if (highestIndex > Long.MIN_VALUE) {
-                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(highestIndex));
-            }
+            boolean isNonEmpty = false;
             if (posBucketsB.hasNext()) {
+                isNonEmpty = true;
                 targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(posBucketsB.peekIndex()));
             }
             if (negBucketsB.hasNext()) {
+                isNonEmpty = true;
                 targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(negBucketsB.peekIndex()));
+            }
+            if (isNonEmpty) {
+                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease( b.maximumBucketIndex()));
             }
         }
 

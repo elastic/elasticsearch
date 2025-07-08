@@ -10,7 +10,6 @@ package org.elasticsearch.exponentialhistogram;
 import org.junit.Test;
 
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 public class FixedSizeExponentialHistogramTest {
 
@@ -19,8 +18,8 @@ public class FixedSizeExponentialHistogramTest {
     public void testPrintBuckets() {
         ExponentialHistogram first = ExpHistoGenerator.createFor(0.01234, 42, 56789);
         ExponentialHistogram second = ExpHistoGenerator.createFor(38, 50, 250, 257, 10001.1234);
-        FixedSizeExponentialHistogram result = new FixedSizeExponentialHistogram(7);
-        ExponentialHistogramMerger.merge(result, first, second);
+
+        ExponentialHistogram result = ExponentialHistogramMerger.merge(7, first, second);
         printMidpoints(result);
     }
 

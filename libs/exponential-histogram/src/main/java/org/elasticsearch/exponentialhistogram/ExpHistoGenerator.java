@@ -22,19 +22,16 @@ public class ExpHistoGenerator {
     private final double[] rawValueBuffer;
     int valueCount;
 
-    private boolean isFinished;
+    private final ExponentialHistogramMerger resultMerger;
+    private final FixedSizeExponentialHistogram valueBuffer;
 
-    private FixedSizeExponentialHistogram result;
-    private FixedSizeExponentialHistogram mergeBuffer;
-    private FixedSizeExponentialHistogram valueBuffer;
-
+    private boolean isFinished = false;
 
     public ExpHistoGenerator(int numBuckets) {
         rawValueBuffer = new double[numBuckets];
         valueCount = 0;
-        result = new FixedSizeExponentialHistogram(numBuckets);
-        mergeBuffer = new FixedSizeExponentialHistogram(numBuckets);
         valueBuffer = new FixedSizeExponentialHistogram(numBuckets);
+        resultMerger = new ExponentialHistogramMerger(numBuckets);
     }
 
     public void add(double value) {
@@ -54,7 +51,7 @@ public class ExpHistoGenerator {
         }
         isFinished = true;
         mergeValuesToHistogram();
-        return result;
+        return resultMerger.get();
     }
 
     public static ExponentialHistogram createFor(double... values) {
@@ -104,12 +101,9 @@ public class ExpHistoGenerator {
             }
             valueBuffer.tryAddBucket(index, count, true);
         }
-        valueCount = 0;
 
-        ExponentialHistogramMerger.merge(mergeBuffer, result, valueBuffer);
-        FixedSizeExponentialHistogram temp = result;
-        result = mergeBuffer;
-        mergeBuffer = temp;
+        resultMerger.add(valueBuffer);
+        valueCount = 0;
     }
 
 

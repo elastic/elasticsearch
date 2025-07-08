@@ -23,6 +23,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -62,6 +64,10 @@ public class Float32ScorerBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        if (supportsHeapSegments() == false) {
+            final Logger LOG = LogManager.getLogger(Float32ScorerBenchmark.class);
+            LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
+        }
     }
 
     @Param({ "96", "768", "1024" })
@@ -120,14 +126,16 @@ public class Float32ScorerBenchmark {
         nativeSqrScorer.setScoringOrdinal(0);
 
         // setup for getFloat32VectorScorer / query vector scoring
-        float[] queryVec = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            queryVec[i] = ThreadLocalRandom.current().nextFloat();
+        if (supportsHeapSegments()) {
+            float[] queryVec = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVec[i] = ThreadLocalRandom.current().nextFloat();
+            }
+            luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
+            nativeDotScorerQuery = factory.getFloat32VectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
+            luceneSqrScorerQuery = luceneScorer(values, VectorSimilarityFunction.EUCLIDEAN, queryVec);
+            nativeSqrScorerQuery = factory.getFloat32VectorScorer(VectorSimilarityFunction.EUCLIDEAN, values, queryVec).get();
         }
-        luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
-        nativeDotScorerQuery = factory.getFloat32VectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
-        luceneSqrScorerQuery = luceneScorer(values, VectorSimilarityFunction.EUCLIDEAN, queryVec);
-        nativeSqrScorerQuery = factory.getFloat32VectorScorer(VectorSimilarityFunction.EUCLIDEAN, values, queryVec).get();
     }
 
     @TearDown
@@ -186,6 +194,10 @@ public class Float32ScorerBenchmark {
     @Benchmark
     public float squareDistanceNativeQuery() throws IOException {
         return nativeSqrScorerQuery.score(1) + nativeSqrScorerQuery.score(2);
+    }
+
+    static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
     }
 
     static float dotProductScalarImpl(float[] vec1, float[] vec2) {

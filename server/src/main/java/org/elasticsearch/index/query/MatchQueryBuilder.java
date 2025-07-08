@@ -120,25 +120,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
-    /**
-     * Copy constructor from a QueryBuilder.
-     */
-    public MatchQueryBuilder(MatchQueryBuilder queryBuilder) {
-        this(queryBuilder.fieldName, queryBuilder.value);
-
-        this.operator = queryBuilder.operator();
-        this.prefixLength = queryBuilder.prefixLength();
-        this.maxExpansions = queryBuilder.maxExpansions();
-        this.fuzzyTranspositions = queryBuilder.fuzzyTranspositions();
-        this.lenient = queryBuilder.lenient();
-        this.zeroTermsQuery = queryBuilder.zeroTermsQuery();
-        this.analyzer = queryBuilder.analyzer();
-        this.minimumShouldMatch = queryBuilder.minimumShouldMatch();
-        this.fuzzyRewrite = queryBuilder.fuzzyRewrite();
-        this.fuzziness = queryBuilder.fuzziness();
-        this.autoGenerateSynonymsPhraseQuery = queryBuilder.autoGenerateSynonymsPhraseQuery();
-    }
-
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);

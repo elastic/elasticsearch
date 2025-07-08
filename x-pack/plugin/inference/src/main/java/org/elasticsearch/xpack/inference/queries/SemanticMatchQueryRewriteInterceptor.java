@@ -49,7 +49,8 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     ) {
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder originalMatchQueryBuilder = (MatchQueryBuilder) queryBuilder;
-        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(originalMatchQueryBuilder);
+        // Create a copy for non-inference fields without boost and _name
+        MatchQueryBuilder matchQueryBuilder = copyMatchQueryBuilder(originalMatchQueryBuilder);
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.should(
@@ -68,5 +69,25 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     @Override
     public String getQueryName() {
         return MatchQueryBuilder.NAME;
+    }
+
+    private MatchQueryBuilder copyMatchQueryBuilder(MatchQueryBuilder queryBuilder) {
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(queryBuilder.fieldName(), queryBuilder.value());
+        matchQueryBuilder.operator(queryBuilder.operator());
+        matchQueryBuilder.prefixLength(queryBuilder.prefixLength());
+        matchQueryBuilder.maxExpansions(queryBuilder.maxExpansions());
+        matchQueryBuilder.fuzzyTranspositions(queryBuilder.fuzzyTranspositions());
+        matchQueryBuilder.lenient(queryBuilder.lenient());
+        matchQueryBuilder.zeroTermsQuery(queryBuilder.zeroTermsQuery());
+        matchQueryBuilder.analyzer(queryBuilder.analyzer());
+        matchQueryBuilder.minimumShouldMatch(queryBuilder.minimumShouldMatch());
+        matchQueryBuilder.fuzzyRewrite(queryBuilder.fuzzyRewrite());
+
+        if (queryBuilder.fuzziness() != null) {
+            matchQueryBuilder.fuzziness(queryBuilder.fuzziness());
+        }
+
+        matchQueryBuilder.autoGenerateSynonymsPhraseQuery(queryBuilder.autoGenerateSynonymsPhraseQuery());
+        return matchQueryBuilder;
     }
 }

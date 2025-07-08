@@ -77,17 +77,6 @@ public class FixedSizeExponentialHistogram implements ExponentialHistogramBuilde
         return true;
     }
 
-    private void addValue(double value) {
-        long idx = ExponentialHistogramUtils.computeIndex(value, scale());
-        if (Math.abs(value) < zeroBucket.zeroThreshold()) {
-            throw new IllegalArgumentException("Cannot add zero values via this method");
-        }
-        boolean success = tryAddBucket(idx, 1, value > 0);
-        if (!success) {
-            throw new IllegalArgumentException("Not enough buckets, failed to add value");
-        }
-    }
-
     @Override
     public int scale() {
         return bucketScale;
@@ -165,31 +154,4 @@ public class FixedSizeExponentialHistogram implements ExponentialHistogramBuilde
         }
     }
 
-    public static FixedSizeExponentialHistogram createForValues(double... values) {
-        FixedSizeExponentialHistogram result = new FixedSizeExponentialHistogram(values.length);
-        double[] copy = Arrays.copyOf(values, values.length);
-        Arrays.sort(copy);
-
-        int negativeCount = 0;
-        int zeroCount = 0;
-
-        for (double val : copy) {
-            if (val < 0) {
-                negativeCount++;
-            } else if (val == 0){
-                zeroCount++;
-            } else {
-                break;
-            }
-        }
-
-        for (int i = negativeCount - 1; i >= 0; i--) {
-            result.addValue(copy[i]);
-        }
-        result.setZeroBucket(ZeroBucket.minimalWithCount(zeroCount));
-        for (int i = negativeCount + zeroCount; i < copy.length; i++) {
-            result.addValue(copy[i]);
-        }
-        return result;
-    }
 }

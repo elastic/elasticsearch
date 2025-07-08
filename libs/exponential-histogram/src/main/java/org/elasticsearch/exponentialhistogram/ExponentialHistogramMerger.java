@@ -7,6 +7,10 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import org.elasticsearch.core.Nullable;
+
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.getMaximumScaleIncrease;
+
 public class ExponentialHistogramMerger {
 
 

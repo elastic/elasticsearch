@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
@@ -905,7 +906,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V7(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V8(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -931,11 +932,6 @@ public class EsqlCapabilities {
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
-
-        /**
-         * Support for RRF command
-         */
-        RRF(Build.current().isSnapshot()),
 
         /**
          * Lucene query pushdown to StartsWith and EndsWith functions.
@@ -1016,7 +1012,7 @@ public class EsqlCapabilities {
         FILTER_IN_CONVERTED_NULL,
 
         /**
-         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * When creating constant null blocks in {@link ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */

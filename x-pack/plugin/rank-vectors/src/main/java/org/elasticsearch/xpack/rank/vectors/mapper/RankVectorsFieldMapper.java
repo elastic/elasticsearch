@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SyntheticVectorsPatchFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -406,7 +406,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        return isSyntheticVector ? new SyntheticRankVectorPatchLoader(new DocValuesSyntheticFieldLoader()) : null;
+        if (isSyntheticVector) {
+            var syntheticField = new DocValuesSyntheticFieldLoader();
+            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorsAsList);
+        }
+        return null;
     }
 
     private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
@@ -455,7 +459,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
             b.endArray();
         }
 
-        private Object copyVectorsAsList() throws IOException {
+        /**
+         * Returns deep-copied vectors  for the current document, either as a list.
+         *
+         * @throws IOException if reading fails
+         */
+        private List<List<?>> copyVectorsAsList() throws IOException {
             assert hasValue : "rank vector is null";
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
@@ -490,30 +499,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
         @Override
         public String fieldName() {
             return fullPath();
-        }
-    }
-
-    private class SyntheticRankVectorPatchLoader implements SourceLoader.SyntheticVectorsLoader {
-        private final DocValuesSyntheticFieldLoader syntheticFieldLoader;
-
-        private SyntheticRankVectorPatchLoader(DocValuesSyntheticFieldLoader syntheticFieldLoader) {
-            this.syntheticFieldLoader = syntheticFieldLoader;
-        }
-
-        @Override
-        public SourceLoader.SyntheticVectorsLoader.Leaf leaf(LeafReaderContext context) throws IOException {
-            var dvLoader = syntheticFieldLoader.docValuesLoader(context.reader(), null);
-            return (doc, acc) -> {
-                if (dvLoader == null) {
-                    return;
-                }
-                if (dvLoader.advanceToDoc(doc) && syntheticFieldLoader.hasValue()) {
-                    // add vectors as list since that's how they're parsed from xcontent.
-                    acc.add(
-                        new SourceLoader.LeafSyntheticVectorPath(syntheticFieldLoader.fieldName(), syntheticFieldLoader.copyVectorsAsList())
-                    );
-                }
-            };
         }
     }
 }

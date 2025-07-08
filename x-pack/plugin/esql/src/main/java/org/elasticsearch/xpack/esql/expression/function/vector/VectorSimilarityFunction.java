@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -16,13 +16,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -33,22 +34,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
  */
-public abstract class VectorSimilarityFunction extends EsqlScalarFunction implements VectorFunction {
-
-    private final Expression left;
-    private final Expression right;
+public abstract class VectorSimilarityFunction extends BinaryScalarFunction implements EvaluatorMapper, VectorFunction {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
-        super(source, List.of(left, right));
-        this.left = left;
-        this.right = right;
+        super(source, left, right);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(left());
-        out.writeNamedWriteable(right());
+    protected VectorSimilarityFunction(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
@@ -71,19 +64,6 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
         );
     }
 
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new CosineSimilarity(source(), newChildren.get(0), newChildren.get(1));
-    }
-
-    public Expression left() {
-        return left;
-    }
-
-    public Expression right() {
-        return right;
-    }
-
     /**
      * Functional interface for evaluating the similarity between two float arrays
      */
@@ -93,8 +73,18 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
     }
 
     @Override
-    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new SimilarityEvaluatorFactory(toEvaluator.apply(left()), toEvaluator.apply(right()), getSimilarityFunction());
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
+    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+        return new SimilarityEvaluatorFactory(
+            toEvaluator.apply(left()),
+            toEvaluator.apply(right()),
+            getSimilarityFunction(),
+            getClass().getSimpleName() + "Evaluator"
+        );
     }
 
     /**
@@ -105,7 +95,8 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
     private record SimilarityEvaluatorFactory(
         EvalOperator.ExpressionEvaluator.Factory left,
         EvalOperator.ExpressionEvaluator.Factory right,
-        SimilarityEvaluatorFunction similarityFunction
+        SimilarityEvaluatorFunction similarityFunction,
+        String evaluatorName
     ) implements EvalOperator.ExpressionEvaluator.Factory {
 
         @Override
@@ -119,34 +110,36 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
                         FloatBlock rightBlock = (FloatBlock) right.get(context).eval(page)
                     ) {
                         int positionCount = page.getPositionCount();
-                        if (positionCount == 0) {
+                        int dimensions = 0;
+                        // Get the first non-empty vector to calculate the dimension
+                        for (int p = 0; p < positionCount; p++) {
+                            if (leftBlock.getValueCount(p) != 0) {
+                                dimensions = leftBlock.getValueCount(p);
+                                break;
+                            }
+                        }
+                        if (dimensions == 0) {
                             return context.blockFactory().newConstantFloatBlockWith(0F, 0);
                         }
 
-                        int dimensions = leftBlock.getValueCount(0);
-                        int dimsRight = rightBlock.getValueCount(0);
-                        if (dimensions != dimsRight) {
-                            throw new EsqlClientException(
-                                "Vectors must have the same dimensions; first vector has {}, and second has {}",
-                                dimensions,
-                                dimsRight
-                            );
-                        }
                         float[] leftScratch = new float[dimensions];
                         float[] rightScratch = new float[dimensions];
                         try (DoubleVector.Builder builder = context.blockFactory().newDoubleVectorBuilder(positionCount * dimensions)) {
                             for (int p = 0; p < positionCount; p++) {
-                                assert leftBlock.getValueCount(p) == dimensions
-                                    : "Left vector must have the same value count for all positions, but got left: "
-                                        + leftBlock.getValueCount(p)
-                                        + ", expected: "
-                                        + dimensions;
-                                assert rightBlock.getValueCount(p) == dimensions
-                                    : "Left vector must have the same value count for all positions, but got left: "
-                                        + rightBlock.getValueCount(p)
-                                        + ", expected: "
-                                        + dimensions;
+                                int dimsLeft = leftBlock.getValueCount(p);
+                                int dimsRight = rightBlock.getValueCount(p);
 
+                                if (dimsLeft == 0 || dimsRight == 0) {
+                                    // A null value on the left or right vector. Similarity is 0
+                                    builder.appendDouble(0.0);
+                                    continue;
+                                } else if (dimsLeft != dimsRight) {
+                                    throw new EsqlClientException(
+                                        "Vectors must have the same dimensions; first vector has {}, and second has {}",
+                                        dimsLeft,
+                                        dimsRight
+                                    );
+                                }
                                 readFloatArray(leftBlock, leftBlock.getFirstValueIndex(p), dimensions, leftScratch);
                                 readFloatArray(rightBlock, rightBlock.getFirstValueIndex(p), dimensions, rightScratch);
                                 float result = similarityFunction.calculateSimilarity(leftScratch, rightScratch);
@@ -158,12 +151,12 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
                 }
 
                 @Override
-                public void close() {}
+                public String toString() {
+                    return evaluatorName() + "[left=" + left + ", right=" + right + "]";
+                }
 
                 @Override
-                public String toString() {
-                    return "ExpressionEvaluator[left=" + left + ", right=" + right + "]";
-                }
+                public void close() {}
             };
         }
 
@@ -171,6 +164,11 @@ public abstract class VectorSimilarityFunction extends EsqlScalarFunction implem
             for (int i = 0; i < dimensions; i++) {
                 scratch[i] = block.getFloat(position + i);
             }
+        }
+
+        @Override
+        public String toString() {
+            return evaluatorName() + "[left=" + left + ", right=" + right + "]";
         }
     }
 }

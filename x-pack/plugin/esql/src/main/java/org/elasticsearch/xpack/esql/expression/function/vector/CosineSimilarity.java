@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 
@@ -29,6 +29,7 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         "CosineSimilarity",
         CosineSimilarity::new
     );
+    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = COSINE::compare;
 
     @FunctionInfo(
         returnType = "double",
@@ -49,12 +50,17 @@ public class CosineSimilarity extends VectorSimilarityFunction {
     }
 
     private CosineSimilarity(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        super(in);
+    }
+
+    @Override
+    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
+        return new CosineSimilarity(source(), newLeft, newRight);
     }
 
     @Override
     protected SimilarityEvaluatorFunction getSimilarityFunction() {
-        return COSINE::compare;
+        return SIMILARITY_FUNCTION;
     }
 
     @Override

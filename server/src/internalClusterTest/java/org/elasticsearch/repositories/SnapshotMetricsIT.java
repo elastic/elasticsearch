@@ -297,7 +297,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
                 .put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval)
                 .build()
         );
-        indexRandom(true, indexName, randomIntBetween(1000, 3000));
+        indexRandom(true, indexName, randomIntBetween(100, 300));
 
         final String repositoryName = randomIdentifier();
         createRepository(repositoryName, "mock");

@@ -179,7 +179,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
         ChatCompletionErrorBuilder chatCompletionErrorBuilder
     ) {
-        if (errorResponseClassSupplier.get().isInstance(errorResponse)) {
+        if (errorResponse.errorStructureFound() && errorResponseClassSupplier.get().isInstance(errorResponse)) {
             return chatCompletionErrorBuilder.buildProviderSpecificChatCompletionError(errorResponse, errorMessage, restStatus);
         } else {
             return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
@@ -233,7 +233,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         // Extract the error response from the message using the provided method
         var errorResponse = midStreamErrorExtractor.apply(message);
         // Check if the error response matches the expected type
-        if (errorResponseClassSupplier.get().isInstance(errorResponse)) {
+        if (errorResponse.errorStructureFound() && errorResponseClassSupplier.get().isInstance(errorResponse)) {
             // If it matches, we can build a custom mid-stream error exception
             return specificErrorBuilder.apply(inferenceEntityId, errorResponse);
         } else if (e != null) {

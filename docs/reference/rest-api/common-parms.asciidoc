@@ -1310,8 +1310,26 @@ See <<index-wait-for-active-shards>>.
 end::wait_for_active_shards[]
 
 tag::rrf-retrievers[]
+
+[NOTE]
+====
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+====
+
+`query`::
+(Optional, String)
++
+The query to use when using the <<multi-field-query-format, multi-field query format>>.
+
+`fields`::
+(Optional, array of strings)
++
+The fields to query when using the <<multi-field-query-format, multi-field query format>>.
+If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
 `retrievers`::
-(Required, array of retriever objects)
+(Optional, array of retriever objects)
 +
 A list of child retrievers to specify which sets of returned top documents
 will have the RRF formula applied to them. Each child retriever carries an

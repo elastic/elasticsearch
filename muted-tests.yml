@@ -558,6 +558,9 @@ tests:
 - class: org.elasticsearch.xpack.slm.SLMFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/130853
+- class: org.elasticsearch.cluster.ClusterStateSerializationTests
+  method: testSerializationPreMultiProject
+  issue: https://github.com/elastic/elasticsearch/issues/130872
 
 # Examples:
 #

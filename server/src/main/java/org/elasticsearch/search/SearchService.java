@@ -659,7 +659,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
-            DfsPhase.execute(context);
+            final long beforeQueryTime = System.nanoTime();
+            var opsListener = context.indexShard().getSearchOperationListener();
+            opsListener.onPreDfsPhase(context);
+            try {
+                DfsPhase.execute(context);
+                opsListener.onDfsPhase(context, System.nanoTime() - beforeQueryTime);
+                opsListener = null;
+            } finally {
+                if (opsListener != null) {
+                    opsListener.onFailedDfsPhase(context);
+                }
+            }
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);

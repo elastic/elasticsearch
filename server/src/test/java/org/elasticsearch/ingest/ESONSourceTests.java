@@ -26,8 +26,9 @@ public class ESONSourceTests extends ESTestCase {
         );
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder();
-            builder.parse(parser);
+            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder();
+            ESONSourceClaude.ESONObject object = builder.parse(parser);
+            System.err.println(object);
         }
     }
 }

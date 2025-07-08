@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
@@ -19,16 +20,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ESONSourceClaude {
 
-    // Cache for UTF-8 to UTF-16 string conversion
-    private static final Map<String, String> STRING_CACHE = new ConcurrentHashMap<>();
+    public static final NullValue NULL_VALUE = new NullValue();
 
     public static class Builder {
 
         private final BytesStreamOutput bytes = new BytesStreamOutput();
+        private final Map<BytesRef, String> keyCache;
+
+        public Builder() {
+            this(new HashMap<>());
+        }
+
+        public Builder(Map<BytesRef, String> keyCache) {
+            this.keyCache = keyCache;
+        }
 
         public ESONObject parse(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.nextToken();
@@ -56,7 +64,7 @@ public class ESONSourceClaude {
                         map.put(currentFieldName, parseArray(parser));
                         break;
                     case VALUE_NULL:
-                        map.put(currentFieldName, new NullValue());
+                        map.put(currentFieldName, NULL_VALUE);
                         break;
                     default:
                         if (token.isValue()) {
@@ -80,7 +88,7 @@ public class ESONSourceClaude {
                         elements.add(parseArray(parser));
                         break;
                     case VALUE_NULL:
-                        elements.add(new NullValue());
+                        elements.add(NULL_VALUE);
                         break;
                     default:
                         if (token.isValue()) {
@@ -226,10 +234,7 @@ public class ESONSourceClaude {
 
     public String readString(int position) {
         byte[] utf8Bytes = readByteArray(position);
-        String utf8String = new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8);
-        // Use cache for frequently accessed strings
-        // TODO: No. Not for values.
-        return STRING_CACHE.computeIfAbsent(utf8String, k -> k);
+        return new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     public enum ValueType {
@@ -247,40 +252,40 @@ public class ESONSourceClaude {
     public record ESONObject(Map<String, Type> map) implements Type {
 
         public Type get(String key) {
-                return map.get(key);
-            }
-
-            public boolean containsKey(String key) {
-                return map.containsKey(key);
-            }
+            return map.get(key);
         }
+
+        public boolean containsKey(String key) {
+            return map.containsKey(key);
+        }
+    }
 
     public record ESONArray(List<Type> elements) implements Type {
 
         public Type get(int index) {
-                return elements.get(index);
-            }
-
-            public int size() {
-                return elements.size();
-            }
+            return elements.get(index);
         }
+
+        public int size() {
+            return elements.size();
+        }
+    }
 
     public record Value(int position, ValueType valueType) implements Type {
 
         // Convenience methods to read values
-            public Object getValue(ESONSourceClaude source) {
-                return switch (valueType) {
-                    case INT -> source.readInt(position);
-                    case LONG -> source.readLong(position);
-                    case FLOAT -> source.readFloat(position);
-                    case DOUBLE -> source.readDouble(position);
-                    case BOOLEAN -> source.readBoolean(position);
-                    case STRING -> source.readString(position);
-                    case BINARY -> source.readByteArray(position);
-                };
-            }
+        public Object getValue(ESONSourceClaude source) {
+            return switch (valueType) {
+                case INT -> source.readInt(position);
+                case LONG -> source.readLong(position);
+                case FLOAT -> source.readFloat(position);
+                case DOUBLE -> source.readDouble(position);
+                case BOOLEAN -> source.readBoolean(position);
+                case STRING -> source.readString(position);
+                case BINARY -> source.readByteArray(position);
+            };
         }
+    }
 
     public static class NullValue implements Type {}
 }

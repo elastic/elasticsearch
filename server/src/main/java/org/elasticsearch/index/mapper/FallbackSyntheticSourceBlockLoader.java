@@ -72,7 +72,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    public static Set<String> splitIntoFieldPaths(String fieldName) {
+    static Set<String> splitIntoFieldPaths(String fieldName) {
         var paths = new HashSet<String>();
         paths.add("_doc");
         var current = new StringBuilder();

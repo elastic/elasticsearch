@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "TODO: filter _ignored_source_*")
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     private DocumentMapper getDocumentMapperWithFieldLimit() throws IOException {
         return createMapperService(

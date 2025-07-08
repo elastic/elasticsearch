@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Makes pre-loaded stored fields available via a LeafSearchLookup.
@@ -61,7 +63,13 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
     }
 
     void setPreloadedStoredFieldValues(String id, Map<String, List<Object>> preloadedStoredFieldValues) {
-        assert preloadedStoredFieldNames.get().containsAll(preloadedStoredFieldValues.keySet())
+        assert preloadedStoredFieldNames.get()
+            .containsAll(
+                preloadedStoredFieldValues.keySet()
+                    .stream()
+                    .filter(s -> s.startsWith(IgnoredSourceFieldMapper.NAME) == false)
+                    .collect(Collectors.toSet())
+            )
             : "Provided stored field that was not expected to be preloaded? "
                 + preloadedStoredFieldValues.keySet()
                 + " - "

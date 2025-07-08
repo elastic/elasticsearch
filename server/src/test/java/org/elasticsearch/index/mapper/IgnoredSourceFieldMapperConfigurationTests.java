@@ -52,7 +52,8 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         var doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
-        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME + ".fallback_field"));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME  + ".disabled_object"));
 
         String syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are not loaded.
@@ -64,7 +65,8 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
-        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME + ".fallback_field"));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME  + ".disabled_object"));
 
         syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are loaded.
@@ -116,7 +118,8 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
-        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME + ".fallback_field"));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME + ".disabled_object"));
 
         syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are loaded.

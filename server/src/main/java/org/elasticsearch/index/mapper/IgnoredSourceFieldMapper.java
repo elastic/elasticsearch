@@ -160,7 +160,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         for (NameValue nameValue : context.getIgnoredFieldValues()) {
-            nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
+            String fieldName = NAME + "." + nameValue.name;
+            nameValue.doc().add(new StoredField(fieldName, encode(nameValue)));
         }
     }
 
@@ -176,28 +177,17 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return bytes;
     }
 
-    static NameValue decode(Object field) {
+    public static NameValue decode(Object field) {
         byte[] bytes = ((BytesRef) field).bytes;
+        return decode(bytes);
+    }
+    public static NameValue decode(byte[] bytes) {
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
         int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
         int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
         String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
         BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
         return new NameValue(name, parentOffset, value, null);
-    }
-
-    public static NameValue decodeIfMatch(byte[] bytes, Set<String> potentialFieldsInIgnoreSource) {
-        int encodedSize = ByteUtils.readIntLE(bytes, 0);
-        int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
-        int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
-
-        String name = new String(bytes, 4, nameSize, StandardCharsets.UTF_8);
-        if (potentialFieldsInIgnoreSource.contains(name)) {
-            BytesRef value = new BytesRef(bytes, 4 + nameSize, bytes.length - nameSize - 4);
-            return new NameValue(name, parentOffset, value, null);
-        } else {
-            return null;
-        }
     }
 
     // In rare cases decoding values stored in this field can fail leading to entire source

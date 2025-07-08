@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCase {
 
@@ -228,7 +229,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var reader = searcher.getDirectoryReader();
             var document = reader.storedFields().document(0);
             Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-            assertThat(storedFieldNames, contains("_ignored_source"));
+            assertThat(storedFieldNames, contains(startsWith("_ignored_source")));
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -368,7 +369,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", "_ignored_source"));
+                assertThat(storedFieldNames, contains("_id", "_ignored_source.object"));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();

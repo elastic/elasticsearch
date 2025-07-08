@@ -16,7 +16,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -29,23 +28,36 @@ import java.util.Set;
 
 class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
-    final Set<String> potentialFieldsInIgnoreSource;
+    final Set<String> potentialFieldsToLoad;
 
     IgnoredSourceFieldLoader(StoredFieldsSpec spec) {
-        Set<String> potentialFieldsInIgnoreSource = new HashSet<>();
+        Set<String> potentialFieldsToLoad = new HashSet<>();
         for (String requiredStoredField : spec.requiredStoredFields()) {
             if (requiredStoredField.startsWith(IgnoredSourceFieldMapper.NAME)) {
                 String fieldName = requiredStoredField.substring(IgnoredSourceFieldMapper.NAME.length());
-                potentialFieldsInIgnoreSource.addAll(FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(fieldName));
+                potentialFieldsToLoad.addAll(splitIntoFieldPaths(fieldName));
             }
         }
-        this.potentialFieldsInIgnoreSource = potentialFieldsInIgnoreSource;
+        this.potentialFieldsToLoad = potentialFieldsToLoad;
+    }
+
+    static Set<String> splitIntoFieldPaths(String fieldName) {
+        var paths = new HashSet<String>();
+        var current = new StringBuilder();
+        for (var part : fieldName.split("\\.")) {
+            if (current.isEmpty() == false) {
+                current.append('.');
+            }
+            current.append(part);
+            paths.add(IgnoredSourceFieldMapper.NAME + "." + current);
+        }
+        return paths;
     }
 
     @Override
     public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
         var reader = sequentialReader(ctx);
-        var visitor = new SFV(potentialFieldsInIgnoreSource);
+        var visitor = new SFV(potentialFieldsToLoad);
         return new LeafStoredFieldLoader() {
 
             private int doc = -1;
@@ -83,42 +95,42 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
     @Override
     public List<String> fieldsToLoad() {
-        return List.of(IgnoredSourceFieldMapper.NAME);
+        return List.of(potentialFieldsToLoad.toArray(new String[0]));
     }
 
     static class SFV extends StoredFieldVisitor {
 
-        boolean done;
+        boolean found;
         final List<Object> values = new ArrayList<>();
-        final Set<String> potentialFieldsInIgnoreSource;
+        final Set<String> potentialFieldsToLoad;
 
-        SFV(Set<String> potentialFieldsInIgnoreSource) {
-            this.potentialFieldsInIgnoreSource = potentialFieldsInIgnoreSource;
+        SFV(Set<String> potentialFieldsToLoad) {
+            this.potentialFieldsToLoad = potentialFieldsToLoad;
         }
 
         @Override
         public Status needsField(FieldInfo fieldInfo) throws IOException {
-            if (done) {
-                return Status.STOP;
-            } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            if (potentialFieldsToLoad.contains(fieldInfo.name)) {
+                found = true;
                 return Status.YES;
             } else {
-                return Status.NO;
+                if (found) {
+                    return Status.STOP;
+                } else {
+                    return Status.NO;
+                }
             }
         }
 
         @Override
         public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-            var result = IgnoredSourceFieldMapper.decodeIfMatch(value, potentialFieldsInIgnoreSource);
-            if (result != null) {
-                done = true;
-                values.add(result);
-            }
+            var result = IgnoredSourceFieldMapper.decode(value);
+            values.add(result);
         }
 
         void reset() {
             values.clear();
-            done = false;
+            found = false;
         }
 
     }

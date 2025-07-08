@@ -106,7 +106,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
                     // NOTE: Exclude _ignored_source when requested via wildcard '*'
-                    if (matchingFieldName.equals(IgnoredSourceFieldMapper.NAME) && Regex.isSimpleMatchPattern(storedField)) {
+                    if (matchingFieldName.startsWith(IgnoredSourceFieldMapper.NAME) && Regex.isSimpleMatchPattern(storedField)) {
                         continue;
                     }
                     // NOTE: checking if the field is stored is required for backward compatibility reasons and to make

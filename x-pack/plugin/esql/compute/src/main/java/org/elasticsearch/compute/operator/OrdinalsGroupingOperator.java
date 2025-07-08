@@ -376,9 +376,16 @@ public class OrdinalsGroupingOperator implements Operator {
     @Override
     public Operator.Status status() {
         return new Status(
-            totalProcessNanos, ordinalsProcessNanos, valuesProcessNanos,
-            totalEmitNanos, ordinalsEmitNanos, valuesEmitNanos,
-            pagesProcessed, rowsReceived, rowsEmitted);
+            totalProcessNanos,
+            ordinalsProcessNanos,
+            valuesProcessNanos,
+            totalEmitNanos,
+            ordinalsEmitNanos,
+            valuesEmitNanos,
+            pagesProcessed,
+            rowsReceived,
+            rowsEmitted
+        );
     }
 
     private static void checkState(boolean condition, String msg) {
@@ -421,9 +428,15 @@ public class OrdinalsGroupingOperator implements Operator {
          * @param rowsEmitted Count of rows this operator has emitted.
          */
         public Status(
-            long totalProcessNanos, long ordinalsProcessNanos, long valuesProcessNanos,
-            long totalEmitNanos, long ordinalsEmitNanos, long valuesEmitNanos,
-            int pagesProcessed, long rowsReceived, long rowsEmitted
+            long totalProcessNanos,
+            long ordinalsProcessNanos,
+            long valuesProcessNanos,
+            long totalEmitNanos,
+            long ordinalsEmitNanos,
+            long valuesEmitNanos,
+            int pagesProcessed,
+            long rowsReceived,
+            long rowsEmitted
         ) {
             this.totalProcessNanos = totalProcessNanos;
             this.ordinalsProcessNanos = ordinalsProcessNanos;
@@ -567,9 +580,15 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         public int hashCode() {
             return Objects.hash(
-                totalProcessNanos, ordinalsProcessNanos, valuesProcessNanos,
-                totalEmitNanos, ordinalsEmitNanos, valuesEmitNanos,
-                pagesProcessed, rowsReceived, rowsEmitted
+                totalProcessNanos,
+                ordinalsProcessNanos,
+                valuesProcessNanos,
+                totalEmitNanos,
+                ordinalsEmitNanos,
+                valuesEmitNanos,
+                pagesProcessed,
+                rowsReceived,
+                rowsEmitted
             );
         }
 

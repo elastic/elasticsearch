@@ -16,11 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class OrdinalsGroupingOperatorStatusTests extends AbstractWireSerializingTestCase<OrdinalsGroupingOperator.Status> {
     public static OrdinalsGroupingOperator.Status simple() {
-        return new OrdinalsGroupingOperator.Status(
-            200012, 100010, 100011,
-            600012, 300010, 300011,
-            123, 111, 222
-        );
+        return new OrdinalsGroupingOperator.Status(200012, 100010, 100011, 600012, 300010, 300011, 123, 111, 222);
     }
 
     public static String simpleToJson() {
@@ -92,9 +88,15 @@ public class OrdinalsGroupingOperatorStatusTests extends AbstractWireSerializing
             default -> throw new UnsupportedOperationException();
         }
         return new OrdinalsGroupingOperator.Status(
-            totalProcessNanos, ordinalsProcessNanos, valuesProcessNanos,
-            totalEmitNanos, ordinalsEmitNanos, valuesEmitNanos,
-            pagesProcessed, rowsReceived, rowsEmitted
+            totalProcessNanos,
+            ordinalsProcessNanos,
+            valuesProcessNanos,
+            totalEmitNanos,
+            ordinalsEmitNanos,
+            valuesEmitNanos,
+            pagesProcessed,
+            rowsReceived,
+            rowsEmitted
         );
     }
 }

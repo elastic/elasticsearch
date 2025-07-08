@@ -44,7 +44,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomRoutingToDataPath(),
             randomReservedSpace(),
             randomNodeHeapUsage(),
-            randomNodeWriteLoads()
+            randomNodeUsageStatsForThreadPools()
         );
     }
 
@@ -64,21 +64,21 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return nodeHeapUsage;
     }
 
-    private static Map<String, NodeUsageStatsForThreadPools> randomNodeWriteLoads() {
+    private static Map<String, NodeUsageStatsForThreadPools> randomNodeUsageStatsForThreadPools() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, NodeUsageStatsForThreadPools> nodeWriteLoads = new HashMap<>(numEntries);
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String nodeIdKey = randomAlphaOfLength(32);
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-                /* totalThreadPoolThreads= */ randomIntBetween(1, 16),
-                /* averageThreadPoolUtilization= */ randomFloat(),
-                /* averageThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
-            );
-            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
-            statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
-            nodeWriteLoads.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, statsForThreadPools));
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolUsageStats =
+                new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(/* totalThreadPoolThreads= */ randomIntBetween(1, 16),
+                    /* averageThreadPoolUtilization= */ randomFloat(),
+                    /* averageThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
+                );
+            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStatsForThreadPools = new HashMap<>();
+            usageStatsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);
+            nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
         }
-        return nodeWriteLoads;
+        return nodeUsageStatsForThreadPools;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

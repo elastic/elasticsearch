@@ -164,7 +164,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     /**
-     * Simple for test {@link NodeUsageStatsForThreadPoolsCollector} implementation that returns an empty map of nodeId string to {@link NodeUsageStatsForThreadPools}.
+     * Simple for test {@link NodeUsageStatsForThreadPoolsCollector} implementation that returns an empty map of nodeId string to
+     * {@link NodeUsageStatsForThreadPools}.
      */
     private static class StubNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
         @Override

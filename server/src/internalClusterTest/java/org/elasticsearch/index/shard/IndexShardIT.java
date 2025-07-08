@@ -328,11 +328,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .build()
         );
         try {
-            // Force a ClusterInfo refresh to run collection of the node write loads.
+            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
 
-            /** Verify that each node has a write load reported. The test {@link BogusNodeUsageStatsForThreadPoolsCollector} generates random load values */
+            /** Verify that each node has usage stats reported. The test {@link BogusNodeUsageStatsForThreadPoolsCollector} implementation
+             * generates random usage values */
             ClusterState state = getInstanceFromNode(ClusterService.class).state();
             assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
             for (DiscoveryNode node : state.nodes()) {
@@ -936,11 +937,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * A simple {@link NodeUsageStatsForThreadPoolsCollector} implementation that creates and returns random {@link NodeUsageStatsForThreadPools} for each node in the
-     * cluster.
+     * A simple {@link NodeUsageStatsForThreadPoolsCollector} implementation that creates and returns random
+     * {@link NodeUsageStatsForThreadPools} for each node in the cluster.
      * <p>
-     * Note: there's an 'org.elasticsearch.cluster.WriteLoadCollector' file that declares this implementation so that the plugin system can
-     * pick it up and use it for the test set-up.
+     * Note: there's an 'org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector' file that declares this implementation so that the
+     * plugin system can pick it up and use it for the test set-up.
      */
     public static class BogusNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
 
@@ -958,11 +959,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .state()
                     .nodes()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> makeRandomNodeLoad(node.getId())))
+                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> makeRandomNodeUsageStats(node.getId())))
             );
         }
 
-        private NodeUsageStatsForThreadPools makeRandomNodeLoad(String nodeId) {
+        private NodeUsageStatsForThreadPools makeRandomNodeUsageStats(String nodeId) {
             NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                 randomNonNegativeInt(),
                 randomFloat(),

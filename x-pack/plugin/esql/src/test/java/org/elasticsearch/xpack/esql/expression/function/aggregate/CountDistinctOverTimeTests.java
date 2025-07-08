@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,18 +18,18 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class MinOverTimeTests extends AbstractFunctionTestCase {
-    public MinOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        testCase = testCaseSupplier.get();
+public class CountDistinctOverTimeTests extends AbstractFunctionTestCase {
+    public CountDistinctOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return MinTests.parameters();
+        return CountDistinctTests.parameters();
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MinOverTime(source, args.get(0));
+        return new CountDistinctOverTime(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 }

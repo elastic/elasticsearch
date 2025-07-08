@@ -359,7 +359,9 @@ public class SearchShardRelocationIT extends AbstractStatelessIntegTestCase {
     }
 
     private static void assertThatUnpromotableShardIsStartedInNode(String indexName, String nodeName) {
-        var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        // We fetch the cluster state from the master to avoid fetching an outdated state from a node that has a state commit block.
+        var masterName = internalCluster().getMasterName();
+        var clusterState = client(masterName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         var nodeId = clusterState.nodes().resolveNode(nodeName).getId();
 
         var unpromotableShards = clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).unpromotableShards();

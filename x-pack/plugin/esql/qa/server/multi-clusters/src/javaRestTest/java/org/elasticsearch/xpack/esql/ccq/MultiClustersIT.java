@@ -48,8 +48,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -297,7 +295,7 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(
             remoteClusterShards,
             matchesMap().entry("total", greaterThanOrEqualTo(0))
-        assertThat((Integer) remoteClusterShards.get("skipped"), greaterThanOrEqualTo(0));
+                .entry("successful", remoteClusterShards.get("total"))
                 .entry("skipped", greaterThanOrEqualTo(0))
                 .entry("failed", 0)
         );
@@ -315,7 +313,7 @@ public class MultiClustersIT extends ESRestTestCase {
             assertThat(
                 localClusterShards,
                 matchesMap().entry("total", greaterThanOrEqualTo(0))
-            assertThat((Integer) localClusterShards.get("skipped"), greaterThanOrEqualTo(0));
+                    .entry("successful", localClusterShards.get("total"))
                     .entry("skipped", greaterThanOrEqualTo(0))
                     .entry("failed", 0)
             );
@@ -432,6 +430,7 @@ public class MultiClustersIT extends ESRestTestCase {
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
+    public void testLikeIndexLegacySettingNoResults() throws Exception {
         // the feature is completely supported if both local and remote clusters support it
         assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
         try (
@@ -540,28 +539,6 @@ public class MultiClustersIT extends ESRestTestCase {
 
     public void testRLikeIndex() throws Exception {
         boolean includeCCSMetadata = includeCCSMetadata();
-        Map<String, Object> result = run("""
-            FROM test-local-index,*:test-remote-index METADATA _index
-            | WHERE _index RLIKE ".*remote.*"
-            | STATS c = COUNT(*) BY _index
-            | SORT _index ASC
-            """, includeCCSMetadata);
-        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
-        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
-        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
-    }
-
-    public void testNotRLikeIndex() throws Exception {
-        boolean includeCCSMetadata = includeCCSMetadata();
-        Map<String, Object> result = run("""
-            FROM test-local-index,*:test-remote-index METADATA _index
-            | WHERE _index NOT RLIKE ".*remote.*"
-            | STATS c = COUNT(*) BY _index
-            | SORT _index ASC
-            """, includeCCSMetadata);
-        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
-        var values = List.of(List.of(localDocs.size(), localIndex));
-        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
         Map<String, Object> result = run("""
             FROM test-local-index,*:test-remote-index METADATA _index
             | WHERE _index RLIKE ".*remote.*"

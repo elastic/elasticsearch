@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;

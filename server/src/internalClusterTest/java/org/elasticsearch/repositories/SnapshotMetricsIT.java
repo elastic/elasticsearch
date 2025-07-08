@@ -133,7 +133,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // wait for snapshot to finish to test the other metrics
         awaitNumberOfSnapshotsInProgress(0);
-        final long snapshotElapsedTimeNanos = System.nanoTime() - beforeCreateSnapshotNanos;
+        final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
         collectMetrics();
 
         // sanity check blobs, bytes and throttling metrics
@@ -147,17 +147,11 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Sanity check shard duration observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
-        assertDoubleHistogramMetrics(
-            SnapshotMetrics.SNAPSHOT_SHARDS_DURATION,
-            everyItem(lessThan(TimeValue.timeValueNanos(snapshotElapsedTimeNanos).secondsFrac()))
-        );
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
 
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
-        assertDoubleHistogramMetrics(
-            SnapshotMetrics.SNAPSHOT_DURATION,
-            everyItem(lessThan(TimeValue.timeValueNanos(snapshotElapsedTimeNanos).secondsFrac()))
-        );
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
 
         // Work out the maximum amount of concurrency per node
         final ThreadPool tp = internalCluster().getDataNodeInstance(ThreadPool.class);
@@ -165,15 +159,15 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final int maximumPerNodeConcurrency = Math.max(snapshotThreadPoolSize, numShards);
 
         // sanity check duration values
-        final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * maximumPerNodeConcurrency
-            * snapshotElapsedTimeNanos;
+        final long upperBoundTimeSpentOnSnapshotThingsMillis = internalCluster().numDataNodes() * maximumPerNodeConcurrency
+            * snapshotElapsedTime.millis();
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
         );
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsMillis))
         );
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));

@@ -4140,18 +4140,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read() throws IOException {
                         checkAborted();
-                        final long beforeReadNanos = System.nanoTime();
+                        final long beforeReadMillis = threadPool.rawRelativeTimeInMillis();
                         int value = super.read();
-                        blobStoreSnapshotMetrics.incrementUploadReadTime(System.nanoTime() - beforeReadNanos);
+                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.rawRelativeTimeInMillis() - beforeReadMillis);
                         return value;
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
-                        final long beforeReadNanos = System.nanoTime();
+                        final long beforeReadMillis = threadPool.rawRelativeTimeInMillis();
                         int amountRead = super.read(b, off, len);
-                        blobStoreSnapshotMetrics.incrementUploadReadTime(System.nanoTime() - beforeReadNanos);
+                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.rawRelativeTimeInMillis() - beforeReadMillis);
                         return amountRead;
                     }
 
@@ -4161,17 +4161,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
                 final String partName = fileInfo.partName(i);
                 logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
-                final long startNanos = System.nanoTime();
+                final long startMillis = threadPool.relativeTimeInMillis();
                 shardContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, partName, inputStream, partBytes, false);
-                final long uploadTimeInNanos = System.nanoTime() - startNanos;
-                blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInNanos);
+                final long uploadTimeInMillis = threadPool.relativeTimeInMillis() - startMillis;
+                blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
                 logger.trace(
                     "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
                     metadata.name(),
                     partName,
                     partBytes,
                     shardContainer.path(),
-                    TimeUnit.NANOSECONDS.toMillis(uploadTimeInNanos)
+                    uploadTimeInMillis
                 );
             }
             blobStoreSnapshotMetrics.incrementNumberOfBlobsUploaded();

@@ -66,8 +66,8 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         long totalWriteThrottledNanos,
         long numberOfBlobsUploaded,
         long numberOfBytesUploaded,
-        long totalUploadTimeInNanos,
-        long totalUploadReadTimeInNanos
+        long totalUploadTimeInMillis,
+        long totalUploadReadTimeInMillis
     ) implements ToXContentObject, Writeable {
 
         public static SnapshotStats readFrom(StreamInput in) throws IOException {
@@ -122,18 +122,18 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             if (numberOfBytesUploaded != -1) {
                 builder.humanReadableField("uploaded_size_in_bytes", "uploaded_size", ByteSizeValue.ofBytes(numberOfBytesUploaded));
             }
-            if (totalUploadTimeInNanos != -1) {
+            if (totalUploadTimeInMillis != -1) {
                 builder.humanReadableField(
                     "total_upload_time_in_millis",
                     "total_upload_time",
-                    TimeValue.timeValueNanos(totalUploadTimeInNanos)
+                    TimeValue.timeValueMillis(totalUploadTimeInMillis)
                 );
             }
-            if (totalUploadReadTimeInNanos != -1) {
+            if (totalUploadReadTimeInMillis != -1) {
                 builder.humanReadableField(
                     "total_read_time_in_millis",
                     "total_read_time",
-                    TimeValue.timeValueNanos(totalUploadReadTimeInNanos)
+                    TimeValue.timeValueMillis(totalUploadReadTimeInMillis)
                 );
             }
             builder.endObject();
@@ -150,8 +150,8 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
                 out.writeLong(shardSnapshotsInProgress);
                 out.writeLong(numberOfBlobsUploaded);
                 out.writeLong(numberOfBytesUploaded);
-                out.writeLong(totalUploadTimeInNanos);
-                out.writeLong(totalUploadReadTimeInNanos);
+                out.writeLong(totalUploadTimeInMillis);
+                out.writeLong(totalUploadReadTimeInMillis);
             }
         }
     }

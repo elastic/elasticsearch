@@ -552,39 +552,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testForPushDownEnrichRule
-  issue: https://github.com/elastic/elasticsearch/issues/130426
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testAvgDurationByArtist
-  issue: https://github.com/elastic/elasticsearch/issues/130790
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testRejection
-  issue: https://github.com/elastic/elasticsearch/issues/130791
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testManyDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/130792
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testListeningRatio
-  issue: https://github.com/elastic/elasticsearch/issues/130793
 - class: org.elasticsearch.xpack.esql.action.EsqlRemoteErrorWrapIT
   method: testThatRemoteErrorsAreWrapped
   issue: https://github.com/elastic/elasticsearch/issues/130794
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testProfile
-  issue: https://github.com/elastic/elasticsearch/issues/130270
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testSumDurationByArtist
-  issue: https://github.com/elastic/elasticsearch/issues/130788
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testTopN
-  issue: https://github.com/elastic/elasticsearch/issues/130122
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {ints.InCast SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130796
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testFilterAfterEnrich
-  issue: https://github.com/elastic/elasticsearch/issues/130827
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414

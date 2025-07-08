@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
 
 /**
  * Releasable, non-threadsafe version of {@link org.elasticsearch.core.AbstractRefCounted}.
@@ -36,6 +37,7 @@ abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable
 
     @Override
     public final boolean decRef() {
+        LogManager.getLogger(getClass()).error("decref {}", this, new Exception());
         if (hasReferences() == false) {
             throw new IllegalStateException("can't release already released object [" + this + "]");
         }

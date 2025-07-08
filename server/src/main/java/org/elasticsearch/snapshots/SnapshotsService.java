@@ -62,7 +62,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -169,16 +168,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /**
      * We publish metrics of how many shards are in each of the following states
-     * these should be the list of statuses that potentially block movement in
-     * {@link SnapshotInProgressAllocationDecider}, or states that might delay
-     * a snapshot's completion.
      */
-    private static final List<ShardState> TRACKED_SHARD_STATES = List.of(
-        ShardState.INIT,
-        ShardState.PAUSED_FOR_NODE_REMOVAL,
-        ShardState.WAITING,
-        ShardState.QUEUED
-    );
+    private static final List<ShardState> TRACKED_SHARD_STATES = Arrays.asList(ShardState.values());
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 

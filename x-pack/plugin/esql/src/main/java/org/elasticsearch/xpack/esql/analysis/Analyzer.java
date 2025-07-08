@@ -1819,7 +1819,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
-            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
+            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable(), mtf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,

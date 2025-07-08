@@ -114,7 +114,7 @@ public class LoadMapping {
                 field = new UnsupportedEsField(name, List.of(type), null, properties);
                 propagateUnsupportedType(name, type, properties);
             } else {
-                field = new EsField(name, esDataType, properties, docValues);
+                field = new EsField(name, esDataType, properties, docValues, EsField.TimeSeriesFieldType.NONE);
             }
             mapping.put(name, field);
         } else {

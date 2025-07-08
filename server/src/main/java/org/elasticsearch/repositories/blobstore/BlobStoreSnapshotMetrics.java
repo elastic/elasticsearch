@@ -85,7 +85,7 @@ public class BlobStoreSnapshotMetrics {
     public void shardSnapshotCompleted(IndexShardSnapshotStatus status) {
         final Map<String, Object> attrsWithStage = Maps.copyMapWithAddedEntry(metricAttributes, "stage", status.getStage().name());
         snapshotMetrics.shardsCompletedCounter().incrementBy(1, attrsWithStage);
-        snapshotMetrics.shardsDurationHistogram().record(status.getTotalTime() / 1_000f, attrsWithStage);
+        snapshotMetrics.shardsDurationHistogram().record(status.getTotalTimeMillis() / 1_000d, attrsWithStage);
         numberOfShardSnapshotsCompleted.inc();
         shardSnapshotsInProgress.dec();
     }

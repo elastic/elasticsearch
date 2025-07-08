@@ -55,6 +55,40 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         this.shardSearchStatsListener = new ShardSearchStats(searchStatsSettings);
     }
 
+    public void testDfsPhase() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
+    }
+
+    public void testDfsPhase_withGroups() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
+    }
+
+    public void testDfsPhase_Failure() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onFailedDfsPhase(sc);
+
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
+    }
+
     public void testQueryPhase() {
         try (SearchContext sc = createSearchContext(false)) {
             shardSearchStatsListener.onPreQueryPhase(sc);

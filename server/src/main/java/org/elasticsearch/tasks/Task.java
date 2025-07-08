@@ -62,7 +62,6 @@ public class Task implements Traceable {
      */
     public static final String APM_TRACE_CONTEXT = "apm.local.context";
 
-
     public static final String PARENT_TRACE_PARENT_HEADER = "parent_" + Task.TRACE_PARENT_HTTP_HEADER;
 
     public static final String PARENT_TRACE_STATE = "parent_" + Task.TRACE_STATE;

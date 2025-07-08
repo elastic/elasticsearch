@@ -12,9 +12,8 @@ package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -36,7 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * It is used by the ReservedClusterStateService to add/update or remove snapshot repositories. Typical usage
  * for this action is in the context of file based settings.
  */
-public class ReservedRepositoryAction implements ReservedClusterStateHandler<List<PutRepositoryRequest>> {
+public class ReservedRepositoryAction implements ReservedProjectStateHandler<List<PutRepositoryRequest>> {
     public static final String NAME = "snapshot_repositories";
 
     private final RepositoriesService repositoriesService;
@@ -56,14 +55,12 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @SuppressWarnings("unchecked")
-    public Collection<PutRepositoryRequest> prepare(Object input) {
+    public Collection<PutRepositoryRequest> prepare(ProjectId projectId, Object input) {
         List<PutRepositoryRequest> repositories = (List<PutRepositoryRequest>) input;
 
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
             RepositoriesService.validateRepositoryName(repositoryRequest.name());
-            @FixForMultiProject(description = "resolve the actual projectId, ES-10479")
-            final var projectId = ProjectId.DEFAULT;
             repositoriesService.validateRepositoryCanBeCreated(projectId, repositoryRequest);
         }
 
@@ -71,13 +68,11 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @Override
-    public TransformState transform(List<PutRepositoryRequest> source, TransformState prevState) throws Exception {
-        var requests = prepare(source);
+    public TransformState transform(ProjectId projectId, List<PutRepositoryRequest> source, TransformState prevState) throws Exception {
+        var requests = prepare(projectId, source);
 
         ClusterState state = prevState.state();
 
-        @FixForMultiProject(description = "resolve the actual projectId, ES-10479")
-        final var projectId = ProjectId.DEFAULT;
         for (var request : requests) {
             RepositoriesService.RegisterRepositoryTask task = new RepositoriesService.RegisterRepositoryTask(
                 repositoriesService,

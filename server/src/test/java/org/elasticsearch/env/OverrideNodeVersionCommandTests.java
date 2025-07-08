@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@WithoutEntitlements
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     private Environment environment;

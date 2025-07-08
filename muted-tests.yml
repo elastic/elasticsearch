@@ -432,12 +432,6 @@ tests:
   - class: org.elasticsearch.action.RejectionActionIT
     method: testSimulatedSearchRejectionLoad
     issue: https://github.com/elastic/elasticsearch/issues/125901
-  - class: org.elasticsearch.search.SearchServiceSingleNodeTests
-    method: testBeforeShardLockDuringShardCreate
-    issue: https://github.com/elastic/elasticsearch/issues/126812
-  - class: org.elasticsearch.search.SearchServiceSingleNodeTests
-    method: testLookUpSearchContext
-    issue: https://github.com/elastic/elasticsearch/issues/126813
   - class: org.elasticsearch.test.index.IndexVersionUtilsTests
     method: testIndexCompatibleVersionMatches
     issue: https://github.com/elastic/elasticsearch/issues/120760

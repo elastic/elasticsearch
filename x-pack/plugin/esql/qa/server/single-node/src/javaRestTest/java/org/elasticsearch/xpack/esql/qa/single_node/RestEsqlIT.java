@@ -700,7 +700,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("processing_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
-            case "ValuesSourceReaderOperator" -> basicProfile().entry("values_loaded", greaterThanOrEqualTo(0))
+            case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
+                .entry("pages_emitted", greaterThan(0))
+                .entry("values_loaded", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
@@ -711,7 +713,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             case "ExchangeSourceOperator" -> matchesMap().entry("pages_waiting", 0)
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0));
-            case "ProjectOperator", "EvalOperator" -> basicProfile();
+            case "ProjectOperator", "EvalOperator" -> basicProfile().entry("pages_processed", greaterThan(0));
             case "LimitOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("limit", 1000)
                 .entry("limit_remaining", 999)
@@ -747,8 +749,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private MapMatcher basicProfile() {
-        return matchesMap().entry("pages_processed", greaterThan(0))
-            .entry("process_nanos", greaterThan(0))
+        return matchesMap().entry("process_nanos", greaterThan(0))
             .entry("rows_received", greaterThan(0))
             .entry("rows_emitted", greaterThan(0));
     }

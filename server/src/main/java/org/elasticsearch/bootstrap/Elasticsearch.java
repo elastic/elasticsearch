@@ -267,9 +267,16 @@ class Elasticsearch {
             args.pidFile(),
             Set.of(EntitlementSelfTester.class.getPackage())
         );
-        EntitlementSelfTester.entitlementSelfTest();
+        entitlementSelfTest();
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    /**
+     * @throws IllegalStateException if entitlements aren't functioning properly.
+     */
+    static void entitlementSelfTest() {
+        EntitlementSelfTester.entitlementSelfTest();
     }
 
     private static void logSystemInfo() {

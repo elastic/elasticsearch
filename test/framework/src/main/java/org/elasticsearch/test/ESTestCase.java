@@ -517,16 +517,30 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface WithEntitlementsOnTestCode {
     }
 
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
+    }
+
     @BeforeClass
     public static void setupEntitlementsForClass() {
         boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
         boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
+        EntitledTestPackages entitledPackages = getTestClass().getAnnotation(EntitledTestPackages.class);
+
         if (TestEntitlementBootstrap.isEnabledForTest()) {
             TestEntitlementBootstrap.setActive(false == withoutEntitlements);
             TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
+            if (entitledPackages != null) {
+                assert withEntitlementsOnTestCode == false : "Cannot use @WithEntitlementsOnTestCode together with @EntitledTestPackages";
+                assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
+                TestEntitlementBootstrap.setEntitledTestPackages(entitledPackages.value());
+            }
         } else if (withEntitlementsOnTestCode) {
             throw new AssertionError(
-                "Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
+                "Cannot use @WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
             );
         }
     }

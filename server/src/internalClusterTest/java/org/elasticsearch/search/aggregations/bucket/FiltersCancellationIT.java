@@ -44,6 +44,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * Ensures the filters aggregation checks task cancellation, by ensuring it doesn't process all the docs.
+ * <p>
+ *   The CancellableBulkScorer we use to break the execution is called per search thread in the query.
+ *   It currently breaks the "for each doc" into blocks of 4096 docs (x2 every iteration), and checks for cancellation between blocks.
+ *   This test creates N docs and releases N - X permits, to ensure the search request gets cancelled before grabbing all the permits.
+ * </p>
+ * <p>
+ *   Also, if the search thread pool size is too high, it can lead to them trying to process too many documents anyway (pool size * 4096),
+ *   eventually blocking the threads (And failing the test). So it's explicitly set to a small number to avoid this.
+ * </p>
+ */
 @ESIntegTestCase.SuiteScopeTestCase
 public class FiltersCancellationIT extends ESIntegTestCase {
 

@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/shard-allocation-filtering.html
 navigation_title: Shard allocation
+applies_to:
+  stack: all
 ---
 
 # Index-level shard allocation settings [shard-allocation-filtering]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 You can use shard allocation filters to control where {{es}} allocates shards of a particular index. These per-index filters are applied in conjunction with [cluster-wide allocation filtering](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-shard-allocation-filtering) and [allocation awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md).
 

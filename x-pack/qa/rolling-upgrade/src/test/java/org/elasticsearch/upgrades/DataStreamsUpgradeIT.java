@@ -216,6 +216,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
             if (ilmEnabled) {
                 checkILMPhase(dataStreamName, upgradedIndicesMetadata);
+                // Delete the data streams to avoid ILM continuously running cluster state tasks, see
+                // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
+                deleteDataStream(dataStreamName);
             } else {
                 compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
             }
@@ -227,7 +230,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
          * This test makes sure that if reindex is run and completed, then when the cluster is upgraded the task
          * does not begin running again.
          */
-        String dataStreamName = "reindex_test_data_stream_ugprade_test";
+        String dataStreamName = "reindex_test_data_stream_upgrade_test";
         int numRollovers = randomIntBetween(0, 5);
         boolean hasILMPolicy = randomBoolean();
         boolean ilmEnabled = hasILMPolicy && randomBoolean();
@@ -237,6 +240,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             makeSureNoUpgrade(dataStreamName);
             cancelReindexTask(dataStreamName);
+            // Delete the data streams to avoid ILM continuously running cluster state tasks, see
+            // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
+            deleteDataStream(dataStreamName);
         } else {
             makeSureNoUpgrade(dataStreamName);
         }
@@ -650,7 +656,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         int expectedErrorCount,
         boolean ilmEnabled
     ) throws Exception {
-        Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
+        List<String> indicesNeedingUpgrade = getDataStreamBackingIndexNames(dataStreamName);
         final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
         for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
             String oldIndexName = rollover(dataStreamName);
@@ -726,7 +732,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     }
                     assertThat(
                         statusResponseString,
-                        getDataStreamIndices(dataStreamName).size(),
+                        getDataStreamBackingIndexNames(dataStreamName).size(),
                         equalTo(expectedTotalIndicesInDataStream)
                     );
                     assertThat(statusResponseString, ((List<Object>) statusResponseMap.get("errors")).size(), equalTo(expectedErrorCount));
@@ -766,16 +772,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }, 60, TimeUnit.SECONDS);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Set<String> getDataStreamIndices(String dataStreamName) throws IOException {
-        Response response = client().performRequest(new Request("GET", "_data_stream/" + dataStreamName));
-        Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
-        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
-        Map<String, Object> dataStream = dataStreams.get(0);
-        List<Map<String, Object>> indices = (List<Map<String, Object>>) dataStream.get("indices");
-        return indices.stream().map(index -> index.get("index_name").toString()).collect(Collectors.toSet());
     }
 
     /*
@@ -857,6 +853,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         Request request = new Request("PUT", "/_security/role/" + name);
         request.setJsonEntity("{ \"indices\": [ { \"names\" : [ \"" + dataStream + "\"], \"privileges\": [ \"manage\" ] } ] }");
         assertOK(adminClient().performRequest(request));
+    }
+
+    private void deleteDataStream(String name) throws IOException {
+        client().performRequest(new Request("DELETE", "_data_stream/" + name));
     }
 
     private RestClient getClient(String user, String passwd) throws IOException {

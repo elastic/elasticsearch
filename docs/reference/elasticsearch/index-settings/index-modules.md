@@ -2,10 +2,15 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules.html
 navigation_title: General
+applies_to:
+  stack: all
 ---
-# Index modules [index-modules]
+# General index settings [index-modules]
 
-Index modules are modules created per index and control all aspects related to an index.
+:::{include} _snippets/serverless-availability.md
+:::
+
+This document contains the static and dynamic index settings that are not associated with any specific index module.
 
 ## Static index settings [_static_index_settings]
 
@@ -44,10 +49,10 @@ In {{es}} 7.0.0 and later versions, this setting affects how documents are distr
 
 
 
-$$$index-codec$$$ `index.codec`
+$$$index-codec$$$ `index.codec` {applies_to}`serverless: all`
 :   The `default` value compresses stored data with LZ4 compression, but this can be set to `best_compression` which uses [ZSTD](https://en.wikipedia.org/wiki/Zstd) for a higher compression ratio, at the expense of slower stored fields read performance. If you are updating the compression type, the new one will be applied after segments are merged. Segment merging can be forced using [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge). Experiments with indexing log datasets have shown that `best_compression` gives up to ~28% lower storage usage and similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared to `default` while affecting get by id latencies between ~10% and ~33%. The higher get by id latencies is not a concern for many use cases like logging or metrics, since these don’t really rely on get by id functionality (Get APIs or searching by _id).
 
-$$$index-mode-setting$$$ `index.mode`
+$$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
 :   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
 
         **Example**
@@ -144,8 +149,10 @@ $$$dynamic-index-search-idle-after$$$
 
 $$$index-refresh-interval-setting$$$
 
-`index.refresh_interval`
-:   How often to perform a refresh operation, which makes recent changes to the index visible to search. Defaults to `1s`. Can be set to `-1` to disable refresh. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. In order to opt out of this behavior an explicit value of `1s` should set as the refresh interval.
+`index.refresh_interval` {applies_to}`serverless: all`
+:   How often to perform a refresh operation, which makes recent changes to the index visible to search. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. To opt out of this behavior, set an explicit value for the refresh interval, even if it matches the default value.
+
+    The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In both cases, the setting can be set to `-1` to disable refresh.
 
 $$$index-max-result-window$$$
 
@@ -197,7 +204,7 @@ $$$index-max-regex-length$$$
 
 $$$index-query-default-field$$$
 
-`index.query.default_field`
+`index.query.default_field` {applies_to}`serverless: all`
 :   (string or array of strings) Wildcard (`*`) patterns matching one or more fields. The following query types search these matching fields by default:
 
 * [More like this](/reference/query-languages/query-dsl/query-dsl-mlt-query.md)
@@ -233,12 +240,12 @@ $$$index-routing-allocation-enable-setting$$$
 
 $$$index-default-pipeline$$$
 
-`index.default_pipeline`
+`index.default_pipeline` {applies_to}`serverless: all`
 :   Default ingest pipeline for the index. Index requests will fail if the default pipeline is set and the pipeline does not exist. The default may be overridden using the `pipeline` parameter. The special pipeline name `_none` indicates no default ingest pipeline will run.
 
 $$$index-final-pipeline$$$
 
-`index.final_pipeline`
+`index.final_pipeline` {applies_to}`serverless: all`
 :   Final ingest pipeline for the index. Indexing requests will fail if the final pipeline is set and the pipeline does not exist. The final pipeline always runs after the request pipeline (if specified) and the default pipeline (if it exists). The special pipeline name `_none` indicates no final ingest pipeline will run.
 
     ::::{note}
@@ -246,10 +253,10 @@ $$$index-final-pipeline$$$
     ::::
 
 
-$$$index-hidden$$$ `index.hidden`
+$$$index-hidden$$$ `index.hidden` {applies_to}`serverless: all`
 :   Indicates whether the index should be hidden by default. Hidden indices are not returned by default when using a wildcard expression. This behavior is controlled per request through the use of the `expand_wildcards` parameter. Possible values are `true` and `false` (default).
 
-$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic`
+$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic` {applies_to}`serverless: all`
 :   The heuristic to utilize when executing a filtered search against vectors in an HNSW graph. This setting is in technical preview may be changed or removed in a future release. It can be set to:
 
 * `acorn` (default) - Only vectors that match the filter criteria are searched. This is the fastest option, and generally provides faster searches at similar recall to `fanout`, but `num_candidates` might need to be increased for exceptionally high recall requirements.
@@ -259,3 +266,6 @@ $$$index-esql-stored-fields-sequential-proportion$$$
 
 `index.esql.stored_fields_sequential_proportion`
 :   Tuning parameter for deciding when {{esql}} will load [Stored fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#stored-fields) using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
+
+$$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination`
+:   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `false`.

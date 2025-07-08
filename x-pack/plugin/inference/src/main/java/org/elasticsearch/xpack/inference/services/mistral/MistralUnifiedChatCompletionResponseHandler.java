@@ -32,11 +32,17 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
 
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(message, request, result, errorResponse, MistralErrorResponse.class);
+        return buildChatCompletionError(
+            message,
+            request,
+            result,
+            errorResponse,
+            () -> MistralErrorResponse.class,
+            MistralUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
+        );
     }
 
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus

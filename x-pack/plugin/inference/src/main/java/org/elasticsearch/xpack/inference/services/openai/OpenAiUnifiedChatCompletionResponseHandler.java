@@ -54,7 +54,14 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
 
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(message, request, result, errorResponse, StreamingErrorResponse.class);
+        return buildChatCompletionError(
+            message,
+            request,
+            result,
+            errorResponse,
+            () -> StreamingErrorResponse.class,
+            OpenAiUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
+        );
     }
 
     /**
@@ -66,8 +73,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
      * @param restStatus the HTTP status code of the error
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
@@ -93,18 +99,14 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
      */
     public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
         // Use the custom type StreamingErrorResponse for mid-stream errors
-        return buildMidStreamChatCompletionError(inferenceEntityId, message, e, StreamingErrorResponse.class);
-    }
-
-    /**
-     * Extracts the mid-stream error response from the message.
-     *
-     * @param message the message containing the error response
-     * @return the extracted {@link ErrorResponse}
-     */
-    @Override
-    protected ErrorResponse extractMidStreamChatCompletionErrorResponse(String message) {
-        return StreamingErrorResponse.fromString(message);
+        return buildMidStreamChatCompletionError(
+            inferenceEntityId,
+            message,
+            e,
+            () -> StreamingErrorResponse.class,
+            OpenAiUnifiedChatCompletionResponseHandler::buildProviderSpecificMidStreamChatCompletionError,
+            StreamingErrorResponse::fromString
+        );
     }
 
     /**
@@ -115,8 +117,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
      * @param errorResponse the parsed error response from the service
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
         String inferenceEntityId,
         ErrorResponse errorResponse
     ) {

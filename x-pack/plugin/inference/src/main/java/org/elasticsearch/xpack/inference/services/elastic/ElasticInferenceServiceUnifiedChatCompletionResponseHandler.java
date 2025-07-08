@@ -59,27 +59,22 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
      */
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(message, request, result, errorResponse, ErrorResponse.class);
+        return buildChatCompletionError(
+            message,
+            request,
+            result,
+            errorResponse,
+            () -> ErrorResponse.class,
+            ElasticInferenceServiceUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
+        );
     }
 
-    /**
-     * Builds a custom {@link UnifiedChatCompletionException} for the Elastic Inference Service.
-     * This method is called when an error response is received from the service.
-     *
-     * @param errorResponse The error response received from the service.
-     * @param errorMessage The error message to include in the exception.
-     * @param restStatus The HTTP status of the error response.
-     * @param errorResponseClass The class of the error response.
-     * @return An instance of {@link UnifiedChatCompletionException} with details from the error response.
-     */
-    @Override
-    protected UnifiedChatCompletionException buildChatCompletionError(
-        ErrorResponse errorResponse,
-        String errorMessage,
-        RestStatus restStatus,
-        Class<? extends ErrorResponse> errorResponseClass
+    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+        ErrorResponse response,
+        String message,
+        RestStatus restStatus
     ) {
-        return new UnifiedChatCompletionException(restStatus, errorMessage, ERROR_TYPE, restStatus.name().toLowerCase(Locale.ROOT));
+        return new UnifiedChatCompletionException(restStatus, message, ERROR_TYPE, restStatus.name().toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -92,73 +87,24 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
      * @return An instance of {@link UnifiedChatCompletionException} representing the mid-stream error.
      */
     private UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
-        var errorResponse = extractMidStreamChatCompletionErrorResponse(message);
+        var errorResponse = ElasticInferenceServiceErrorResponseEntity.fromString(message);
         // Check if the error response contains a specific structure
         if (errorResponse.errorStructureFound()) {
-            return buildProviderSpecificMidStreamChatCompletionError(inferenceEntityId, errorResponse);
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    inferenceEntityId,
+                    errorResponse.getErrorMessage()
+                ),
+                ERROR_TYPE,
+                STREAM_ERROR
+            );
         } else if (e != null) {
             return UnifiedChatCompletionException.fromThrowable(e);
         } else {
             return buildDefaultMidStreamChatCompletionError(inferenceEntityId, errorResponse);
         }
-    }
-
-    /**
-     * Extracts the error response from the message. This method is specific to the Elastic Inference Service
-     * and should parse the message according to its error response format.
-     *
-     * @param message The message containing the error response.
-     * @return An instance of {@link ErrorResponse} parsed from the message.
-     */
-    @Override
-    protected ErrorResponse extractMidStreamChatCompletionErrorResponse(String message) {
-        return ElasticInferenceServiceErrorResponseEntity.fromString(message);
-    }
-
-    /**
-     * Builds a custom mid-stream {@link UnifiedChatCompletionException} for the Elastic Inference Service.
-     * This method is called when a specific error response structure is found in the message.
-     *
-     * @param inferenceEntityId The ID of the inference entity.
-     * @param errorResponse The error response parsed from the message.
-     * @return An instance of {@link UnifiedChatCompletionException} with details from the error response.
-     */
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
-        String inferenceEntityId,
-        ErrorResponse errorResponse
-    ) {
-        return new UnifiedChatCompletionException(
-            RestStatus.INTERNAL_SERVER_ERROR,
-            format(
-                "%s for request from inference entity id [%s]. Error message: [%s]",
-                SERVER_ERROR_OBJECT,
-                inferenceEntityId,
-                errorResponse.getErrorMessage()
-            ),
-            ERROR_TYPE,
-            STREAM_ERROR
-        );
-    }
-
-    /**
-     * Builds a default mid-stream {@link UnifiedChatCompletionException} for the Elastic Inference Service.
-     * This method is called when specific error response structure is NOT found in the message.
-     *
-     * @param inferenceEntityId The ID of the inference entity.
-     * @param errorResponse The error response parsed from the message.
-     * @return An instance of {@link UnifiedChatCompletionException} with a generic error message.
-     */
-    @Override
-    protected UnifiedChatCompletionException buildDefaultMidStreamChatCompletionError(
-        String inferenceEntityId,
-        ErrorResponse errorResponse
-    ) {
-        return new UnifiedChatCompletionException(
-            RestStatus.INTERNAL_SERVER_ERROR,
-            format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, inferenceEntityId),
-            ERROR_TYPE,
-            STREAM_ERROR
-        );
     }
 }

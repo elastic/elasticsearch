@@ -54,7 +54,14 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
 
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor(
-            (m, e) -> buildMidStreamChatCompletionError(request.getInferenceEntityId(), m, e)
+            (message, exception) -> buildMidStreamChatCompletionError(
+                request.getInferenceEntityId(),
+                message,
+                exception,
+                () -> GoogleVertexAiErrorResponse.class,
+                GoogleVertexAiUnifiedChatCompletionResponseHandler::buildProviderSpecificMidStreamChatCompletionError,
+                GoogleVertexAiErrorResponse::fromString
+            )
         );
 
         flow.subscribe(serverSentEventProcessor);
@@ -64,11 +71,17 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
 
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(message, request, result, errorResponse, GoogleVertexAiErrorResponse.class);
+        return buildChatCompletionError(
+            message,
+            request,
+            result,
+            errorResponse,
+            () -> GoogleVertexAiErrorResponse.class,
+            GoogleVertexAiUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
+        );
     }
 
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
@@ -83,12 +96,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         );
     }
 
-    private UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
-        return buildMidStreamChatCompletionError(inferenceEntityId, message, e, GoogleVertexAiErrorResponse.class);
-    }
-
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
         String inferenceEntityId,
         ErrorResponse errorResponse
     ) {
@@ -105,11 +113,6 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             String.valueOf(vertexAIErrorResponse.code()),
             null
         );
-    }
-
-    @Override
-    protected ErrorResponse extractMidStreamChatCompletionErrorResponse(String message) {
-        return GoogleVertexAiErrorResponse.fromString(message);
     }
 
     public static class GoogleVertexAiErrorResponse extends ErrorResponse {

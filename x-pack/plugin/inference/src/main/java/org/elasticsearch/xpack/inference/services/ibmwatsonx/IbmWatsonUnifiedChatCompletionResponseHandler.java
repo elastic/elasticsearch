@@ -32,16 +32,21 @@ public class IbmWatsonUnifiedChatCompletionResponseHandler extends OpenAiUnified
 
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(message, request, result, errorResponse, IbmWatsonxErrorResponseEntity.class);
+        return buildChatCompletionError(
+            message,
+            request,
+            result,
+            errorResponse,
+            () -> IbmWatsonxErrorResponseEntity.class,
+            IbmWatsonUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
+        );
     }
 
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
     ) {
         return new UnifiedChatCompletionException(restStatus, errorMessage, WATSONX_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
-
 }

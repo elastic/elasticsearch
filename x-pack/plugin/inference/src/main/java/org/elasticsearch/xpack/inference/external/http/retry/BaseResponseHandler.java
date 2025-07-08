@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -124,7 +126,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         return new ElasticsearchStatusException(
-            errorMessage(message, request, errorResponse, responseStatusCode),
+            extractErrorMessage(message, request, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)
         );
     }
@@ -138,7 +140,8 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param request            the request that caused the error
      * @param result             the HTTP result containing the error response
      * @param errorResponse      the parsed error response from the HTTP result
-     * @param errorResponseClass the class of the expected error response type
+     * @param errorResponseClassSupplier the supplier that provides the class of the expected error response type
+     * @param chatCompletionErrorBuilder the builder for creating provider-specific chat completion errors
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
     protected UnifiedChatCompletionException buildChatCompletionError(
@@ -146,14 +149,15 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         Request request,
         HttpResult result,
         ErrorResponse errorResponse,
-        Class<? extends ErrorResponse> errorResponseClass
+        Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
+        ChatCompletionErrorBuilder chatCompletionErrorBuilder
     ) {
         assert request.isStreaming() : "Only streaming requests support this format";
         var statusCode = result.response().getStatusLine().getStatusCode();
-        var errorMessage = errorMessage(message, request, errorResponse, statusCode);
+        var errorMessage = extractErrorMessage(message, request, errorResponse, statusCode);
         var restStatus = toRestStatus(statusCode);
 
-        return buildChatCompletionError(errorResponse, errorMessage, restStatus, errorResponseClass);
+        return buildChatCompletionError(errorResponse, errorMessage, restStatus, errorResponseClassSupplier, chatCompletionErrorBuilder);
     }
 
     /**
@@ -164,41 +168,22 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param errorResponse      the error response parsed from the HTTP result
      * @param errorMessage       the error message to include in the exception
      * @param restStatus         the REST status code of the response
-     * @param errorResponseClass the class of the expected error response type
+     * @param errorResponseClassSupplier the supplier that provides the class of the expected error response type
+     * @param chatCompletionErrorBuilder the builder for creating provider-specific chat completion errors
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
     protected UnifiedChatCompletionException buildChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus,
-        Class<? extends ErrorResponse> errorResponseClass
+        Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
+        ChatCompletionErrorBuilder chatCompletionErrorBuilder
     ) {
-        if (errorResponseClass.isInstance(errorResponse)) {
-            return buildProviderSpecificChatCompletionError(errorResponse, errorMessage, restStatus);
+        if (errorResponseClassSupplier.get().isInstance(errorResponse)) {
+            return chatCompletionErrorBuilder.buildProviderSpecificChatCompletionError(errorResponse, errorMessage, restStatus);
         } else {
             return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
         }
-    }
-
-    /**
-     * Builds a custom {@link UnifiedChatCompletionException} for a streaming request.
-     * This method is called when a specific error response is found in the HTTP result.
-     * It must be implemented by subclasses to handle specific error response formats.
-     * Only streaming requests should use this method.
-     *
-     * @param errorResponse the error response parsed from the HTTP result
-     * @param errorMessage  the error message to include in the exception
-     * @param restStatus    the REST status code of the response
-     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
-     */
-    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
-        ErrorResponse errorResponse,
-        String errorMessage,
-        RestStatus restStatus
-    ) {
-        throw new UnsupportedOperationException(
-            "Custom error handling is not implemented. Please override buildProviderSpecificChatCompletionError method."
-        );
     }
 
     /**
@@ -211,7 +196,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param restStatus    the REST status code of the response
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
-    protected UnifiedChatCompletionException buildDefaultChatCompletionError(
+    private static UnifiedChatCompletionException buildDefaultChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
@@ -232,21 +217,25 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param inferenceEntityId the ID of the inference entity
      * @param message           the error message
      * @param e                the exception that caused the error, can be null
-     * @param errorResponseClass the class of the expected error response type
+     * @param errorResponseClassSupplier a supplier that provides the class of the expected error response type
+     * @param specificErrorBuilder a function that builds a specific error based on the inference entity ID and error response
+     * @param midStreamErrorExtractor a function that extracts the mid-stream error response from the message
      * @return a {@link UnifiedChatCompletionException} representing the mid-stream error
      */
     protected UnifiedChatCompletionException buildMidStreamChatCompletionError(
         String inferenceEntityId,
         String message,
         Exception e,
-        Class<? extends ErrorResponse> errorResponseClass
+        Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
+        BiFunction<String, ErrorResponse, UnifiedChatCompletionException> specificErrorBuilder,
+        Function<String, ErrorResponse> midStreamErrorExtractor
     ) {
         // Extract the error response from the message using the provided method
-        var errorResponse = extractMidStreamChatCompletionErrorResponse(message);
+        var errorResponse = midStreamErrorExtractor.apply(message);
         // Check if the error response matches the expected type
-        if (errorResponseClass.isInstance(errorResponse)) {
+        if (errorResponseClassSupplier.get().isInstance(errorResponse)) {
             // If it matches, we can build a custom mid-stream error exception
-            return buildProviderSpecificMidStreamChatCompletionError(inferenceEntityId, errorResponse);
+            return specificErrorBuilder.apply(inferenceEntityId, errorResponse);
         } else if (e != null) {
             // If the error response does not match, we can still return an exception based on the original throwable
             return UnifiedChatCompletionException.fromThrowable(e);
@@ -254,26 +243,6 @@ public abstract class BaseResponseHandler implements ResponseHandler {
             // If no specific error response is found, we return a default mid-stream error
             return buildDefaultMidStreamChatCompletionError(inferenceEntityId, errorResponse);
         }
-    }
-
-    /**
-     * Builds a custom mid-stream {@link UnifiedChatCompletionException} for a streaming request.
-     * This method is called when a specific error response is found in the message.
-     * It must be implemented by subclasses to handle specific error response formats.
-     * Only streaming requests should use this method.
-     *
-     * @param inferenceEntityId the ID of the inference entity
-     * @param errorResponse     the error response parsed from the message
-     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
-     */
-    protected UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
-        String inferenceEntityId,
-        ErrorResponse errorResponse
-    ) {
-        throw new UnsupportedOperationException(
-            "Mid-stream error handling is not implemented for this response handler. "
-                + "Please override buildProviderSpecificMidStreamChatCompletionError method."
-        );
     }
 
     /**
@@ -285,7 +254,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param errorResponse     the error response extracted from the message
      * @return a {@link UnifiedChatCompletionException} representing the default mid-stream error
      */
-    protected UnifiedChatCompletionException buildDefaultMidStreamChatCompletionError(
+    protected static UnifiedChatCompletionException buildDefaultMidStreamChatCompletionError(
         String inferenceEntityId,
         ErrorResponse errorResponse
     ) {
@@ -298,32 +267,17 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     }
 
     /**
-     * Extracts the mid-stream error response from the message.
-     * This method is used to parse the error response from a streaming message.
-     * It must be implemented by subclasses to handle specific error response formats.
-     * Only streaming requests should use this method.
-     *
-     * @param message the message containing the error response
-     * @return an {@link ErrorResponse} object representing the mid-stream error
-     */
-    protected ErrorResponse extractMidStreamChatCompletionErrorResponse(String message) {
-        throw new UnsupportedOperationException(
-            "Mid-stream error extraction is not implemented. Please override extractMidStreamChatCompletionErrorResponse method."
-        );
-    }
-
-    /**
      * Creates a string representation of the error type based on the provided ErrorResponse.
      * This method is used to generate a human-readable error type for logging or exception messages.
      *
      * @param errorResponse the ErrorResponse object
      * @return a string representing the error type
      */
-    protected static String createErrorType(ErrorResponse errorResponse) {
+    private static String createErrorType(ErrorResponse errorResponse) {
         return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
     }
 
-    protected String errorMessage(String message, Request request, ErrorResponse errorResponse, int statusCode) {
+    private static String extractErrorMessage(String message, Request request, ErrorResponse errorResponse, int statusCode) {
         return (errorResponse == null
             || errorResponse.errorStructureFound() == false
             || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))

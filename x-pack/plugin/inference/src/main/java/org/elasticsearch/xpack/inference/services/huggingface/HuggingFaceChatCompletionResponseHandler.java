@@ -42,11 +42,17 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
 
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(message, request, result, errorResponse, HuggingFaceErrorResponseEntity.class);
+        return buildChatCompletionError(
+            message,
+            request,
+            result,
+            errorResponse,
+            () -> HuggingFaceErrorResponseEntity.class,
+            HuggingFaceChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
+        );
     }
 
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
@@ -65,11 +71,17 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
      */
     @Override
     public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
-        return buildMidStreamChatCompletionError(inferenceEntityId, message, e, StreamingHuggingFaceErrorResponseEntity.class);
+        return buildMidStreamChatCompletionError(
+            inferenceEntityId,
+            message,
+            e,
+            () -> StreamingHuggingFaceErrorResponseEntity.class,
+            HuggingFaceChatCompletionResponseHandler::buildProviderSpecificMidStreamChatCompletionError,
+            StreamingHuggingFaceErrorResponseEntity::fromString
+        );
     }
 
-    @Override
-    protected UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
+    private static UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
         String inferenceEntityId,
         ErrorResponse errorResponse
     ) {
@@ -84,11 +96,6 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
             HUGGING_FACE_ERROR,
             extractErrorCode((StreamingHuggingFaceErrorResponseEntity) errorResponse)
         );
-    }
-
-    @Override
-    protected ErrorResponse extractMidStreamChatCompletionErrorResponse(String message) {
-        return StreamingHuggingFaceErrorResponseEntity.fromString(message);
     }
 
     private static String extractErrorCode(StreamingHuggingFaceErrorResponseEntity streamingHuggingFaceErrorResponseEntity) {

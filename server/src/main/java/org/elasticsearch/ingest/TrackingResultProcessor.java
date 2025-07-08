@@ -216,6 +216,7 @@ public final class TrackingResultProcessor implements Processor {
             pipeline.getVersion(),
             pipeline.getMetadata(),
             verbosePipelineProcessor,
+            pipeline.getFieldAccessPattern(),
             pipeline.getDeprecated()
         );
         ingestDocument.executePipeline(verbosePipeline, handler);

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.rule;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -137,7 +138,17 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     }
 
     protected final TreeType execute(TreeType plan) {
+        // Remove this when the PR is complete.
         return executeWithInfo(plan).after;
+    }
+
+    protected final void execute(TreeType plan, ActionListener<TreeType> listener) {
+        try {
+            TreeType result = executeWithInfo(plan).after;
+            listener.onResponse(result);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected final ExecutionInfo executeWithInfo(TreeType plan) {

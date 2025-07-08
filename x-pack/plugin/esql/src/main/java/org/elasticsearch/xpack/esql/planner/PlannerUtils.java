@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -162,52 +163,58 @@ public class PlannerUtils {
         }));
     }
 
-    public static PhysicalPlan localPlan(
+    public static void localPlan(
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        ActionListener<PhysicalPlan> listener
     ) {
-        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts), listener);
     }
 
-    public static PhysicalPlan localPlan(Configuration configuration, FoldContext foldCtx, PhysicalPlan plan, SearchStats searchStats) {
+    public static void localPlan(
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        ActionListener<PhysicalPlan> listener
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats));
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer);
+        localPlan(plan, logicalOptimizer, physicalOptimizer, listener);
     }
 
-    public static PhysicalPlan localPlan(
+    public static void localPlan(
         PhysicalPlan plan,
         LocalLogicalPlanOptimizer logicalOptimizer,
-        LocalPhysicalPlanOptimizer physicalOptimizer
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        ActionListener<PhysicalPlan> listener
     ) {
         final LocalMapper localMapper = new LocalMapper();
-        var isCoordPlan = new Holder<>(Boolean.TRUE);
 
-        var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            var physicalFragment = localMapper.map(optimizedFragment);
-            var filter = f.esFilter();
-            if (filter != null) {
-                physicalFragment = physicalFragment.transformUp(
-                    EsSourceExec.class,
-                    query -> new EsSourceExec(
-                        Source.EMPTY,
-                        query.indexPattern(),
-                        query.indexMode(),
-                        query.indexNameWithModes(),
-                        query.output(),
-                        filter
-                    )
-                );
-            }
-            var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
-        });
-        return isCoordPlan.get() ? plan : localPhysicalPlan;
+        plan.transformUp(FragmentExec.class, (f, l) -> {
+            logicalOptimizer.localOptimize(f.fragment(), ActionListener.wrap(optimizedFragment -> {
+                var physicalFragment = localMapper.map(optimizedFragment);
+                var filter = f.esFilter();
+                if (filter != null) {
+                    physicalFragment = physicalFragment.transformUp(
+                        EsSourceExec.class,
+                        query -> new EsSourceExec(
+                            Source.EMPTY,
+                            query.indexPattern(),
+                            query.indexMode(),
+                            query.indexNameWithModes(),
+                            query.output(),
+                            filter
+                        )
+                    );
+                }
+                var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
+                l.onResponse(EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized));
+            }, l::onFailure));
+        }, listener);
     }
 
     /**

@@ -97,16 +97,12 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.humanReadableField(
-                "total_read_throttled_time_nanos",
-                "total_read_throttled_time",
-                new TimeValue(totalReadThrottledNanos, TimeUnit.NANOSECONDS)
-            );
-            builder.humanReadableField(
-                "total_write_throttled_time_nanos",
-                "total_write_throttled_time",
-                new TimeValue(totalWriteThrottledNanos, TimeUnit.NANOSECONDS)
-            );
+            if (builder.humanReadable()) {
+                builder.field("total_read_throttled_time", new TimeValue(totalReadThrottledNanos, TimeUnit.NANOSECONDS));
+                builder.field("total_write_throttled_time", new TimeValue(totalWriteThrottledNanos, TimeUnit.NANOSECONDS));
+            }
+            builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
+            builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
             if (shardSnapshotsStarted != -1) {
                 builder.field("shard_snapshots_started", shardSnapshotsStarted);
             }

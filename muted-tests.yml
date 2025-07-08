@@ -204,9 +204,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120816
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/121285
-- class: org.elasticsearch.env.NodeEnvironmentTests
-  method: testGetBestDowngradeVersion
-  issue: https://github.com/elastic/elasticsearch/issues/121316
 - class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
   method: testDiagnostics
   issue: https://github.com/elastic/elasticsearch/issues/121336
@@ -273,18 +270,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/128031
-- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
-  method: testSchedulerCloseWaitsForRunningMerge
-  issue: https://github.com/elastic/elasticsearch/issues/125236
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/125680
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
-  issue: https://github.com/elastic/elasticsearch/issues/129149
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test600Interrupt
+  issue: https://github.com/elastic/elasticsearch/issues/128144
+- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
+  method: testChildrenTasksCancelledOnTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/123568
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/129148
+  issue: https://github.com/elastic/elasticsearch/issues/130205
 
 # Examples:
 #

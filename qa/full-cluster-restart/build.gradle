@@ -29,6 +29,15 @@ tasks.register("luceneBwcTest", StandaloneRestIntegTestTask) {
   onlyIf("tests.bwc.main.version system property exists") { System.getProperty("tests.bwc.main.version") != null }
 }
 
+tasks.named("bcUpgradeTest").configure {
+  filter {
+    // Mute testSnapshotRestore: it uses string compare of Version (from the cluster, saved in the snapshot) with tests.bwc.main.version,
+    // which does not work for SNAPSHOT builds
+    excludeTestsMatching("org.elasticsearch.upgrades.FullClusterRestartIT.testSnapshotRestore")
+    excludeTestsMatching("org.elasticsearch.upgrades.FullClusterRestartIT.testSnapshotRestore *")
+  }
+}
+
 tasks.withType(Test).configureEach {
   // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1

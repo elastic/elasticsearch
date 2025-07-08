@@ -18,18 +18,24 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
+    // don't drop groupings from a local plan, as the layout has already been agreed upon
+    private final boolean local;
 
-    public CombineProjections() {
+    public CombineProjections(boolean local) {
         super(OptimizerRules.TransformDirection.UP);
+        this.local = local;
     }
 
     @Override
@@ -60,29 +66,89 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             return plan;
         }
 
-        // Agg with underlying Project (group by on sub-queries)
-        if (plan instanceof Aggregate a) {
-            if (child instanceof Project p) {
-                var groupings = a.groupings();
-                List<NamedExpression> groupingAttrs = new ArrayList<>(a.groupings().size());
-                for (Expression grouping : groupings) {
-                    if (grouping instanceof Attribute attribute) {
-                        groupingAttrs.add(attribute);
-                    } else if (grouping instanceof Alias as && as.child() instanceof Categorize) {
-                        groupingAttrs.add(as);
+        if (plan instanceof Aggregate a && child instanceof Project p) {
+            var groupings = a.groupings();
+
+            // sanity checks
+            for (Expression grouping : groupings) {
+                if ((grouping instanceof Attribute || grouping instanceof Alias as && as.child() instanceof Categorize) == false) {
+                    // After applying ReplaceAggregateNestedExpressionWithEval,
+                    // evaluatable groupings can only contain attributes.
+                    throw new EsqlIllegalArgumentException("Expected an attribute or grouping function, got {}", grouping);
+                }
+            }
+            assert groupings.size() <= 1
+                || groupings.stream().anyMatch(group -> group.anyMatch(expr -> expr instanceof Categorize)) == false
+                : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
+
+            // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
+            AttributeMap.Builder<Attribute> aliasesBuilder = AttributeMap.builder();
+            for (NamedExpression ne : p.projections()) {
+                // Record the aliases.
+                // Projections are just aliases for attributes, so casting is safe.
+                aliasesBuilder.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+            }
+            var aliases = aliasesBuilder.build();
+
+            // Propagate any renames from the lower projection into the upper groupings.
+            List<Expression> resolvedGroupings = new ArrayList<>();
+            for (Expression grouping : groupings) {
+                Expression transformed = grouping.transformUp(Attribute.class, as -> aliases.resolve(as, as));
+                resolvedGroupings.add(transformed);
+            }
+
+            // This can lead to duplicates in the groupings: e.g.
+            // | EVAL x = y | STATS ... BY x, y
+            if (local) {
+                // On the data node, the groupings must be preserved because they affect the physical output (see
+                // AbstractPhysicalOperationProviders#intermediateAttributes).
+                // In case that propagating the lower projection leads to duplicates in the resolved groupings, we'll leave an Eval in place
+                // of the original projection to create new attributes for the duplicate groups.
+                Set<Expression> seenResolvedGroupings = new HashSet<>(resolvedGroupings.size());
+                List<Expression> newGroupings = new ArrayList<>();
+                List<Alias> aliasesAgainstDuplication = new ArrayList<>();
+
+                for (int i = 0; i < groupings.size(); i++) {
+                    Expression resolvedGrouping = resolvedGroupings.get(i);
+                    if (seenResolvedGroupings.add(resolvedGrouping)) {
+                        newGroupings.add(resolvedGrouping);
                     } else {
-                        // After applying ReplaceAggregateNestedExpressionWithEval,
-                        // groupings (except Categorize) can only contain attributes.
-                        throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
+                        // resolving the renames leads to a duplicate here - we need to alias the underlying attribute this refers to.
+                        // should really only be 1 attribute, anyway, but going via .references() includes the case of a
+                        // GroupingFunction.NonEvaluatableGroupingFunction.
+                        Attribute coreAttribute = resolvedGrouping.references().iterator().next();
+
+                        Alias renameAgainstDuplication = new Alias(
+                            coreAttribute.source(),
+                            TemporaryNameUtils.locallyUniqueTemporaryName(coreAttribute.name(), "temp_name"),
+                            coreAttribute
+                        );
+                        aliasesAgainstDuplication.add(renameAgainstDuplication);
+
+                        // propagate the new alias into the new grouping
+                        AttributeMap.Builder<Attribute> resolverBuilder = AttributeMap.builder();
+                        resolverBuilder.put(coreAttribute, renameAgainstDuplication.toAttribute());
+                        AttributeMap<Attribute> resolver = resolverBuilder.build();
+
+                        newGroupings.add(resolvedGrouping.transformUp(Attribute.class, attr -> resolver.resolve(attr, attr)));
                     }
                 }
-                plan = new Aggregate(
-                    a.source(),
-                    p.child(),
-                    a.aggregateType(),
-                    combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
-                    combineProjections(a.aggregates(), p.projections())
-                );
+
+                LogicalPlan newChild = aliasesAgainstDuplication.isEmpty()
+                    ? p.child()
+                    : new Eval(p.source(), p.child(), aliasesAgainstDuplication);
+                plan = a.with(newChild, newGroupings, combineProjections(a.aggregates(), p.projections()));
+            } else {
+                // On the coordinator, we can just discard the duplicates.
+                // All substitutions happen before; groupings must be attributes at this point except for non-evaluatable groupings which
+                // will be an alias like `c = CATEGORIZE(attribute)`.
+                // Due to such aliases, we can't use an AttributeSet to deduplicate. But we can use a regular set to deduplicate based on
+                // regular equality (i.e. based on names) instead of name ids.
+                // TODO: The deduplication based on simple equality will be insufficient in case of multiple non-evaluatable groupings, e.g.
+                // for `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead. Also
+                // applies in the local case below.
+                List<Expression> newGroupings = new ArrayList<>(new LinkedHashSet<>(resolvedGroupings));
+                plan = a.with(p.child(), newGroupings, combineProjections(a.aggregates(), p.projections()));
             }
         }
 
@@ -143,38 +209,6 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
         }
         return replaced;
-    }
-
-    private static List<Expression> combineUpperGroupingsAndLowerProjections(
-        List<? extends NamedExpression> upperGroupings,
-        List<? extends NamedExpression> lowerProjections
-    ) {
-        assert upperGroupings.size() <= 1
-            || upperGroupings.stream().anyMatch(group -> group.anyMatch(expr -> expr instanceof Categorize)) == false
-            : "CombineProjections only tested with a single CATEGORIZE with no additional groups";
-        // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-        AttributeMap.Builder<Attribute> aliasesBuilder = AttributeMap.builder();
-        for (NamedExpression ne : lowerProjections) {
-            // Record the aliases.
-            // Projections are just aliases for attributes, so casting is safe.
-            aliasesBuilder.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
-        }
-        var aliases = aliasesBuilder.build();
-
-        // Propagate any renames from the lower projection into the upper groupings.
-        // This can lead to duplicates: e.g.
-        // | EVAL x = y | STATS ... BY x, y
-        // All substitutions happen before; groupings must be attributes at this point except for CATEGORIZE which will be an alias like
-        // `c = CATEGORIZE(attribute)`.
-        // Therefore, it is correct to deduplicate based on simple equality (based on names) instead of name ids (Set vs. AttributeSet).
-        // TODO: The deduplication based on simple equality will be insufficient in case of multiple CATEGORIZEs, e.g. for
-        // `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead.
-        LinkedHashSet<NamedExpression> resolvedGroupings = new LinkedHashSet<>();
-        for (NamedExpression ne : upperGroupings) {
-            NamedExpression transformed = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
-            resolvedGroupings.add(transformed);
-        }
-        return new ArrayList<>(resolvedGroupings);
     }
 
     /**

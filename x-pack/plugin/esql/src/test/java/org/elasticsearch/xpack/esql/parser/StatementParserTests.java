@@ -3965,27 +3965,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return new Alias(EMPTY, name, value);
     }
 
-    public void testValidRrf() {
-        assumeTrue("RRF requires corresponding capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
-                | RRF
+                | FUSE
             """);
 
-        var orderBy = as(plan, OrderBy.class);
-        assertThat(orderBy.order().size(), equalTo(3));
-
-        assertThat(orderBy.order().get(0).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        var dedup = as(orderBy.child(), Dedup.class);
+        var dedup = as(plan, Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(dedup.groupings().get(0).name(), equalTo("_id"));

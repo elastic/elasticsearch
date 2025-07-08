@@ -34,3 +34,5 @@ Settings are available for the following modules:
   Configure the backing indices in a time series data stream (TSDS).
 * [Translog](translog.md)
   Control the transaction log and background flush operations.
+
+There are also index settings associated with [text analysis](docs-content://manage-data/data-store/text-analysis.md), which define analyzers, tokenizers, token filters, and character filters.

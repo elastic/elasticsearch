@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -155,7 +154,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotRLike() throws IOException {
+    public static void renderNotRLike() throws Exception {
         renderNegatedOperator(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d, getTestClass());
     }
 }

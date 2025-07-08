@@ -966,7 +966,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         try (var clientReference = blobStore.clientReference()) {
             final var bucket = blobStore.bucket();
             final var request = new ListMultipartUploadsRequest(bucket).withPrefix(keyPath).withMaxUploads(maxUploads);
-            request.putCustomQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey());
+            blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, request);
             final var multipartUploadListing = SocketAccess.doPrivileged(() -> clientReference.client().listMultipartUploads(request));
             final var multipartUploads = multipartUploadListing.getMultipartUploads();
             if (multipartUploads.isEmpty()) {
@@ -1006,10 +1006,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             public void onResponse(Void unused) {
                 try (var clientReference = blobStore.clientReference()) {
                     for (final var abortMultipartUploadRequest : abortMultipartUploadRequests) {
-                        abortMultipartUploadRequest.putCustomQueryParameter(
-                            S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                            OperationPurpose.SNAPSHOT_DATA.getKey()
-                        );
+                        blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, abortMultipartUploadRequest);
                         try {
                             SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortMultipartUploadRequest));
                             logger.info(

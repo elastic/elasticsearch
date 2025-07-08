@@ -1246,7 +1246,7 @@ public class IndexNameExpressionResolver {
     /**
      * Identifies if this expression list is *,-* which effectively means a request that requests no indices.
      */
-    static boolean isNoneExpression(String[] expressions) {
+    public static boolean isNoneExpression(String[] expressions) {
         return expressions.length == 2 && "*".equals(expressions[0]) && "-*".equals(expressions[1]);
     }
 

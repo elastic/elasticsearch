@@ -6,7 +6,8 @@ strip_version() {
 }
 
 fetch_build() {
-  curl -sS https://artifacts-$1.elastic.co/$2/latest/$3.json \
+  >&2 echo "Checking for build id: https://artifacts-$1.elastic.co/$2/latest/$3.json"
+  curl -sSf https://artifacts-$1.elastic.co/$2/latest/$3.json \
     | jq -r '.build_id'
 }
 
@@ -15,7 +16,15 @@ BRANCH="${BRANCH:-$2}"
 ES_VERSION="${ES_VERSION:-$3}"
 WORKFLOW=${WORKFLOW:-$4}
 
-LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $BRANCH)
+if [[ "$WORKFLOW" == "staging" ]]; then
+  LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $ES_VERSION)
+elif [[ "$WORKFLOW" == "snapshot" ]]; then
+  LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $BRANCH)
+else
+  echo "Unknown workflow: $WORKFLOW"
+  exit 1
+fi
+
 LATEST_VERSION=$(strip_version $LATEST_BUILD)
 
 # If the latest artifact version doesn't match what we expect, try the corresponding version branch.
@@ -23,11 +32,6 @@ LATEST_VERSION=$(strip_version $LATEST_BUILD)
 if [ "$LATEST_VERSION" != "$ES_VERSION" ]; then
   echo "Latest build for '$ARTIFACT' is version $LATEST_VERSION but expected version $ES_VERSION." 1>&2
   NEW_BRANCH=$(echo $ES_VERSION | sed -E "s/([0-9]+\.[0-9]+)\.[0-9]/\1/g")
-
-  # Temporary
-  if [[ "$ES_VERSION" == "8.16.0" ]]; then
-    NEW_BRANCH="8.x"
-  fi
 
   echo "Using branch $NEW_BRANCH instead of $BRANCH." 1>&2
   LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $NEW_BRANCH)

@@ -99,11 +99,6 @@ The following parameters are accepted by `text` fields:
 
 ## Synthetic `_source` [text-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 `text` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) if they have a [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-synthetic-source) sub-field that supports synthetic `_source` or if the `text` field sets `store` to `true`. Either way, it may not have [`copy_to`](/reference/elasticsearch/mapping-reference/copy-to.md).
 
 If using a sub-`keyword` field, then the values are sorted in the same way as a `keyword` field’s values are sorted. By default, that means sorted with duplicates removed. So:

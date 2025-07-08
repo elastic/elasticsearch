@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -148,16 +149,28 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         private RankedDocsResults makeResults(List<String> input) {
-            List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
             int totalResults = input.size();
-            float minScore = random.nextFloat(-1f, 1f);
-            float resultDiff = 0.2f;
-            for (int i = 0; i < input.size(); i++) {
-                results.add(
-                    new RankedDocsResults.RankedDoc(totalResults - 1 - i, minScore + resultDiff * (totalResults - i), input.get(i))
-                );
+            try {
+                List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
+                for (int i = 0; i < totalResults; i++) {
+                    results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
+                }
+                return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
+            } catch (NumberFormatException ex) {
+                List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
+                float minScore = random.nextFloat(-1f, 1f);
+                float resultDiff = 0.2f;
+                for (int i = 0; i < input.size(); i++) {
+                    results.add(
+                        new RankedDocsResults.RankedDoc(
+                            totalResults - 1 - i,
+                            minScore + resultDiff * (totalResults - i),
+                            input.get(totalResults - 1 - i)
+                        )
+                    );
+                }
+                return new RankedDocsResults(results);
             }
-            return new RankedDocsResults(results);
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {

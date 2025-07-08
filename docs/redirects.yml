@@ -1,0 +1,3 @@
+redirects:
+# Related to https://github.com/elastic/elasticsearch/pull/130716/
+  'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'

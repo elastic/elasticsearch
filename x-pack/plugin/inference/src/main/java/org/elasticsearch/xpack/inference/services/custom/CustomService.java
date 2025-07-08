@@ -350,6 +350,12 @@ public class CustomService extends SenderService {
         return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
+    @Override
+    public boolean hideFromConfigurationApi() {
+        // The Custom service is very configurable so we're going to hide it from being exposed in the service API.
+        return true;
+    }
+
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();

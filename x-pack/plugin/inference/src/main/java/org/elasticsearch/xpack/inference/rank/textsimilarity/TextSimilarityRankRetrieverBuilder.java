@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -1168,7 +1168,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         ));
 
         // Some retrievers require a SearchExecutionContext at rewrite time to rewrite semantic queries
-        if (retrieverBuilder != null && context.convertToSearchExecutionContext() != null) {
+        if (retrieverBuilder != null) {
             var newRetriever = retrieverBuilder.rewrite(context);
             if (newRetriever != retrieverBuilder) {
                 var rewritten = shallowCopy();

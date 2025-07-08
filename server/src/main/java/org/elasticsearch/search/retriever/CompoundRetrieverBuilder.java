@@ -337,7 +337,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * @param ctx The query rewrite context
      * @return RetrieverBuilder the rewritten retriever
      */
-    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) throws IOException {
         return this;
     }
 

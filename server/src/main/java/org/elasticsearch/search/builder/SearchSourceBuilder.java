@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchService;
@@ -1166,7 +1167,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 highlightBuilder
             )
         ));
-        if (retrieverBuilder != null) {
+
+        // Some retrievers require a SearchExecutionContext at rewrite time to rewrite semantic queries
+        if (retrieverBuilder != null && context.convertToSearchExecutionContext() != null) {
             var newRetriever = retrieverBuilder.rewrite(context);
             if (newRetriever != retrieverBuilder) {
                 var rewritten = shallowCopy();

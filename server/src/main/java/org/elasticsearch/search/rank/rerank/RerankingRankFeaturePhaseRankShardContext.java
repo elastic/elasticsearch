@@ -58,7 +58,9 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                     rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
                 } else {
                     Map<String, HighlightField> highlightFields = hit.getHighlightFields();
-                    if (highlightFields != null && highlightFields.containsKey(field)) {
+                    if (highlightFields != null
+                        && highlightFields.containsKey(field)
+                        && highlightFields.get(field).fragments().length > 0) {
                         List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
                         rankFeatureDocs[i].featureData(snippets);
                     } else if (docField != null) {

@@ -11,7 +11,6 @@ package org.elasticsearch.search.rank.feature;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -61,7 +60,7 @@ public final class RankFeatureShardPhase {
             if (customRankInput instanceof SnippetRankInput snippetRankInput) {
                 try {
                     HighlightBuilder highlightBuilder = new HighlightBuilder();
-                    highlightBuilder.highlightQuery(new MatchQueryBuilder(field, snippetRankInput.inferenceText()));
+                    highlightBuilder.highlightQuery(snippetRankInput.snippets().snippetQueryBuilder());
                     // Stripping pre/post tags as they're not useful for snippet creation
                     highlightBuilder.field(field).preTags("").postTags("");
                     // Return highest scoring fragments

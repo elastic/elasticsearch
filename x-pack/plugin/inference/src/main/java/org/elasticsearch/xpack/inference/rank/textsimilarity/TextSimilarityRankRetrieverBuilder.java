@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -205,6 +207,46 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippets)
         );
         return sourceBuilder;
+    }
+
+    @Override
+    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) throws IOException {
+        if (snippets != null) {
+            QueryBuilder snippetQueryBuilder = snippets.snippetQueryBuilder();
+            if (snippetQueryBuilder == null) {
+                return new TextSimilarityRankRetrieverBuilder(
+                    innerRetrievers,
+                    inferenceId,
+                    inferenceText,
+                    field,
+                    rankWindowSize,
+                    minScore,
+                    failuresAllowed,
+                    retrieverName,
+                    preFilterQueryBuilders,
+                    new RerankSnippetConfig(snippets.numSnippets(), new MatchQueryBuilder(field, inferenceText))
+                );
+            } else {
+                QueryBuilder rewrittenSnippetQueryBuilder = snippetQueryBuilder.rewrite(ctx);
+                if (snippetQueryBuilder == rewrittenSnippetQueryBuilder == false) {
+                    return new TextSimilarityRankRetrieverBuilder(
+                        innerRetrievers,
+                        inferenceId,
+                        inferenceText,
+                        field,
+                        rankWindowSize,
+                        minScore,
+                        failuresAllowed,
+                        retrieverName,
+                        preFilterQueryBuilders,
+                        new RerankSnippetConfig(snippets.numSnippets(), rewrittenSnippetQueryBuilder)
+                    );
+                }
+            }
+        }
+
+        return this;
+
     }
 
     @Override

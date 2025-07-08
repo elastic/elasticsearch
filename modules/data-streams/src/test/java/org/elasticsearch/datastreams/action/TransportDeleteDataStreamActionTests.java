@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -135,8 +136,9 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         );
         final var projectId = project.id();
         final ClusterState cs = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
-        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(createEntry(dataStreamName, "repo1", false))
-            .withAddedEntry(createEntry(dataStreamName2, "repo2", true));
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(
+            createEntry(dataStreamName, projectId, "repo1", false)
+        ).withAddedEntry(createEntry(dataStreamName2, projectId, "repo2", true));
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
@@ -154,9 +156,9 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         );
     }
 
-    private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
+    private SnapshotsInProgress.Entry createEntry(String dataStreamName, ProjectId projectId, String repo, boolean partial) {
         return SnapshotsInProgress.Entry.snapshot(
-            new Snapshot(repo, new SnapshotId("", "")),
+            new Snapshot(projectId, repo, new SnapshotId("", "")),
             false,
             partial,
             SnapshotsInProgress.State.SUCCESS,

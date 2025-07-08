@@ -68,7 +68,8 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(createListener(commitRef.closingBefore(listener)));
+        super(new SubscribableListener<>());
+        addListener(commitRef.closingBefore(listener));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;
@@ -78,12 +79,6 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         this.snapshotStatus = snapshotStatus;
         this.repositoryMetaVersion = repositoryMetaVersion;
         this.snapshotStartTime = snapshotStartTime;
-    }
-
-    private static SubscribableListener<ShardSnapshotResult> createListener(ActionListener<ShardSnapshotResult> listener) {
-        final SubscribableListener<ShardSnapshotResult> objectSubscribableListener = new SubscribableListener<>();
-        objectSubscribableListener.addListener(listener);
-        return objectSubscribableListener;
     }
 
     public Store store() {

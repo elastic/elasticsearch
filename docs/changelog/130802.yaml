@@ -1,6 +1,6 @@
 pr: 130802
 summary: Ignore literal spaces in index patterns
 area: ES|QL
-type: bug
+type: enhancement
 issues:
  - 129768

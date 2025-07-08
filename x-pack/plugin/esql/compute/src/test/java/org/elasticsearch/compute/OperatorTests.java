@@ -304,7 +304,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 );
                 operators.add(
                     new OrdinalsGroupingOperator(
-                        shardIdx -> new KeywordFieldMapper.KeywordFieldType(KEY_NAME).blockLoader(mockBlContext()),
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType(KEY_NAME).blockLoader(null),
                         List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
                         ElementType.BYTES_REF,
                         0,

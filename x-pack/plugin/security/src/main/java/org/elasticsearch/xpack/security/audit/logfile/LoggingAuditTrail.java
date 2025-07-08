@@ -350,7 +350,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
-    boolean includeRequestBody;
+    volatile boolean includeRequestBody;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -1070,6 +1070,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportResponse transportResponse
     ) {
         // not implemented yet
+    }
+
+    public boolean includeRequestBody() {
+        return includeRequestBody;
     }
 
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {

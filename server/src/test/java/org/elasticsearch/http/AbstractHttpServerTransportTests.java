@@ -44,7 +44,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -202,7 +201,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -286,7 +285,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -376,7 +375,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -508,7 +507,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             },
             clusterSettings,
-            Tracer.NOOP
+            TelemetryProvider.NOOP
         ) {
             @Override
             protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -559,7 +558,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -702,7 +701,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -765,7 +764,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -847,7 +846,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -1200,7 +1199,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                Tracer.NOOP
+                TelemetryProvider.NOOP
             );
             bindServer();
         }

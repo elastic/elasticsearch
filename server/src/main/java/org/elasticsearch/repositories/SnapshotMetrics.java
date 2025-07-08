@@ -58,9 +58,13 @@ public record SnapshotMetrics(
         this(
             meterRegistry.registerLongCounter(SNAPSHOTS_STARTED, "snapshots started", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOTS_COMPLETED, "snapshots completed", "unit"),
+            // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
+            // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
             meterRegistry.registerDoubleHistogram(SNAPSHOT_DURATION, "snapshots duration", "s"),
             meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_STARTED, "shard snapshots started", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_COMPLETED, "shard snapshots completed", "unit"),
+            // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
+            // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
             meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s"),
             meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),

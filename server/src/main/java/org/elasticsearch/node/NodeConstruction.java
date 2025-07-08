@@ -1021,7 +1021,7 @@ class NodeConstruction {
             CrossClusterSearchExtension.Default::new
         );
 
-        logger.info("Cross-cluster search force reconnect: [{}]", crossClusterSearchExtension.forceRefreshRemoteConnections().get());
+        logger.info("Cross-cluster example: [{}]", crossClusterSearchExtension.example().getClass());
 
         ActionModule actionModule = new ActionModule(
             settings,
@@ -1213,8 +1213,7 @@ class NodeConstruction {
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
             telemetryProvider.getTracer(),
-            onlinePrewarmingService,
-            crossClusterSearchExtension
+            onlinePrewarmingService
         );
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);

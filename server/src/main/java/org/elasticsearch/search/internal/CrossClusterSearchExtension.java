@@ -9,18 +9,21 @@
 
 package org.elasticsearch.search.internal;
 
-import java.util.function.Supplier;
-
 public interface CrossClusterSearchExtension {
 
-    Supplier<Boolean> forceRefreshRemoteConnections();
+    Example example();
+
+    interface Example {
+
+    }
 
     class Default implements CrossClusterSearchExtension {
         public Default() {}
 
         @Override
-        public Supplier<Boolean> forceRefreshRemoteConnections() {
-            return () -> false;
+        public Example example() {
+            return new Example() {
+            };
         }
     }
 }

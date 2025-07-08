@@ -47,24 +47,28 @@ public class FSSTCompressBenchmark {
         public double compressionRatio;
     }
 
+    private static final int MB_8 = 8 * 1024 * 1024;
+    private byte[] concatenateTo8mb(byte[] contentBytes) {
+        byte[] bytes = new byte[MB_8 + 8];
+        int i = 0;
+        while (i < MB_8) {
+            int remaining = MB_8 - i;
+            int len = Math.min(contentBytes.length, remaining);
+            System.arraycopy(contentBytes, 0, bytes, i, len);
+            i += len;
+        }
+        return bytes;
+    }
+
     @Setup(Level.Trial)
     public void setup() throws IOException {
         String content = Files.readString(Path.of(dataset), StandardCharsets.UTF_8);
-        byte[] bytes = FSST.toBytes(content);
-        byte[] bytes2 = new byte[bytes.length + 8];
-        System.arraycopy(bytes, 0, bytes2, 0, bytes.length);
-        input = bytes2;
-        offsets = new int[] { 0, bytes.length };
 
-        outBuf = new byte[bytes.length];
+        byte[] contentBytes = FSST.toBytes(content);
+        input = concatenateTo8mb(contentBytes);
+        offsets = new int[]{0, MB_8};
+        outBuf = new byte[MB_8];
         outOffsets = new int[2];
-    }
-
-    @Benchmark
-    public void makeSample(Blackhole bh, CompressionMetrics metrics) {
-        List<byte[]> sample = FSST.makeSample(input, offsets);
-        var symbolTable = FSST.SymbolTable.buildSymbolTable(sample);
-        bh.consume(sample);
     }
 
     @Benchmark
@@ -96,19 +100,19 @@ public class FSSTCompressBenchmark {
         metrics.compressionRatio = compressedSize / (double) inputSize;
     }
 
-    @Benchmark
-    public void compressLZ4High(Blackhole bh, CompressionMetrics metrics) throws IOException {
-        int inputSize = offsets[1];
-
-        var dataInput = new ByteBuffersDataInput(List.of(ByteBuffer.wrap(input)));
-        var dataOutput = new ByteArrayDataOutput(outBuf);
-
-        Compressor compressor = CompressionMode.HIGH_COMPRESSION.newCompressor();
-        compressor.compress(dataInput, dataOutput);
-
-        long compressedSize = dataOutput.getPosition();
-        bh.consume(dataOutput);
-
-        metrics.compressionRatio = compressedSize / (double) inputSize;
-    }
+//    @Benchmark
+//    public void compressLZ4High(Blackhole bh, CompressionMetrics metrics) throws IOException {
+//        int inputSize = offsets[1];
+//
+//        var dataInput = new ByteBuffersDataInput(List.of(ByteBuffer.wrap(input)));
+//        var dataOutput = new ByteArrayDataOutput(outBuf);
+//
+//        Compressor compressor = CompressionMode.HIGH_COMPRESSION.newCompressor();
+//        compressor.compress(dataInput, dataOutput);
+//
+//        long compressedSize = dataOutput.getPosition();
+//        bh.consume(dataOutput);
+//
+//        metrics.compressionRatio = compressedSize / (double) inputSize;
+//    }
 }

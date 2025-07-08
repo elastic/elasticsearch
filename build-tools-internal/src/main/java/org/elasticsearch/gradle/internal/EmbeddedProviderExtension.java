@@ -33,6 +33,7 @@ public class EmbeddedProviderExtension {
         this.metaTask = metaTask;
     }
 
+    // here, this creates the provider manifest
     void impl(String implName, Project implProject) {
         String projectName = implProject.getName();
         String capitalName = capitalize(projectName);

@@ -50,6 +50,7 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
             task.getCodeLocations().set(codeLocations);
         });
 
+        // TODO look at this, it copies files to a different place so we can find them later
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
             task.into("META-INF", copy -> copy.from(testBuildInfoTask));
         });

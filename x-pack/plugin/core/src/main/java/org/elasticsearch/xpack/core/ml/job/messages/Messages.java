@@ -286,6 +286,11 @@ public final class Messages {
     public static final String MODEL_ID_DOES_NOT_MATCH_EXISTING_MODEL_IDS_BUT_MUST_FOR_IN_CLUSTER_SERVICE =
         "Requested model ID [{}] does not have a matching trained model and thus cannot be updated.";
     public static final String INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE = "The inference endpoint [{}] does not exist and cannot be updated";
+    public static final String INFERENCE_REFERENCE_CANNOT_UPDATE_ANOTHER_ENDPOINT =
+        "Cannot update inference [{}] for model deployment [{}] as it was created by another inference endpoint. " +
+            "This model can only be updated using inference endpoint id [{}].";
+    public static final String INFERENCE_CAN_ONLY_UPDATE_MODELS_IT_CREATED =
+        "Cannot update inference [{}] for model deployment [{}]. This model deployment must be updated through the trained models API.";
 
     private Messages() {}
 

@@ -12,7 +12,10 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -32,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -74,8 +78,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         indexRandom(true, indexName, randomIntBetween(100, 300));
 
-        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats(indexName).get();
-        IndexStats indexStats = indicesStats.getIndex(indexName);
+        final IndicesStatsResponse indicesStats = indicesAdmin().prepareStats(indexName).get();
+        final IndexStats indexStats = indicesStats.getIndex(indexName);
         long totalSizeInBytes = 0;
         for (ShardStats shard : indexStats.getShards()) {
             totalSizeInBytes += shard.getStats().getStore().sizeInBytes();
@@ -85,8 +89,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final String repositoryName = randomIdentifier();
 
         // we want to ensure some throttling, but not so much that it makes the test excessively slow.
-        // 3 seemed a reasonable multiple to ensure that.
-        final int shardSizeMultipleToEnsureThrottling = 3;
+        final int shardSizeMultipleToEnsureThrottling = 2;
         createRepository(
             repositoryName,
             "mock",
@@ -216,6 +219,137 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
+    }
+
+    public void testShardsByStateCounts_InitAndQueued() throws Exception {
+        final String indexName = randomIdentifier();
+        final int numShards = randomIntBetween(2, 10);
+        final int numReplicas = randomIntBetween(0, 1);
+        createIndex(indexName, numShards, numReplicas);
+
+        indexRandom(true, indexName, randomIntBetween(100, 300));
+
+        final String repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+        // Block the snapshot to test "snapshot shards in progress"
+        blockAllDataNodes(repositoryName);
+
+        final String snapshotName = randomIdentifier();
+        try {
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+                .setIndices(indexName)
+                .setWaitForCompletion(false)
+                .get();
+
+            waitForBlockOnAnyDataNode(repositoryName);
+
+            // Should be {numShards} in INIT state
+            Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
+            assertThat(shardStates.get(SnapshotsInProgress.ShardState.INIT), equalTo((long) numShards));
+
+            // Queue up another snapshot
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+                .setIndices(indexName)
+                .setWaitForCompletion(false)
+                .get();
+
+            // Should be {numShards} in QUEUED state
+            shardStates = getShardStates();
+            assertThat(shardStates.get(SnapshotsInProgress.ShardState.QUEUED), equalTo((long) numShards));
+        } finally {
+            unblockAllDataNodes(repositoryName);
+        }
+
+        // All statuses should return to zero when the snapshots complete
+        awaitNumberOfSnapshotsInProgress(0);
+        getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+    }
+
+    public void testShardsByStateCounts_PausedForRemoval() throws Exception {
+        final String indexName = randomIdentifier();
+        final int numShards = randomIntBetween(2, 10);
+        final int numReplicas = randomIntBetween(0, 1);
+
+        final String nodeForRemoval = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeForRemoval)
+                .build()
+        );
+        indexRandom(true, indexName, randomIntBetween(1000, 3000));
+
+        final String repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        // block the node to be removed
+        blockNodeOnAnyFiles(repositoryName, nodeForRemoval);
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        try {
+            // Kick off a snapshot
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
+                .setIndices(indexName)
+                .setWaitForCompletion(false)
+                .get();
+
+            // Wait till we're blocked
+            waitForBlock(nodeForRemoval, repositoryName);
+
+            // Put shutdown metadata
+            putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
+        } finally {
+            unblockAllDataNodes(repositoryName);
+        }
+
+        // Wait for snapshot to be paused
+        safeAwait(createSnapshotPausedListener(clusterService, repositoryName, indexName, numShards));
+
+        final Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
+        assertThat(shardStates.get(SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL), equalTo((long) numShards));
+
+        // clear shutdown metadata to allow snapshot to complete
+        clearShutdownMetadata(clusterService);
+
+        // All statuses should return to zero when the snapshots complete
+        awaitNumberOfSnapshotsInProgress(0);
+        getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+    }
+
+    private Map<SnapshotsInProgress.ShardState, Long> getShardStates() {
+        collectMetrics();
+
+        return allTestTelemetryPlugins().map(testTelemetryPlugin -> {
+            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
+                SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS
+            );
+            final Map<SnapshotsInProgress.ShardState, Long> shardStates = new HashMap<>();
+            // last one in wins
+            for (Measurement measurement : longGaugeMeasurement) {
+                shardStates.put(
+                    SnapshotsInProgress.ShardState.valueOf(measurement.attributes().get("state").toString()),
+                    measurement.getLong()
+                );
+            }
+            return shardStates;
+        }).reduce(Map.of(), this::combineCounts);
+    }
+
+    private Map<SnapshotsInProgress.ShardState, Long> combineCounts(
+        Map<SnapshotsInProgress.ShardState, Long> lhs,
+        Map<SnapshotsInProgress.ShardState, Long> rhs
+    ) {
+        final Map<SnapshotsInProgress.ShardState, Long> result = new HashMap<>();
+        Stream.of(lhs, rhs)
+            .forEach(
+                countMap -> countMap.forEach(
+                    (status, count) -> result.compute(status, (state, current) -> current == null ? count : current + count)
+                )
+            );
+        return result;
     }
 
     private static void assertMetricsHaveAttributes(

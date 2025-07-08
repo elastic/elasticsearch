@@ -96,7 +96,6 @@ public class SourceMapField implements Field<Object> {
     }
 
     /**
-     * todo - revisit whether this is how we want to guarantee immutability
      * Get an iterator for the given list that cannot mutate the underlying list. Subclasses can override this method to allow for
      * mutating iterators.
      * @param list the list to get an iterator for

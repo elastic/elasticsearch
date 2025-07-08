@@ -30,7 +30,11 @@ PUT retrievers_example
                }
            },
            "text": {
-               "type": "text"
+               "type": "text",
+               "copy_to": "text_semantic"
+           },
+           "text_semantic": {
+               "type": "semantic_text"
            },
            "year": {
                "type": "integer"
@@ -285,32 +289,32 @@ This returns the following response based on the normalized weighted score for e
             "value": 3,
             "relation": "eq"
         },
-        "max_score": -1,
+        "max_score": 3.5,
         "hits": [
             {
                 "_index": "retrievers_example",
                 "_id": "2",
-                "_score": -1
+                "_score": 3.5
             },
             {
                 "_index": "retrievers_example",
                 "_id": "1",
-                "_score": -2
+                "_score": 2.3
             },
             {
                 "_index": "retrievers_example",
                 "_id": "3",
-                "_score": -3
+                "_score": 0.1
             }
         ]
     }
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-// TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"_score": -1/"_score": $body.hits.hits.0._score/]
-// TESTRESPONSE[s/"_score": -2/"_score": $body.hits.hits.1._score/]
-// TESTRESPONSE[s/"_score": -3/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"max_score": 3.5/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 3.5/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 2.3/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 0.1/"_score": $body.hits.hits.2._score/]
 ==============
 
 By normalizing scores and leveraging `function_score` queries, we can also implement more complex ranking strategies,
@@ -402,38 +406,180 @@ Which would return the following results:
             "value": 4,
             "relation": "eq"
         },
-        "max_score": -1,
+        "max_score": 3.5,
         "hits": [
             {
                 "_index": "retrievers_example",
                 "_id": "3",
-                "_score": -1
+                "_score": 3.5
             },
             {
                 "_index": "retrievers_example",
                 "_id": "2",
-                "_score": -2
+                "_score": 2.0
             },
             {
                 "_index": "retrievers_example",
                 "_id": "4",
-                "_score": -3
+                "_score": 1.1
             },
             {
                 "_index": "retrievers_example",
                 "_id": "1",
-                "_score": -4
+                "_score": 0.1
             }
         ]
     }
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-// TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"_score": -1/"_score": $body.hits.hits.0._score/]
-// TESTRESPONSE[s/"_score": -2/"_score": $body.hits.hits.1._score/]
-// TESTRESPONSE[s/"_score": -3/"_score": $body.hits.hits.2._score/]
-// TESTRESPONSE[s/"_score": -4/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"max_score": 3.5/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 3.5/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 2.0/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 1.1/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.1/"_score": $body.hits.hits.3._score/]
+==============
+
+[discrete]
+[[retrievers-examples-rrf-multi-field-query-format]]
+==== Example: RRF with the multi-field query format
+
+There's an even simpler way to execute a hybrid search though: We can use the <<multi-field-query-format, multi-field query format>>, which allows us to query multiple fields without explicitly specifying inner retrievers.
+One of the major challenges with hybrid search is normalizing the scores across matches on all field types.
+Scores from <<text, `text`>> and <<semantic-text, `semantic_text`>> fields don't always fall in the same range, so we need to normalize the ranks across matches on these fields to generate a result set.
+For example, BM25 scores from `text` fields are unbounded, while vector similarity scores from `text_embedding` models are bounded between [0, 1].
+The multi-field query format <<multi-field-field-grouping, handles this normalization for us automatically>>.
+
+The following example uses the multi-field query format to query every field specified in the `index.query.default_field` index setting, which is set to `*` by default.
+This default value will cause the retriever to query every field that either:
+
+- Supports term queries, such as `keyword` and `text` fields
+- Is a `semantic_text` field
+
+In this example, that would translate to the `text`, `text_semantic`, `year`, `topic`, and `timestamp` fields.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "query": "artificial intelligence"
+        }
+    }
+}
+----
+
+This returns the following response based on the final rrf score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[skip:Requires inference]
+==============
+
+We can also use the `fields` parameter to explicitly specify the fields to query.
+The following example uses the multi-field query format to query the `text` and `text_semantic` fields.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "query": "artificial intelligence",
+            "fields": ["text", "text_semantic"]
+        }
+    }
+}
+----
+
+[NOTE]
+====
+The `fields` parameter also accepts <<multi-field-wildcard-field-patterns, wildcard field patterns>>.
+====
+
+This returns the following response based on the final rrf score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": -4
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[skip:Requires inference]
 ==============
 
 [discrete]

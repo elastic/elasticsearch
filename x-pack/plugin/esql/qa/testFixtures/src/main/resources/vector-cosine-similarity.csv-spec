@@ -15,16 +15,16 @@
  
 // tag::vector-cosine-similarity-result[]
 color:text     | similarity:double
-cyan           | 1.0            
-teal           | 1.0            
-turquoise      | 0.989          
-aqua marine    | 0.965          
-azure          | 0.916          
-lavender       | 0.914          
-honeydew       | 0.912          
-mint cream     | 0.912          
-gainsboro      | 0.908          
-gray           | 0.908     
+cyan           | 1.0
+teal           | 1.0
+turquoise      | 0.9890533685684204
+aqua marine    | 0.964962363243103
+azure          | 0.916246771812439
+lavender       | 0.9136701822280884
+mint cream     | 0.9122757911682129
+honeydew       | 0.9122424125671387
+gainsboro      | 0.9082483053207397
+gray           | 0.9082483053207397  
 // end::vector-cosine-similarity-result[] 
 ;
 

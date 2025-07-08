@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
@@ -210,20 +212,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
 
     // These are lookup indices, we want them on both remotes and locals
-    // TODO: can we somehow find it from the data loader?
-    public static final Set<String> LOOKUP_INDICES = Set.of(
-        "languages_nested_fields",
-        "languages_lookup",
-        "clientips_lookup",
-        "languages_mixed_numerics",
-        "threat_list",
-        "message_types_lookup",
-        "host_inventory",
-        "ownerships",
-        "languages_lookup_non_unique_key",
-        "lookup_sample_data_ts_nanos",
-        "service_owners"
-    );
+    public static final Set<String> LOOKUP_INDICES = CSV_DATASET_MAP.values()
+        .stream()
+        .filter(td -> td.settingFileName().equals("lookup-settings.json"))
+        .map(CsvTestsDataLoader.TestDataset::indexName)
+        .collect(Collectors.toSet());
 
     public static final Set<String> LOOKUP_ENDPOINTS = LOOKUP_INDICES.stream().map(i -> "/" + i + "/_bulk").collect(Collectors.toSet());
 

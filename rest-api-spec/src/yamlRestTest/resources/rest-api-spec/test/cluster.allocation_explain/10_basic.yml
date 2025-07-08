@@ -820,7 +820,6 @@
   - match: { acknowledged: true }
 
   - do:
-      # Numerical values passed here are implicitly supported by RestRequest parsing all parameters as strings
       catch: /index_not_found_exception/
       cluster.allocation_explain:
         index: 0
@@ -912,7 +911,6 @@
   - is_true: rebalance_explanation
 
 ---
-# When a float is passed in the body, a ShardNotFoundException is thrown. This behaviour is corrected when passed via a path parameter
 "cluster shard allocation explanation test with float shard parameter passed in URL":
   - requires:
       test_runner_features: capabilities

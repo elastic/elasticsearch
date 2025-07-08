@@ -934,11 +934,6 @@ public class EsqlCapabilities {
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
 
         /**
-         * Support for RRF command
-         */
-        RRF(Build.current().isSnapshot()),
-
-        /**
          * Lucene query pushdown to StartsWith and EndsWith functions.
          * This capability was created to avoid receiving wrong warnings from old nodes in mixed clusters
          */

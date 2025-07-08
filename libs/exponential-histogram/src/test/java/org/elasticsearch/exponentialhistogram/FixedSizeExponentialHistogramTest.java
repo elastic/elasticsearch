@@ -1,0 +1,71 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.exponentialhistogram;
+
+import org.junit.Test;
+
+import java.util.stream.LongStream;
+
+public class FixedSizeExponentialHistogramTest {
+
+
+    @Test
+    public void testPrintBuckets() {
+        ExponentialHistogram first = FixedSizeExponentialHistogram.createForValues(0.01234, 42, 56789);
+        ExponentialHistogram second = FixedSizeExponentialHistogram.createForValues(38, 50, 250, 257, 10001.1234);
+        FixedSizeExponentialHistogram result = new FixedSizeExponentialHistogram(7);
+        ExponentialHistogramMerger.merge(result, first, second);
+        printMidpoints(result);
+    }
+
+
+    @Test
+    public void testPrintBucketsLinearScale() {
+        FixedSizeExponentialHistogram akkumulator = new FixedSizeExponentialHistogram(1000);
+       // akkumulator.setZeroBucket(new ZeroBucket(100.0, 42));
+
+        for (int i=0; i<2_000; i++) {
+            ExponentialHistogram prev = akkumulator;
+            double[] values = LongStream.range(i * 1000, (i + 1) * 1000).mapToDouble(val -> -val).toArray();
+            akkumulator = new FixedSizeExponentialHistogram(10000);
+            ExponentialHistogram toMerge = FixedSizeExponentialHistogram.createForValues(values);
+            ExponentialHistogramMerger.merge(akkumulator, prev, toMerge);
+        }
+
+        double smallPerc = ExpHistoPercentiles.getPercentile(akkumulator, 0.00001);
+        double highPerc = ExpHistoPercentiles.getPercentile(akkumulator, 0.9999);
+        double median = ExpHistoPercentiles.getPercentile(akkumulator, 0.5);
+
+        printMidpoints(akkumulator);
+    }
+
+    private static void printMidpoints(ExponentialHistogram histo) {
+        StringBuilder sb = new StringBuilder("{ base : ");
+        sb.append(ExponentialHistogramUtils.getLowerBucketBoundary(1, histo.scale())).append(", ");
+        ExponentialHistogram.BucketIterator neg = histo.negativeBuckets();
+        while (neg.hasNext()) {
+            long idx = neg.peekIndex();
+            long count = neg.peekCount();
+            double center = -ExponentialHistogramUtils.getPointOfLeastRelativeError(idx, neg.scale());
+            sb.append(center).append(":").append(count).append(", ");
+            neg.advance();
+        }
+        sb.append("0.0 : ").append(histo.zeroBucket().count());
+        ExponentialHistogram.BucketIterator pos = histo.positiveBuckets();
+        while (pos.hasNext()) {
+            long idx = pos.peekIndex();
+            long count = pos.peekCount();
+            double center = ExponentialHistogramUtils.getPointOfLeastRelativeError(idx, pos.scale());
+            sb.append(", ").append(center).append(":").append(count);
+            pos.advance();
+        }
+        sb.append('}');
+        System.out.println(sb);
+
+    }
+}

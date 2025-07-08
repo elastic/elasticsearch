@@ -15,9 +15,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.ScriptService;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -34,6 +36,8 @@ public final class Pipeline {
     public static final String META_KEY = "_meta";
     public static final String FIELD_ACCESS_PATTERN = "field_access_pattern";
     public static final String DEPRECATED_KEY = "deprecated";
+    public static final String CREATED_DATE_KEY = "created_date";
+    public static final String MODIFIED_DATE_KEY = "modified_date";
 
     private final String id;
     @Nullable
@@ -48,6 +52,10 @@ public final class Pipeline {
     private final IngestPipelineFieldAccessPattern fieldAccessPattern;
     @Nullable
     private final Boolean deprecated;
+    @Nullable
+    private final Long createdDate;
+    @Nullable
+    private final Long modifiedDate;
 
     public Pipeline(
         String id,
@@ -56,7 +64,7 @@ public final class Pipeline {
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor
     ) {
-        this(id, description, version, metadata, compoundProcessor, IngestPipelineFieldAccessPattern.CLASSIC, null);
+        this(id, description, version, metadata, compoundProcessor, IngestPipelineFieldAccessPattern.CLASSIC, null, null, null);
     }
 
     public Pipeline(
@@ -66,9 +74,22 @@ public final class Pipeline {
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor,
         IngestPipelineFieldAccessPattern fieldAccessPattern,
-        @Nullable Boolean deprecated
+        @Nullable Boolean deprecated,
+        @Nullable Long createdDate,
+        @Nullable Long modifiedDate
     ) {
-        this(id, description, version, metadata, compoundProcessor, System::nanoTime, fieldAccessPattern, deprecated);
+        this(
+            id,
+            description,
+            version,
+            metadata,
+            compoundProcessor,
+            System::nanoTime,
+            fieldAccessPattern,
+            deprecated,
+            createdDate,
+            modifiedDate
+        );
     }
 
     // package private for testing
@@ -80,7 +101,9 @@ public final class Pipeline {
         CompoundProcessor compoundProcessor,
         LongSupplier relativeTimeProvider,
         IngestPipelineFieldAccessPattern fieldAccessPattern,
-        @Nullable Boolean deprecated
+        @Nullable Boolean deprecated,
+        @Nullable Long createdDate,
+        @Nullable Long modifiedDate
     ) {
         this.id = id;
         this.description = description;
@@ -91,6 +114,8 @@ public final class Pipeline {
         this.relativeTimeProvider = relativeTimeProvider;
         this.fieldAccessPattern = fieldAccessPattern;
         this.deprecated = deprecated;
+        this.createdDate = createdDate;
+        this.modifiedDate = modifiedDate;
     }
 
     /**
@@ -147,6 +172,8 @@ public final class Pipeline {
             processorFactories,
             projectId
         );
+        String createdDate = ConfigurationUtils.readOptionalStringOrLongProperty(null, null, config, CREATED_DATE_KEY);
+        String modifiedDate = ConfigurationUtils.readOptionalStringOrLongProperty(null, null, config, MODIFIED_DATE_KEY);
         if (config.isEmpty() == false) {
             throw new ElasticsearchParseException(
                 "pipeline ["
@@ -159,7 +186,19 @@ public final class Pipeline {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
-        return new Pipeline(id, description, version, metadata, compoundProcessor, accessPattern, deprecated);
+        Long createdDateMillis = createdDate == null ? null : Instant.parse(createdDate).toEpochMilli();
+        Long modifiedDateMillis = modifiedDate == null ? null : Instant.parse(modifiedDate).toEpochMilli();
+        return new Pipeline(
+            id,
+            description,
+            version,
+            metadata,
+            compoundProcessor,
+            accessPattern,
+            deprecated,
+            createdDateMillis,
+            modifiedDateMillis
+        );
     }
 
     /**
@@ -265,4 +304,31 @@ public final class Pipeline {
     public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
     }
+
+    public OptionalLong getCreatedDate() {
+        return createdDate == null ? OptionalLong.empty() : OptionalLong.of(createdDate);
+    }
+
+    public OptionalLong getModifiedDate() {
+        return modifiedDate == null ? OptionalLong.empty() : OptionalLong.of(modifiedDate);
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("Pipeline{");
+        sb.append("id='").append(id).append('\'');
+        sb.append(", description='").append(description).append('\'');
+        sb.append(", version=").append(version);
+        sb.append(", metadata=").append(metadata);
+        sb.append(", compoundProcessor=").append(compoundProcessor);
+        sb.append(", metrics=").append(metrics);
+        sb.append(", relativeTimeProvider=").append(relativeTimeProvider);
+        sb.append(", fieldAccessPattern=").append(fieldAccessPattern);
+        sb.append(", deprecated=").append(deprecated);
+        sb.append(", createdDate=").append(createdDate);
+        sb.append(", modifiedDate=").append(modifiedDate);
+        sb.append('}');
+        return sb.toString();
+    }
+
 }

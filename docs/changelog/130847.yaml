@@ -1,0 +1,12 @@
+pr: 130847
+summary: "Pipelines: Add `created_date` and `modified_date`"
+area: Ingest Node
+type: enhancement
+issues: [108754]
+highlight:
+  title: "Pipelines: Add `created_date` and `modified_date`"
+  body: |-
+    Pipelines now have extra properties to indicate when they were created, and updated, to improve visibility
+    and debugging.
+    These properties are managed by the system and cannot be updated by the user.
+  notable: true

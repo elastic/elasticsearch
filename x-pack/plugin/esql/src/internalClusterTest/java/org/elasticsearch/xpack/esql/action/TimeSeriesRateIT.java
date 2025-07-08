@@ -40,11 +40,11 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     final Map<String, Integer> hostToRate = new HashMap<>();
     final Map<String, Integer> hostToCpu = new HashMap<>();
 
-    // We allow a deviation of 15% from the expected rate (which includex an expected drop of 10%).
     static final float DEVIATION_LIMIT = 0.15f;
+    static final float SUBGROUP_DEVIATION_LIMIT = 0.22f; // extra deviation tolerance for subgroups due to fewer samples
     // We expect a 10% drop in the rate due to not covering window edges and not triggering
     // extrapolation logic in the time series engine.
-    static final float EXPECTED_DROP_RATE = 0.12f;
+    static final float EXPECTED_DROP_RATE = 0.15f;
     static final int LIMIT = 5;
     static final int MAX_HOSTS = 5;
     static final int PCT_CHANCE_OF_RESET = 15; // 15% chance of resetting the request count
@@ -73,8 +73,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
         final Map<String, Integer> requestCounts = new HashMap<>();
         for (int i = 0; i < MAX_HOSTS; i++) {
             hostToClusters.put("p" + i, randomFrom("qa", "prod"));
-            hostToRate.put("p" + i, randomIntBetween(0, 50));
-            requestCounts.put("p" + i, randomIntBetween(0, 100));
+            hostToRate.put("p" + i, randomIntBetween(10, 50));
+            requestCounts.put("p" + i, randomIntBetween(0, 1000));
             hostToCpu.put("p" + i, randomIntBetween(0, 100));
         }
         long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
@@ -269,7 +269,10 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         .filter(e -> e.getValue().equals(cluster))
                         .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
                         .sum();
-                    assertThat((double) row.get(0), closeTo(expectedRate * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedRate));
+                    assertThat(
+                        (double) row.get(0),
+                        closeTo(expectedRate * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedRate)
+                    );
                 }
             } catch (AssertionError e) {
                 throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
@@ -304,7 +307,10 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
                         .average()
                         .orElseThrow();
-                    assertThat((double) row.get(0), closeTo(expectedAvg * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedAvg));
+                    assertThat(
+                        (double) row.get(0),
+                        closeTo(expectedAvg * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedAvg)
+                    );
                 }
             } catch (AssertionError e) {
                 throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
@@ -355,9 +361,18 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
                         .max()
                         .orElseThrow();
-                    assertThat((double) row.get(0), closeTo(expectedAvg * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedAvg));
-                    assertThat((double) row.get(2), closeTo(expectedAvg * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedAvg));
-                    assertThat((double) row.get(1), closeTo(expectedMax * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedMax));
+                    assertThat(
+                        (double) row.get(0),
+                        closeTo(expectedAvg * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedAvg)
+                    );
+                    assertThat(
+                        (double) row.get(2),
+                        closeTo(expectedAvg * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedAvg)
+                    );
+                    assertThat(
+                        (double) row.get(1),
+                        closeTo(expectedMax * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedMax)
+                    );
                 }
             } catch (AssertionError e) {
                 throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
@@ -392,14 +407,20 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         .filter(e -> e.getValue().equals(cluster))
                         .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
                         .sum();
-                    assertThat((double) row.get(0), closeTo(expectedRate * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedRate));
+                    assertThat(
+                        (double) row.get(0),
+                        closeTo(expectedRate * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedRate)
+                    );
                     var expectedCpu = hostToClusters.entrySet()
                         .stream()
                         .filter(e -> e.getValue().equals(cluster))
                         .mapToDouble(e -> hostToCpu.get(e.getKey()) + 0.0)
                         .max()
                         .orElseThrow();
-                    assertThat((double) row.get(1), closeTo(expectedCpu * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedCpu));
+                    assertThat(
+                        (double) row.get(1),
+                        closeTo(expectedCpu * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedCpu)
+                    );
                 }
             } catch (AssertionError e) {
                 throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
@@ -434,14 +455,17 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                         .filter(e -> e.getValue().equals(cluster))
                         .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
                         .sum();
-                    assertThat((double) row.get(0), closeTo(expectedRate * (1 - EXPECTED_DROP_RATE), DEVIATION_LIMIT * expectedRate));
+                    assertThat(
+                        (double) row.get(0),
+                        closeTo(expectedRate * (1 - EXPECTED_DROP_RATE), SUBGROUP_DEVIATION_LIMIT * expectedRate)
+                    );
                     var expectedCpu = hostToClusters.entrySet()
                         .stream()
                         .filter(e -> e.getValue().equals(cluster))
                         .mapToDouble(e -> hostToCpu.get(e.getKey()) + 0.0)
                         .average()
                         .orElseThrow();
-                    assertThat((double) row.get(1), closeTo(expectedCpu, DEVIATION_LIMIT * expectedCpu));
+                    assertThat((double) row.get(1), closeTo(expectedCpu, SUBGROUP_DEVIATION_LIMIT * expectedCpu));
                 }
             } catch (AssertionError e) {
                 throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);

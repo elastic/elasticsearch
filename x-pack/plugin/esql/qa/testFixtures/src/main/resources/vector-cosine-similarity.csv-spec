@@ -3,14 +3,17 @@
  similarityWithVectorField
  required_capability: cosine_vector_similarity_function
  
+// tag::vector-cosine-similarity[]
  from colors
  | where color != "black" 
- | eval similarity = round(v_cosine(rgb_vector, [0, 255, 255]), 3) 
+ | eval similarity = v_cosine(rgb_vector, [0, 255, 255]) 
  | sort similarity desc, color asc 
+// end::vector-cosine-similarity[]
  | limit 10
  | keep color, similarity
  ;
  
+// tag::vector-cosine-similarity-result[]
 color:text     | similarity:double
 cyan           | 1.0            
 teal           | 1.0            
@@ -22,6 +25,7 @@ honeydew       | 0.912
 mint cream     | 0.912          
 gainsboro      | 0.908          
 gray           | 0.908     
+// end::vector-cosine-similarity-result[] 
 ;
 
  similarityAsPartOfExpression

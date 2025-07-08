@@ -111,7 +111,8 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
         public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
             var result = IgnoredSourceFieldMapper.decodeIfMatch(value, potentialFieldsInIgnoreSource);
             if (result != null) {
-                done = true;
+                // TODO: can't do this in case multiple entries for the same field name. (objects, arrays etc.)
+//                done = true;
                 values.add(result);
             }
         }

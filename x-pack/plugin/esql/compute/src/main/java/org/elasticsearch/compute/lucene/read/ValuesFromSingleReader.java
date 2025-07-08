@@ -65,22 +65,27 @@ class ValuesFromSingleReader extends ValuesReader {
             return;
         }
         int[] forwards = docs.shardSegmentDocMapForwards();
-        loadFromSingleLeaf(target, new BlockLoader.Docs() {
-            @Override
-            public int count() {
-                return docs.getPositionCount();
-            }
+        Block[] unshuffled = new Block[target.length];
+        try {
+            loadFromSingleLeaf(unshuffled, new BlockLoader.Docs() {
+                @Override
+                public int count() {
+                    return docs.getPositionCount();
+                }
 
-            @Override
-            public int get(int i) {
-                return docs.docs().getInt(forwards[i]);
+                @Override
+                public int get(int i) {
+                    return docs.docs().getInt(forwards[i]);
+                }
+            });
+            final int[] backwards = docs.shardSegmentDocMapBackwards();
+            for (int i = 0; i < unshuffled.length; i++) {
+                target[i] = unshuffled[i].filter(backwards);
+                unshuffled[i].close();
+                unshuffled[i] = null;
             }
-        });
-        final int[] backwards = docs.shardSegmentDocMapBackwards();
-        for (int i = 0; i < target.length; i++) {
-            try (Block in = target[i]) {
-                target[i] = in.filter(backwards);
-            }
+        } finally {
+            Releasables.closeExpectNoException(unshuffled);
         }
     }
 

@@ -78,6 +78,6 @@ public record PathLookupImpl(
 
     @Override
     public boolean isPathOnDefaultFilesystem(Path path) {
-        return path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS;
+        return path.getFileSystem().getClass() == DEFAULT_FILESYSTEM_CLASS;
     }
 }

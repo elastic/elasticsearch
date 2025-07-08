@@ -1154,12 +1154,12 @@ required_capability: inlinestats_v8
 FROM hosts METADATA _index
 | EVAL x = ip1
 | INLINESTATS ip1 = COUNT(*) BY host_group, card
-| SORT ip1
+| SORT ip1 DESC, x
 | LIMIT 1
 ;
 
-  description:text |  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long | host_group:text | card:keyword
-alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1         |DB servers       |eth0
+description:text|  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long |  host_group:text | card:keyword
+beta k8s server |beta           |127.0.0.1      |hosts           |127.0.0.2|2         |Kubernetes cluster|eth1
 ;
 
 doubleShadowing

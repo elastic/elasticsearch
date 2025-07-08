@@ -132,18 +132,25 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             int[] quantized = new int[fieldInfo.getVectorDimension()];
             byte[] binary = new byte[BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8];
+            float[] overspillScratch = new float[fieldInfo.getVectorDimension()];
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
                 float[] centroid = centroidSupplier.centroid(c);
                 float[] vector = floatVectorValues.vectorValue(i);
+                boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != -1;
+                // if overspilling, this means we quantize twice, and quantization mutates the in-memory representation of the vector
+                // so, make a copy of the vector to avoid mutating it
+                if (overspill) {
+                    System.arraycopy(vector, 0, overspillScratch, 0, fieldInfo.getVectorDimension());
+                }
+
                 OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(vector, quantized, (byte) 1, centroid);
                 BQVectorUtils.packAsBinary(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
-                boolean overspill = overspillAssignments.length > i && overspillAssignments[i] != -1;
                 if (overspill) {
                     int s = overspillAssignments[i];
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(vector, quantized, (byte) 1, centroidSupplier.centroid(s));
+                    result = quantizer.scalarQuantize(overspillScratch, quantized, (byte) 1, centroidSupplier.centroid(s));
                     BQVectorUtils.packAsBinary(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {

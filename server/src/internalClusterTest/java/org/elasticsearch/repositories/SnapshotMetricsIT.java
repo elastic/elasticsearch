@@ -241,7 +241,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         final String repositoryName = randomIdentifier();
         createRepository(repositoryName, "mock");
-        // Block the snapshot to test "snapshot shards in progress"
+        // Block repo reads so we can queue snapshots
         blockAllDataNodes(repositoryName);
 
         final String snapshotName = randomIdentifier();
@@ -273,6 +273,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // All statuses should return to zero when the snapshots complete
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+
+        // Ensure all common attributes are present
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_GAUGE,
+            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS,
+            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+        );
     }
 
     public void testShardsByStateCounts_PausedForRemoval() throws Exception {
@@ -327,6 +334,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // All statuses should return to zero when the snapshot completes
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+
+        // Ensure all common attributes are present
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_GAUGE,
+            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS,
+            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+        );
     }
 
     public void testShardsByStateCounts_Waiting() throws Exception {
@@ -388,6 +402,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // All statuses should return to zero when the snapshot completes
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+
+        // Ensure all common attributes are present
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_GAUGE,
+            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS,
+            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+        );
     }
 
     private Map<SnapshotsInProgress.ShardState, Long> getShardStates() {

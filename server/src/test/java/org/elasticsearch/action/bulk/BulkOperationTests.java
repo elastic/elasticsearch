@@ -251,7 +251,7 @@ public class BulkOperationTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private StreamsPermissionsUtils streamsPermissionsUtilsMock;
-    // Removed the unused projectResolverMock field.
+    private ProjectResolver projectResolverMock;
     private IndexNameExpressionResolver indexNameExpressionResolverMock;
 
     @Before

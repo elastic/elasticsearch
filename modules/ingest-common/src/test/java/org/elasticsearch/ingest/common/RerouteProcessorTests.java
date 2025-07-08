@@ -45,7 +45,7 @@ public class RerouteProcessorTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).build())
             .build();
         when(clusterServiceMock.state()).thenReturn(clusterState);
-        doNothing().when(streamsPermissionsUtilsMock).throwIfRetrouteToSubstreamNotAllowed(any(), any(), anyString());
+        doNothing().when(streamsPermissionsUtilsMock).throwIfRerouteToSubstreamNotAllowed(any(), any(), anyString());
     }
 
     public void testDefaults() throws Exception {

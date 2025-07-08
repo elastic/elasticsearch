@@ -90,7 +90,7 @@ public final class RerouteProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         if (destination != null) {
             ProjectMetadata projectMetadata = clusterService.state().projectState(projectId).metadata();
-            streamsPermissionsUtils.throwIfRetrouteToSubstreamNotAllowed(projectMetadata, ingestDocument.getIndexHistory(), destination);
+            streamsPermissionsUtils.throwIfRerouteToSubstreamNotAllowed(projectMetadata, ingestDocument.getIndexHistory(), destination);
             ingestDocument.reroute(destination);
             return ingestDocument;
         }

@@ -20,7 +20,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RrfIT extends AbstractEsqlIntegTestCase {
+public class FuseIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class);
@@ -28,18 +28,19 @@ public class RrfIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
         createAndPopulateIndex();
     }
 
-    public void testRrf() {
+    public void testFuseWithRrf() throws Exception {
         var query = """
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
                ( WHERE content:"fox" | SORT _score, _id DESC )
                ( WHERE content:"dog" | SORT _score, _id DESC )
-            | RRF
+            | FUSE
+            | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 4)
             | KEEP id, content, _score, _fork

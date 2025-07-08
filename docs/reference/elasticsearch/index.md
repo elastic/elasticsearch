@@ -1,23 +1,30 @@
 # Elasticsearch
 
-## Search and analyze your data
+{{es}} is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene. It’s optimized for speed and relevance on production-scale workloads. Use Elasticsearch to search, index, store, and analyze data of all shapes and sizes in near real time.
 
--------------------------------
+## Quick Links
+
+- [REST API Reference](./rest-apis/index.md)
+- [API Conventions](./rest-apis/api-conventions.md)
+- [Settings Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html)
+- [Breaking Changes](https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes.html)
+- [Compatibility](./rest-apis/compatibility.md)
+- [Glossary](https://www.elastic.co/guide/en/elasticsearch/reference/current/glossary.html)
+- [Plugin Development](https://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html)
+- [Supported Platforms](https://www.elastic.co/support/matrix#matrix_jvm)
+
+## Search and analyze your data
 
 {{es}} is the search and analytics engine that powers the {{stack}}.
 
-[Get started](https://www.elastic.co/docs/get-started)
-
-[Introduction](https://www.elastic.co/docs/get-started)
-
-[What's new](https://www.elastic.co/docs/release-notes/elasticsearch)
-
-[Release notes](https://www.elastic.co/docs/release-notes/elasticsearch)
+- [Get started](https://www.elastic.co/docs/get-started)
+- [Introduction](https://www.elastic.co/docs/get-started)
+- [What's new](https://www.elastic.co/docs/release-notes/elasticsearch)
+- [Release notes](https://www.elastic.co/docs/release-notes/elasticsearch)
 
 ## Get to know Elasticsearch
 
 _Demos:_ [Hands-on learning for Search](https://www.elastic.co/demo-gallery?solutions=search&features=null&type=hands-on-learning)
-
 _New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/virtual-events/architecting-search-apps-on-google-cloud)
 
 ## Install, manage, and secure

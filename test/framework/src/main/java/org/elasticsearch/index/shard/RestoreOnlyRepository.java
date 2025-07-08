@@ -31,6 +31,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -174,5 +175,10 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     ) {
 
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
     }
 }

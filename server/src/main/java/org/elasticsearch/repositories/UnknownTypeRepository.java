@@ -25,6 +25,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -176,6 +177,11 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
     }
 
     @Override

@@ -86,6 +86,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -617,6 +618,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void awaitIdle() {}
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
 
     private void updateMappings(
         RemoteClusterClient leaderClient,

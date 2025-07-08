@@ -361,9 +361,7 @@ public interface Repository extends LifecycleComponent {
      * @return The current number of shard snapshots in progress metric value, or null if this repository doesn't track that
      */
     @Nullable
-    default LongWithAttributes getShardSnapshotsInProgress() {
-        return null;
-    }
+    LongWithAttributes getShardSnapshotsInProgress();
 
     default RepositoriesStats.SnapshotStats getSnapshotStats() {
         return new RepositoriesStats.SnapshotStats(getRestoreThrottleTimeInNanos(), getSnapshotThrottleTimeInNanos());

@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchService;

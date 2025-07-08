@@ -583,6 +583,77 @@ This returns the following response based on the final rrf score for each result
 ==============
 
 [discrete]
+[[retrievers-examples-linear-multi-field-query-format]]
+==== Example: Linear retriever with the multi-field query format
+
+We can also use the <<multi-field-query-format, multi-field query format>> with the `linear` retriever.
+It works much the same way as <<retrievers-examples-rrf-multi-field-query-format, on the `rrf` retriever>>, with a couple key differences:
+
+- We can use `^` notation to specify a <<multi-field-field-boosting, per-field boost>>
+- We must set the `normalizer` parameter to specify the normalization method used to combine <<multi-field-field-grouping, field group scores>>
+
+The following example uses the `linear` retriever to query the `text`, `text_semantic`, and `topic` fields, with a boost of 2 on the `topic` field:
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "query": "artificial intelligence",
+            "fields": ["text", "text_semantic", "topic^2"],
+            "normalizer": "minmax"
+        }
+    }
+}
+----
+
+This returns the following response based on the normalized score for each result:
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 2.0,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 2.0
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 1.2
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.1
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[skip:Requires inference]
+==============
+
+[discrete]
 [[retrievers-examples-collapsing-retriever-results]]
 ==== Example: Grouping results by year with `collapse`
 

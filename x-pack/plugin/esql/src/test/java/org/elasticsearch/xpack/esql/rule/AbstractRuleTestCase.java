@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.esql.rule;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeTests.Dummy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -29,70 +27,42 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class AbstractRuleTestCase extends ESTestCase {
 
-    // Test node implementation
-    protected static class TestNode extends Node<TestNode> {
-        private final String value;
-        private final List<TestNode> children;
-
+    // Test node implementation extending Dummy to avoid EsqlNodeSubclassTests scanning
+    protected static class TestNode extends Dummy {
         public TestNode(String value) {
-            this(Source.EMPTY, value, Collections.emptyList());
+            this(Source.EMPTY, Collections.emptyList(), value);
         }
 
-        public TestNode(String value, List<TestNode> children) {
-            this(Source.EMPTY, value, children);
+        public TestNode(String value, List<Dummy> children) {
+            this(Source.EMPTY, children, value);
         }
 
-        public TestNode(Source source, String value, List<TestNode> children) {
-            super(source, children);
-            this.value = value;
-            this.children = children;
+        public TestNode(Source source, List<Dummy> children, String value) {
+            super(source, children, value);
         }
 
         public String value() {
-            return value;
-        }
-
-        @Override
-        public TestNode replaceChildren(List<TestNode> newChildren) {
-            return new TestNode(source(), value, newChildren);
+            return thing(); // Delegate to Dummy's thing() method
         }
 
         @Override
         protected NodeInfo<TestNode> info() {
-            return NodeInfo.create(this, TestNode::new, value, children);
+            return NodeInfo.create(this, TestNode::new, children(), value());
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            // Not needed for tests
-        }
-
-        @Override
-        public String getWriteableName() {
-            return "test-node";
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if ((obj instanceof TestNode) == false) return false;
-            TestNode other = (TestNode) obj;
-            return value.equals(other.value) && children.equals(other.children);
-        }
-
-        @Override
-        public int hashCode() {
-            return value.hashCode() * 31 + children.hashCode();
+        public TestNode replaceChildren(List<Dummy> newChildren) {
+            return new TestNode(source(), newChildren, value());
         }
 
         @Override
         public String toString() {
-            return value + (children.isEmpty() ? "" : "(" + children + ")");
+            return value() + (children().isEmpty() ? "" : "(" + children() + ")");
         }
     }
 
     // Test rule implementations
-    protected static class AppendRule extends Rule.Sync<TestNode, TestNode> {
+    protected static class AppendRule extends Rule.Sync<Dummy, Dummy> {
         private final String suffix;
 
         public AppendRule(String suffix) {
@@ -100,8 +70,8 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
 
         @Override
-        public TestNode apply(TestNode node) {
-            return new TestNode(node.value() + suffix, node.children());
+        public Dummy apply(Dummy node) {
+            return new TestNode(((TestNode) node).value() + suffix, node.children());
         }
 
         @Override
@@ -110,7 +80,7 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
     }
 
-    protected static class ConditionalRule extends Rule.Sync<TestNode, TestNode> {
+    protected static class ConditionalRule extends Rule.Sync<Dummy, Dummy> {
         private final String trigger;
         private final String replacement;
 
@@ -120,8 +90,8 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
 
         @Override
-        public TestNode apply(TestNode node) {
-            if (node.value().equals(trigger)) {
+        public Dummy apply(Dummy node) {
+            if (((TestNode) node).value().equals(trigger)) {
                 return new TestNode(replacement, node.children());
             }
             return node; // No change if condition not met
@@ -133,7 +103,7 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
     }
 
-    protected static class CountingAsyncRule extends Rule.Async<TestNode, TestNode> {
+    protected static class CountingAsyncRule extends Rule.Async<Dummy, Dummy> {
         private final AtomicInteger callCount = new AtomicInteger(0);
         private final String suffix;
 
@@ -142,10 +112,14 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
 
         @Override
-        public void apply(TestNode node, ActionListener<TestNode> listener) {
+        public void apply(Dummy node, ActionListener<Dummy> listener) {
             callCount.incrementAndGet();
-            // Simulate async processing
-            listener.onResponse(new TestNode(node.value() + suffix, node.children()));
+            // Only apply to "test" nodes to prevent infinite loops
+            if (((TestNode) node).value().equals("test")) {
+                listener.onResponse(new TestNode(((TestNode) node).value() + suffix, node.children()));
+            } else {
+                listener.onResponse(node);
+            }
         }
 
         @Override
@@ -158,7 +132,7 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
     }
 
-    protected static class FailingRule extends Rule.Async<TestNode, TestNode> {
+    protected static class FailingRule extends Rule.Async<Dummy, Dummy> {
         private final String errorMessage;
 
         public FailingRule(String errorMessage) {
@@ -166,7 +140,7 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
 
         @Override
-        public void apply(TestNode node, ActionListener<TestNode> listener) {
+        public void apply(Dummy node, ActionListener<Dummy> listener) {
             listener.onFailure(new RuntimeException(errorMessage));
         }
 
@@ -176,12 +150,12 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
     }
 
-    protected static class TestParameterizedRule extends ParameterizedRule.Sync<TestNode, TestNode, String> {
+    protected static class TestParameterizedRule extends ParameterizedRule.Sync<Dummy, Dummy, String> {
         @Override
-        public TestNode apply(TestNode node, String param) {
+        public Dummy apply(Dummy node, String param) {
             // Only apply to specific values to prevent infinite loops
-            if (node.value().equals("test")) {
-                return new TestNode(node.value() + "_" + param, node.children());
+            if (((TestNode) node).value().equals("test")) {
+                return new TestNode(((TestNode) node).value() + "_" + param, node.children());
             }
             return node;
         }
@@ -192,12 +166,12 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
     }
 
-    protected static class TestContextParameterizedRule extends ParameterizedRule.Sync<TestNode, TestNode, TestContext> {
+    protected static class TestContextParameterizedRule extends ParameterizedRule.Sync<Dummy, Dummy, TestContext> {
         @Override
-        public TestNode apply(TestNode node, TestContext context) {
+        public Dummy apply(Dummy node, TestContext context) {
             // Only apply to specific values to prevent infinite loops
-            if (node.value().equals("middle")) {
-                return new TestNode(context.prefix + node.value() + context.suffix, node.children());
+            if (((TestNode) node).value().equals("middle")) {
+                return new TestNode(context.prefix + ((TestNode) node).value() + context.suffix, node.children());
             }
             return node;
         }
@@ -208,7 +182,7 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
     }
 
-    protected static class ConditionalParameterizedRule extends ParameterizedRule.Sync<TestNode, TestNode, String> {
+    protected static class ConditionalParameterizedRule extends ParameterizedRule.Sync<Dummy, Dummy, String> {
         private final String trigger;
 
         public ConditionalParameterizedRule(String trigger) {
@@ -216,9 +190,9 @@ public abstract class AbstractRuleTestCase extends ESTestCase {
         }
 
         @Override
-        public TestNode apply(TestNode node, String param) {
-            if (node.value().equals(trigger)) {
-                return new TestNode(node.value() + "_" + param, node.children());
+        public Dummy apply(Dummy node, String param) {
+            if (((TestNode) node).value().equals(trigger)) {
+                return new TestNode(((TestNode) node).value() + "_" + param, node.children());
             }
             return node;
         }

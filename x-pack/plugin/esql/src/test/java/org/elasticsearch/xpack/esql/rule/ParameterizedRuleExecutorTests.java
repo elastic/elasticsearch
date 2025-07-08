@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.rule;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.esql.core.tree.NodeTests.Dummy;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,98 +18,114 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
-    // Test ParameterizedRuleExecutor implementation
-    static class TestParameterizedRuleExecutor extends ParameterizedRuleExecutor<TestNode, String> {
-        public List<RuleExecutor.Batch<TestNode>> batches = new ArrayList<>();
+    // Test parameterized executor implementation
+    protected static class TestParameterizedRuleExecutor extends ParameterizedRuleExecutor<Dummy, String> {
+        public List<RuleExecutor.Batch<Dummy>> batches = new ArrayList<>();
 
-        TestParameterizedRuleExecutor(String context) {
+        public TestParameterizedRuleExecutor(String context) {
             super(context);
         }
 
         @Override
-        public List<RuleExecutor.Batch<TestNode>> batches() {
+        protected Iterable<RuleExecutor.Batch<Dummy>> batches() {
             return batches;
         }
     }
 
-    static class TestContextParameterizedRuleExecutor extends ParameterizedRuleExecutor<TestNode, TestContext> {
-        public List<RuleExecutor.Batch<TestNode>> batches = new ArrayList<>();
+    protected static class TestContextParameterizedRuleExecutor extends ParameterizedRuleExecutor<Dummy, TestContext> {
+        public List<RuleExecutor.Batch<Dummy>> batches = new ArrayList<>();
 
-        TestContextParameterizedRuleExecutor(TestContext context) {
+        public TestContextParameterizedRuleExecutor(TestContext context) {
             super(context);
         }
 
         @Override
-        public List<RuleExecutor.Batch<TestNode>> batches() {
+        protected Iterable<RuleExecutor.Batch<Dummy>> batches() {
             return batches;
         }
     }
 
     public void testBasicParameterizedRuleExecution() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("param_value");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
         TestParameterizedRule rule = new TestParameterizedRule();
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("ParamBatch", rule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("ParamBatch", rule);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("test_param_value", result.get().after().value());
+        assertEquals("test_param_value", ((TestNode) result.get().after()).value());
     }
 
     public void testParameterizedRuleWithComplexContext() {
         TestContext context = new TestContext("start_", "_end");
         TestContextParameterizedRuleExecutor executor = new TestContextParameterizedRuleExecutor(context);
-        TestNode input = new TestNode("middle");
+        Dummy input = new TestNode("middle");
 
         TestContextParameterizedRule rule = new TestContextParameterizedRule();
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("ContextBatch", rule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("ContextBatch", rule);
         executor.batches.add(batch);
 
         AsyncResult<TestContextParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("start_middle_end", result.get().after().value());
+        assertEquals("start_middle_end", ((TestNode) result.get().after()).value());
     }
 
     public void testMultipleParameterizedRulesInBatch() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("X");
-        TestNode input = new TestNode("test");  // Use "test" as trigger for TestParameterizedRule
+        Dummy input = new TestNode("test");  // Use "test" as trigger for TestParameterizedRule
 
         ConditionalParameterizedRule rule1 = new ConditionalParameterizedRule("test");
         ConditionalParameterizedRule rule2 = new ConditionalParameterizedRule("test_X");
 
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("MultiBatch", rule1, rule2);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("MultiBatch", rule1, rule2);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("test_X_X", result.get().after().value());
+        assertEquals("test_X_X", ((TestNode) result.get().after()).value());
 
-        // Check transformations
+        // Check transformations - the batch runs twice:
+        // 1st iteration: rule1 applies (test -> test_X), then rule2 applies (test_X -> test_X_X) 
+        // 2nd iteration: no rules apply (no changes), so execution stops
         var transformations = result.get().transformations();
         assertThat(transformations.keySet().size(), equalTo(1));
         var batchTransformations = transformations.values().iterator().next();
-        assertThat(batchTransformations.size(), equalTo(2));
+        
+        // We should have 4 transformations total: 2 from first iteration, 2 from second (no-change)
+        assertThat(batchTransformations.size(), equalTo(4));
+        
+        // First iteration transformations
         assertEquals("ConditionalParameterized_test", batchTransformations.get(0).name());
-        assertEquals("ConditionalParameterized_test_X", batchTransformations.get(1).name());
+        assertTrue("First rule should have changed", batchTransformations.get(0).hasChanged());
+        assertEquals("ConditionalParameterized_test_X", batchTransformations.get(1).name());  
+        assertTrue("Second rule should have changed", batchTransformations.get(1).hasChanged());
+        
+        // Second iteration transformations (no changes)
+        assertEquals("ConditionalParameterized_test", batchTransformations.get(2).name());
+        assertFalse("First rule should not change in second iteration", batchTransformations.get(2).hasChanged());
+        assertEquals("ConditionalParameterized_test_X", batchTransformations.get(3).name());
+        assertFalse("Second rule should not change in second iteration", batchTransformations.get(3).hasChanged());
     }
 
     public void testMixedRulesInParameterizedExecutor() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("param");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
         // Mix parameterized and non-parameterized rules
         ConditionalRule nonParamRule = new ConditionalRule("test", "test_suffix");
-        TestParameterizedRule paramRule = new TestParameterizedRule();
+        
+        // Use ConditionalParameterizedRule that triggers on the result of the first rule
+        ConditionalParameterizedRule paramRule = new ConditionalParameterizedRule("test_suffix");
 
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("MixedBatch", nonParamRule, paramRule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("MixedBatch", nonParamRule, paramRule);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
@@ -116,17 +133,17 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
         result.assertSuccess();
         // Should apply non-parameterized rule first, then parameterized rule
-        assertEquals("test_suffix_param", result.get().after().value());
+        assertEquals("test_suffix_param", ((TestNode) result.get().after()).value());
     }
 
     public void testParameterizedRuleFailure() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("error_param");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
         // Create a failing parameterized rule
-        ParameterizedRule<TestNode, TestNode, String> failingRule = new ParameterizedRule.Async<TestNode, TestNode, String>() {
+        ParameterizedRule<Dummy, Dummy, String> failingRule = new ParameterizedRule.Async<Dummy, Dummy, String>() {
             @Override
-            public void apply(TestNode node, String param, ActionListener<TestNode> listener) {
+            public void apply(Dummy node, String param, ActionListener<Dummy> listener) {
                 listener.onFailure(new RuntimeException("Parameterized rule failed with: " + param));
             }
 
@@ -136,7 +153,7 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
             }
         };
 
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("FailingBatch", failingRule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("FailingBatch", failingRule);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
@@ -147,15 +164,19 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
     public void testParameterizedRuleExecutionOrder() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("ORDER");
-        TestNode input = new TestNode("");
+        Dummy input = new TestNode("start");
 
         List<String> executionOrder = new ArrayList<>();
 
-        ParameterizedRule<TestNode, TestNode, String> rule1 = new ParameterizedRule.Sync<TestNode, TestNode, String>() {
+        ParameterizedRule<Dummy, Dummy, String> rule1 = new ParameterizedRule.Sync<Dummy, Dummy, String>() {
             @Override
-            public TestNode apply(TestNode node, String param) {
+            public Dummy apply(Dummy node, String param) {
                 executionOrder.add("rule1_" + param);
-                return new TestNode(node.value() + "1", node.children());
+                // Only apply to "start" to prevent infinite loops
+                if (((TestNode) node).value().equals("start")) {
+                    return new TestNode("1", ((TestNode) node).children());
+                }
+                return node;
             }
 
             @Override
@@ -164,11 +185,15 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
             }
         };
 
-        ParameterizedRule<TestNode, TestNode, String> rule2 = new ParameterizedRule.Sync<TestNode, TestNode, String>() {
+        ParameterizedRule<Dummy, Dummy, String> rule2 = new ParameterizedRule.Sync<Dummy, Dummy, String>() {
             @Override
-            public TestNode apply(TestNode node, String param) {
+            public Dummy apply(Dummy node, String param) {
                 executionOrder.add("rule2_" + param);
-                return new TestNode(node.value() + "2", node.children());
+                // Only apply to "1" to prevent infinite loops
+                if (((TestNode) node).value().equals("1")) {
+                    return new TestNode("12", ((TestNode) node).children());
+                }
+                return node;
             }
 
             @Override
@@ -177,24 +202,25 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
             }
         };
 
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("OrderBatch", rule1, rule2);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("OrderBatch", rule1, rule2);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("12", result.get().after().value());
-        assertEquals(Arrays.asList("rule1_ORDER", "rule2_ORDER"), executionOrder);
+        assertEquals("12", ((TestNode) result.get().after()).value());
+        // Execution order: rule1, rule2 (first iteration), rule1, rule2 (second iteration - no changes)
+        assertEquals(Arrays.asList("rule1_ORDER", "rule2_ORDER", "rule1_ORDER", "rule2_ORDER"), executionOrder);
     }
 
     public void testParameterizedRuleNoChange() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("ignored");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
-        ParameterizedRule<TestNode, TestNode, String> noChangeRule = new ParameterizedRule.Sync<TestNode, TestNode, String>() {
+        ParameterizedRule<Dummy, Dummy, String> noChangeRule = new ParameterizedRule.Sync<Dummy, Dummy, String>() {
             @Override
-            public TestNode apply(TestNode node, String param) {
+            public Dummy apply(Dummy node, String param) {
                 return node; // No change regardless of parameter
             }
 
@@ -204,14 +230,14 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
             }
         };
 
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("NoChangeBatch", noChangeRule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("NoChangeBatch", noChangeRule);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("test", result.get().after().value());
+        assertEquals("test", ((TestNode) result.get().after()).value());
         assertEquals(input, result.get().after()); // Same instance since no change
 
         // Check that transformation was recorded but marked as no change
@@ -224,15 +250,15 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
     public void testParameterizedRuleWithMultipleBatches() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("middle");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
         // First batch with parameterized rule
         TestParameterizedRule paramRule = new TestParameterizedRule();
-        RuleExecutor.Batch<TestNode> batch1 = new RuleExecutor.Batch<>("PrependBatch", paramRule);
+        RuleExecutor.Batch<Dummy> batch1 = new RuleExecutor.Batch<>("PrependBatch", paramRule);
 
         // Second batch with non-parameterized rule that triggers on the result of first batch
         ConditionalRule appendRule = new ConditionalRule("test_middle", "test_middle_final");
-        RuleExecutor.Batch<TestNode> batch2 = new RuleExecutor.Batch<>("AppendBatch", appendRule);
+        RuleExecutor.Batch<Dummy> batch2 = new RuleExecutor.Batch<>("AppendBatch", appendRule);
 
         executor.batches.add(batch1);
         executor.batches.add(batch2);
@@ -241,7 +267,7 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("test_middle_final", result.get().after().value());
+        assertEquals("test_middle_final", ((TestNode) result.get().after()).value());
 
         // Should have transformations from both batches
         var transformations = result.get().transformations();
@@ -250,29 +276,29 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
 
     public void testParameterizedExecuteShortcut() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("shortcut");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
         TestParameterizedRule rule = new TestParameterizedRule();
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("TestBatch", rule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("TestBatch", rule);
         executor.batches.add(batch);
 
-        AsyncResult<TestNode> result = new AsyncResult<>();
+        AsyncResult<Dummy> result = new AsyncResult<>();
         executor.execute(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("test_shortcut", result.get().value());
+        assertEquals("test_shortcut", ((TestNode) result.get()).value());
     }
 
     public void testParameterizedAsyncRule() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("async_param");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
-        ParameterizedRule<TestNode, TestNode, String> asyncRule = new ParameterizedRule.Async<TestNode, TestNode, String>() {
+        ParameterizedRule<Dummy, Dummy, String> asyncRule = new ParameterizedRule.Async<Dummy, Dummy, String>() {
             @Override
-            public void apply(TestNode node, String param, ActionListener<TestNode> listener) {
+            public void apply(Dummy node, String param, ActionListener<Dummy> listener) {
                 // Only apply to "test" nodes to prevent infinite loops
-                if (node.value().equals("test")) {
-                    listener.onResponse(new TestNode("async_" + node.value() + "_" + param, node.children()));
+                if (((TestNode) node).value().equals("test")) {
+                    listener.onResponse(new TestNode("async_" + ((TestNode) node).value() + "_" + param, ((TestNode) node).children()));
                 } else {
                     listener.onResponse(node);
                 }
@@ -284,31 +310,31 @@ public class ParameterizedRuleExecutorTests extends AbstractRuleTestCase {
             }
         };
 
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("AsyncBatch", asyncRule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("AsyncBatch", asyncRule);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("async_test_async_param", result.get().after().value());
+        assertEquals("async_test_async_param", ((TestNode) result.get().after()).value());
     }
 
     public void testParameterizedRuleContextAccess() {
         TestParameterizedRuleExecutor executor = new TestParameterizedRuleExecutor("context_value");
-        TestNode input = new TestNode("test");
+        Dummy input = new TestNode("test");
 
         // Verify that the executor's context is correctly passed to rules
         assertEquals("context_value", executor.context());
 
         TestParameterizedRule rule = new TestParameterizedRule();
-        RuleExecutor.Batch<TestNode> batch = new RuleExecutor.Batch<>("ContextBatch", rule);
+        RuleExecutor.Batch<Dummy> batch = new RuleExecutor.Batch<>("ContextBatch", rule);
         executor.batches.add(batch);
 
         AsyncResult<TestParameterizedRuleExecutor.ExecutionInfo> result = new AsyncResult<>();
         executor.executeWithInfo(input, result.listener());
 
         result.assertSuccess();
-        assertEquals("test_context_value", result.get().after().value());
+        assertEquals("test_context_value", ((TestNode) result.get().after()).value());
     }
 }

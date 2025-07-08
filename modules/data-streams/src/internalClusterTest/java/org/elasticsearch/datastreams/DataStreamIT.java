@@ -2530,22 +2530,25 @@ public class DataStreamIT extends ESIntegTestCase {
         Map<String, Object> effectiveMappingMap = XContentHelper.convertToMap(effectiveMappings.uncompressed(), true, XContentType.JSON)
             .v2();
         Map<String, Object> expectedEffectiveMappingMap = Map.of(
-            "dynamic",
-            "strict",
-            "_data_stream_timestamp",
-            Map.of("enabled", true),
-            "properties",
+            "_doc",
             Map.of(
-                "@timestamp",
-                Map.of("type", "date"),
-                "field1",
-                Map.of("type", "keyword"),
-                "field2",
-                Map.of("type", "text"),
-                "field3",
-                Map.of("type", "text"),
-                "field4",
-                Map.of("type", "keyword")
+                "dynamic",
+                "strict",
+                "_data_stream_timestamp",
+                Map.of("enabled", true),
+                "properties",
+                Map.of(
+                    "@timestamp",
+                    Map.of("type", "date"),
+                    "field1",
+                    Map.of("type", "keyword"),
+                    "field2",
+                    Map.of("type", "text"),
+                    "field3",
+                    Map.of("type", "text"),
+                    "field4",
+                    Map.of("type", "keyword")
+                )
             )
         );
         assertThat(effectiveMappingMap, equalTo(expectedEffectiveMappingMap));

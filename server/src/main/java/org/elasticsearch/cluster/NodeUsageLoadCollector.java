@@ -29,5 +29,5 @@ public interface NodeUsageLoadCollector {
      *
      * @param listener The listener to receive the write load results.
      */
-    void collectUsageStats(ActionListener<Map<String, NodeExecutionLoad>> listener);
+    void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
 }

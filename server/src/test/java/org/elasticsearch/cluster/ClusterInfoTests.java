@@ -64,19 +64,19 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return nodeHeapUsage;
     }
 
-    private static Map<String, NodeExecutionLoad> randomNodeWriteLoads() {
+    private static Map<String, NodeUsageStatsForThreadPools> randomNodeWriteLoads() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, NodeExecutionLoad> nodeWriteLoads = new HashMap<>(numEntries);
+        Map<String, NodeUsageStatsForThreadPools> nodeWriteLoads = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String nodeIdKey = randomAlphaOfLength(32);
-            NodeExecutionLoad.ThreadPoolUsageStats writeThreadPoolStats = new NodeExecutionLoad.ThreadPoolUsageStats(
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                 /* totalThreadPoolThreads= */ randomIntBetween(1, 16),
                 /* averageThreadPoolUtilization= */ randomFloat(),
                 /* averageThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
             );
-            Map<String, NodeExecutionLoad.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
+            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
             statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
-            nodeWriteLoads.put(ThreadPool.Names.WRITE, new NodeExecutionLoad(nodeIdKey, statsForThreadPools));
+            nodeWriteLoads.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, statsForThreadPools));
         }
         return nodeWriteLoads;
     }

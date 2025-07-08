@@ -102,7 +102,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile Map<String, ByteSizeValue> maxHeapPerNode;
     private volatile Map<String, Long> estimatedHeapUsagePerNode;
-    private volatile Map<String, NodeExecutionLoad> nodeExecutionLoadPerNode;
+    private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
     private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
@@ -130,7 +130,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.mostAvailableSpaceUsages = Map.of();
         this.maxHeapPerNode = Map.of();
         this.estimatedHeapUsagePerNode = Map.of();
-        this.nodeExecutionLoadPerNode = Map.of();
+        this.nodeThreadPoolUsageStatsPerNode = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -218,7 +218,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 maybeFetchIndicesStats(diskThresholdEnabled);
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
-                maybeFetchNodesWriteLoadStats(writeLoadConstraintEnabled);
+                maybeFetchNodesThreadPoolUsageStats(writeLoadConstraintEnabled);
             }
         }
 
@@ -257,28 +257,28 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void maybeFetchNodesWriteLoadStats(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
+        private void maybeFetchNodesThreadPoolUsageStats(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
             if (writeLoadConstraintEnabled != WriteLoadDeciderStatus.DISABLED) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesWriteLoadStats();
+                    fetchNodesThreadPoolUsageStats();
                 }
             } else {
                 logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
-                nodeExecutionLoadPerNode = Map.of();
+                nodeThreadPoolUsageStatsPerNode = Map.of();
             }
         }
 
-        private void fetchNodesWriteLoadStats() {
+        private void fetchNodesThreadPoolUsageStats() {
             nodeUsageLoadCollector.collectUsageStats(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, NodeExecutionLoad> writeLoads) {
-                    nodeExecutionLoadPerNode = writeLoads;
+                public void onResponse(Map<String, NodeUsageStatsForThreadPools> writeLoads) {
+                    nodeThreadPoolUsageStatsPerNode = writeLoads;
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch write load estimates for nodes", e);
-                    nodeExecutionLoadPerNode = Map.of();
+                    nodeThreadPoolUsageStatsPerNode = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -527,8 +527,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }
         });
-        final Map<String, NodeExecutionLoad> nodeWriteLoads = new HashMap<>();
-        nodeExecutionLoadPerNode.forEach((nodeId, nodeWriteLoad) -> { nodeWriteLoads.put(nodeId, nodeWriteLoad); });
+        final Map<String, NodeUsageStatsForThreadPools> nodeWriteLoads = new HashMap<>();
+        nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeWriteLoad) -> { nodeWriteLoads.put(nodeId, nodeWriteLoad); });
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,

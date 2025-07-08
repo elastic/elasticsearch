@@ -41,6 +41,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, null, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+    public static final FetchSourceContext FETCH_ALL_SOURCE = new FetchSourceContext(true, false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
         false,
         null,
@@ -155,8 +157,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return FetchSourceContext.of(fetchSource == null || fetchSource, sourceIncludes, sourceExcludes);
+        Boolean excludeVectors = request.paramAsBoolean("_source_exclude_vectors", null);
+
+        if (excludeVectors != null || fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
+            return FetchSourceContext.of(fetchSource == null || fetchSource, excludeVectors, sourceIncludes, sourceExcludes);
         }
         return null;
     }

@@ -58,7 +58,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
-    final Map<String, NodeExecutionLoad> nodeExecutionStats;
+    final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -74,7 +74,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @param estimatedHeapUsages estimated heap usage broken down by node
-     * @param nodeExecutionStats estimated node-level execution load broken down by node
+     * @param nodeUsageStatsForThreadPools node-level usage stats (operational load) broken down by node
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -85,7 +85,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
         Map<String, EstimatedHeapUsage> estimatedHeapUsages,
-        Map<String, NodeExecutionLoad> nodeExecutionStats
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -94,7 +94,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
         this.estimatedHeapUsages = Map.copyOf(estimatedHeapUsages);
-        this.nodeExecutionStats = Map.copyOf(nodeExecutionStats);
+        this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -112,9 +112,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             this.estimatedHeapUsages = Map.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_WRITE_LOAD_IN_CLUSTER_INFO)) {
-            this.nodeExecutionStats = in.readImmutableMap(NodeExecutionLoad::new);
+            this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::new);
         } else {
-            this.nodeExecutionStats = Map.of();
+            this.nodeUsageStatsForThreadPools = Map.of();
         }
     }
 
@@ -134,7 +134,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_WRITE_LOAD_IN_CLUSTER_INFO)) {
-            out.writeMap(this.nodeExecutionStats, StreamOutput::writeWriteable);
+            out.writeMap(this.nodeUsageStatsForThreadPools, StreamOutput::writeWriteable);
         }
     }
 
@@ -216,7 +216,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 return builder.endObject(); // NodeAndPath
             }),
             endArray() // end "reserved_sizes"
-            // NOTE: We don't serialize estimatedHeapUsages/nodeExecutionStats at this stage, to avoid
+            // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools at this stage, to avoid
             // committing to API payloads until the features are settled
         );
     }
@@ -233,10 +233,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     }
 
     /**
-     * Returns a map containing the node-level write load estimate for each node by node ID.
+     * Returns a map containing thread pool usage stats for each node, keyed by node ID.
      */
-    public Map<String, NodeExecutionLoad> getNodeExecutionStats() {
-        return nodeExecutionStats;
+    public Map<String, NodeUsageStatsForThreadPools> getNodeUsageStatsForThreadPools() {
+        return nodeUsageStatsForThreadPools;
     }
 
     /**
@@ -331,7 +331,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             && shardDataSetSizes.equals(that.shardDataSetSizes)
             && dataPath.equals(that.dataPath)
             && reservedSpace.equals(that.reservedSpace)
-            && nodeExecutionStats.equals(that.nodeExecutionStats);
+            && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools);
     }
 
     @Override
@@ -343,7 +343,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             shardDataSetSizes,
             dataPath,
             reservedSpace,
-            nodeExecutionStats
+            nodeUsageStatsForThreadPools
         );
     }
 

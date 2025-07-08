@@ -162,11 +162,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     /**
-     * Simple for test {@link NodeUsageLoadCollector} implementation that returns an empty map of nodeId string to {@link NodeExecutionLoad}.
+     * Simple for test {@link NodeUsageLoadCollector} implementation that returns an empty map of nodeId string to {@link NodeUsageStatsForThreadPools}.
      */
     private static class StubNodeUsageLoadCollector implements NodeUsageLoadCollector {
         @Override
-        public void collectUsageStats(ActionListener<Map<String, NodeExecutionLoad>> listener) {
+        public void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
             listener.onResponse(Map.of());
         }
     }

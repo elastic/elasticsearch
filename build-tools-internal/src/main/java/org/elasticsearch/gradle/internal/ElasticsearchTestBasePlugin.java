@@ -260,7 +260,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             FileCollection entitlementBridge = TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) ? entitlementBridge(project) : null;
             if (entitlementBridge != null) {
                 test.getInputs().files(entitlementBridge);
-                test.systemProperty("es.entitlement.enableForTests", "true");
             }
 
             test.getJvmArgumentProviders().add(() -> {

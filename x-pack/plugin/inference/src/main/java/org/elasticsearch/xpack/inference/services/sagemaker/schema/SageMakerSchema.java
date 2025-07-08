@@ -67,7 +67,7 @@ public class SageMakerSchema {
             throw e;
         } catch (Exception e) {
             throw new ElasticsearchStatusException(
-                "Failed to create SageMaker request for [%s]",
+                "Failed to create SageMaker request for [{}]",
                 RestStatus.INTERNAL_SERVER_ERROR,
                 e,
                 model.getInferenceEntityId()
@@ -98,7 +98,7 @@ public class SageMakerSchema {
             throw e;
         } catch (Exception e) {
             throw new ElasticsearchStatusException(
-                "Failed to translate SageMaker response for [%s]",
+                "Failed to translate SageMaker response for [{}]",
                 RestStatus.INTERNAL_SERVER_ERROR,
                 e,
                 model.getInferenceEntityId()

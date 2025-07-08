@@ -114,6 +114,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
@@ -343,6 +344,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestReloadAnalyzersAction;
+import org.elasticsearch.rest.action.admin.indices.RestRemoveIndexBlockAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestResolveClusterAction;
 import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
@@ -453,7 +455,6 @@ public class ActionModule extends AbstractModule {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
-    private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
 
@@ -486,7 +487,6 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
-        this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
@@ -687,6 +687,7 @@ public class ActionModule extends AbstractModule {
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         actions.register(TransportCloseIndexAction.TYPE, TransportCloseIndexAction.class);
         actions.register(TransportAddIndexBlockAction.TYPE, TransportAddIndexBlockAction.class);
+        actions.register(TransportRemoveIndexBlockAction.TYPE, TransportRemoveIndexBlockAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class);
         actions.register(TransportGetFieldMappingsIndexAction.TYPE, TransportGetFieldMappingsIndexAction.class);
@@ -852,7 +853,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDesiredBalanceAction());
         registerHandler.accept(new RestDeleteDesiredBalanceAction());
         registerHandler.accept(new RestClusterStatsAction());
-        registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
+        registerHandler.accept(new RestClusterStateAction(settingsFilter));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
@@ -889,6 +890,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCloseIndexAction());
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
+        registerHandler.accept(new RestRemoveIndexBlockAction());
         registerHandler.accept(new RestGetHealthAction());
         registerHandler.accept(new RestPrevalidateNodeRemovalAction());
 
@@ -1057,7 +1059,6 @@ public class ActionModule extends AbstractModule {
             bind(action.getTransportAction()).asEagerSingleton();
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
         }
-
     }
 
     public ActionFilters getActionFilters() {

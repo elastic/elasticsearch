@@ -52,9 +52,9 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
@@ -681,7 +681,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"VALÜ*\"");
 
         var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     // same plan as in testReplaceUpperStringCasingWithInsensitiveRLike, but with LIKE instead of RLIKE
@@ -720,7 +720,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
 
         var local = as(plan, LocalRelation.class);
-        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     /**
@@ -744,13 +744,43 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("integer_long_field", unionTypeField.fieldName().string());
     }
 
+    /**
+     * \_Aggregate[[first_name{r}#7, $$first_name$temp_name$17{r}#18],[SUM(salary{f}#11,true[BOOLEAN]) AS SUM(salary)#5, first_nam
+     * e{r}#7, first_name{r}#7 AS last_name#10]]
+     *   \_Eval[[null[KEYWORD] AS first_name#7, null[KEYWORD] AS $$first_name$temp_name$17#18]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testGroupingByMissingFields() {
+        var plan = plan("FROM test | STATS SUM(salary) BY first_name, last_name");
+        var testStats = statsForMissingField("first_name", "last_name");
+        var localPlan = localPlan(plan, testStats);
+        Limit limit = as(localPlan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(2));
+        ReferenceAttribute grouping1 = as(aggregate.groupings().get(0), ReferenceAttribute.class);
+        ReferenceAttribute grouping2 = as(aggregate.groupings().get(1), ReferenceAttribute.class);
+        Eval eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        Alias eval1 = eval.fields().get(0);
+        Literal literal1 = as(eval1.child(), Literal.class);
+        assertNull(literal1.value());
+        assertThat(literal1.dataType(), is(DataType.KEYWORD));
+        Alias eval2 = eval.fields().get(1);
+        Literal literal2 = as(eval2.child(), Literal.class);
+        assertNull(literal2.value());
+        assertThat(literal2.dataType(), is(DataType.KEYWORD));
+        assertThat(grouping1.id(), equalTo(eval1.id()));
+        assertThat(grouping2.id(), equalTo(eval2.id()));
+        as(eval.child(), EsRelation.class);
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
 
     private LocalRelation asEmptyRelation(Object o) {
         var empty = as(o, LocalRelation.class);
-        assertThat(empty.supplier(), is(LocalSupplier.EMPTY));
+        assertThat(empty.supplier(), is(EmptyLocalSupplier.EMPTY));
         return empty;
     }
 

@@ -24,7 +24,7 @@ import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -190,6 +190,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     private final List<Verifier.ExtraCheckers> extraCheckers = new ArrayList<>();
+    private final Settings settings;
+
+    public EsqlPlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -209,7 +214,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
-                extraCheckers
+                extraCheckers,
+                settings
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -314,7 +320,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(TimeSeriesSourceOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
-        entries.add(ValuesSourceReaderOperator.Status.ENTRY);
+        entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);

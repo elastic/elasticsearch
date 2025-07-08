@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -68,7 +69,7 @@ public class RestBulkActionTests extends ESTestCase {
             new RestBulkAction(
                 settings(IndexVersion.current()).build(),
                 ClusterSettings.createBuiltInClusterSettings(),
-                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class))
+                new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
             ).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
@@ -104,7 +105,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class))
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -129,7 +130,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class))
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -153,7 +154,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class))
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -178,7 +179,7 @@ public class RestBulkActionTests extends ESTestCase {
                 new RestBulkAction(
                     settings(IndexVersion.current()).build(),
                     ClusterSettings.createBuiltInClusterSettings(),
-                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class))
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
                 ).handleRequest(
                     new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
                         .withParams(params)
@@ -233,7 +234,14 @@ public class RestBulkActionTests extends ESTestCase {
 
         IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {
-            return new IncrementalBulkService.Handler(null, indexingPressure, null, null, null) {
+            return new IncrementalBulkService.Handler(
+                null,
+                indexingPressure,
+                null,
+                null,
+                null,
+                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME)
+            ) {
 
                 @Override
                 public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {

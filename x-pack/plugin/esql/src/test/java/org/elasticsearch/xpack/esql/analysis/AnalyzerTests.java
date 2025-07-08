@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
-import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -2007,7 +2006,7 @@ public class AnalyzerTests extends ESTestCase {
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
             Found 8 problems
-            line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:12: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
@@ -2029,7 +2028,7 @@ public class AnalyzerTests extends ESTestCase {
             | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
             """, """
             Found 5 problems
-            line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:10: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -2376,7 +2375,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""
-            from test | where knn(vector, [0.342, 0.164, 0.234])
+            from test | where knn(vector, [0.342, 0.164, 0.234], 10)
             """, "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
@@ -3090,27 +3089,27 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Keep keep = as(limit.child(), Keep.class);
-        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        Eval eval = as(keep.child(), Eval.class);
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        Eval eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
         Filter filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
 
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        EsqlProject project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), EsqlProject.class);
         var esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
         filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
@@ -3124,10 +3123,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
@@ -3143,10 +3142,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 4
         limit = as(subPlans.get(3), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
         orderBy = as(eval.child(), OrderBy.class);
         filter = as(orderBy.child(), Filter.class);
@@ -3158,10 +3157,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 5
         limit = as(subPlans.get(4), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
@@ -3193,11 +3192,11 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        Keep keep = as(limit.child(), Keep.class);
-        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
 
-        Eval eval = as(keep.child(), Eval.class);
+        Eval eval = as(project.child(), Eval.class);
         assertEquals(eval.fields().size(), 3);
 
         Set<String> evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
@@ -3215,7 +3214,7 @@ public class AnalyzerTests extends ESTestCase {
         Filter filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
 
-        EsqlProject project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), EsqlProject.class);
         filter = as(project.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         var esRelation = as(filter.child(), EsRelation.class);
@@ -3224,10 +3223,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertEquals(eval.fields().size(), 2);
         evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
         assertThat(evalFieldNames, equalTo(Set.of("x", "y")));
@@ -3254,10 +3253,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertEquals(eval.fields().size(), 2);
         evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
         assertThat(evalFieldNames, equalTo(Set.of("emp_no", "first_name")));
@@ -3383,28 +3382,19 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
     }
 
-    public void testValidRrf() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
              | fork ( where first_name:"foo" )
                     ( where first_name:"bar" )
-             | rrf
+             | fuse
             """);
 
         Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
 
-        assertThat(orderBy.order().size(), equalTo(3));
-        assertThat(orderBy.order().get(0).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        Dedup dedup = as(orderBy.child(), Dedup.class);
+        Dedup dedup = as(limit.child(), Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.aggregates().size(), equalTo(15));
 
@@ -3417,37 +3407,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(rrf.child(), instanceOf(Fork.class));
     }
 
-    public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testFuseError() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | rrf
+            | fuse
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
         assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test metadata _score, _index, _id
-            | eval _fork = 1
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
-             from test metadata _id, _index, _score
-            | fork ( where first_name:"foo" )
-                   ( where first_name:"bar" )
-            | rrf
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
 
@@ -3455,7 +3429,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _id
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_index]"));
 
@@ -3463,7 +3437,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
@@ -4119,6 +4093,21 @@ public class AnalyzerTests extends ESTestCase {
         verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
         EsRelation esRelation = as(eval.child(), EsRelation.class);
         assertEquals("test*", esRelation.indexPattern());
+    }
+
+    public void testGroupingOverridesInStats() {
+        verifyUnsupported("""
+            from test
+            | stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testGroupingOverridesInInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inlinestats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
     }
 
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {

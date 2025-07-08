@@ -9,10 +9,18 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.core.FixForMultiProject;
+
 import java.util.Set;
 
 public class ProjectScopedSettings extends AbstractScopedSettings {
     public ProjectScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Setting.Property.ProjectScope);
+    }
+
+    @FixForMultiProject
+    @Override
+    public <T> T get(Setting<T> setting) {
+        throw new UnsupportedOperationException("Not implemented for project scoped settings");
     }
 }

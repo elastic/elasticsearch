@@ -120,6 +120,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            throw new ParsingException(source(ctx), "EXPLAIN does not support downstream commands");
+        }
+        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            // TODO this one is never reached because the Parser fails to understand multiple round brackets
+            throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
+        }
         var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
             return p;
@@ -651,9 +658,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() < 2) {
-            throw new ParsingException(source(ctx), "Fork requires at least two branches");
+        if (subQueries.size() < Fork.MIN_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork requires at least " + Fork.MIN_BRANCHES + " branches");
         }
+        if (subQueries.size() > Fork.MAX_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork requires less than " + Fork.MAX_BRANCHES + " branches");
+        }
+
         return input -> {
             checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
@@ -707,9 +718,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
+    public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
+        Source source = source(ctx);
         return input -> {
-            Source source = source(ctx);
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
@@ -719,15 +730,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
-
-            List<Order> order = List.of(
-                new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
-                new Order(source, idAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
-                new Order(source, indexAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
-            );
-
-            return new OrderBy(source, dedup, order);
+            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
         };
     }
 

@@ -109,8 +109,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -2547,7 +2547,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertEquals(LocalSupplier.EMPTY, source.supplier());
+        assertEquals(EmptyLocalSupplier.EMPTY, source.supplier());
     }
 
     /**
@@ -2913,7 +2913,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
-        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var planWithInvalidJoinRightSide = plan.transformUp(
             LookupJoinExec.class,

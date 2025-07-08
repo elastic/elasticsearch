@@ -12,7 +12,9 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
@@ -37,6 +39,10 @@ import java.util.zip.GZIPOutputStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
+
+    @FixForMultiProject(description = "Use random project ID after ESIntegTestCase is MP enabled")
+    private final ProjectId projectId = ProjectId.DEFAULT;
+
     /*
      * This test makes sure that if we index an ordinary mmdb file into the .geoip_databases index, it is correctly handled upon retrieval.
      */
@@ -47,7 +53,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
-        assertNull(databaseNodeService.getDatabase(databaseName));
+        assertNull(databaseNodeService.getDatabase(projectId, databaseName));
         int numChunks = indexData(databaseName, mmdbBytes);
         /*
          * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
@@ -55,7 +61,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
          */
         assertBusy(() -> {
             retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);
-            assertNotNull(databaseNodeService.getDatabase(databaseName));
+            assertNotNull(databaseNodeService.getDatabase(projectId, databaseName));
             assertValidDatabase(databaseNodeService, databaseName, databaseType);
         });
     }
@@ -72,7 +78,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         byte[] gzipBytes = gzipFileBytes(databaseName, mmdbBytes);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
-        assertNull(databaseNodeService.getDatabase(databaseName));
+        assertNull(databaseNodeService.getDatabase(projectId, databaseName));
         int numChunks = indexData(databaseName, gzipBytes);
         /*
          * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
@@ -80,7 +86,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
          */
         assertBusy(() -> {
             retrieveDatabase(databaseNodeService, databaseName, gzipBytes, numChunks);
-            assertNotNull(databaseNodeService.getDatabase(databaseName));
+            assertNotNull(databaseNodeService.getDatabase(projectId, databaseName));
             assertValidDatabase(databaseNodeService, databaseName, databaseType);
         });
     }
@@ -90,7 +96,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
      */
     private void assertValidDatabase(DatabaseNodeService databaseNodeService, String databaseFileName, String databaseType)
         throws IOException {
-        IpDatabase database = databaseNodeService.getDatabase(databaseFileName);
+        IpDatabase database = databaseNodeService.getDatabase(projectId, databaseFileName);
         assertNotNull(database);
         assertThat(database.getDatabaseType(), equalTo(databaseType));
         GeoIpTestUtils.SimpleCountry countryResponse = database.getTypedResponse("89.160.20.128", GeoIpTestUtils::getCountry);
@@ -105,7 +111,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
     private void retrieveDatabase(DatabaseNodeService databaseNodeService, String databaseFileName, byte[] expectedBytes, int numChunks)
         throws IOException {
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(1, 0, numChunks - 1, getMd5(expectedBytes), 1);
-        databaseNodeService.retrieveAndUpdateDatabase(databaseFileName, metadata);
+        databaseNodeService.retrieveAndUpdateDatabase(projectId, databaseFileName, metadata);
     }
 
     private String getMd5(byte[] bytes) {

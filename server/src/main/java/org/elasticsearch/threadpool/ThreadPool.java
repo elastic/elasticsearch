@@ -142,6 +142,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
         public static final String SYSTEM_WRITE = "system_write";
+        public static final String SYSTEM_WRITE_COORDINATION = "system_write_coordination";
         public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
         public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
     }
@@ -187,8 +188,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         entry(Names.CLUSTER_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
-        entry(Names.WRITE_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
+        entry(Names.WRITE_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
@@ -204,6 +205,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_WRITE_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED)
     );

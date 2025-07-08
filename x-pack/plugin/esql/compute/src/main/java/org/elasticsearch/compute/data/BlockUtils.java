@@ -213,8 +213,7 @@ public final class BlockUtils {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
-            // Dense_vector blocks may be created from double values when retrieved from literals
-            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((Number) val).floatValue());
+            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((Float) val));
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");

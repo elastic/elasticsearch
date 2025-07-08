@@ -15,17 +15,14 @@ base {
 
 dependencies {
   compileOnly project(":server")
-  testImplementation testArtifact(project(':server'))
-
   compileOnly project(path: xpackModule('core'))
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(path: xpackModule('async'))
+  testImplementation testArtifact(project(':server'))
+  testImplementation testArtifact(project(xpackModule('core')))
+  testImplementation project(xpackModule('async'))
 
   internalClusterTestImplementation project(":modules:reindex")
 
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation project(xpackModule('async-search'))
-  javaRestTestImplementation project(':test:framework')
+  javaRestTestImplementation testArtifact(project(xpackModule('core')))
 
   clusterModules project(":x-pack:test:deprecated-query")
   clusterModules project(':modules:analysis-common')

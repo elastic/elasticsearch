@@ -588,6 +588,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {ints.InCast SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130796
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testFilterAfterEnrich
+  issue: https://github.com/elastic/elasticsearch/issues/130827
 
 # Examples:
 #

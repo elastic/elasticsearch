@@ -16,7 +16,6 @@
 //
 // You can contact the authors via the FSST source repository : https://github.com/cwida/fsst
 
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * This file is a Java port of the original library shown in the license above.
@@ -44,13 +43,10 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Random;
 
-
 public class FSST {
 
-    public static final VarHandle VH_NATIVE_LONG =
-            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
-    public static final VarHandle VH_NATIVE_INT =
-        MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    public static final VarHandle VH_NATIVE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    public static final VarHandle VH_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
     static final int FSST_SAMPLELINE = 512;
     static final int maxStrLength = 8;
     static final int FSST_SAMPLETARGET = 1 << 14;
@@ -68,6 +64,7 @@ public class FSST {
     static final long FSST_ICL_FREE = ((15L << 28) | ((FSST_CODE_MASK) << 16));
     private static final int ESCAPE_BYTE = 255;
     private static final long FSST_HASH_PRIME = 2971215073L;
+
     public static long hash(long w) {
         return (((w) * FSST_HASH_PRIME) ^ (((w) * FSST_HASH_PRIME) >>> FSST_SHIFT));
     }
@@ -157,20 +154,28 @@ public class FSST {
         VH_NATIVE_LONG.set(buf, offset, value);
     }
 
-    @SuppressWarnings({"fallthrough"})
+    @SuppressWarnings({ "fallthrough" })
     public static long readLong(byte[] str, int pos, int len) {
         long res = 0;
 
         len = Math.min(len, 8);
         switch (len) {
-            case 8: res |= (str[pos + 7] & 0xFFL) << 56;
-            case 7: res |= (str[pos + 6] & 0xFFL) << 48;
-            case 6: res |= (str[pos + 5] & 0xFFL) << 40;
-            case 5: res |= (str[pos + 4] & 0xFFL) << 32;
-            case 4: res |= (str[pos + 3] & 0xFFL) << 24;
-            case 3: res |= (str[pos + 2] & 0xFF) << 16;
-            case 2: res |= (str[pos + 1] & 0xFF) << 8;
-            case 1: res |= (str[pos] & 0xFF);
+            case 8:
+                res |= (str[pos + 7] & 0xFFL) << 56;
+            case 7:
+                res |= (str[pos + 6] & 0xFFL) << 48;
+            case 6:
+                res |= (str[pos + 5] & 0xFFL) << 40;
+            case 5:
+                res |= (str[pos + 4] & 0xFFL) << 32;
+            case 4:
+                res |= (str[pos + 3] & 0xFFL) << 24;
+            case 3:
+                res |= (str[pos + 2] & 0xFF) << 16;
+            case 2:
+                res |= (str[pos + 1] & 0xFF) << 8;
+            case 1:
+                res |= (str[pos] & 0xFF);
         }
         return res;
     }
@@ -228,7 +233,6 @@ public class FSST {
             }
         }
 
-
         private SymbolTable() {}
 
         static SymbolTable build() {
@@ -274,7 +278,6 @@ public class FSST {
         char getShortCode(long str) {
             return (char) (shortCodes[first2(str)] & FSST_CODE_MASK);
         }
-
 
         // return index in hash table
         public static int hashStr(long str) {
@@ -539,7 +542,7 @@ public class FSST {
                 // Probably doesn't matter, since this means data is short
                 if (sampleFrac < 128) {
                     // in earlier rounds (sampleFrac < 128) we skip data in the sample (reduces overall work ~2x)
-                    if (random.nextInt(0, 128+1) > sampleFrac) continue;
+                    if (random.nextInt(0, 128 + 1) > sampleFrac) continue;
                 }
                 if (cur < end) {
                     char code2 = 255;
@@ -633,11 +636,17 @@ public class FSST {
 
             @Override
             public String toString() {
-                return "QSymbol{" +
-                        "code=" + getCode(icl) + " (" + (int) getCode(icl) + ")" +
-                        ", len=" + getLen(icl) +
-                        ", str=" + fromBytes(toByteArray(str, getLen(icl))) +
-                        '}';
+                return "QSymbol{"
+                    + "code="
+                    + getCode(icl)
+                    + " ("
+                    + (int) getCode(icl)
+                    + ")"
+                    + ", len="
+                    + getLen(icl)
+                    + ", str="
+                    + fromBytes(toByteArray(str, getLen(icl)))
+                    + '}';
             }
 
             @Override
@@ -654,8 +663,7 @@ public class FSST {
             // only accepts strings which have been truncated to correct length
             assert str == removeIgnored(str, icl);
 
-            if (count < (5 * sampleFrac) / 128)
-                return; // improves both compression speed (less candidates), but also quality!!
+            if (count < (5 * sampleFrac) / 128) return; // improves both compression speed (less candidates), but also quality!!
 
             int gain = count * getLen(icl);
             QSymbol existing = cands.get(str);
@@ -669,11 +677,17 @@ public class FSST {
         record Symbol(long icl, long str) {
             @Override
             public String toString() {
-                return "QSymbol{" +
-                        "code=" + getCode(icl) + " (" + (int) getCode(icl) + ")" +
-                        ", len=" + getLen(icl) +
-                        ", str=" + fromBytes(toByteArray(str, getLen(icl))) +
-                        '}';
+                return "QSymbol{"
+                    + "code="
+                    + getCode(icl)
+                    + " ("
+                    + (int) getCode(icl)
+                    + ")"
+                    + ", len="
+                    + getLen(icl)
+                    + ", str="
+                    + fromBytes(toByteArray(str, getLen(icl)))
+                    + '}';
             }
         }
 
@@ -688,7 +702,6 @@ public class FSST {
             long str = (str2 << (8 * len1)) | str1;
             return new Symbol(icl, str);
         }
-
 
         /**
          * Use existing SymbolTable and counters to create priority queue of candidate symbols.
@@ -714,8 +727,8 @@ public class FSST {
                 addOrInc(sampleFrac, cands, icl, str, ((len == 1) ? 8 : 1) * cnt1);
 
                 if (sampleFrac >= 128 || // last round we do not create new (combined) symbols
-                        len == maxStrLength || // symbol cannot be extended
-                        first1(str) == st.terminator) { // multi-byte symbols cannot contain the terminator byte
+                    len == maxStrLength || // symbol cannot be extended
+                    first1(str) == st.terminator) { // multi-byte symbols cannot contain the terminator byte
                     continue;
                 }
                 for (int pos2 = 0; pos2 < FSST_CODE_BASE + st.nSymbols; pos2++) {
@@ -754,7 +767,7 @@ public class FSST {
 
             Counters bestCounters = new Counters();
             // we do 5 rounds (sampleFrac=8,38,68,98,128)
-            for(sampleFrac=8; true; sampleFrac += 30) {
+            for (sampleFrac = 8; true; sampleFrac += 30) {
                 counters.clear();
                 long gain = compressCount(sampleFrac, lines, st, counters);
                 if (gain >= bestGain) { // a new best solution!
@@ -772,7 +785,7 @@ public class FSST {
 
         public long compressBulk(
             int nlines,
-            byte[] data,  /* input string data */
+            byte[] data, /* input string data */
             int[] offsets, /* string offset, length is nlines+1 */
             byte[] outBuf, // output buffer, multiple lines will be within buffer
             int[] outOffsets // compressed line start offsets within buffer, length known
@@ -780,18 +793,18 @@ public class FSST {
             boolean avoidBranch = false, noSuffixOpt = false;
 
             // if 2-byte symbols account for at least 65% percent of symbols
-            if (100*lenHisto[1] > 65*nSymbols
+            if (100 * lenHisto[1] > 65 * nSymbols
                 // and at least 95% of 2-byte symbols are have no longer symbol with matching prefix
-                && 100*suffixLim > 95*lenHisto[1]) {
+                && 100 * suffixLim > 95 * lenHisto[1]) {
                 // use noSuffixOpt - check shortCodes before checking hash table
                 noSuffixOpt = true;
 
-            // otherwise decide if should use branch to separate between 1 and 2 byte symbols
-            } else if ((lenHisto[0] > 24 && lenHisto[0] < 92) &&
-                (lenHisto[0] < 43 || lenHisto[6] + lenHisto[7] < 29) &&
-                (lenHisto[0] < 72 || lenHisto[2] < 72)) {
-                avoidBranch = true;
-            }
+                // otherwise decide if should use branch to separate between 1 and 2 byte symbols
+            } else if ((lenHisto[0] > 24 && lenHisto[0] < 92)
+                && (lenHisto[0] < 43 || lenHisto[6] + lenHisto[7] < 29)
+                && (lenHisto[0] < 72 || lenHisto[2] < 72)) {
+                    avoidBranch = true;
+                }
 
             if (noSuffixOpt == false && avoidBranch) {
                 return compressBulk(nlines, data, offsets, outBuf, outOffsets, false, true);
@@ -804,13 +817,13 @@ public class FSST {
 
         // optimized adaptive *scalar* compression method
         public long compressBulk(
-                                 int numLines,
-                                 byte[] data,  // input string data
-                                 int[] offsets, // offsets of each string values, length is one more than numLines
-                                 byte[] outBuf, // output buffer, multiple lines will be within buffer
-                                 int[] outOffsets, // compressed line start offsets within buffer, length known
-                                 boolean noSuffixOpt,
-                                 boolean avoidBranch
+            int numLines,
+            byte[] data,  // input string data
+            int[] offsets, // offsets of each string values, length is one more than numLines
+            byte[] outBuf, // output buffer, multiple lines will be within buffer
+            int[] outOffsets, // compressed line start offsets within buffer, length known
+            boolean noSuffixOpt,
+            boolean avoidBranch
         ) {
             int outCur = 0;
             int outLim = outBuf.length;
@@ -903,7 +916,7 @@ public class FSST {
 
             int code = 0;
             // current order of the str lengths in codes
-            for (int len : new int[]{2, 3, 4, 5, 6, 7, 8, 1}) {
+            for (int len : new int[] { 2, 3, 4, 5, 6, 7, 8, 1 }) {
                 char numWithLen = lenHisto[len - 1];
                 for (int i = 0; i < numWithLen; ++i) {
                     long str = getStr(symbols, code);
@@ -926,10 +939,10 @@ public class FSST {
     // return list of indices within input offsets?
     static List<byte[]> makeSample(byte[] data, int[] offsets, int sampleTargetLen, int sampleLineLen) {
         List<byte[]> sample = new ArrayList<>();
-        int totalSize = offsets[offsets.length-1];
+        int totalSize = offsets[offsets.length - 1];
         if (totalSize < sampleTargetLen) {
             for (int i = 0; i < offsets.length - 1; ++i) {
-                sample.add(Arrays.copyOfRange(data, offsets[i], offsets[i+1]));
+                sample.add(Arrays.copyOfRange(data, offsets[i], offsets[i + 1]));
             }
             return sample;
         }
@@ -942,13 +955,13 @@ public class FSST {
 
             // find next non-empty lines, wrapping around if necessary
             int len = offsets[lineIdx + 1] - offsets[lineIdx];
-            while(len == 0) {
+            while (len == 0) {
                 if (++lineIdx == numLines) lineIdx = 0;
                 len = offsets[lineIdx + 1] - offsets[lineIdx];
             }
 
             if (len <= sampleLineLen) {
-                sample.add(Arrays.copyOfRange(data, offsets[lineIdx], offsets[lineIdx+1]));
+                sample.add(Arrays.copyOfRange(data, offsets[lineIdx], offsets[lineIdx + 1]));
                 sampleSize += len;
             } else {
                 int chunks = len / sampleLineLen + (len % sampleLineLen == 0 ? 0 : 1);
@@ -1000,7 +1013,7 @@ public class FSST {
     }
 
     public static class Decoder {
-        final byte[] lens;  /* len[x] is the byte-length of the symbol x (1 < len[x] <= 8). */
+        final byte[] lens; /* len[x] is the byte-length of the symbol x (1 < len[x] <= 8). */
         final long[] symbols; /* symbol[x] contains in LITTLE_ENDIAN the bytesequence that code x represents (0 <= x < 255). */
 
         Decoder(byte[] lens, long[] symbols) {
@@ -1009,7 +1022,7 @@ public class FSST {
         }
 
         public static Decoder readFrom(byte[] exportedSymbolTable) throws IOException {
-            final int[] i = {0};
+            final int[] i = { 0 };
             return readFrom(() -> exportedSymbolTable[i[0]++]);
         }
 
@@ -1024,7 +1037,7 @@ public class FSST {
             byte[] lens = new byte[numSymbols];
             long[] symbols = new long[numSymbols];
             int code = 0;
-            for (int len : new int[]{2, 3, 4, 5, 6, 7, 8, 1}) {
+            for (int len : new int[] { 2, 3, 4, 5, 6, 7, 8, 1 }) {
                 int numWithLen = lenHisto[len - 1];
 
                 for (int i = 0; i < numWithLen; ++i) {
@@ -1068,54 +1081,85 @@ public class FSST {
         return outIdx;
     }
 
-    @SuppressWarnings({"fallthrough", "checkstyle:OneStatementPerLine"})
+    @SuppressWarnings({ "fallthrough", "checkstyle:OneStatementPerLine" })
     public static int decompressUnrolled(byte[] in, int lenToConsume, Decoder decoder, byte[] output) throws IOException {
         int posOut = 0;
         long limit = lenToConsume;
         int code;
         int offset = 0;
-        while (offset+4 <= limit) {
+        while (offset + 4 <= limit) {
             int nextBlock = readInt(in, offset);
-            int escapeMask = (nextBlock&0x80808080)&((((~nextBlock)&0x7F7F7F7F)+0x7F7F7F7F)^0x80808080);
+            int escapeMask = (nextBlock & 0x80808080) & ((((~nextBlock) & 0x7F7F7F7F) + 0x7F7F7F7F) ^ 0x80808080);
             if (escapeMask == 0) {
-                code = nextBlock & 0xFF; nextBlock >>>= 8; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
-                code = nextBlock & 0xFF; nextBlock >>>= 8; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
-                code = nextBlock & 0xFF; nextBlock >>>= 8; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
-                code = nextBlock & 0xFF;                   writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+                code = nextBlock & 0xFF;
+                nextBlock >>>= 8;
+                writeLong(output, posOut, decoder.symbols[code]);
+                posOut += decoder.lens[code];
+                code = nextBlock & 0xFF;
+                nextBlock >>>= 8;
+                writeLong(output, posOut, decoder.symbols[code]);
+                posOut += decoder.lens[code];
+                code = nextBlock & 0xFF;
+                nextBlock >>>= 8;
+                writeLong(output, posOut, decoder.symbols[code]);
+                posOut += decoder.lens[code];
+                code = nextBlock & 0xFF;
+                writeLong(output, posOut, decoder.symbols[code]);
+                posOut += decoder.lens[code];
                 offset += 4;
             } else {
                 int firstEscapePos = Long.numberOfTrailingZeros((long) escapeMask) >> 3;
-                switch(firstEscapePos) { /* Duff's device */
+                switch (firstEscapePos) { /* Duff's device */
                     case 3:
-                        code = nextBlock & 0xFF; nextBlock >>>= 8; offset++; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+                        code = nextBlock & 0xFF;
+                        nextBlock >>>= 8;
+                        offset++;
+                        writeLong(output, posOut, decoder.symbols[code]);
+                        posOut += decoder.lens[code];
                         // fall through
                     case 2:
-                        code = nextBlock & 0xFF; nextBlock >>>= 8; offset++; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+                        code = nextBlock & 0xFF;
+                        nextBlock >>>= 8;
+                        offset++;
+                        writeLong(output, posOut, decoder.symbols[code]);
+                        posOut += decoder.lens[code];
                         // fall through
                     case 1:
-                        code = nextBlock & 0xFF;                   offset++; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+                        code = nextBlock & 0xFF;
+                        offset++;
+                        writeLong(output, posOut, decoder.symbols[code]);
+                        posOut += decoder.lens[code];
                         // fall through
                     case 0: /* decompress an escaped byte */
-                        offset+=2; output[posOut++] = in[offset-1];
+                        offset += 2;
+                        output[posOut++] = in[offset - 1];
                 }
             }
         }
 
-        if (offset+2 <= limit) {
-            output[posOut] = in[offset+1];
+        if (offset + 2 <= limit) {
+            output[posOut] = in[offset + 1];
             if ((in[offset] & 0xFF) != ESCAPE_BYTE) {
-                code = in[offset++] & 0xFF; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+                code = in[offset++] & 0xFF;
+                writeLong(output, posOut, decoder.symbols[code]);
+                posOut += decoder.lens[code];
                 if ((in[offset] & 0xFF) != ESCAPE_BYTE) {
-                    code = in[offset++] & 0xFF; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+                    code = in[offset++] & 0xFF;
+                    writeLong(output, posOut, decoder.symbols[code]);
+                    posOut += decoder.lens[code];
                 } else {
-                    offset+=2; output[posOut++] = in[offset-1];
+                    offset += 2;
+                    output[posOut++] = in[offset - 1];
                 }
             } else {
-                offset += 2; posOut++;
+                offset += 2;
+                posOut++;
             }
         }
         if (offset < limit) { // last code cannot be an escape
-            code = in[offset++] & 0xFF; writeLong(output, posOut, decoder.symbols[code]); posOut += decoder.lens[code];
+            code = in[offset++] & 0xFF;
+            writeLong(output, posOut, decoder.symbols[code]);
+            posOut += decoder.lens[code];
         }
 
         return posOut;
@@ -1145,6 +1189,7 @@ public class FSST {
     static String toString(long[] table, int idx) {
         return toString(getStr(table, idx), getICL(table, idx));
     }
+
     static String printStr(long[] table, int idx) {
         return fromBytes(toByteArray(getStr(table, idx), getLen(getICL(table, idx))));
     }
@@ -1154,6 +1199,7 @@ public class FSST {
             roundTrip(args[0]);
         }
     }
+
     public static void roundTrip(String fileName) throws IOException {
         String content = Files.readString(Path.of(fileName), StandardCharsets.UTF_8);
 
@@ -1167,7 +1213,6 @@ public class FSST {
 
         byte[] outBuf = new byte[bytes.length];
         int[] outOffsets = new int[2];
-
 
         List<byte[]> sample = FSST.makeSample(bytes, offsets);
         var symbolTable = SymbolTable.buildSymbolTable(sample);
@@ -1191,7 +1236,7 @@ public class FSST {
         assert content.equals(uncompressedString);
 
         System.out.println("Comp Duration: " + (endComp - startComp) / 1e6 + "ms");
-        System.out.println("Dec  Duration: " + (endDec - startDec) / 1e6  + "ms");
+        System.out.println("Dec  Duration: " + (endDec - startDec) / 1e6 + "ms");
 
         long compressMs = endComp - startComp;
         float compressMb = (float) bytes.length / (1 << 20);

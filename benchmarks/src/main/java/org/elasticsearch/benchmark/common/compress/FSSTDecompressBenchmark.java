@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class FSSTDecompressBenchmark {
 
-    @Param({"fsst", "lz4_high", "lz4_fast"})
+    @Param({ "fsst", "lz4_high", "lz4_fast" })
     public String compressionType;
 
     @Param("")
@@ -64,7 +64,7 @@ public class FSSTDecompressBenchmark {
         byte[] bytes = FSST.toBytes(content);
         originalSize = bytes.length;
         input = new byte[originalSize + 8];
-        offsets = new int[]{0, bytes.length};
+        offsets = new int[] { 0, bytes.length };
         System.arraycopy(bytes, 0, input, 0, bytes.length);
 
         outBuf = new byte[input.length];
@@ -98,7 +98,7 @@ public class FSSTDecompressBenchmark {
             byte[] symbolTableBytes = symbolTable.exportToBytes();
             FSST.Decoder decoder = FSST.Decoder.readFrom(symbolTableBytes);
             int decompressedLen = FSST.decompress(outBuf, 0, outOffsets[1], decoder, decompressBuf);
-//            assert Arrays.equals(input, 0, originalSize, decompressBuf, 0, originalSize);
+            // assert Arrays.equals(input, 0, originalSize, decompressBuf, 0, originalSize);
             bh.consume(decompressBuf);
             bh.consume(decompressedLen);
         } else if (compressionType.equals("lz4_fast")) {
@@ -106,14 +106,14 @@ public class FSSTDecompressBenchmark {
             var dataInput = new ByteArrayDataInput(outBuf, 0, compressedSize);
             var outBytesRef = new BytesRef(decompressBuf);
             decompressor.decompress(dataInput, originalSize, 0, originalSize, outBytesRef);
-//            assert Arrays.equals(input, 0, originalSize, outBytesRef.bytes, 0, originalSize);
+            // assert Arrays.equals(input, 0, originalSize, outBytesRef.bytes, 0, originalSize);
             bh.consume(outBytesRef);
         } else if (compressionType.equals("lz4_high")) {
             Decompressor decompressor = CompressionMode.HIGH_COMPRESSION.newDecompressor();
             var dataInput = new ByteArrayDataInput(outBuf, 0, compressedSize);
             var outBytesRef = new BytesRef(decompressBuf);
             decompressor.decompress(dataInput, originalSize, 0, originalSize, outBytesRef);
-//            assert Arrays.equals(input, 0, originalSize, outBytesRef.bytes, 0, originalSize);
+            // assert Arrays.equals(input, 0, originalSize, outBytesRef.bytes, 0, originalSize);
             bh.consume(outBytesRef);
         }
     }

@@ -54,7 +54,7 @@ public class FSSTCompressBenchmark {
         byte[] bytes2 = new byte[bytes.length + 8];
         System.arraycopy(bytes, 0, bytes2, 0, bytes.length);
         input = bytes2;
-        offsets = new int[]{0, bytes.length};
+        offsets = new int[] { 0, bytes.length };
 
         outBuf = new byte[bytes.length];
         outOffsets = new int[2];

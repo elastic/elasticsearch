@@ -577,14 +577,8 @@ tests:
   method: testThatRemoteErrorsAreWrapped
   issue: https://github.com/elastic/elasticsearch/issues/130794
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testProfile
-  issue: https://github.com/elastic/elasticsearch/issues/130270
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
   method: testSumDurationByArtist
   issue: https://github.com/elastic/elasticsearch/issues/130788
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testTopN
-  issue: https://github.com/elastic/elasticsearch/issues/130122
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {ints.InCast SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130796

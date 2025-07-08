@@ -5,7 +5,7 @@ mapped_pages:
 
 # Authentication Plugins [authentication]
 
-Authentication plugins extend the functionality provided by the built-in [authentication realms](https://www.elastic.co/docs/deploy-manage/users-roles/cluster-or-deployment-auth/authentication-realms)
+Authentication plugins extend the functionality provided by the built-in [authentication realms](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authentication-realms.md)
 
 ## Core authentication plugins
 

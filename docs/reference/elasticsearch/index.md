@@ -17,9 +17,9 @@
 
 {{es}} is the search and analytics engine that powers the {{stack}}.
 
-- [Get started](https://www.elastic.co/docs/get-started)
-- [Introduction](https://www.elastic.co/docs/get-started)
-- [What's new](https://www.elastic.co/docs/release-notes/elasticsearch)
+- [Get started](docs-content://get-started.md)
+- [Introduction](docs-content://get-started.md)
+- [What's new](elasticsearch://release-notes/elasticsearch)
 - [Release notes](https://www.elastic.co/docs/release-notes/elasticsearch)
 
 ## Get to know Elasticsearch

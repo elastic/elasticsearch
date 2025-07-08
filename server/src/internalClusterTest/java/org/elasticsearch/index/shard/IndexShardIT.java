@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.NodeUsageLoadCollector;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -133,7 +133,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class, BogusNodeUsageLoadCollectorPlugin.class);
+        return pluginList(
+            InternalSettingsPlugin.class,
+            BogusEstimatedHeapUsagePlugin.class,
+            BogusNodeUsageStatsForThreadPoolsCollectorPlugin.class
+        );
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -328,7 +332,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
 
-            /** Verify that each node has a write load reported. The test {@link BogusNodeUsageLoadCollector} generates random load values */
+            /** Verify that each node has a write load reported. The test {@link BogusNodeUsageStatsForThreadPoolsCollector} generates random load values */
             ClusterState state = getInstanceFromNode(ClusterService.class).state();
             assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
             for (DiscoveryNode node : state.nodes()) {
@@ -932,17 +936,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * A simple {@link NodeUsageLoadCollector} implementation that creates and returns random {@link NodeUsageStatsForThreadPools} for each node in the
+     * A simple {@link NodeUsageStatsForThreadPoolsCollector} implementation that creates and returns random {@link NodeUsageStatsForThreadPools} for each node in the
      * cluster.
      * <p>
      * Note: there's an 'org.elasticsearch.cluster.WriteLoadCollector' file that declares this implementation so that the plugin system can
      * pick it up and use it for the test set-up.
      */
-    public static class BogusNodeUsageLoadCollector implements NodeUsageLoadCollector {
+    public static class BogusNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
 
-        private final BogusNodeUsageLoadCollectorPlugin plugin;
+        private final BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin;
 
-        public BogusNodeUsageLoadCollector(BogusNodeUsageLoadCollectorPlugin plugin) {
+        public BogusNodeUsageStatsForThreadPoolsCollector(BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin) {
             this.plugin = plugin;
         }
 
@@ -973,7 +977,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     /**
      * Make a plugin to gain access to the {@link ClusterService} instance.
      */
-    public static class BogusNodeUsageLoadCollectorPlugin extends Plugin implements ClusterPlugin {
+    public static class BogusNodeUsageStatsForThreadPoolsCollectorPlugin extends Plugin implements ClusterPlugin {
 
         private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 

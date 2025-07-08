@@ -14,7 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.NodeUsageLoadCollector;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -80,9 +80,9 @@ class NodeServiceProvider {
             EstimatedHeapUsageCollector.class,
             () -> EstimatedHeapUsageCollector.EMPTY
         );
-        final NodeUsageLoadCollector nodeUsageLoadCollector = pluginsService.loadSingletonServiceProvider(
-            NodeUsageLoadCollector.class,
-            () -> NodeUsageLoadCollector.EMPTY
+        final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = pluginsService.loadSingletonServiceProvider(
+            NodeUsageStatsForThreadPoolsCollector.class,
+            () -> NodeUsageStatsForThreadPoolsCollector.EMPTY
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
@@ -90,7 +90,7 @@ class NodeServiceProvider {
             threadPool,
             client,
             estimatedHeapUsageCollector,
-            nodeUsageLoadCollector
+            nodeUsageStatsForThreadPoolsCollector
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)

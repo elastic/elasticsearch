@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.lucene;
+package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
@@ -45,6 +45,12 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -176,6 +182,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        return sourceOperator(context, pageSize);
+    }
+
+    private SourceOperator sourceOperator(DriverContext context, int pageSize) {
         var luceneFactory = new LuceneSourceOperator.Factory(
             List.of(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
@@ -205,6 +215,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             simpleField(b, "missing_text", "text");
             b.startObject("source_text").field("type", "text").field("store", false).endObject();
             b.startObject("mv_source_text").field("type", "text").field("store", false).endObject();
+            b.startObject("long_source_text").field("type", "text").field("store", false).endObject();
             b.startObject("stored_text").field("type", "text").field("store", true).endObject();
             b.startObject("mv_stored_text").field("type", "text").field("store", true).endObject();
 
@@ -380,6 +391,33 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return DirectoryReader.open(directory);
     }
 
+    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery) throws IOException {
+        try (
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            )
+        ) {
+            for (int d = 0; d < size; d++) {
+                XContentBuilder source = JsonXContent.contentBuilder();
+                source.startObject();
+                source.field("long_source_text", Integer.toString(d).repeat(100 * 1024));
+                source.endObject();
+                ParsedDocument doc = mapperService.documentParser()
+                    .parseDocument(
+                        new SourceToParse("id" + d, BytesReference.bytes(source), XContentType.JSON),
+                        mapperService.mappingLookup()
+                    );
+                writer.addDocuments(doc.docs());
+
+                if (d % commitEvery == commitEvery - 1) {
+                    writer.commit();
+                }
+            }
+        }
+        return DirectoryReader.open(directory);
+    }
+
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo("ValuesSourceReaderOperator[fields = [long]]");
@@ -491,16 +529,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         Page source = CannedSourceOperator.mergePages(
             CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
         );
-        List<Integer> shuffleList = new ArrayList<>();
-        IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
-        Randomness.shuffle(shuffleList);
-        int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
-        Block[] shuffledBlocks = new Block[source.getBlockCount()];
-        for (int b = 0; b < shuffledBlocks.length; b++) {
-            shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
+        loadSimpleAndAssert(driverContext, List.of(shuffle(source)), Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
+    }
+
+    private Page shuffle(Page source) {
+        try {
+            List<Integer> shuffleList = new ArrayList<>();
+            IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
+            Randomness.shuffle(shuffleList);
+            int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
+            Block[] shuffledBlocks = new Block[source.getBlockCount()];
+            for (int b = 0; b < shuffledBlocks.length; b++) {
+                shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
+            }
+            return new Page(shuffledBlocks);
+        } finally {
+            source.releaseBlocks();
         }
-        source = new Page(shuffledBlocks);
-        loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
@@ -612,7 +657,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
         }
         for (Operator op : operators) {
-            assertThat(((ValuesSourceReaderOperator) op).status().pagesProcessed(), equalTo(input.size()));
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
         }
         assertDriverContext(driverContext);
     }
@@ -696,8 +743,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
         drive(operators, input.iterator(), driverContext);
         for (int i = 0; i < cases.size(); i++) {
-            ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) operators.get(i).status();
-            assertThat(status.pagesProcessed(), equalTo(input.size()));
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) operators.get(i).status();
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
             fc.checkReaders.check(fc.info.name(), allInOnePage, input.size(), reader.leaves().size(), status.readersBuilt());
         }
@@ -861,6 +909,73 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         Collections.shuffle(r, random());
         return r;
+    }
+
+    public void testLoadLong() throws IOException {
+        testLoadLong(false, false);
+    }
+
+    public void testLoadLongManySegments() throws IOException {
+        testLoadLong(false, true);
+    }
+
+    public void testLoadLongShuffled() throws IOException {
+        testLoadLong(true, false);
+    }
+
+    public void testLoadLongShuffledManySegments() throws IOException {
+        testLoadLong(true, true);
+    }
+
+    private void testLoadLong(boolean shuffle, boolean manySegments) throws IOException {
+        int numDocs = between(10, 500);
+        initMapping();
+        keyToTags.clear();
+        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs);
+
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));
+        assertThat(reader.leaves(), hasSize(manySegments ? greaterThan(5) : equalTo(1)));
+        assertThat(input, hasSize(reader.leaves().size()));
+        if (manySegments) {
+            input = List.of(CannedSourceOperator.mergePages(input));
+        }
+        if (shuffle) {
+            input = input.stream().map(this::shuffle).toList();
+        }
+
+        Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+
+        List<FieldCase> cases = List.of(
+            new FieldCase(
+                mapperService.fieldType("long_source_text"),
+                ElementType.BYTES_REF,
+                checks::strings,
+                StatusChecks::longTextFromSource
+            )
+        );
+        // Build one operator for each field, so we get a unique map to assert on
+        List<Operator> operators = cases.stream()
+            .map(
+                i -> new ValuesSourceReaderOperator.Factory(
+                    List.of(i.info),
+                    List.of(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            reader,
+                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        )
+                    ),
+                    0
+                ).get(driverContext)
+            )
+            .toList();
+        drive(operators, input.iterator(), driverContext);
+        for (int i = 0; i < cases.size(); i++) {
+            ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) operators.get(i).status();
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
+        }
     }
 
     record Checks(Block.MvOrdering booleanAndNumericalDocValuesMvOrdering, Block.MvOrdering bytesRefDocValuesMvOrdering) {
@@ -1074,6 +1189,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         static void textFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             source("source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void longTextFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("long_source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void textFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -1482,13 +1601,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testSequentialStoredFieldsTooSmall() throws IOException {
-        testSequentialStoredFields(false, between(1, ValuesSourceReaderOperator.SEQUENTIAL_BOUNDARY - 1));
+        testSequentialStoredFields(false, between(1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1));
     }
 
     public void testSequentialStoredFieldsBigEnough() throws IOException {
         testSequentialStoredFields(
             true,
-            between(ValuesSourceReaderOperator.SEQUENTIAL_BOUNDARY, ValuesSourceReaderOperator.SEQUENTIAL_BOUNDARY * 2)
+            between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2)
         );
     }
 
@@ -1519,7 +1638,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             int key = keys.getInt(p);
             checks.strings(results.get(0).getBlock(2), p, key);
         }
-        ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         assertMap(
             status.readersBuilt(),
             matchesMap().entry("key:column_at_a_time:BlockDocValuesReader.SingletonInts", 1)

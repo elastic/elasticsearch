@@ -582,6 +582,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlRemoteErrorWrapIT
   method: testThatRemoteErrorsAreWrapped
   issue: https://github.com/elastic/elasticsearch/issues/130794
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/130270
 
 # Examples:
 #

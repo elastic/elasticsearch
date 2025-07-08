@@ -576,6 +576,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
   method: testManyDocuments
   issue: https://github.com/elastic/elasticsearch/issues/130792
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testListeningRatio
+  issue: https://github.com/elastic/elasticsearch/issues/130793
 
 # Examples:
 #

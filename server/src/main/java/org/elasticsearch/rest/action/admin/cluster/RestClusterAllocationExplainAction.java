@@ -48,7 +48,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     }
 
     /*
-        The Cluster Allocation Explain API supports both path parameters and parameters passed through the request body, but not both.
+        The Cluster Allocation Explain API supports both query parameters and parameters passed through the request body, but not both.
         The API also supports empty requests, which translates to "explain the first unassigned shard you find"
      */
     @Override
@@ -61,7 +61,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
                 ClusterAllocationExplainRequest.parse(clusterAllocationExplainRequest, parser);
             }
         }
-        // There is no request body. Check for optionally supplied path parameters
+        // There is no request body. Check for optionally supplied query parameters
         else {
             clusterAllocationExplainRequest.setIndex(
                 request.param(

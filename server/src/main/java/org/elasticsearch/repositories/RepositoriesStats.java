@@ -75,15 +75,15 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             final long totalWriteThrottledNanos = in.readVLong();
             if (in.getTransportVersion().onOrAfter(TransportVersions.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
                 return new SnapshotStats(
-                    in.readLong(),
-                    in.readLong(),
-                    in.readLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
                     totalReadThrottledNanos,
                     totalWriteThrottledNanos,
-                    in.readLong(),
-                    in.readLong(),
-                    in.readLong(),
-                    in.readLong()
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong()
                 );
             } else {
                 return new SnapshotStats(totalReadThrottledNanos, totalWriteThrottledNanos);
@@ -91,7 +91,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         }
 
         public SnapshotStats(long totalReadThrottledNanos, long totalWriteThrottledNanos) {
-            this(-1, -1, -1, totalReadThrottledNanos, totalWriteThrottledNanos, -1, -1, -1, -1);
+            this(0, 0, 0, totalReadThrottledNanos, totalWriteThrottledNanos, 0, 0, 0, 0);
         }
 
         @Override
@@ -103,35 +103,21 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             }
             builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
             builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
-            if (shardSnapshotsStarted != -1) {
-                builder.field("shard_snapshots_started", shardSnapshotsStarted);
-            }
-            if (shardSnapshotsCompleted != -1) {
-                builder.field("shard_snapshots_completed", shardSnapshotsCompleted);
-            }
-            if (shardSnapshotsInProgress != -1) {
-                builder.field("shard_snapshots_in_progress", shardSnapshotsInProgress);
-            }
-            if (numberOfBlobsUploaded != -1) {
-                builder.field("uploaded_blobs", numberOfBlobsUploaded);
-            }
-            if (numberOfBytesUploaded != -1) {
-                builder.humanReadableField("uploaded_size_in_bytes", "uploaded_size", ByteSizeValue.ofBytes(numberOfBytesUploaded));
-            }
-            if (totalUploadTimeInMillis != -1) {
-                builder.humanReadableField(
-                    "total_upload_time_in_millis",
-                    "total_upload_time",
-                    TimeValue.timeValueMillis(totalUploadTimeInMillis)
-                );
-            }
-            if (totalUploadReadTimeInMillis != -1) {
-                builder.humanReadableField(
-                    "total_read_time_in_millis",
-                    "total_read_time",
-                    TimeValue.timeValueMillis(totalUploadReadTimeInMillis)
-                );
-            }
+            builder.field("shard_snapshots_started", shardSnapshotsStarted);
+            builder.field("shard_snapshots_completed", shardSnapshotsCompleted);
+            builder.field("shard_snapshots_in_progress", shardSnapshotsInProgress);
+            builder.field("uploaded_blobs", numberOfBlobsUploaded);
+            builder.humanReadableField("uploaded_size_in_bytes", "uploaded_size", ByteSizeValue.ofBytes(numberOfBytesUploaded));
+            builder.humanReadableField(
+                "total_upload_time_in_millis",
+                "total_upload_time",
+                TimeValue.timeValueMillis(totalUploadTimeInMillis)
+            );
+            builder.humanReadableField(
+                "total_read_time_in_millis",
+                "total_read_time",
+                TimeValue.timeValueMillis(totalUploadReadTimeInMillis)
+            );
             builder.endObject();
             return builder;
         }
@@ -141,13 +127,13 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             out.writeVLong(totalReadThrottledNanos);
             out.writeVLong(totalWriteThrottledNanos);
             if (out.getTransportVersion().onOrAfter(TransportVersions.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
-                out.writeLong(shardSnapshotsStarted);
-                out.writeLong(shardSnapshotsCompleted);
-                out.writeLong(shardSnapshotsInProgress);
-                out.writeLong(numberOfBlobsUploaded);
-                out.writeLong(numberOfBytesUploaded);
-                out.writeLong(totalUploadTimeInMillis);
-                out.writeLong(totalUploadReadTimeInMillis);
+                out.writeVLong(shardSnapshotsStarted);
+                out.writeVLong(shardSnapshotsCompleted);
+                out.writeVLong(shardSnapshotsInProgress);
+                out.writeVLong(numberOfBlobsUploaded);
+                out.writeVLong(numberOfBytesUploaded);
+                out.writeVLong(totalUploadTimeInMillis);
+                out.writeVLong(totalUploadReadTimeInMillis);
             }
         }
     }

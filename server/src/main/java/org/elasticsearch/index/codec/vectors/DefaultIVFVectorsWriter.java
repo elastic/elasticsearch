@@ -29,9 +29,7 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -131,7 +129,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     static void writeCentroidsAndPartitions(
-        List<CentroidPartition> centroidPartitions,
+        CentroidPartition[] centroidPartitions,
         float[][] centroids,
         FieldInfo fieldInfo,
         float[] globalCentroid,
@@ -144,22 +142,24 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
 
-        // write the top level partition parent nodes and their pointers to the centroids within the partition
-        // a size of 1 indicates a leaf node that did not have a parent node (orphans)
-        for (CentroidPartition centroidPartition : centroidPartitions) {
-            System.arraycopy(centroidPartition.centroid(), 0, centroidScratch, 0, centroidPartition.centroid().length);
-            OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
-                centroidScratch,
-                quantizedScratch,
-                (byte) 4,
-                globalCentroid
-            );
-            for (int i = 0; i < quantizedScratch.length; i++) {
-                quantized[i] = (byte) quantizedScratch[i];
+        if (centroidPartitions != null) {
+            // write the top level partition parent nodes and their pointers to the centroids within the partition
+            // a size of 1 indicates a leaf node that did not have a parent node (orphans)
+            for (CentroidPartition centroidPartition : centroidPartitions) {
+                System.arraycopy(centroidPartition.centroid(), 0, centroidScratch, 0, centroidPartition.centroid().length);
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
+                    centroidScratch,
+                    quantizedScratch,
+                    (byte) 4,
+                    globalCentroid
+                );
+                for (int i = 0; i < quantizedScratch.length; i++) {
+                    quantized[i] = (byte) quantizedScratch[i];
+                }
+                writeQuantizedValue(centroidOutput, quantized, result);
+                centroidOutput.writeInt(centroidPartition.childOrdinal());
+                centroidOutput.writeInt(centroidPartition.size());
             }
-            writeQuantizedValue(centroidOutput, quantized, result);
-            centroidOutput.writeInt(centroidPartition.childOrdinal());
-            centroidOutput.writeInt(centroidPartition.size());
         }
 
         // write the quantized centroids which will be duplicate for orphans
@@ -242,25 +242,24 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             centroidOrds[i] = i;
         }
 
-        List<CentroidPartition> centroidPartitions = new ArrayList<>();
+        CentroidPartition[] centroidPartitions = null;
+        int partitionsCount = 0;
 
         if (centroids.length > IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER) {
-            List<float[]> centroidsList = Arrays.stream(centroids).toList();
-            FloatVectorValues centroidsAsFVV = FloatVectorValues.fromFloats(centroidsList, fieldInfo.getVectorDimension());
-
-            HierarchicalKMeans hierarchicalKMeans = new HierarchicalKMeans(fieldInfo.getVectorDimension());
-            KMeansResult result = hierarchicalKMeans.cluster(centroidsAsFVV, centroids.length / (int) Math.sqrt(centroids.length));
+            KMeansResult result = clusterParentCentroids(fieldInfo, centroids);
             float[][] parentCentroids = result.centroids();
             int[] parentChildAssignments = result.assignments();
-            // TODO: explore using soar assignments here as well
-            // int[] parentChildSoarAssignments = result.soarAssignments();
+            // TODO: explore soar assignments here as well
+
+            centroidPartitions = new CentroidPartition[parentCentroids.length];
 
             AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, parentChildAssignments);
             sorter.sort(0, centroids.length);
 
-            for (int i = 0; i < parentChildAssignments.length; i++) {
+            for (int i = 0; i < parentChildAssignments.length;) {
                 int label = parentChildAssignments[i];
                 int centroidCount = 0;
+                int childOffset = i;
                 int j = i;
                 for (; j < parentChildAssignments.length; j++) {
                     if (parentChildAssignments[j] != label) {
@@ -268,9 +267,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     }
                     centroidCount++;
                 }
-                int childOrdinal = i;
                 i = j;
-                centroidPartitions.add(new CentroidPartition(parentCentroids[label], childOrdinal, centroidCount));
+                centroidPartitions[partitionsCount++] = new CentroidPartition(parentCentroids[label], childOffset, centroidCount);
             }
         }
 
@@ -278,7 +276,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
         if (logger.isDebugEnabled()) {
             logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
-            logger.debug("final parent centroid count {}: ", centroidPartitions.size());
+            logger.debug("final parent centroid count {}: ", partitionsCount);
             logger.debug("final centroid count: {}", centroids.length);
         }
 
@@ -291,7 +289,40 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         int[] soarAssignments = kMeansResult.soarAssignments();
 
         int[][] assignmentsByCluster = buildCentroidAssignments(centroids.length, assignments, soarAssignments, centroidOrdsToIdx);
-        return new CentroidAssignments(centroidPartitions.size(), centroids, assignmentsByCluster);
+        return new CentroidAssignments(partitionsCount, centroids, assignmentsByCluster);
+    }
+
+    private KMeansResult clusterParentCentroids(FieldInfo fieldInfo, float[][] centroids) throws IOException {
+        FloatVectorValues centroidsAsFVV = new FloatVectorValues() {
+            @Override
+            public int size() {
+                return centroids.length;
+            }
+
+            @Override
+            public int dimension() {
+                return fieldInfo.getVectorDimension();
+            }
+
+            @Override
+            public float[] vectorValue(int targetOrd) {
+                return centroids[targetOrd];
+            }
+
+            @Override
+            public FloatVectorValues copy() {
+                return this;
+            }
+
+            @Override
+            public DocIndexIterator iterator() {
+                return createDenseIterator();
+            }
+        };
+
+        HierarchicalKMeans hierarchicalKMeans = new HierarchicalKMeans(fieldInfo.getVectorDimension());
+        KMeansResult result = hierarchicalKMeans.cluster(centroidsAsFVV, centroids.length / (int) Math.sqrt(centroids.length));
+        return result;
     }
 
     static int[][] buildCentroidAssignments(int centroidCount, int[] assignments, int[] soarAssignments, IntIntMap centroidOrds) {

@@ -46,6 +46,8 @@ import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPR
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
 
+    private static final float PARENT_SCORE_BUFFER = 0.05f;
+
     private final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
@@ -311,7 +313,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 // ... would be centroidScore < (nextParentScore + furthestCentroidScore) which is better than just a buffer
                 // TODO: try a ParentNProbe here that's for instance the sqrt(nProbe) that forces a fixed
                 // ... number of parents to be explored at each step
-                while (parentCentroidQueue.size() > 0 && centroidScore < (nextParentScore + nextParentScore * 0.05)) {
+                while (parentCentroidQueue.size() > 0 && centroidScore < (nextParentScore + nextParentScore * PARENT_SCORE_BUFFER)) {
                     updateCentroidQueueWNextParent(parentCentroidQueryScorer, parentCentroidQueue, centroidQueryScorer, centroidQueue);
                     if (parentCentroidQueue.size() > 0) {
                         nextParentScore = parentCentroidQueue.topScore();
@@ -358,7 +360,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             childCentroidOrdinal = parentCentroidQueryScorer.getChildCentroidStart(parentCentroidOrdinal);
             childCentroidCount = parentCentroidQueryScorer.getChildCount(parentCentroidOrdinal);
         }
-        // TODO: add back scorePostingLists? seems like it's not doing anything at this point
+        // TODO: add back scorePostingLists? or make this function abstract? or break it apart? not sure
         centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
 
         return childCentroidCount;

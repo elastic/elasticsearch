@@ -32,6 +32,9 @@ mapped_pages:
 :::{include} ../_snippets/commands/layout/eval.md
 :::
 
+:::{include} ../_snippets/commands/layout/fork.md
+:::
+
 :::{include} ../_snippets/commands/layout/grok.md
 :::
 
@@ -48,6 +51,9 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/commands/layout/rename.md
+:::
+
+:::{include} ../_snippets/commands/layout/sample.md
 :::
 
 :::{include} ../_snippets/commands/layout/sort.md

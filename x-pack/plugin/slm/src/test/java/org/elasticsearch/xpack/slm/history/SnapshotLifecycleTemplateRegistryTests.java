@@ -101,14 +101,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new SnapshotLifecycleTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            xContentRegistry,
-            TestProjectResolvers.mustExecuteFirst()
-        );
+        registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     @After
@@ -125,8 +118,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry,
-            TestProjectResolvers.mustExecuteFirst()
+            xContentRegistry
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
@@ -345,7 +337,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override

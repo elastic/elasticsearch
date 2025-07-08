@@ -103,56 +103,6 @@
         body: { "index": "test", "primary": true }
 
 ---
-"cluster shard allocation explanation test with 3 valid body parameters":
-  - do:
-      indices.create:
-        index: test
-
-  - match: { acknowledged: true }
-
-  - do:
-      cluster.allocation_explain:
-        body: { "index": "test", "shard": 0, "primary": true }
-
-  - match: { current_state: "started" }
-  - is_true: current_node.id
-  - match: { index: "test" }
-  - match: { shard: 0 }
-  - match: { primary: true }
-  - is_true: can_remain_on_current_node
-  - is_true: can_rebalance_cluster
-  - is_true: can_rebalance_to_other_node
-  - is_true: rebalance_explanation
-
----
-"cluster shard allocation explanation test with 3 body parameters and all query parameters":
-  - do:
-      indices.create:
-        index: test
-
-  - match: { acknowledged: true }
-
-  - do:
-      cluster.allocation_explain:
-        body: { "index": "test", "shard": 0, "primary": true }
-        include_disk_info: true
-        include_yes_decisions: true
-        master_timeout: 0
-
-  - match: { current_state: "started" }
-  - is_true: current_node.id
-  - match: { index: "test" }
-  - match: { shard: 0 }
-  - match: { primary: true }
-  - is_true: can_remain_on_current_node
-  - is_true: can_rebalance_cluster
-  - is_true: can_rebalance_to_other_node
-  - is_true: rebalance_explanation
-  # Modified by the existing of the query parameters
-  - is_true: cluster_info
-  - is_false: note
-
----
 "cluster shard allocation explanation test with numerical index parameter in the body":
   - do:
       indices.create:
@@ -178,6 +128,78 @@
       cluster.allocation_explain:
         body: { "index": "test2", "shard": 0, "primary": true }
 
+---
+# This test has a valid integer input, but it's above the shard limit, so the index cannot be located
+"cluster shard allocation explanation test with max integer shard value":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /shard_not_found_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 2147483647, "primary": true }
+
+---
+"cluster shard allocation explanation test with long shard value":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 214748364777, "primary": true }
+
+---
+"cluster shard allocation explanation test with float shard value":
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 2, "index.number_of_replicas": 0 } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 1.0, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 1 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with double shard value":
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 2, "index.number_of_replicas": 0 } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 1.1234567891234567, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 1 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
 
 ---
 "cluster shard allocation explanation test with an invalid, string shard parameter in the body":
@@ -214,9 +236,10 @@
   - is_true: can_rebalance_to_other_node
   - is_true: rebalance_explanation
 
+
+
 ---
-# Is this incorrect behaviour? Should an InvalidArgumentException be returned here?
-"cluster shard allocation explanation test with float shard parameter in the body":
+"cluster shard allocation explanation test with three valid body parameters":
   - do:
       indices.create:
         index: test
@@ -224,9 +247,18 @@
   - match: { acknowledged: true }
 
   - do:
-      catch: /shard_not_found_exception/
       cluster.allocation_explain:
-        body: { "index": "test", "shard": 1.0, "primary": true }
+        body: { "index": "test", "shard": 0, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
 
 ---
 "cluster shard allocation explanation test with numerical primary parameter in the body":
@@ -431,6 +463,34 @@
       cluster.allocation_explain:
         body: { "index": "test", "shard": 0, "primary": true }
         include_yes_decisions: "truee"
+
+---
+"cluster shard allocation explanation test with 3 body parameters and all query parameters":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+        include_disk_info: true
+        include_yes_decisions: true
+        master_timeout: 0
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+  # Modified by the existing of the query parameters
+  - is_true: cluster_info
+  - is_false: note
 
 ---
 "Cluster shard allocation explanation test with a closed index":

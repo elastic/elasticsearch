@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.completion.Hugging
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
@@ -119,8 +121,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.xpack.inference.CustomServiceFeatureFlag.CUSTOM_SERVICE_FEATURE_FLAG;
 
 public class InferenceNamedWriteablesProvider {
 
@@ -185,10 +185,6 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        if (CUSTOM_SERVICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
-
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, CustomServiceSettings.NAME, CustomServiceSettings::new)
         );
@@ -474,6 +470,13 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, IbmWatsonxRerankTaskSettings.NAME, IbmWatsonxRerankTaskSettings::new)
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                IbmWatsonxChatCompletionServiceSettings.NAME,
+                IbmWatsonxChatCompletionServiceSettings::new
+            )
+        );
     }
 
     private static void addGoogleVertexAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -566,6 +569,9 @@ public class InferenceNamedWriteablesProvider {
                 SentenceBoundaryChunkingSettings.NAME,
                 SentenceBoundaryChunkingSettings::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, RecursiveChunkingSettings.NAME, RecursiveChunkingSettings::new)
         );
     }
 

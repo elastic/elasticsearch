@@ -476,8 +476,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         analyticsTemplateRegistry.initialize();
 
@@ -486,8 +485,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         connectorTemplateRegistry.initialize();
 

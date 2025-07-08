@@ -139,11 +139,15 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
         return NAME;
     }
 
-    /**
-     * The minimal version of the recipient this object can be sent to
-     */
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.RANDOM_SAMPLER_QUERY_BUILDER)
+            || version.isPatchFrom(TransportVersions.RANDOM_SAMPLER_QUERY_BUILDER_8_19);
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RANDOM_SAMPLER_QUERY_BUILDER;
+        assert false : "must not be called when overriding supportsVersion";
+        throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
@@ -382,7 +383,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -665,7 +666,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -918,11 +919,6 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
-         * Support for FORK command
-         */
-        FORK(Build.current().isSnapshot()),
-
-        /**
          * Support for RERANK command
          */
         RERANK(Build.current().isSnapshot()),
@@ -936,11 +932,6 @@ public class EsqlCapabilities {
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
-
-        /**
-         * Support for RRF command
-         */
-        RRF(Build.current().isSnapshot()),
 
         /**
          * Lucene query pushdown to StartsWith and EndsWith functions.
@@ -1021,7 +1012,7 @@ public class EsqlCapabilities {
         FILTER_IN_CONVERTED_NULL,
 
         /**
-         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * When creating constant null blocks in {@link ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
@@ -1038,9 +1029,9 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support streaming of sub plan results
+         * Support for FORK out of snapshot
          */
-        FORK_V8(Build.current().isSnapshot()),
+        FORK_V9,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1075,6 +1066,13 @@ public class EsqlCapabilities {
         DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
 
         /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
+
+        /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
         LAST_OVER_TIME(Build.current().isSnapshot()),
@@ -1082,7 +1080,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V3(Build.current().isSnapshot()),
+        SAMPLE_V3,
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1168,7 +1166,7 @@ public class EsqlCapabilities {
         LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
 
@@ -1183,6 +1181,11 @@ public class EsqlCapabilities {
         ENABLE_LOOKUP_JOIN_ON_ALIASES,
 
         /**
+         * Lookup error messages were updated to make them a bit easier to understand.
+         */
+        UPDATE_LOOKUP_JOIN_ERROR_MESSAGES,
+
+        /**
          * Allows RLIKE to correctly handle the "empty language" flag, `#`.
          */
         RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
@@ -1195,7 +1198,37 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot());
+        KNN_FUNCTION_V2(Build.current().isSnapshot()),
+
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot()),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

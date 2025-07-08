@@ -62,11 +62,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
-    static EsqlQueryRequest syncEsqlQueryRequest() {
+    public static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
     }
 
-    static EsqlQueryRequest asyncEsqlQueryRequest() {
+    public static EsqlQueryRequest asyncEsqlQueryRequest() {
         return new EsqlQueryRequest(true);
     }
 
@@ -104,8 +104,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest() {}
 
-    public void query(String query) {
+    public EsqlQueryRequest query(String query) {
         this.query = query;
+        return this;
     }
 
     @Override
@@ -156,8 +157,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return locale;
     }
 
-    public void filter(QueryBuilder filter) {
+    public EsqlQueryRequest filter(QueryBuilder filter) {
         this.filter = filter;
+        return this;
     }
 
     @Override
@@ -165,8 +167,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return filter;
     }
 
-    public void pragmas(QueryPragmas pragmas) {
+    public EsqlQueryRequest pragmas(QueryPragmas pragmas) {
         this.pragmas = pragmas;
+        return this;
     }
 
     public QueryPragmas pragmas() {
@@ -245,9 +248,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     @Override
-    public Task createTask(String localNodeId, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(localNodeId, id)));
-        return new EsqlQueryRequestTask(query, id, type, action, parentTaskId, headers, status);
+    public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
+        return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
     }
 
     private static class EsqlQueryRequestTask extends CancellableTask {

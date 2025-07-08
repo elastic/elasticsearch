@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema.openai;
 
 import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -17,7 +16,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemaPayloadTestCase;
@@ -163,10 +161,7 @@ public class OpenAiCompletionPayloadTests extends SageMakerSchemaPayloadTestCase
             }
             """;
 
-        var chatCompletionResults = (ChatCompletionResults) payload.responseBody(
-            mockModel(),
-            InvokeEndpointResponse.builder().body(SdkBytes.fromUtf8String(responseJson)).build()
-        );
+        var chatCompletionResults = payload.responseBody(mockModel(), invokeEndpointResponse(responseJson));
 
         assertThat(chatCompletionResults.getResults().size(), is(1));
         assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));

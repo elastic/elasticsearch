@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
@@ -88,7 +88,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -121,7 +121,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         String mountedIndexName = restoredIndexPrefix + indexName;
-        if (currentClusterState.metadata().getProject().index(mountedIndexName) != null) {
+        if (currentProject.index(mountedIndexName) != null) {
             logger.debug(
                 "mounted index [{}] for policy [{}] and index [{}] already exists. will not attempt to mount the index again",
                 mountedIndexName,
@@ -183,7 +183,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             false,
             storageType
         );
-        getClient().execute(
+        getClient(currentProject.id()).execute(
             MountSearchableSnapshotAction.INSTANCE,
             mountSearchableSnapshotRequest,
             listener.delegateFailureAndWrap((l, response) -> {

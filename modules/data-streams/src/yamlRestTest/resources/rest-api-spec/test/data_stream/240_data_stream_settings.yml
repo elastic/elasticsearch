@@ -299,3 +299,193 @@ setup:
   - match: { .$idx0name.settings.index.lifecycle.name: "my-policy" }
   - match: { .$idx1name.settings.index.number_of_shards: "1" }
   - match: { .$idx1name.settings.index.lifecycle.name: "my-policy" }
+
+---
+"Test null out settings":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1
+        body:
+          index:
+            number_of_shards: 2
+            lifecycle:
+              name: my-new-policy
+              prefer_ilm: true
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: [index.number_of_shards]}
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: 2  }
+  - match: { data_streams.0.settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: "true" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: "2" }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: "true" }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1
+        body:
+          index:
+            number_of_shards: null
+            lifecycle:
+              name: null
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: [index.number_of_shards]}
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: 1  }
+  - match: { data_streams.0.settings.index.number_of_shards: null }
+  - match: { data_streams.0.settings.index.lifecycle.name: null }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: "true" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: "true" }
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings.index.lifecycle.name: null }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: "true" }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_settings:
+        index: my-data-stream-1
+  - match: { .$idx0name.settings.index.number_of_shards: "1" }
+  - match: { .$idx0name.settings.index.lifecycle.name: "my-policy" }
+  - match: { .$idx0name.settings.index.lifecycle.prefer_ilm: "true" }
+
+---
+"Test null out settings component templates only":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+
+  - do:
+      cluster.put_component_template:
+        name: settings-template
+        body:
+          template:
+            settings:
+              lifecycle.name: my-policy
+
+  - do:
+      allowed_warnings:
+        - "index template [my-component-only-template] has index patterns [my-component-only-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-component-only-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-component-only-template
+        body:
+          index_patterns: [ my-component-only-data-stream-* ]
+          data_stream: { }
+          composed_of:
+            - settings-template
+
+  - do:
+      indices.create_data_stream:
+        name: my-component-only-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-component-only-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: my-component-only-data-stream-1
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-component-only-data-stream-1
+        body:
+          index:
+            lifecycle:
+              name: my-new-policy
+              prefer_ilm: true
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: 2  }
+  - match: { data_streams.0.settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: "true" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-new-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: "true" }
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-component-only-data-stream-1
+        body:
+          index:
+            lifecycle:
+              name: null
+              prefer_ilm: null
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: 2  }
+  - match: { data_streams.0.settings.index.lifecycle.name: null }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: null }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: null }
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-component-only-data-stream-1
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.settings.index.lifecycle.name: null }
+  - match: { data_streams.0.settings.index.lifecycle.prefer_ilm: null }
+  - match: { data_streams.0.effective_settings.index.lifecycle.name: "my-policy" }
+  - match: { data_streams.0.effective_settings.index.lifecycle.prefer_ilm: null }
+
+  - do:
+      indices.get_data_stream:
+        name: my-component-only-data-stream-1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_settings:
+        index: my-component-only-data-stream-1
+  - match: { .$idx0name.settings.index.lifecycle.name: "my-policy" }
+  - match: { .$idx0name.settings.index.lifecycle.prefer_ilm: null }

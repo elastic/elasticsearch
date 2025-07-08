@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -32,16 +33,22 @@ import java.util.stream.Collectors;
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware {
+public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
+    public static final int MAX_BRANCHES = 8;
+    public static final int MIN_BRANCHES = 2;
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (children.size() < 2) {
-            throw new IllegalArgumentException("requires more than two subqueries, got:" + children.size());
+        if (children.size() < MIN_BRANCHES) {
+            throw new IllegalArgumentException("FORK requires more than " + MIN_BRANCHES + " branches, got: " + children.size());
         }
+        if (children.size() > MAX_BRANCHES) {
+            throw new IllegalArgumentException("FORK requires less than " + MAX_BRANCHES + " subqueries, got: " + children.size());
+        }
+
         this.output = output;
     }
 
@@ -102,9 +109,18 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     public static List<Attribute> outputUnion(List<LogicalPlan> subplans) {
         List<Attribute> output = new ArrayList<>();
         Set<String> names = new HashSet<>();
+        // these are attribute names we know should have an UNSUPPORTED data type in the FORK output
+        Set<String> unsupportedAttributesNames = outputUnsupportedAttributeNames(subplans);
 
         for (var subPlan : subplans) {
             for (var attr : subPlan.output()) {
+                // When we have multiple attributes with the same name, the ones that have a supported data type take priority.
+                // We only add an attribute with an unsupported data type if we know that in the output of the rest of the FORK branches
+                // there exists no attribute with the same name and with a supported data type.
+                if (attr.dataType() == DataType.UNSUPPORTED && unsupportedAttributesNames.contains(attr.name()) == false) {
+                    continue;
+                }
+
                 if (names.contains(attr.name()) == false && attr.name().equals(Analyzer.NO_FIELDS_NAME) == false) {
                     names.add(attr.name());
                     output.add(attr);
@@ -112,6 +128,34 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             }
         }
         return output;
+    }
+
+    /**
+     * Returns a list of attribute names that will need to have the @{code UNSUPPORTED} data type in FORK output.
+     * These are attributes that are either {@code UNSUPPORTED} or missing in each FORK branch.
+     * If two branches have the same attribute name, but only in one of them the data type is {@code UNSUPPORTED}, this constitutes
+     * data type conflict, and so this attribute name will not be returned by this function.
+     * Data type conflicts are later on checked in {@code postAnalysisPlanVerification}.
+     */
+    public static Set<String> outputUnsupportedAttributeNames(List<LogicalPlan> subplans) {
+        Set<String> unsupportedAttributes = new HashSet<>();
+        Set<String> names = new HashSet<>();
+
+        for (var subPlan : subplans) {
+            for (var attr : subPlan.output()) {
+                var attrName = attr.name();
+                if (unsupportedAttributes.contains(attrName) == false
+                    && attr.dataType() == DataType.UNSUPPORTED
+                    && names.contains(attrName) == false) {
+                    unsupportedAttributes.add(attrName);
+                } else if (unsupportedAttributes.contains(attrName) && attr.dataType() != DataType.UNSUPPORTED) {
+                    unsupportedAttributes.remove(attrName);
+                }
+                names.add(attrName);
+            }
+        }
+
+        return unsupportedAttributes;
     }
 
     @Override
@@ -151,16 +195,20 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             failures.add(Failure.fail(otherFork, "Only a single FORK command is allowed, but found multiple"));
         });
 
-        Map<String, DataType> outputTypes = fork.children()
-            .getFirst()
-            .output()
-            .stream()
-            .collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
 
-        fork.children().stream().skip(1).forEach(subPlan -> {
+        fork.children().forEach(subPlan -> {
             for (Attribute attr : subPlan.output()) {
-                var actual = attr.dataType();
                 var expected = outputTypes.get(attr.name());
+
+                // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
+                // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
+                // same name and supported data type in any of the FORK branches.
+                if (expected == DataType.UNSUPPORTED) {
+                    continue;
+                }
+
+                var actual = attr.dataType();
                 if (actual != expected) {
                     failures.add(
                         Failure.fail(

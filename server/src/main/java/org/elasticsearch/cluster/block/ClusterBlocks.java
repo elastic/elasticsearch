@@ -72,6 +72,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global;
     }
 
+    // Project-aware flavor of global() used to find global or project-global blocks for a specific project.
     public Set<ClusterBlock> global(ProjectId projectId) {
         return Sets.union(global, projectBlocks(projectId).projectGlobals());
     }
@@ -96,6 +97,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return levelHolders.get(level).global();
     }
 
+    // For a specific project, global could be either project global or cluster global
     public Set<ClusterBlock> global(ProjectId projectId, ClusterBlockLevel level) {
         var levelHolder = levelHolders.get(level);
         return Sets.union(levelHolder.global, levelHolder.projects.getOrDefault(projectId, ProjectBlocks.EMPTY).projectGlobals());
@@ -176,6 +178,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return global(level).size() > 0;
     }
 
+    public boolean hasGlobalBlockWithLevel(ProjectId projectId, ClusterBlockLevel level) {
+        return global(projectId, level).size() > 0;
+    }
+
     /**
      * Is there a global block with the provided status?
      */
@@ -237,6 +243,13 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
     }
 
+    public void globalBlockedRaiseException(ProjectId projectId, ClusterBlockLevel level) throws ClusterBlockException {
+        ClusterBlockException blockException = globalBlockedException(projectId, level);
+        if (blockException != null) {
+            throw blockException;
+        }
+    }
+
     private boolean globalBlocked(ClusterBlockLevel level) {
         return global(level).isEmpty() == false;
     }
@@ -250,6 +263,13 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return null;
         }
         return new ClusterBlockException(global(level));
+    }
+
+    public ClusterBlockException globalBlockedException(ProjectId projectId, ClusterBlockLevel level) {
+        if (globalBlocked(projectId, level) == false) {
+            return null;
+        }
+        return new ClusterBlockException(global(projectId, level));
     }
 
     public void indexBlockedRaiseException(ProjectId projectId, ClusterBlockLevel level, String index) throws ClusterBlockException {
@@ -556,6 +576,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             out.writeMap(indices, (o, s) -> writeBlockSet(s, o));
             if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
                 writeBlockSet(projectGlobal, out);
+            } else {
+                assert projectGlobal.isEmpty() : "Any MP-enabled cluster must be past TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK";
             }
         }
     }

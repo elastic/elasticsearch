@@ -1,0 +1,5 @@
+pr: 130251
+summary: Speed up (filtered) KNN queries for flat vector fields
+area: Vector Search
+type: enhancement
+issues: []

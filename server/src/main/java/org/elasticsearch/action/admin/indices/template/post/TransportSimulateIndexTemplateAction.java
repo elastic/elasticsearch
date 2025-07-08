@@ -200,7 +200,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
 
     @Override
     protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     /**

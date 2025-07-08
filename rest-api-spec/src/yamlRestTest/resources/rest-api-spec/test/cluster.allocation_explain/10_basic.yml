@@ -555,7 +555,7 @@
   - is_true: current_node.roles
 
 # These tests were added as part of https://github.com/elastic/elasticsearch/issues/127028 which added support
-# for path parameters alongside body parameters in 9.1.0
+# for path parameters alongside body parameters in 9.2.0
 
 ---
 "cluster shard allocation explanation test with empty body and no URL parameters":
@@ -565,7 +565,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -590,7 +590,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -611,7 +611,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -632,7 +632,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -653,7 +653,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -675,7 +675,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -697,7 +697,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -719,7 +719,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -751,7 +751,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -789,7 +789,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -811,7 +811,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -838,7 +838,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -864,7 +864,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -887,7 +887,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -920,7 +920,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -943,7 +943,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -966,7 +966,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -989,7 +989,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -1021,7 +1021,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -1044,7 +1044,7 @@
         - method: GET
           path: /_cluster/allocation/explain
           parameters: [ index, shard, primary, current_node ]
-      reason: "Path parameter support was added in version 9.1.0"
+      reason: "Path parameter support was added in version 9.2.0"
 
   - do:
       indices.create:

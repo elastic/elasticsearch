@@ -19,8 +19,10 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
@@ -363,6 +365,10 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 syncEsqlQueryRequest().query("from events,logs | KEEP timestamp,message").allowPartialResults(true)
             )
         ) {
+            assertTrue(resp.isPartial());
+            EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.getFailures(), hasSize(1));
+            assertThat(local.getFailures().get(0).reason(), containsString("index [logs] has no active shard copy"));
             assertThat(getValuesList(resp), hasSize(3));
         }
     }

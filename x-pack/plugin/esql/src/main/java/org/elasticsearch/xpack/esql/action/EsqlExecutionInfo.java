@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -562,8 +563,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 return this;
             }
 
-            public Cluster.Builder setFailures(List<ShardSearchFailure> failures) {
-                this.failures = failures;
+            public Cluster.Builder addFailures(List<ShardSearchFailure> failures) {
+                if (failures.isEmpty()) {
+                    return this;
+                }
+                if (this.failures == null) {
+                    this.failures = new ArrayList<>(original.failures);
+                }
+                this.failures.addAll(failures);
                 return this;
             }
 
@@ -658,7 +665,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
 
         boolean isPartial() {
-            return status == Status.PARTIAL || status == Status.SKIPPED || (failedShards != null && failedShards > 0);
+            return status == Status.PARTIAL
+                || status == Status.SKIPPED
+                || (failedShards != null && failedShards > 0)
+                || failures.isEmpty() == false;
         }
 
         @Override

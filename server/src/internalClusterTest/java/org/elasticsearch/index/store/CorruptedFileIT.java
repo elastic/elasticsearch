@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -155,7 +154,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -218,7 +217,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                             return;
                         }
                         BytesStreamOutput os = new BytesStreamOutput();
-                        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+                        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8);
                         CheckIndex.Status status = store.checkIndex(out);
                         out.flush();
                         if (status.clean == false) {
@@ -269,7 +268,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on
                                                                                               // purpose
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -311,8 +310,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
-            .activePrimaryShardsGrouped(new String[] { "test" }, false);
+        List<ShardIterator> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[] { "test" }, false);
         for (ShardIterator iterator : shardIterators) {
             ShardRouting routing;
             while ((routing = iterator.nextOrNull()) != null) {
@@ -544,7 +542,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -612,7 +610,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
         ensureGreen();
@@ -667,7 +665,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private int numShards(String... index) {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        GroupShardsIterator<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
+        List<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
 
@@ -694,9 +692,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        Index test = state.metadata().index("test").getIndex();
-        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
-            .activePrimaryShardsGrouped(new String[] { "test" }, false);
+        Index test = state.metadata().getProject().index("test").getIndex();
+        List<ShardIterator> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[] { "test" }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
@@ -750,7 +747,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = clusterAdmin().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final Index test = state.metadata().index("test").getIndex();
+        final Index test = state.metadata().getProject().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {

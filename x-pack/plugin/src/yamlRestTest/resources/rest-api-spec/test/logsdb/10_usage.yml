@@ -1,8 +1,5 @@
 ---
 logsdb usage:
-  - requires:
-      cluster_features: ["logsdb_telemetry_stats"]
-      reason: "requires stats"
   - do:
       indices.create:
         index: test1

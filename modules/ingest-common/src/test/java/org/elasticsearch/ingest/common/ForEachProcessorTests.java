@@ -39,7 +39,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add("foo");
         values.add("bar");
         values.add("baz");
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("values", values));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("values", values)));
 
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", new AsyncUpperCaseProcessor("_ingest._value"), false);
         execProcessor(processor, ingestDocument, (result, e) -> {});
@@ -55,7 +55,14 @@ public class ForEachProcessorTests extends ESTestCase {
     }
 
     public void testExecuteWithFailure() {
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("values", List.of("a", "b", "c")));
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            1,
+            null,
+            null,
+            new HashMap<>(Map.of("values", List.of("a", "b", "c")))
+        );
 
         TestProcessor testProcessor = new TestProcessor(id -> {
             if ("c".equals(id.getFieldValue("_ingest._value", String.class))) {
@@ -173,7 +180,7 @@ public class ForEachProcessorTests extends ESTestCase {
         int numValues = randomIntBetween(1, 10000);
         List<String> values = IntStream.range(0, numValues).mapToObj(i -> "").toList();
 
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("values", values));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("values", values)));
 
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
         execProcessor(processor, ingestDocument, (result, e) -> {});
@@ -189,7 +196,7 @@ public class ForEachProcessorTests extends ESTestCase {
         values.add("string");
         values.add(1);
         values.add(null);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("values", values));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("values", values)));
 
         TemplateScript.Factory template = new TestTemplateService.MockTemplateScript.Factory("errors");
 
@@ -282,7 +289,7 @@ public class ForEachProcessorTests extends ESTestCase {
         Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
 
         Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("field", outerMap));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("field", outerMap)));
 
         List<String> visitedKeys = new ArrayList<>();
         List<Object> visitedValues = new ArrayList<>();
@@ -361,7 +368,7 @@ public class ForEachProcessorTests extends ESTestCase {
 
     public void testMapIteration() {
         Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("field", mapValue));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("field", mapValue)));
 
         List<String> encounteredKeys = new ArrayList<>();
         List<Object> encounteredValues = new ArrayList<>();
@@ -390,7 +397,7 @@ public class ForEachProcessorTests extends ESTestCase {
 
     public void testRemovalOfMapKey() {
         Map<String, Object> mapValue = Map.of("foo", 1, "bar", 2, "baz", 3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("field", mapValue));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("field", mapValue)));
 
         List<String> encounteredKeys = new ArrayList<>();
         List<Object> encounteredValues = new ArrayList<>();
@@ -419,7 +426,7 @@ public class ForEachProcessorTests extends ESTestCase {
         Map<String, Object> innerMap3 = Map.of("foo3", 7, "bar3", 8, "baz3", 9, "otherKey", 42);
 
         Map<String, Object> outerMap = Map.of("foo", innerMap1, "bar", innerMap2, "baz", innerMap3);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("field", outerMap));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of("field", outerMap)));
 
         List<String> visitedKeys = new ArrayList<>();
         List<Object> visitedValues = new ArrayList<>();

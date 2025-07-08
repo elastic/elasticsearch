@@ -14,12 +14,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -35,7 +39,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
         @Nullable
         private String templateName;
@@ -44,42 +48,21 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
         private boolean includeDefaults = false;
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
-
-        public Request(String templateName) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-            if (templateName == null) {
-                throw new IllegalArgumentException("template name cannot be null");
-            }
+        public Request(TimeValue masterTimeout, String templateName) {
+            super(masterTimeout);
             this.templateName = templateName;
         }
 
-        public Request(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-            if (indexTemplateRequest == null) {
-                throw new IllegalArgumentException("index template body must be present");
-            }
-            this.indexTemplateRequest = indexTemplateRequest;
-        }
-
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
         public Request(StreamInput in) throws IOException {
             super(in);
             templateName = in.readOptionalString();
             indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(templateName);
-            out.writeOptionalWriteable(indexTemplateRequest);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeBoolean(includeDefaults);
             }
         }
 
@@ -98,6 +81,11 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return validationException;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
         @Nullable
         public String getTemplateName() {
             return templateName;
@@ -110,11 +98,6 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         @Nullable
         public TransportPutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
             return indexTemplateRequest;
-        }
-
-        public Request templateName(String templateName) {
-            this.templateName = templateName;
-            return this;
         }
 
         public Request indexTemplateRequest(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {

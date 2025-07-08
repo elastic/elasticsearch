@@ -113,6 +113,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     /**
+     * Returns path to the searched nested object.
+     */
+    public String path() {
+        return path;
+    }
+
+    /**
      * Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
 
@@ -314,8 +321,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
-        NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
-        if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
+        if (NestedHelper.mightMatchNonNestedDocs(innerQuery, path, context)) {
             innerQuery = Queries.filtered(innerQuery, mapper.nestedTypeFilter());
         }
 
@@ -390,6 +396,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         private final NestedObjectMapper parentObjectMapper;
         private final NestedObjectMapper childObjectMapper;
+        private final SearchExecutionContext searchExecutionContext;
 
         NestedInnerHitSubContext(
             String name,
@@ -400,6 +407,24 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
+            this.searchExecutionContext = null;
+        }
+
+        NestedInnerHitSubContext(NestedInnerHitSubContext nestedInnerHitSubContext, SearchExecutionContext searchExecutionContext) {
+            super(nestedInnerHitSubContext);
+            this.parentObjectMapper = nestedInnerHitSubContext.parentObjectMapper;
+            this.childObjectMapper = nestedInnerHitSubContext.childObjectMapper;
+            this.searchExecutionContext = searchExecutionContext;
+        }
+
+        @Override
+        public NestedInnerHitSubContext copyWithSearchExecutionContext(SearchExecutionContext searchExecutionContext) {
+            return new NestedInnerHitSubContext(this, searchExecutionContext);
+        }
+
+        @Override
+        public SearchExecutionContext getSearchExecutionContext() {
+            return searchExecutionContext != null ? searchExecutionContext : super.getSearchExecutionContext();
         }
 
         @Override
@@ -443,12 +468,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE, false).newCollector();
+                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE).newCollector();
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector();
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);

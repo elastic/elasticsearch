@@ -135,7 +135,9 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             .execute();
 
         logger.info("--> wait until the cluster state contains the new index");
-        assertBusy(() -> assertTrue(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().hasIndex(indexName)));
+        assertBusy(
+            () -> assertTrue(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().hasIndex(indexName))
+        );
 
         logger.info("--> delete the index");
         assertAcked(indicesAdmin().prepareDelete(indexName));

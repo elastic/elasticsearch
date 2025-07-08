@@ -122,6 +122,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 );
             }
 
+            usageCount.increment();
             if (request.isStreamedContent()) {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
@@ -137,11 +138,11 @@ public abstract class BaseRestHandler implements RestHandler {
                         chunkConsumer.streamClose();
                     }
                 });
+                action.accept(channel);
+            } else {
+                action.accept(channel);
+                request.getHttpRequest().release();
             }
-
-            usageCount.increment();
-            // execute the action
-            action.accept(channel);
         }
     }
 
@@ -153,6 +154,8 @@ public abstract class BaseRestHandler implements RestHandler {
             supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
             final var consumed = new TreeSet<>(request.consumedParams());
             consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            // Response parameters are implicitly consumed since they are made available to response renderings.
+            consumed.addAll(responseParams(request.getRestApiVersion()));
             assert supportedAndCommon.equals(consumed)
                 : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
         }
@@ -268,5 +271,4 @@ public abstract class BaseRestHandler implements RestHandler {
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
         return responseParams();
     }
-
 }

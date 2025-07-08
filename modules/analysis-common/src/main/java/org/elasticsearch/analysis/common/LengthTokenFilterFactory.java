@@ -25,7 +25,7 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
     LengthTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);
         if (settings.get(ENABLE_POS_INC_KEY) != null) {

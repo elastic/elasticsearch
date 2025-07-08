@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'operator-privileges-test'
-  description 'An test plugin for testing hard to get internals'
-  classname 'org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin'
+  name = 'operator-privileges-test'
+  description = 'An test plugin for testing hard to get internals'
+  classname = 'org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin'
 }
 
 dependencies {
@@ -15,5 +15,5 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

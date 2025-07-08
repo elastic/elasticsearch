@@ -1,0 +1,514 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.ivf_format_cluster_feature"]
+      reason: Needs mapper.ivf_format_cluster_feature feature
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: bbq_ivf
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_ivf
+
+  - do:
+      index:
+        index: bbq_ivf
+        id: "1"
+        body:
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_ivf
+
+  - do:
+      index:
+        index: bbq_ivf
+        id: "2"
+        body:
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_ivf
+
+  - do:
+      index:
+        index: bbq_ivf
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                   0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                   0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                   -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                   -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                   -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                   0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  # Flush in order to provoke a merge later
+  - do:
+      indices.flush:
+        index: bbq_ivf
+
+  - do:
+      indices.forcemerge:
+        index: bbq_ivf
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+---
+"Test knn search":
+  - do:
+      search:
+        index: bbq_ivf
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Vector rescoring has same scoring as exact search for kNN section":
+  - skip:
+      features: "headers"
+
+  # Rescore
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_ivf
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 1.5
+
+  # Get rescoring scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  # Exact knn via script score
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }
+
+---
+"Test bad quantization parameters":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_bbq_ivf
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                element_type: byte
+                index: true
+                index_options:
+                  type: bbq_ivf
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_bbq_ivf
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: false
+                index_options:
+                  type: bbq_ivf
+---
+"Test index configured rescore vector":
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: bbq_rescore_ivf
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_ivf
+                  rescore_vector:
+                    oversample: 1.5
+
+  - do:
+      bulk:
+        index: bbq_rescore_ivf
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "vector": [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313, 0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272, 0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132, -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265, -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475, -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242, -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45, -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176] }
+          { "index": {"_id": "2"}}
+          { "vector": [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348, -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048, 0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438, -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138, -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429, -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166, 0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569, -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013] }
+          { "index": {"_id": "3"}}
+          { "vector": [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348, -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048, 0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438, -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138, -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429, -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166, 0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569, -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013] }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_ivf
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: rescore_score0 }
+  - set: { hits.hits.1._score: rescore_score1 }
+  - set: { hits.hits.2._score: rescore_score2 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_ivf
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                                 0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                                 0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                                 -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                                 -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                                 -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                                 -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                                 -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $rescore_score0 }
+  - match: { hits.hits.1._score: $rescore_score1 }
+  - match: { hits.hits.2._score: $rescore_score2 }
+---
+"Test index configured rescore vector updateable and settable to 0":
+  - do:
+      indices.create:
+        index: bbq_rescore_0_ivf
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index_options:
+                  type: bbq_ivf
+                  rescore_vector:
+                    oversample: 0
+
+  - do:
+      indices.create:
+        index: bbq_rescore_update_ivf
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index_options:
+                  type: bbq_ivf
+                  rescore_vector:
+                    oversample: 1
+
+  - do:
+      indices.put_mapping:
+        index: bbq_rescore_update_ivf
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              index_options:
+                type: bbq_ivf
+                rescore_vector:
+                  oversample: 0
+
+  - do:
+      indices.get_mapping:
+        index: bbq_rescore_update_ivf
+
+  - match: { .bbq_rescore_update_ivf.mappings.properties.vector.index_options.rescore_vector.oversample: 0 }
+---
+"Test index configured rescore vector score consistency":
+  - skip:
+      features: "headers"
+  - do:
+      indices.create:
+        index: bbq_rescore_zero_ivf
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: bbq_ivf
+                  rescore_vector:
+                    oversample: 0
+
+  - do:
+      bulk:
+        index: bbq_rescore_zero_ivf
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "vector": [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313, 0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272, 0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132, -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265, -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475, -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242, -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45, -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176] }
+          { "index": {"_id": "2"}}
+          { "vector": [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348, -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048, 0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438, -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138, -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429, -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166, 0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569, -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013] }
+          { "index": {"_id": "3"}}
+          { "vector": [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348, -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048, 0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438, -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138, -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429, -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166, 0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569, -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013] }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_zero_ivf
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_zero_ivf
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 2
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: override_score0 }
+  - set: { hits.hits.1._score: override_score1 }
+  - set: { hits.hits.2._score: override_score2 }
+
+  - do:
+      indices.put_mapping:
+        index: bbq_rescore_zero_ivf
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 64
+              index: true
+              similarity: max_inner_product
+              index_options:
+                type: bbq_ivf
+                rescore_vector:
+                  oversample: 2
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_zero_ivf
+        body:
+          knn:
+            field: vector
+            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: default_rescore0 }
+  - set: { hits.hits.1._score: default_rescore1 }
+  - set: { hits.hits.2._score: default_rescore2 }
+
+  - do:
+      indices.put_mapping:
+        index: bbq_rescore_zero_ivf
+        body:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 64
+              index: true
+              similarity: max_inner_product
+              index_options:
+                type: bbq_ivf
+                rescore_vector:
+                  oversample: 0
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: bbq_rescore_zero_ivf
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "double similarity = dotProduct(params.query_vector, 'vector'); return similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1"
+                params:
+                  query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                                 0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                                 0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                                 -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                                 -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                                 -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                                 -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                                 -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $override_score0 }
+  - match: { hits.hits.0._score: $default_rescore0 }
+  - match: { hits.hits.1._score: $override_score1 }
+  - match: { hits.hits.1._score: $default_rescore1 }
+  - match: { hits.hits.2._score: $override_score2 }
+  - match: { hits.hits.2._score: $default_rescore2 }
+
+---
+"default oversample value":
+  - do:
+      indices.get_mapping:
+        index: bbq_ivf
+
+  - match: { bbq_ivf.mappings.properties.vector.index_options.rescore_vector.oversample: 3.0 }

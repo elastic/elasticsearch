@@ -186,8 +186,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .setIndices(followerIndex)
             .get();
 
-        IndexMetadata leaderMetadata = leaderState.getState().metadata().index(leaderIndex);
-        IndexMetadata followerMetadata = followerState.getState().metadata().index(followerIndex);
+        IndexMetadata leaderMetadata = leaderState.getState().metadata().getProject().index(leaderIndex);
+        IndexMetadata followerMetadata = followerState.getState().metadata().getProject().index(followerIndex);
         assertEquals(leaderMetadata.getNumberOfShards(), followerMetadata.getNumberOfShards());
         Map<String, String> ccrMetadata = followerMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         assertEquals(leaderIndex, ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY));
@@ -488,7 +488,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             clusterStateRequest.indices(followerIndex);
             MappingMetadata mappingMetadata = followerClient().admin()
                 .indices()
-                .prepareGetMappings("index2")
+                .prepareGetMappings(TEST_REQUEST_TIMEOUT, "index2")
                 .get()
                 .getMappings()
                 .get("index2");

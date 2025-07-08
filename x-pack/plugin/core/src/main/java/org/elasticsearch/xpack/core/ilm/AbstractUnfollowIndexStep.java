@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 import java.util.Map;
@@ -25,7 +25,7 @@ abstract class AbstractUnfollowIndexStep extends AsyncActionStep {
     @Override
     public final void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -36,8 +36,8 @@ abstract class AbstractUnfollowIndexStep extends AsyncActionStep {
             return;
         }
 
-        innerPerformAction(followerIndex, currentClusterState, listener);
+        innerPerformAction(followerIndex, currentState, listener);
     }
 
-    abstract void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener);
+    abstract void innerPerformAction(String followerIndex, ProjectState currentState, ActionListener<Void> listener);
 }

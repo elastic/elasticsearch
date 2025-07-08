@@ -62,8 +62,8 @@ public class DateTrunc extends EsqlScalarFunction {
     protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(
-        returnType = "date",
-        description = "Rounds down a date to the closest interval.",
+        returnType = { "date", "date_nanos" },
+        description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
         examples = {
             @Example(file = "date", tag = "docsDateTrunc"),
             @Example(
@@ -76,14 +76,14 @@ public class DateTrunc extends EsqlScalarFunction {
     )
     public DateTrunc(
         Source source,
-        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // Need to replace the commas in the description here with semi-colon as there’s a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
         @Param(
             name = "interval",
             type = { "date_period", "time_duration" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
-        @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
+        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field
     ) {
         super(source, List.of(interval, field));
         this.interval = interval;
@@ -138,7 +138,7 @@ public class DateTrunc extends EsqlScalarFunction {
 
     @Evaluator(extraName = "DateNanos")
     static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
-        // Currently, ES|QL doesn't support rounding to sub-millisecond values, so it's safe to cast before rounding.
+        // Currently, ES|QL doesn’t support rounding to sub-millisecond values, so it’s safe to cast before rounding.
         return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));
     }
 
@@ -190,14 +190,18 @@ public class DateTrunc extends EsqlScalarFunction {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
         } else if (period.getDays() > 1) {
             rounding = new Rounding.Builder(new TimeValue(period.getDays(), TimeUnit.DAYS));
-        } else if (period.getMonths() == 1) {
-            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR);
         } else if (period.getMonths() == 3) {
-            // java.time.Period does not have a QUATERLY period, so a period of 3 months
+            // java.time.Period does not have a QUARTERLY period, so a period of 3 months
             // returns a quarterly rounding
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR);
+        } else if (period.getMonths() == 1) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR);
+        } else if (period.getMonths() > 0) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR, period.getMonths());
         } else if (period.getYears() == 1) {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
+        } else if (period.getYears() > 0) {
+            rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY, period.getYears());
         } else {
             throw new IllegalArgumentException("Time interval is not supported");
         }
@@ -225,7 +229,7 @@ public class DateTrunc extends EsqlScalarFunction {
         }
         Object foldedInterval;
         try {
-            foldedInterval = interval.fold();
+            foldedInterval = interval.fold(toEvaluator.foldCtx());
             if (foldedInterval == null) {
                 throw new IllegalArgumentException("Interval cannot not be null");
             }

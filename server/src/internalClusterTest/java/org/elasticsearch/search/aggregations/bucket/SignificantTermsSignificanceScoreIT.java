@@ -495,7 +495,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 for (SignificantTerms.Bucket bucket : sigTerms.getBuckets()) {
                     assertThat(
                         bucket.getSignificanceScore(),
-                        is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize())
+                        is((double) bucket.getSubsetDf() + sigTerms.getSubsetSize() + bucket.getSupersetDf() + sigTerms.getSupersetSize())
                     );
                 }
             }

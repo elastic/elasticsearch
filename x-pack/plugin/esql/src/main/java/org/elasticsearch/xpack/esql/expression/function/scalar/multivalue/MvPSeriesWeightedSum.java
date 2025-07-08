@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -64,8 +65,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         @Param(
             name = "p",
             type = { "double" },
-            description = "It is a constant number that represents the 'p' parameter in the P-Series. "
-                + "It impacts every element's contribution to the weighted sum."
+            description = "It is a constant number that represents the *p* parameter in the P-Series. "
+                + "It impacts every element’s contribution to the weighted sum."
         ) Expression p
     ) {
         super(source, Arrays.asList(field, p));
@@ -94,7 +95,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         }
 
         if (p.dataType() == NULL) {
-            // If the type is `null` this parameter doesn't have to be foldable. It's effectively foldable anyway.
+            // If the type is `null` this parameter doesn’t have to be foldable. It’s effectively foldable anyway.
             // TODO figure out if the tests are wrong here, or if null is really different from foldable null
             return resolution;
         }
@@ -114,7 +115,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
                 source(),
                 toEvaluator.apply(field),
                 ctx -> new CompensatedSum(),
-                (Double) p.fold()
+                (Double) p.fold(toEvaluator.foldCtx())
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
@@ -144,7 +145,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         DoubleBlock.Builder builder,
         int position,
         DoubleBlock block,
-        @Fixed(includeInToString = false, build = true) CompensatedSum sum,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) CompensatedSum sum,
         @Fixed double p
     ) {
         sum.reset(0, 0);

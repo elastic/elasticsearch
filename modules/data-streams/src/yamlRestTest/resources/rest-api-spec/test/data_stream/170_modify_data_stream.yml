@@ -92,9 +92,12 @@
 ---
 "Modify a data stream's failure store":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [ "allowed_warnings" ]
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       allowed_warnings:
@@ -103,8 +106,7 @@
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             mappings:
               properties:
@@ -112,6 +114,9 @@
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -143,8 +148,7 @@
   # rollover data stream to create new failure store index
   - do:
       indices.rollover:
-        alias: "data-stream-for-modification"
-        target_failure_store: true
+        alias: "data-stream-for-modification::failures"
   - is_true: acknowledged
 
   # save index names for later use

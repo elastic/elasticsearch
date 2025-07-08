@@ -13,11 +13,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.IsAcknowledgedSupplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
@@ -25,6 +26,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 
@@ -48,7 +50,6 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
     private final boolean acknowledged;
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
-        super(in);
         acknowledged = in.readBoolean();
         state = ClusterState.readFrom(in, null);
         explanations = RoutingExplanations.readFrom(in);
@@ -92,14 +93,17 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         if (emitState(outerParams)) {
             deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
         }
-        return ChunkedToXContent.builder(outerParams).object(b -> {
-            b.field(ACKNOWLEDGED_KEY, isAcknowledged());
-            if (emitState(outerParams)) {
-                b.xContentObject("state", state);
-            }
-            if (outerParams.paramAsBoolean("explain", false)) {
-                b.append(explanations);
-            }
-        });
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startObject().field(ACKNOWLEDGED_KEY, isAcknowledged())),
+            emitState(outerParams)
+                ? ChunkedToXContentHelper.object("state", state.toXContentChunked(outerParams))
+                : Collections.emptyIterator(),
+            Iterators.single((builder, params) -> {
+                if (params.paramAsBoolean("explain", false)) {
+                    explanations.toXContent(builder, params);
+                }
+                return builder.endObject();
+            })
+        );
     }
 }

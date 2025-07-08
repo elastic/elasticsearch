@@ -580,7 +580,6 @@ CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          
 
 spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 required_capability: enrich_load
-required_capability: mv_warn
 
 FROM airports
 | ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
@@ -643,4 +642,22 @@ FROM airports
 
 abbrev:k  |  city_name:k  |  city_location:geo_point |  country:k  |  location:geo_point                       |  name:text                    |  region:text  |  boundary_wkt_length:i
 IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8092915005895 22.727749187571)  |  Devi Ahilyabai Holkar Int'l  |  Indore City  |  231
+;
+
+// Regression test for https://github.com/elastic/elasticsearch/issues/126030
+// We had wrong layouts from ReplaceMissingFieldsWithNull in case of indices that had relevant fields for the query,
+// but were **missing the field we enrich on**.
+fieldsInOtherIndicesBug
+required_capability: enrich_load
+required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
+
+from *
+| keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
+| enrich languages_policy on author.keyword
+| sort book_no
+| limit 1
+;
+
+author.keyword:keyword|book_no:keyword|scalerank:integer|street:keyword|bytes_in:ul|@timestamp:unsupported|abbrev:keyword|city_location:geo_point|distance:double|description:unsupported|birth_date:date|language_code:integer|intersects:boolean|client_ip:unsupported|event_duration:long|version:version|language_name:keyword
+Fyodor Dostoevsky     |1211           |null             |null          |null       |null                  |null          |null                   |null           |null                   |null           |null                 |null              |null                 |null               |null           |null
 ;

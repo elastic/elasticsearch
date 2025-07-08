@@ -14,23 +14,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -80,7 +83,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static final WriteLoadForecaster TEST_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
         @Override
-        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+        public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
             throw new AssertionError("Not required for testing");
         }
 
@@ -89,6 +92,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
             return indexMetadata.getForecastedWriteLoad();
         }
+
+        @Override
+        public void refreshLicense() {}
     };
 
     public static MockAllocationService createAllocationService() {
@@ -437,16 +443,21 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     }
 
-    protected static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
-        WriteLoadForecaster.DEFAULT
-    ) {
-        @Override
-        public Map<String, NodeAllocationStats> stats(
-            ClusterState clusterState,
-            ClusterInfo clusterInfo,
-            @Nullable DesiredBalance desiredBalance
+    protected static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS =
+        new NodeAllocationStatsAndWeightsCalculator(
+            WriteLoadForecaster.DEFAULT,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
         ) {
-            return Map.of();
-        }
-    };
+            @Override
+            public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
+                Metadata metadata,
+                RoutingNodes routingNodes,
+                ClusterInfo clusterInfo,
+                Runnable ensureNotCancelled,
+                @Nullable DesiredBalance desiredBalance
+            ) {
+                ensureNotCancelled.run();
+                return Map.of();
+            }
+        };
 }

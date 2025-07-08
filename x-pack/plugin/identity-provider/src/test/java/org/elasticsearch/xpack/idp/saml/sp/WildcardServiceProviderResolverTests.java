@@ -24,6 +24,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -82,7 +83,8 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
                   "principal": "http://cloud.elastic.co/saml/principal",
                   "name": "http://cloud.elastic.co/saml/name",
                   "email": "http://cloud.elastic.co/saml/email",
-                  "roles": "http://cloud.elastic.co/saml/roles"
+                  "roles": "http://cloud.elastic.co/saml/roles",
+                  "extensions": [ "http://cloud.elastic.co/saml/department", "http://cloud.elastic.co/saml/avatar" ]
                 }
               }
             }
@@ -154,6 +156,7 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         assertThat(sp1.getAssertionConsumerService().toString(), equalTo("https://abcdef.service.example.com/saml2/acs"));
         assertThat(sp1.getName(), equalTo("abcdef at example.com (A)"));
         assertThat(sp1.getPrivileges().getResource(), equalTo("service1:example:abcdef"));
+        assertThat(sp1.getAttributeNames().allowedExtensions, empty());
 
         final SamlServiceProvider sp2 = resolver.resolve("https://qwerty.example.com/", "https://qwerty.service.example.com/saml2/acs");
         assertThat(sp2, notNullValue());
@@ -161,6 +164,7 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         assertThat(sp2.getAssertionConsumerService().toString(), equalTo("https://qwerty.service.example.com/saml2/acs"));
         assertThat(sp2.getName(), equalTo("qwerty at example.com (A)"));
         assertThat(sp2.getPrivileges().getResource(), equalTo("service1:example:qwerty"));
+        assertThat(sp2.getAttributeNames().allowedExtensions, empty());
 
         final SamlServiceProvider sp3 = resolver.resolve("https://xyzzy.example.com/", "https://services.example.com/xyzzy/saml2/acs");
         assertThat(sp3, notNullValue());
@@ -168,6 +172,7 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         assertThat(sp3.getAssertionConsumerService().toString(), equalTo("https://services.example.com/xyzzy/saml2/acs"));
         assertThat(sp3.getName(), equalTo("xyzzy at example.com (B)"));
         assertThat(sp3.getPrivileges().getResource(), equalTo("service1:example:xyzzy"));
+        assertThat(sp3.getAttributeNames().allowedExtensions, empty());
 
         final SamlServiceProvider sp4 = resolver.resolve("https://service-12345.example.net/", "https://saml.example.net/12345/acs");
         assertThat(sp4, notNullValue());
@@ -175,6 +180,10 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         assertThat(sp4.getAssertionConsumerService().toString(), equalTo("https://saml.example.net/12345/acs"));
         assertThat(sp4.getName(), equalTo("12345 at example.net"));
         assertThat(sp4.getPrivileges().getResource(), equalTo("service2:example:12345"));
+        assertThat(
+            sp4.getAttributeNames().allowedExtensions,
+            containsInAnyOrder("http://cloud.elastic.co/saml/department", "http://cloud.elastic.co/saml/avatar")
+        );
 
         expectThrows(
             IllegalArgumentException.class,

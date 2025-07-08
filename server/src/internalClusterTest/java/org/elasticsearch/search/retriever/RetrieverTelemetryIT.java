@@ -30,7 +30,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RetrieverTelemetryIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
@@ -84,7 +83,9 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
 
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
-            performSearch(new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null)));
+            performSearch(
+                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null, null))
+            );
         }
 
         // search#2 - this will record 1 entry for "retriever" in `sections`, 1 for "standard" under `retrievers`, and 1 for "range" under
@@ -98,7 +99,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().retriever(
-                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null))
+                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null, null))
                 )
             );
         }
@@ -112,7 +113,9 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         // search#5 - t
         // his will record 1 entry for "knn" in `sections`
         {
-            performSearch(new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null))));
+            performSearch(
+                new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null, null)))
+            );
         }
 
         // search#6 - this will record 1 entry for "query" in `sections`, and 1 for "match_all" under `queries`

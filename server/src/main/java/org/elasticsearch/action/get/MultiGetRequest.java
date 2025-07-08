@@ -11,10 +11,10 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
@@ -46,13 +45,12 @@ import java.util.Locale;
 
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class MultiGetRequest extends ActionRequest
+public class MultiGetRequest extends LegacyActionRequest
     implements
         Iterable<MultiGetRequest.Item>,
         CompositeIndicesRequest,
         RealtimeRequest,
         ToXContentObject {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetRequest.class);
 
     private static final ParseField DOCS = new ParseField("docs");
     private static final ParseField INDEX = new ParseField("_index");

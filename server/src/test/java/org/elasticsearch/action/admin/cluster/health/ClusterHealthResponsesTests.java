@@ -163,6 +163,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
             "bla",
             new String[] { Metadata.ALL },
             clusterState,
+            clusterState.metadata().getProject().id(),
             pendingTasks,
             inFlight,
             delayedUnassigned,

@@ -90,10 +90,12 @@ public class RetentionLeaseSyncActionIT extends ESIntegTestCase {
      */
     private static Releasable fullyAllocatePrimaryIndexingCapacityOnNode(String targetNode) {
         return internalCluster().getInstance(IndexingPressure.class, targetNode)
-            .markPrimaryOperationStarted(
+            .validateAndMarkPrimaryOperationStarted(
                 1,
                 IndexingPressure.MAX_PRIMARY_BYTES.get(internalCluster().getInstance(Settings.class, targetNode)).getBytes() + 1,
-                true
+                0,
+                true,
+                false
             );
     }
 }

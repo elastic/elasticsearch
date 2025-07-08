@@ -1,0 +1,33 @@
+"multiple subobjects":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "counted_keyword was added in 8.12"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          mappings:
+            properties:
+              parent:
+                type: object
+                properties:
+                  child:
+                    type: counted_keyword
+
+  - do:
+      index:
+        index: test-events
+        id: "1"
+        refresh: true
+        body: '{"parent": [{"child": "foo"}, {"child": "bar"}]}'
+
+  - do:
+      search:
+        index: test-events
+        body:
+          query:
+            ids:
+              values: [ 1 ]
+  - match:
+      hits.hits.0._source: {"parent": [{"child": "foo"}, {"child": "bar"}]}

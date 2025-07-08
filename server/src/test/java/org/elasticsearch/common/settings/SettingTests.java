@@ -70,8 +70,8 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSettingMinValue() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(100, ByteSizeUnit.MB),
-            new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(20_000_000, ByteSizeUnit.BYTES),
             ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = 20_000_000 - randomIntBetween(1, 1024);
@@ -84,8 +84,8 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSettingMaxValue() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(100, ByteSizeUnit.MB),
-            new ByteSizeValue(16, ByteSizeUnit.MB),
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(16, ByteSizeUnit.MB),
             ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);
@@ -385,6 +385,34 @@ public class SettingTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertThat(e, hasToString(containsString("Failed to parse value for setting [foo]")));
         assertNull(e.getCause());
+    }
+
+    public void testFloatSettingWithOtherSettingAsDefault() {
+        float defaultFallbackValue = randomFloat();
+        Setting<Float> fallbackSetting = Setting.floatSetting("fallback_setting", defaultFallbackValue);
+        Setting<Float> floatSetting = Setting.floatSetting("float_setting", fallbackSetting, Float.MIN_VALUE);
+
+        // Neither float_setting nor fallback_setting specified
+        assertThat(floatSetting.get(Settings.builder().build()), equalTo(defaultFallbackValue));
+
+        // Only fallback_setting specified
+        float explicitFallbackValue = randomValueOtherThan(defaultFallbackValue, ESTestCase::randomFloat);
+        assertThat(
+            floatSetting.get(Settings.builder().put("fallback_setting", explicitFallbackValue).build()),
+            equalTo(explicitFallbackValue)
+        );
+
+        // Both float_setting and fallback_setting specified
+        float explicitFloatValue = randomValueOtherThanMany(
+            v -> v != explicitFallbackValue && v != defaultFallbackValue,
+            ESTestCase::randomFloat
+        );
+        assertThat(
+            floatSetting.get(
+                Settings.builder().put("fallback_setting", explicitFallbackValue).put("float_setting", explicitFloatValue).build()
+            ),
+            equalTo(explicitFloatValue)
+        );
     }
 
     private enum TestEnum {
@@ -1520,6 +1548,27 @@ public class SettingTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV7AndRemovedInV8)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.IndexSettingDeprecatedInV8AndRemovedInV9)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV8AndRemovedInV9)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.IndexSettingDeprecatedInV9AndRemovedInV10)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting(
+                "a.bool.setting",
+                true,
+                Property.DeprecatedWarning,
+                Property.IndexSettingDeprecatedInV9AndRemovedInV10
+            )
         );
     }
 

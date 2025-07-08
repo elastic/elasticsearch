@@ -13,7 +13,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xcontent.Text;
 import org.junit.Before;
 
 import java.time.ZoneId;
@@ -639,7 +639,6 @@ public class SearchResponseMergerTests extends ESTestCase {
                     10000D,
                     count,
                     InternalAggregations.EMPTY,
-                    false,
                     DocValueFormat.RAW
                 );
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
@@ -1498,15 +1497,7 @@ public class SearchResponseMergerTests extends ESTestCase {
     private static InternalAggregations createDeterminsticAggregation(String maxAggName, String rangeAggName, double value, int count) {
         Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
         InternalDateRange.Factory factory = new InternalDateRange.Factory();
-        InternalDateRange.Bucket bucket = factory.createBucket(
-            "bucket",
-            0D,
-            10000D,
-            count,
-            InternalAggregations.EMPTY,
-            false,
-            DocValueFormat.RAW
-        );
+        InternalDateRange.Bucket bucket = factory.createBucket("bucket", 0D, 10000D, count, InternalAggregations.EMPTY, DocValueFormat.RAW);
 
         InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
         InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));

@@ -25,7 +25,9 @@ import org.gradle.api.provider.Provider;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
@@ -141,8 +143,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private DistributionDependency resolveDependencyNotation(Project project, ElasticsearchDistribution distro) {
         return distributionsResolutionStrategies.stream()
+            .sorted(Comparator.comparing(DistributionResolution::getPriority).reversed())
             .map(r -> r.getResolver().resolve(project, distro))
-            .filter(d -> d != null)
+            .filter(Objects::nonNull)
             .findFirst()
             .orElseGet(() -> DistributionDependency.of(dependencyNotation(distro)));
     }

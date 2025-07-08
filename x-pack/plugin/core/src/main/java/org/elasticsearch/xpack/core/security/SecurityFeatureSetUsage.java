@@ -63,12 +63,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         ipFilterUsage = in.readGenericMap();
         anonymousUsage = in.readGenericMap();
         roleMappingStoreUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            fips140Usage = in.readGenericMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            operatorPrivilegesUsage = in.readGenericMap();
-        }
+        fips140Usage = in.readGenericMap();
+        operatorPrivilegesUsage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             domainsUsage = in.readGenericMap();
         }
@@ -116,7 +112,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -133,12 +129,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            out.writeGenericMap(fips140Usage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            out.writeGenericMap(operatorPrivilegesUsage);
-        }
+        out.writeGenericMap(fips140Usage);
+        out.writeGenericMap(operatorPrivilegesUsage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeGenericMap(domainsUsage);
         }

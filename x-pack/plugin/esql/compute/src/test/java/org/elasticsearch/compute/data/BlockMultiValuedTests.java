@@ -18,6 +18,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -26,9 +29,12 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,7 +44,11 @@ public class BlockMultiValuedTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -58,7 +68,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testMultiValued() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             assertThat(b.block().getPositionCount(), equalTo(positionCount));
             assertThat(b.block().getTotalValueCount(), equalTo(b.valueCount()));
@@ -68,6 +78,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
             assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertInsertNulls(b.block());
         } finally {
             b.block().close();
         }
@@ -75,7 +86,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testExpand() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
         assertExpanded(b.block());
     }
 
@@ -127,10 +138,12 @@ public class BlockMultiValuedTests extends ESTestCase {
         if (elementType != ElementType.BOOLEAN) {
             return;
         }
-        int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
+        int positionCount = randomIntBetween(0, 16 * 1024);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
         try (ToMask mask = ((BooleanBlock) b.block()).toMask()) {
-            assertThat(mask.hadMultivaluedFields(), equalTo(true));
+            var anyNonNullValue = b.values().stream().anyMatch(Objects::nonNull);
+            assertThat(mask.hadMultivaluedFields(), equalTo(anyNonNullValue));
+
             for (int p = 0; p < b.values().size(); p++) {
                 List<Object> v = b.values().get(p);
                 if (v == null) {
@@ -150,14 +163,14 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testMask() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try (
             BooleanVector mask = BasicBlockTests.randomMask(b.values().size() + between(0, 1000));
             Block masked = b.block().keepMask(mask)
         ) {
             for (int p = 0; p < b.values().size(); p++) {
                 List<Object> inputValues = b.values().get(p);
-                List<Object> valuesAtPosition = BasicBlockTests.valuesAtPositions(masked, p, p + 1).get(0);
+                List<Object> valuesAtPosition = valuesAtPositions(masked, p, p + 1).get(0);
                 if (inputValues == null || mask.getBoolean(p) == false) {
                     assertThat(masked.isNull(p), equalTo(true));
                     assertThat(valuesAtPosition, nullValue());
@@ -171,9 +184,19 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
     }
 
+    public void testInsertNull() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
+        try {
+            assertInsertNulls(b.block());
+        } finally {
+            b.block().close();
+        }
+    }
+
     private void assertFiltered(boolean all, boolean shuffled) {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
             Block filtered = b.block().filter(positions);
@@ -194,7 +217,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                         assertThat(filtered.isNull(r), equalTo(true));
                     } else {
                         assertThat(filtered.getValueCount(r), equalTo(b.values().get(positions[r]).size()));
-                        assertThat(BasicBlockTests.valuesAtPositions(filtered, r, r + 1).get(0), equalTo(b.values().get(positions[r])));
+                        assertThat(valuesAtPositions(filtered, r, r + 1).get(0), equalTo(b.values().get(positions[r])));
                     }
                 }
             } finally {
@@ -230,11 +253,11 @@ public class BlockMultiValuedTests extends ESTestCase {
                     assertThat(expanded.getValueCount(np++), equalTo(0));
                     continue;
                 }
-                List<Object> oValues = BasicBlockTests.valuesAtPositions(orig, op, op + 1).get(0);
+                List<Object> oValues = valuesAtPositions(orig, op, op + 1).get(0);
                 for (Object ov : oValues) {
                     assertThat(expanded.isNull(np), equalTo(false));
                     assertThat(expanded.getValueCount(np), equalTo(1));
-                    assertThat(BasicBlockTests.valuesAtPositions(expanded, np, ++np).get(0), equalTo(List.of(ov)));
+                    assertThat(valuesAtPositions(expanded, np, ++np).get(0), equalTo(List.of(ov)));
                 }
             }
         }
@@ -242,7 +265,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     private void assertFilteredThenExpanded(boolean all, boolean shuffled) {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
             assertExpanded(b.block().filter(positions));
@@ -284,7 +307,7 @@ public class BlockMultiValuedTests extends ESTestCase {
     private void assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
         BlockFactory positionsFactory = blockFactory();
         int positionCount = randomIntBetween(100, 16 * 1024);
-        var b = BasicBlockTests.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
         try (IntBlock.Builder builder = positionsFactory.newIntBlockBuilder(positionsToCopy);) {
             for (int p = 0; p < positionsToCopy; p++) {
                 int max = positionsPerPosition.applyAsInt(p);
@@ -326,7 +349,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                     for (int i = start; i < end; i++) {
                         int toCopy = positions.getInt(i);
                         if (toCopy < b.block().getPositionCount()) {
-                            List<Object> v = BasicBlockTests.valuesAtPositions(b.block(), toCopy, toCopy + 1).get(0);
+                            List<Object> v = valuesAtPositions(b.block(), toCopy, toCopy + 1).get(0);
                             if (v != null) {
                                 expected.addAll(v);
                             }
@@ -336,10 +359,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                         assertThat(copy.isNull(p - positionOffset), equalTo(true));
                     } else {
                         assertThat(copy.isNull(p - positionOffset), equalTo(false));
-                        assertThat(
-                            BasicBlockTests.valuesAtPositions(copy, p - positionOffset, p + 1 - positionOffset).get(0),
-                            equalTo(expected)
-                        );
+                        assertThat(valuesAtPositions(copy, p - positionOffset, p + 1 - positionOffset).get(0), equalTo(expected));
                     }
                 }
                 assertThat(lookup.hasNext(), equalTo(false));

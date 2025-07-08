@@ -119,10 +119,6 @@ setup:
   - skip:
       features: headers
 
-  - requires:
-      cluster_features: ["simulate.mapping.validation"]
-      reason: "ingest simulate index mapping validation added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -265,10 +261,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.mapping.validation.templates"]
-      reason: "ingest simulate index mapping validation added in 8.16"
-
   - do:
       indices.put_template:
         name: v1_template
@@ -400,10 +392,6 @@ setup:
       features:
        - headers
        - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.mapping.validation.templates"]
-      reason: "ingest simulate index mapping validation added in 8.16"
 
   - do:
       allowed_warnings:

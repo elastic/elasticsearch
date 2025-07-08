@@ -1,0 +1,5 @@
+pr: 123187
+summary: Add bit vector support to semantic text
+area: Vector Search
+type: enhancement
+issues: []

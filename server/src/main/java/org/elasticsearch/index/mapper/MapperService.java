@@ -164,6 +164,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     */
+    @Deprecated
+    public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING = Setting.boolSetting(
+        "index.mapper.dynamic",
+        true,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
 
     private final IndexAnalyzers indexAnalyzers;
     private final MappingParser mappingParser;
@@ -171,6 +182,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
 
     private volatile DocumentMapper mapper;
@@ -245,6 +257,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             this::getMetadataMappers,
             this::resolveDocumentType
         );
+        this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
     }
 
@@ -585,7 +598,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated, mapperMetrics);
+        DocumentMapper newMapper = new DocumentMapper(
+            documentParser,
+            mapping,
+            mappingSource,
+            indexVersionCreated,
+            mapperMetrics,
+            index().getName()
+        );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -781,7 +801,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
+        var mapper = mappingLookup().getMapper(field);
+        return mapper instanceof MetadataFieldMapper;
     }
 
     /**
@@ -817,6 +838,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
+    }
+
+    public Function<Query, BitSetProducer> getBitSetProducer() {
+        return bitSetProducer;
     }
 
     public MapperMetrics getMapperMetrics() {

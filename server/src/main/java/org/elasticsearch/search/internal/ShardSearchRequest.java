@@ -42,7 +42,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -52,14 +51,13 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
@@ -69,7 +67,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * It provides all the methods that the {@link SearchContext} needs.
  * Provides a cache key based on its content that can be used to cache shard level response.
  */
-public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
+public class ShardSearchRequest extends AbstractTransportRequest implements IndicesRequest {
     private final String clusterAlias;
     private final ShardId shardId;
     private final int shardRequestIndex;
@@ -77,7 +75,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final long waitForCheckpoint;
     private final TimeValue waitForCheckpointsTimeout;
     private final SearchType searchType;
-    private final Scroll scroll;
+    private final TimeValue scroll;
     private final float indexBoost;
     private Boolean requestCache;
     private final long nowInMillis;
@@ -221,7 +219,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         AliasFilter aliasFilter,
         float indexBoost,
         boolean allowPartialSearchResults,
-        Scroll scroll,
+        TimeValue scroll,
         long nowInMillis,
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
@@ -283,7 +281,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         searchType = SearchType.fromId(in.readByte());
         shardRequestIndex = in.readVInt();
         numberOfShards = in.readVInt();
-        scroll = in.readOptionalWriteable(Scroll::new);
+        scroll = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to deserialize between the 8.8 and 8.500.020 version we need to translate
@@ -358,7 +356,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVInt(shardRequestIndex);
             out.writeVInt(numberOfShards);
         }
-        out.writeOptionalWriteable(scroll);
+        out.writeOptionalTimeValue(scroll);
         out.writeOptionalWriteable(source);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to serialize between the 8.8 and 8.500.020 version we need to translate
@@ -482,7 +480,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return allowPartialSearchResults;
     }
 
-    public Scroll scroll() {
+    public TimeValue scroll() {
         return scroll;
     }
 
@@ -631,23 +629,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         Index index = metadata.getIndex();
         Map<String, AliasMetadata> aliases = metadata.getAliases();
-        Function<AliasMetadata, QueryBuilder> parserFunction = (alias) -> {
-            if (alias.filter() == null) {
-                return null;
-            }
-            try {
-                return filterParser.apply(alias.filter().uncompressed());
-            } catch (IOException ex) {
-                throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
-            }
-        };
         if (aliasNames.length == 1) {
             AliasMetadata alias = aliases.get(aliasNames[0]);
             if (alias == null) {
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
                 throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
             }
-            return parserFunction.apply(alias);
+            return parseAliasFilter(filterParser, alias, index);
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BoolQueryBuilder combined = new BoolQueryBuilder();
@@ -657,7 +645,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
                     throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
                 }
-                QueryBuilder parsedFilter = parserFunction.apply(alias);
+                QueryBuilder parsedFilter = parseAliasFilter(filterParser, alias, index);
                 if (parsedFilter != null) {
                     combined.should(parsedFilter);
                 } else {
@@ -666,6 +654,21 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 }
             }
             return combined;
+        }
+    }
+
+    private static QueryBuilder parseAliasFilter(
+        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
+        AliasMetadata alias,
+        Index index
+    ) {
+        if (alias.filter() == null) {
+            return null;
+        }
+        try {
+            return filterParser.apply(alias.filter().compressedReference());
+        } catch (IOException ex) {
+            throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
         }
     }
 

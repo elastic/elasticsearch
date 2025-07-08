@@ -68,7 +68,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @Override
-    public TransformState transform(Object input, TransformState prevState) {
+    public TransformState transform(Map<String, Object> input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
 
         // allow empty requests, this is how we clean up settings

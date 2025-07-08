@@ -169,7 +169,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     }
 
     static Map<String, SnapshotLifecyclePolicy> getAllPoliciesWithRetentionEnabled(final ClusterState state) {
-        final SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             return Collections.emptyMap();
         }

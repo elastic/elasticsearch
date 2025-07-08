@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,11 +33,6 @@ public abstract class Attribute extends NamedExpression {
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        // TODO add UnsupportedAttribute when these are moved to the same project
-        return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
-    }
-
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
 
@@ -55,8 +49,9 @@ public abstract class Attribute extends NamedExpression {
         this.nullability = nullability;
     }
 
-    public static String rawTemporaryName(String inner, String outer, String suffix) {
-        return SYNTHETIC_ATTRIBUTE_NAME_PREFIX + inner + "$" + outer + "$" + suffix;
+    public static String rawTemporaryName(String... parts) {
+        var name = String.join("$", parts);
+        return name.isEmpty() || name.startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX) ? name : SYNTHETIC_ATTRIBUTE_NAME_PREFIX + name;
     }
 
     @Override
@@ -71,7 +66,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public AttributeSet references() {
-        return new AttributeSet(this);
+        return AttributeSet.of(this);
     }
 
     public Attribute withLocation(Source source) {
@@ -117,18 +112,15 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), nullability);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            Attribute other = (Attribute) obj;
-            return Objects.equals(nullability, other.nullability);
-        }
-
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (Attribute) o;
+        return super.innerEquals(other) && Objects.equals(nullability, other.nullability);
     }
 
     @Override

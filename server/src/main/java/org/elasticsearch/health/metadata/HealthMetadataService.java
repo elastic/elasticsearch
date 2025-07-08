@@ -26,9 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.health.HealthFeatures;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -51,7 +49,6 @@ public class HealthMetadataService {
     private static final Logger logger = LogManager.getLogger(HealthMetadataService.class);
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
     private final ClusterStateListener clusterStateListener;
     private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
@@ -65,17 +62,16 @@ public class HealthMetadataService {
     // ClusterState to maintain an up-to-date version of it across the cluster.
     private volatile HealthMetadata localHealthMetadata;
 
-    private HealthMetadataService(ClusterService clusterService, FeatureService featureService, Settings settings) {
+    private HealthMetadataService(ClusterService clusterService, Settings settings) {
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
         this.localHealthMetadata = initialHealthMetadata(settings);
         this.taskQueue = clusterService.createTaskQueue("health metadata service", Priority.NORMAL, new Executor());
     }
 
-    public static HealthMetadataService create(ClusterService clusterService, FeatureService featureService, Settings settings) {
-        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, featureService, settings);
+    public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
+        HealthMetadataService healthMetadataService = new HealthMetadataService(clusterService, settings);
         healthMetadataService.registerListeners();
         return healthMetadataService;
     }
@@ -137,7 +133,7 @@ public class HealthMetadataService {
 
     private boolean canPostClusterStateUpdates(ClusterState state) {
         // Wait until every node in the cluster supports health checks
-        return isMaster && state.clusterRecovered() && featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_HEALTH);
+        return isMaster && state.clusterRecovered();
     }
 
     private void updateOnClusterStateChange(ClusterChangedEvent event) {

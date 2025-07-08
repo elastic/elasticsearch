@@ -1,0 +1,5 @@
+pr: 125896
+summary: Support explicit Z/M attributes using WKT geometry
+area: Geo
+type: enhancement
+issues: [123111]

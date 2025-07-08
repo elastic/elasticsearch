@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -53,10 +54,13 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             getAckTimeout(request),
             request.param("id"),
             request.param("context"),
-            content,
-            request.getXContentType(),
+            content.length(),
             StoredScriptSource.parse(content, xContentType)
         );
-        return channel -> client.execute(TransportPutStoredScriptAction.TYPE, putRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportPutStoredScriptAction.TYPE,
+            putRequest,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 }

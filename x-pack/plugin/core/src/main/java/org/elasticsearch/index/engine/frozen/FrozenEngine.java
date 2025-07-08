@@ -17,7 +17,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.Engine;
@@ -55,12 +54,7 @@ import java.util.function.Function;
  * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
-    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting(
-        "index.frozen",
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
-    );
+
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
@@ -256,7 +250,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             case "refresh_needed":
                 assert false : "refresh_needed is always false";
             case "segments":
-            case "segments_stats":
+            case SEGMENTS_STATS_SOURCE:
             case "completion_stats":
             case FIELD_RANGE_SEARCH_SOURCE: // special case for field_range - we use the cached point values reader
             case CAN_MATCH_SEARCH_SOURCE: // special case for can_match phase - we use the cached point values reader

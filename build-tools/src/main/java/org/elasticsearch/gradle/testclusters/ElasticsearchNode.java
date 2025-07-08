@@ -61,11 +61,14 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,7 +101,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
-    private static final int NODE_UP_TIMEOUT = 2;
+    private static final int NODE_UP_TIMEOUT = 3;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
@@ -124,6 +127,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String name;
     transient private final Project project;
     private final Provider<ReaperService> reaperServiceProvider;
+    private final Provider<TestClustersRegistry> testClustersRegistryProvider;
+
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
@@ -164,7 +169,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final List<ElasticsearchDistribution> distributions = new ArrayList<>();
     private int currentDistro = 0;
     private TestDistribution testDistribution;
-    private volatile Process esProcess;
     private Function<String, String> nameCustomization = s -> s;
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
@@ -179,6 +183,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String name,
         Project project,
         Provider<ReaperService> reaperServiceProvider,
+        Provider<TestClustersRegistry> testClustersRegistryProvider,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
@@ -191,6 +196,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.name = name;
         this.project = project;
         this.reaperServiceProvider = reaperServiceProvider;
+        this.testClustersRegistryProvider = testClustersRegistryProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
@@ -873,10 +879,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
-        if (cliJvmArgs.isEmpty() == false) {
-            String cliJvmArgsString = String.join(" ", cliJvmArgs);
-            environment.put("CLI_JAVA_OPTS", cliJvmArgsString);
-        }
+        String cliJvmArgsString = String.join(" ", cliJvmArgs);
+        environment.put("CLI_JAVA_OPTS", cliJvmArgsString + " " + System.getProperty("tests.jvm.argline", ""));
 
         // Direct the stderr to the ES log file. This should capture any jvm problems to start.
         // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
@@ -892,11 +896,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
+        Process esProcess;
         try {
             esProcess = processBuilder.start();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
+        testClustersRegistryProvider.get().storeProcess(id(), esProcess);
         reaperServiceProvider.get().registerPid(toString(), esProcess.pid());
     }
 
@@ -982,6 +988,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        Process esProcess = testClustersRegistryProvider.get().getProcess(id());
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
@@ -1291,40 +1298,47 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
-            stream.forEach(source -> {
-                Path relativeDestination = sourceRoot.relativize(source);
-                if (relativeDestination.getNameCount() <= 1) {
-                    return;
+        try {
+            Files.walkFileTree(sourceRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    Path relativeDestination = sourceRoot.relativize(dir);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination);
+                    return FileVisitResult.CONTINUE;
                 }
-                // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
 
-                Path destination = destinationRoot.resolve(relativeDestination);
-                if (Files.isDirectory(source)) {
-                    try {
-                        Files.createDirectories(destination);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                @Override
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) throws IOException {
+                    Path relativeDestination = sourceRoot.relativize(source);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return FileVisitResult.CONTINUE;
                     }
-                } else {
-                    try {
-                        Files.createDirectories(destination.getParent());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination.getParent());
                     syncMethod.accept(destination, source);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    if (exc instanceof NoSuchFileException noFileException) {
+                        // Ignore these files that are sometimes left behind by the JVM
+                        if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
+                            LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
+                            return FileVisitResult.CONTINUE;
+                        }
+                    }
+                    throw exc;
                 }
             });
-        } catch (UncheckedIOException e) {
-            if (e.getCause() instanceof NoSuchFileException cause) {
-                // Ignore these files that are sometimes left behind by the JVM
-                if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
-                    throw new UncheckedIOException(cause);
-                }
-            } else {
-                throw e;
-            }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
         }
@@ -1421,12 +1435,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Path jvmOptions = configFileRoot.resolve("jvm.options");
         try {
             String content = new String(Files.readAllBytes(jvmOptions));
-            Map<String, String> expansions = jvmOptionExpansions();
-            for (String origin : expansions.keySet()) {
-                if (content.contains(origin) == false) {
-                    throw new IOException("template property " + origin + " not found in template.");
+            Map<ReplacementKey, String> expansions = jvmOptionExpansions();
+            for (var entry : expansions.entrySet()) {
+                ReplacementKey replacement = entry.getKey();
+                String key = replacement.key();
+                if (content.contains(key) == false) {
+                    key = replacement.fallback();
+                    if (content.contains(key) == false) {
+                        throw new IOException("Template property '" + replacement + "' not found in template:\n" + content);
+                    }
                 }
-                content = content.replace(origin, expansions.get(origin));
+                content = content.replace(key, entry.getValue());
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
@@ -1434,17 +1453,39 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private Map<String, String> jvmOptionExpansions() {
-        Map<String, String> expansions = new HashMap<>();
+    private record ReplacementKey(String key, String fallback) {}
+
+    private Map<ReplacementKey, String> jvmOptionExpansions() {
+        Map<ReplacementKey, String> expansions = new HashMap<>();
         Version version = getVersion();
-        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs);
-        if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+
+        ReplacementKey heapDumpPathSub;
+        if (version.before("8.19.0") && version.onOrAfter("6.3.0")) {
+            heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", null);
+        } else {
+            // temporarily fall back to the old substitution so both old and new work during backport
+            heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
         }
-        if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
+        expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
+
+        ReplacementKey gcLogSub;
+        if (version.before("8.19.0") && version.onOrAfter("6.2.0")) {
+            gcLogSub = new ReplacementKey("logs/gc.log", null);
+        } else {
+            // temporarily check the old substitution first so both old and new work during backport
+            gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
         }
+        expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
+
+        ReplacementKey errorFileSub;
+        if (version.before("8.19.0") && version.getMajor() >= 7) {
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", null);
+        } else {
+            // temporarily check the old substitution first so both old and new work during backport
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");
+        }
+        expansions.put(errorFileSub, "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
+
         return expansions;
     }
 
@@ -1574,6 +1615,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     @Internal
     public boolean isProcessAlive() {
+        Process esProcess = testClustersRegistryProvider.get().getProcess(id());
         requireNonNull(esProcess, "Can't wait for `" + this + "` as it's not started. Does the task have `useCluster` ?");
         return esProcess.isAlive();
     }
@@ -1602,6 +1644,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public String toString() {
+        return id() + " (" + System.identityHashCode(this) + ")";
+    }
+
+    private String id() {
         return "node{" + path + ":" + name + "}";
     }
 
@@ -1702,7 +1748,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private record FeatureFlag(String feature, Version from, Version until) {
+    public record FeatureFlag(String feature, Version from, Version until) {
 
         @Input
         public String getFeature() {

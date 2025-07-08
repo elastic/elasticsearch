@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -110,14 +111,14 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         ).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
             }
         };
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -184,13 +185,13 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             XContentType.JSON
         ).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
             }
         };
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -230,14 +231,14 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         ).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
             }
         };
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -290,7 +291,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         }
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(param).build();
         SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
@@ -323,7 +324,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             profileUids = new ArrayList<>(1);
             profileUids.add(randomAlphaOfLength(8));
         }
-        var client = new NodeClient(Settings.EMPTY, threadPool) {
+        var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

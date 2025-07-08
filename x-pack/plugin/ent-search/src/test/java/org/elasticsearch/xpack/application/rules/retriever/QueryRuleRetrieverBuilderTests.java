@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.rules.retriever;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -53,10 +54,7 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
     protected QueryRuleRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (QueryRuleRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == QueryRuleRetrieverBuilder.QUERY_RULE_RETRIEVERS_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), Predicates.never())
         );
     }
 

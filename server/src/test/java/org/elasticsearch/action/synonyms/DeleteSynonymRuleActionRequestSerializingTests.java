@@ -23,7 +23,7 @@ public class DeleteSynonymRuleActionRequestSerializingTests extends AbstractWire
 
     @Override
     protected DeleteSynonymRuleAction.Request createTestInstance() {
-        return new DeleteSynonymRuleAction.Request(randomIdentifier(), randomIdentifier());
+        return new DeleteSynonymRuleAction.Request(randomIdentifier(), randomIdentifier(), randomBoolean());
     }
 
     @Override

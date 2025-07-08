@@ -8,12 +8,14 @@
  */
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -28,6 +30,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
@@ -67,11 +70,15 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                 }
 
                 private void runMoreSearches() {
-                    if (done.get() == false) {
-                        prepareRandomSearch().execute(this);
-                    } else {
-                        finishFuture.onResponse(null);
+                    while (done.get() == false) {
+                        final ListenableFuture<SearchResponse> f = new ListenableFuture<>();
+                        prepareRandomSearch().execute(f);
+                        if (f.isDone() == false) {
+                            f.addListener(this);
+                            return;
+                        }
                     }
+                    finishFuture.onResponse(null);
                 }
             });
         }

@@ -1,12 +1,17 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:plugin:ccr:qa')
   testImplementation project(':x-pack:plugin:core')
   testImplementation project(':x-pack:plugin:ilm')
 }
@@ -59,5 +64,5 @@ testClusters.matching{ it.name == 'follow-cluster' }.configureEach {
 tasks.named("check").configure { dependsOn 'follow-cluster' }
 // Security is explicitly disabled for follow-cluster and leader-cluster, do not run these in FIPS mode
 tasks.withType(Test).configureEach {
-  enabled = BuildParams.inFipsJvm == false
+  enabled = buildParams.inFipsJvm == false
 }

@@ -135,13 +135,13 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
      * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.
      */
     public static Map<Integer, List<String>> getAutoExpandReplicaChanges(
-        Metadata metadata,
+        ProjectMetadata project,
         Supplier<RoutingAllocation> allocationSupplier
     ) {
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
         // RoutingAllocation is fairly expensive to compute, only lazy create it via the supplier if we actually need it
         RoutingAllocation allocation = null;
-        for (final IndexMetadata indexMetadata : metadata) {
+        for (final IndexMetadata indexMetadata : project) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                 AutoExpandReplicas autoExpandReplicas = indexMetadata.getAutoExpandReplicas();
                 // Make sure auto-expand is applied only when configured, and entirely disabled in stateless
@@ -156,9 +156,8 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 )) {
                     if (indexMetadata.getNumberOfReplicas() == 0) {
                         nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
-                    } else {
-                        continue;
                     }
+                    continue;
                 }
                 if (allocation == null) {
                     allocation = allocationSupplier.get();

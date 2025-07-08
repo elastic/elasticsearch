@@ -11,7 +11,6 @@ package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
@@ -47,7 +46,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     static {
-        jsonFactory = XContentImplUtils.configure(new JsonFactoryBuilder());
+        jsonFactory = XContentImplUtils.configure(new ESJsonFactoryBuilder());
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
@@ -87,23 +86,30 @@ public class JsonXContentImpl implements XContent {
         return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
+    private XContentParser createParser(XContentParserConfiguration config, JsonParser parser) {
+        if (config.includeSourceOnError() == false) {
+            parser.disable(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION); // enabled by default, disable if requested
+        }
+        return new JsonXContentParser(config, parser);
+    }
+
     @Override
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(content));
+        return createParser(config, jsonFactory.createParser(content));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(is));
+        return createParser(config, jsonFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(data, offset, length));
+        return createParser(config, jsonFactory.createParser(data, offset, length));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(reader));
+        return createParser(config, jsonFactory.createParser(reader));
     }
 }

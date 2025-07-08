@@ -109,6 +109,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
+        safeAwait((ActionListener<Void> l) -> flushMasterQueue(clusterService, l));
         final var snapshotCompletesWithoutPausingListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
             if (entriesForRepo.isEmpty()) {
@@ -479,7 +480,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     )
     public void testSnapshotShutdownProgressTracker() throws Exception {
         final var repoName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 10);
+        final int numShards = randomIntBetween(1, 9);
         createRepository(repoName, "mock");
 
         // Create another index on another node which will be blocked (remain in state INIT) throughout.
@@ -496,7 +497,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final String nodeForRemovalId = internalCluster().getInstance(NodeEnvironment.class, nodeForRemoval).nodeId();
         final var indexName = randomIdentifier();
         createIndexWithContent(indexName, indexSettings(numShards, 0).put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval).build());
-        indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, new ByteSizeValue(2, ByteSizeUnit.KB).getBytes());
+        indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, ByteSizeValue.of(2, ByteSizeUnit.KB).getBytes());
 
         // Start the snapshot with blocking in place on the data node not to allow shard snapshots to finish yet.
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -523,6 +524,15 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 "Pause signals have been set for all shard snapshots on data node [" + nodeForRemovalId + "]"
             )
         );
+        mockLog.addExpectation(
+            new MockLog.SeenEventExpectation(
+                "SnapshotShutdownProgressTracker index shard snapshot status messages",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                // Expect the shard snapshot to stall in data file upload, since we've blocked the data node file upload to the blob store.
+                "statusDescription='enqueued file snapshot tasks: threads running concurrent file uploads'"
+            )
+        );
 
         putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
 
@@ -530,12 +540,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 
+        // At least one shard reached the MockRepository's blocking code when waitForBlock was called. However, there's no guarantee that
+        // the other shards got that far before the shutdown flag was put in place, in which case the other shards may be paused instead.
         mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "SnapshotShutdownProgressTracker running number of snapshots",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Number shard snapshots running [" + numShards + "].*"
+                ".+Number shard snapshots running \\[[1-" + numShards + "]].+"
             )
         );
 
@@ -580,6 +592,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
                 "Current active shard snapshot stats on data node [" + nodeForRemovalId + "]*Paused [" + numShards + "]"
+            )
+        );
+        mockLog.addExpectation(
+            new MockLog.SeenEventExpectation(
+                "SnapshotShutdownProgressTracker index shard snapshot messages",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                "*successfully sent shard snapshot state [PAUSED_FOR_NODE_REMOVAL] update to the master node*"
             )
         );
 
@@ -735,11 +755,16 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("mark node for removal", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final var nodeId = currentState.nodes().resolveNode(nodeName).getId();
+                final var node = currentState.nodes().resolveNode(nodeName);
                 return currentState.copyAndUpdateMetadata(
                     mdb -> mdb.putCustom(
                         NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(Map.of(nodeId, shutdownMetadataBuilder.setNodeId(nodeId).build()))
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                node.getId(),
+                                shutdownMetadataBuilder.setNodeId(node.getId()).setNodeEphemeralId(node.getEphemeralId()).build()
+                            )
+                        )
                     )
                 );
             }

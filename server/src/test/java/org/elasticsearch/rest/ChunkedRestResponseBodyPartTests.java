@@ -56,7 +56,7 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
             ToXContent.EMPTY_PARAMS,
             new FakeRestChannel(
                 new FakeRestRequest.Builder(xContentRegistry()).withContent(BytesArray.EMPTY, randomXContent.type()).build(),
-                true,
+                randomBoolean(),
                 1
             )
         );

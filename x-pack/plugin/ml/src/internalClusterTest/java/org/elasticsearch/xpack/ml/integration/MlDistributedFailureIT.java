@@ -29,6 +29,8 @@ import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -64,8 +66,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -91,6 +91,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestLogging(value = "org.elasticsearch.xpack.ml.utils.persistence:TRACE", reason = "")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override
@@ -111,16 +113,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             internalCluster().stopNode(discoveryNode.getName());
             ensureStableCluster();
         });
-    }
-
-    @Before
-    public void setLogging() {
-        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE"));
-    }
-
-    @After
-    public void unsetLogging() {
-        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence"));
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {
@@ -289,7 +281,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // using externally accessible actions. The only way this situation could occur in reality is through extremely unfortunate
         // timing. Therefore, to simulate this unfortunate timing we cheat and access internal classes to set the datafeed state to
         // stopping.
-        PersistentTasksCustomMetadata tasks = clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService().state()
+            .getMetadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
 
         // It is possible that the datafeed has already detected the job failure and
@@ -308,6 +303,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest = new UpdatePersistentTaskStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             task.getId(),
             task.getAllocationId(),
             DatafeedState.STOPPING

@@ -10,14 +10,13 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractWireTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -25,8 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -92,9 +91,8 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(UnaryScalarFunction.getNamedWriteables());
-        entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(Expression.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.allExpressions());
+        entries.addAll(ExpressionWritables.unaryScalars());
         return new NamedWriteableRegistry(entries);
     }
 
@@ -158,7 +156,7 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
                 case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
                 case INTEGER -> new ToInteger(Source.EMPTY, fromField);
                 case LONG -> new ToLong(Source.EMPTY, fromField);
-                case IP -> new ToIP(Source.EMPTY, fromField);
+                case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
                 case KEYWORD -> new ToString(Source.EMPTY, fromField);
                 case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
                 case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);

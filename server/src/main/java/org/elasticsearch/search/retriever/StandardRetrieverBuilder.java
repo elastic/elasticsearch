@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.retriever;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -39,7 +37,6 @@ import java.util.Objects;
 public final class StandardRetrieverBuilder extends RetrieverBuilder implements ToXContent {
 
     public static final String NAME = "standard";
-    public static final NodeFeature STANDARD_RETRIEVER_SUPPORTED = new NodeFeature("standard_retriever_supported");
 
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SEARCH_AFTER_FIELD = new ParseField("search_after");
@@ -77,13 +74,10 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             COLLAPSE_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static StandardRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(STANDARD_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
-        }
         return PARSER.apply(parser, context);
     }
 

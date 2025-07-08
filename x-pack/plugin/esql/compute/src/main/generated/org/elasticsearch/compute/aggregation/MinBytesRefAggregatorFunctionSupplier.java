@@ -12,22 +12,31 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MinBytesRefAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MinBytesRefAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public MinBytesRefAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public MinBytesRefAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MinBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MinBytesRefAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return MinBytesRefAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MinBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public MinBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return MinBytesRefGroupingAggregatorFunction.create(channels, driverContext);
   }
 

@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -31,6 +31,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportVerifyRepositoryAction(
@@ -39,7 +40,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             VerifyRepositoryAction.NAME,
@@ -48,16 +49,16 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
             threadPool,
             actionFilters,
             VerifyRepositoryRequest::new,
-            indexNameExpressionResolver,
             VerifyRepositoryResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(VerifyRepositoryRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -68,6 +69,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
         final ActionListener<VerifyRepositoryResponse> listener
     ) {
         repositoriesService.verifyRepository(
+            projectResolver.getProjectId(),
             request.name(),
             listener.map(verifyResponse -> new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])))
         );

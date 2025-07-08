@@ -176,19 +176,19 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             InternalDateHistogram byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
-                contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
+                contains(new InternalDateHistogram.Bucket(startTime, 2, null, InternalAggregations.EMPTY))
             );
             assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L));
             byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
-                contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
+                contains(new InternalDateHistogram.Bucket(startTime, 2, null, InternalAggregations.EMPTY))
             );
             assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L));
             byTimeStampBucket = ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
-                contains(new InternalDateHistogram.Bucket(startTime, 4, false, null, InternalAggregations.EMPTY))
+                contains(new InternalDateHistogram.Bucket(startTime, 4, null, InternalAggregations.EMPTY))
             );
         };
 

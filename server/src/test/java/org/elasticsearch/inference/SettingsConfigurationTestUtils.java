@@ -9,14 +9,9 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.inference.configuration.SettingsConfigurationDependency;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
-import org.elasticsearch.inference.configuration.SettingsConfigurationValidation;
-import org.elasticsearch.inference.configuration.SettingsConfigurationValidationType;
 
-import java.util.List;
+import java.util.EnumSet;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -25,50 +20,19 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 public class SettingsConfigurationTestUtils {
 
     public static SettingsConfiguration getRandomSettingsConfigurationField() {
-        return new SettingsConfiguration.Builder().setCategory(randomAlphaOfLength(10))
+        return new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK))
             .setDefaultValue(randomAlphaOfLength(10))
-            .setDependsOn(List.of(getRandomSettingsConfigurationDependency()))
-            .setDisplay(getRandomSettingsConfigurationDisplayType())
+            .setDescription(randomAlphaOfLength(10))
             .setLabel(randomAlphaOfLength(10))
-            .setOptions(List.of(getRandomSettingsConfigurationSelectOption(), getRandomSettingsConfigurationSelectOption()))
-            .setOrder(randomInt())
-            .setPlaceholder(randomAlphaOfLength(10))
             .setRequired(randomBoolean())
             .setSensitive(randomBoolean())
-            .setTooltip(randomAlphaOfLength(10))
+            .setUpdatable(randomBoolean())
             .setType(getRandomConfigurationFieldType())
-            .setUiRestrictions(List.of(randomAlphaOfLength(10), randomAlphaOfLength(10)))
-            .setValidations(List.of(getRandomSettingsConfigurationValidation()))
-            .setValue(randomAlphaOfLength(10))
             .build();
-    }
-
-    private static SettingsConfigurationDependency getRandomSettingsConfigurationDependency() {
-        return new SettingsConfigurationDependency.Builder().setField(randomAlphaOfLength(10)).setValue(randomAlphaOfLength(10)).build();
-    }
-
-    private static SettingsConfigurationSelectOption getRandomSettingsConfigurationSelectOption() {
-        return new SettingsConfigurationSelectOption.Builder().setLabel(randomAlphaOfLength(10)).setValue(randomAlphaOfLength(10)).build();
-    }
-
-    private static SettingsConfigurationValidation getRandomSettingsConfigurationValidation() {
-        return new SettingsConfigurationValidation.Builder().setConstraint(randomAlphaOfLength(10))
-            .setType(getRandomConfigurationValidationType())
-            .build();
-    }
-
-    public static SettingsConfigurationDisplayType getRandomSettingsConfigurationDisplayType() {
-        SettingsConfigurationDisplayType[] values = SettingsConfigurationDisplayType.values();
-        return values[randomInt(values.length - 1)];
     }
 
     public static SettingsConfigurationFieldType getRandomConfigurationFieldType() {
         SettingsConfigurationFieldType[] values = SettingsConfigurationFieldType.values();
-        return values[randomInt(values.length - 1)];
-    }
-
-    public static SettingsConfigurationValidationType getRandomConfigurationValidationType() {
-        SettingsConfigurationValidationType[] values = SettingsConfigurationValidationType.values();
         return values[randomInt(values.length - 1)];
     }
 }

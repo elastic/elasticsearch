@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -41,13 +39,13 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   systemProperty("tests.use.fixture", Boolean.toString(useFixture))
   systemProperty 'test.s3.bucket', s3Bucket
   systemProperty("s3AccessKey", s3AccessKey)
   systemProperty("s3SecretKey", s3SecretKey)
   nonInputProperties.systemProperty 'test.s3.base_path',
-    s3BasePath ? s3BasePath + "_snapshot_based_recoveries_tests" + BuildParams.testSeed : 'base_path_integration_tests'
+    s3BasePath ? s3BasePath + "_snapshot_based_recoveries_tests" + buildParams.testSeed : 'base_path_integration_tests'
 }
 
 tasks.register("s3ThirdPartyTest") {

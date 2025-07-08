@@ -22,9 +22,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -34,8 +32,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -124,25 +120,20 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         int portNumber = PORT.get(settings);
         assert portNumber >= 0;
 
-        var socketAddress = AccessController.doPrivileged((PrivilegedAction<InetSocketAddress>) () -> {
-            try {
-                return socketAddress(InetAddress.getByName("0"), portNumber);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to resolve readiness host address", e);
-            }
-        });
+        InetSocketAddress socketAddress;
+        try {
+            socketAddress = socketAddress(InetAddress.getByName("0"), portNumber);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to resolve readiness host address", e);
+        }
 
         try {
             serverChannel = socketChannelFactory.get();
-
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    serverChannel.bind(socketAddress);
-                } catch (IOException e) {
-                    throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
-                }
-                return null;
-            });
+            try {
+                serverChannel.bind(socketAddress);
+            } catch (IOException e) {
+                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(socketAddress), e);
+            }
 
             // First time bounding the socket, we notify any listeners
             if (boundSocket.get() == null) {
@@ -182,14 +173,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             assert serverChannel != null;
             try {
                 while (serverChannel.isOpen()) {
-                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                        try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
-                            logger.debug("encountered exception while responding to readiness check request", e);
-                        } catch (Exception other) {
-                            logger.warn("encountered unknown exception while responding to readiness check request", other);
-                        }
-                        return null;
-                    });
+                    try (SocketChannel channel = serverChannel.accept()) {} catch (IOException e) {
+                        logger.debug("encountered exception while responding to readiness check request", e);
+                    } catch (Exception other) {
+                        logger.warn("encountered unknown exception while responding to readiness check request", other);
+                    }
                 }
             } finally {
                 listenerThreadLatch.countDown();
@@ -280,22 +268,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // protected to allow mock service to override
     protected boolean areFileSettingsApplied(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-        if (fileSettingsMetadata == null) {
-            // In order to block readiness on file settings being applied, we need to know that the master node has written an initial
-            // version, or a marker that file settings don't exist. When upgrading from a version that did not have file settings, the
-            // current master node may not be the first node upgraded. To be safe, we wait to consider file settings application for
-            // readiness until the whole cluster supports file settings. Note that this only applies when no reserved state metadata
-            // exists, so either we are starting up a current cluster (and the feature will be found) or we are upgrading from
-            // a version before file settings existed (before 8.4).
-            return supportsFileSettings(clusterState) == false;
-        } else {
-            return fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
-        }
-    }
-
-    @SuppressForbidden(reason = "need to check file settings support on exact cluster state")
-    private static boolean supportsFileSettings(ClusterState clusterState) {
-        return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
     }
 
     private void setReady(boolean ready) {

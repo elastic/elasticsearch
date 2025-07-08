@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.Scroll;
 
 /**
  * A search scroll action request builder.
@@ -32,14 +31,6 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      */
     public SearchScrollRequestBuilder setScrollId(String scrollId) {
         request.scrollId(scrollId);
-        return this;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request.
-     */
-    public SearchScrollRequestBuilder setScroll(Scroll scroll) {
-        request.scroll(scroll);
         return this;
     }
 

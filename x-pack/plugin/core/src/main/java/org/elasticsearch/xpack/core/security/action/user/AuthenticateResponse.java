@@ -26,7 +26,6 @@ public class AuthenticateResponse extends ActionResponse implements ToXContent {
     private final boolean operator;
 
     public AuthenticateResponse(StreamInput in) throws IOException {
-        super(in);
         authentication = new Authentication(in);
         if (in.getTransportVersion().onOrAfter(VERSION_OPERATOR_FIELD)) {
             operator = in.readBoolean();

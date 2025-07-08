@@ -526,7 +526,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     private void assertIndexSetting(String index, String setting, String expectedValue) {
-        var response = indicesAdmin().prepareGetSettings(index).get();
+        var response = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get();
         assertThat(response.getSetting(index, setting), equalTo(expectedValue));
     }
 }

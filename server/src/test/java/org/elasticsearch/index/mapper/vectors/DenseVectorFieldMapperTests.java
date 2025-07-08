@@ -11,26 +11,34 @@ package org.elasticsearch.index.mapper.vectors;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -53,16 +61,24 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,7 +97,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.indexed = randomBoolean();
         this.indexOptionsSet = this.indexed && randomBoolean();
-        this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int randomMultiplier = ElementType.FLOAT == elementType ? randomIntBetween(1, 64) : 1;
+        this.dims = baseDims * randomMultiplier;
     }
 
     @Override
@@ -103,15 +121,28 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             // Serialize if it's new index version, or it was not the default for previous indices
             b.field("index", indexed);
         }
-        if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
+        if ((indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
+            || indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ))
             && indexed
             && elementType.equals(ElementType.FLOAT)
             && indexOptionsSet == false) {
-            b.startObject("index_options");
-            b.field("type", "int8_hnsw");
-            b.field("m", 16);
-            b.field("ef_construction", 100);
-            b.endObject();
+            if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
+                && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {
+                b.startObject("index_options");
+                b.field("type", "bbq_hnsw");
+                b.field("m", 16);
+                b.field("ef_construction", 100);
+                b.startObject("rescore_vector");
+                b.field("oversample", DEFAULT_OVERSAMPLE);
+                b.endObject();
+                b.endObject();
+            } else {
+                b.startObject("index_options");
+                b.field("type", "int8_hnsw");
+                b.field("m", 16);
+                b.field("ef_construction", 100);
+                b.endObject();
+            }
         }
         if (indexed) {
             b.field("similarity", elementType == ElementType.BIT ? "l2_norm" : "dot_product");
@@ -127,7 +158,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return elementType == ElementType.FLOAT ? List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1);
+        return elementType == ElementType.FLOAT
+            ? convertToList(randomNormalizedVector(this.dims))
+            : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1);
+    }
+
+    private static List<Float> convertToList(float[] vector) {
+        List<Float> list = new ArrayList<>(vector.length);
+        for (float v : vector) {
+            list.add(v);
+        }
+        return list;
     }
 
     @Override
@@ -274,6 +315,36 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .endObject(),
             m -> assertTrue(m.toString().contains("\"type\":\"int4_hnsw\""))
         );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_flat")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_flat\""))
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
+        );
         // update for int8_flat
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -353,6 +424,36 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .field("type", "flat")
                     .endObject()
             )
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int8_flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_flat")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_flat\""))
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int8_flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
         // update for hnsw
         checker.registerUpdateCheck(
@@ -479,6 +580,40 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            )
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "hnsw")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
+        );
         // update for int8_hnsw
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -590,6 +725,40 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            )
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int8_hnsw")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
+        );
         // update for int4_flat
         checker.registerUpdateCheck(
             b -> b.field("type", "dense_vector")
@@ -675,6 +844,36 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .field("type", "flat")
                     .endObject()
             )
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int4_flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_flat")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_flat\""))
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int4_flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
         );
         // update for int4_hnsw
         checker.registerUpdateCheck(
@@ -852,6 +1051,285 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int4_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            )
+        );
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int4_hnsw")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
+        );
+        // update for bbq_flat
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_flat")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims * 16)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "bbq_hnsw")
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"type\":\"bbq_hnsw\""))
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "flat")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_flat")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int4_flat")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "hnsw")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_hnsw")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_flat")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_hnsw")
+                    .endObject()
+            )
+        );
+        // update for bbq_hnsw
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "flat")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_flat")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int4_flat")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "hnsw")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int8_hnsw")
+                    .endObject()
+            )
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "bbq_hnsw")
+                    .endObject()
+            ),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims * 16)
+                    .field("index", true)
+                    .startObject("index_options")
+                    .field("type", "int4_hnsw")
+                    .endObject()
+            )
+        );
     }
 
     @Override
@@ -882,6 +1360,275 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     // that do provide fielddata. TODO: resolve this inconsistency!
     @Override
     public void testAggregatableConsistency() {}
+
+    public void testIVFParsing() throws IOException {
+        assumeTrue("feature flag [ivf_format] must be enabled", IVF_FORMAT.isEnabled());
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_ivf");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+            assertEquals(IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
+            assertEquals(DYNAMIC_NPROBE, indexOptions.defaultNProbe);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_ivf");
+                b.field("cluster_size", 1000);
+                b.field("default_n_probe", 10);
+                b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
+            assertEquals(1000, indexOptions.clusterSize);
+            assertEquals(10, indexOptions.defaultNProbe);
+        }
+    }
+
+    public void testIVFParsingFailureInRelease() {
+        assumeFalse("feature flag [ivf_format] must be disabled", IVF_FORMAT.isEnabled());
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", dims)
+                        .startObject("index_options")
+                        .field("type", "bbq_ivf")
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown vector index options"));
+    }
+
+    public void testRescoreVectorForNonQuantized() {
+        for (String indexType : List.of("hnsw", "flat")) {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f))
+                            .endObject()
+                    )
+                )
+            );
+            e.getMessage().contains("Mapping definition for [field] has unsupported parameters:");
+        }
+    }
+
+    public void testRescoreVectorOldIndexVersion() {
+        IndexVersion incompatibleVersion = randomFrom(
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersionUtils.getLowestReadCompatibleVersion(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
+            ),
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
+            )
+        );
+        for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
+            expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    incompatibleVersion,
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f))
+                            .endObject()
+                    )
+                )
+            );
+        }
+    }
+
+    public void testRescoreZeroVectorOldIndexVersion() {
+        IndexVersion incompatibleVersion = randomFrom(
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersionUtils.getLowestReadCompatibleVersion(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS_BACKPORT_8_X)
+            ),
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS)
+            )
+        );
+        for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
+            expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    incompatibleVersion,
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 0f))
+                            .endObject()
+                    )
+                )
+            );
+        }
+    }
+
+    public void testInvalidRescoreVector() {
+        for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("foo", 1.5f))
+                            .endObject()
+                    )
+                )
+            );
+            e.getMessage().contains("Invalid rescore_vector value. Missing required field oversample");
+            e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", "foo"))
+                            .endObject()
+                    )
+                )
+            );
+            e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 0.1f))
+                            .endObject()
+                    )
+                )
+            );
+            e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of())
+                            .endObject()
+                    )
+                )
+            );
+            e = expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 10.1f))
+                            .endObject()
+                    )
+                )
+            );
+        }
+    }
+
+    public void testDefaultOversampleValue() throws IOException {
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_hnsw");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQHnswIndexOptions indexOptions = (DenseVectorFieldMapper.BBQHnswIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "bbq_flat");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.BBQFlatIndexOptions indexOptions = (DenseVectorFieldMapper.BBQFlatIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+        }
+        {
+            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 128);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "int8_hnsw");
+                b.endObject();
+            }));
+
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
+            DenseVectorFieldMapper.Int8HnswIndexOptions indexOptions = (DenseVectorFieldMapper.Int8HnswIndexOptions) denseVectorFieldMapper
+                .fieldType()
+                .getIndexOptions();
+            assertNull(indexOptions.rescoreVector);
+        }
+    }
 
     public void testDims() {
         {
@@ -1328,15 +2075,24 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testValidateOnBuild() {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
+        int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current()).elementType(ElementType.FLOAT)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false).elementType(
+            ElementType.FLOAT
+        ).dimensions(dimensions).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(ElementType.BYTE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build(context));
-        assertThat(e.getMessage(), containsString("[element_type] cannot be [byte] when using index type [int8_hnsw]"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                dimensions >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD
+                    ? "[element_type] cannot be [byte] when using index type [bbq_hnsw]"
+                    : "[element_type] cannot be [byte] when using index type [int8_hnsw]"
+            )
+        );
     }
 
     private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {
@@ -1514,19 +2270,19 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertEquals(
             VectorSimilarityFunction.EUCLIDEAN,
-            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.BYTE)
+            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
         );
         assertEquals(
             VectorSimilarityFunction.EUCLIDEAN,
-            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.FLOAT)
+            VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
         );
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
-            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.BYTE)
+            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
         );
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
-            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(random()), ElementType.FLOAT)
+            VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
         );
     }
 
@@ -1553,7 +2309,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) ft;
@@ -1674,7 +2431,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 128, 0, 0 }), 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 128, 0, 0 }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1683,7 +2450,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0f, -129.0f }), 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0.0f, 0f, -129.0f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1692,7 +2469,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }), 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0.0f, 0.5f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1701,7 +2488,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }), 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0, 0.0f, -0.25f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
+            )
         );
         assertThat(
             e.getMessage(),
@@ -1710,7 +2507,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }), 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
+            )
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
 
@@ -1722,7 +2529,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 3,
                 null,
                 null,
-                null
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -1738,7 +2548,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 3,
                 null,
                 null,
-                null
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -1765,7 +2578,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }), 3, 3, null, null, null)
+            () -> denseVectorFieldType.createKnnQuery(
+                VectorData.fromFloats(new float[] { Float.NaN, 0f, 0.0f }),
+                3,
+                3,
+                null,
+                null,
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
+            )
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
 
@@ -1777,7 +2600,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 3,
                 null,
                 null,
-                null
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -1793,7 +2619,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 3,
                 null,
                 null,
-                null
+                null,
+                null,
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -1825,7 +2654,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
@@ -1863,7 +2692,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
             Codec codec = codecService.codec("default");
             KnnVectorsFormat knnVectorsFormat;
-            if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
                 assertThat(codec, instanceOf(PerFieldMapperCodec.class));
                 knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             } else {
@@ -1914,7 +2743,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
@@ -1960,7 +2789,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
@@ -1970,13 +2799,42 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "ES816HnswBinaryQuantizedVectorsFormat(name=ES816HnswBinaryQuantizedVectorsFormat, maxConn="
+        String expectedString = "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES816BinaryQuantizedVectorsFormat("
-            + "name=ES816BinaryQuantizedVectorsFormat, "
-            + "flatVectorScorer=ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
+            + ", flatVectorFormat=ES818BinaryQuantizedVectorsFormat("
+            + "name=ES818BinaryQuantizedVectorsFormat, "
+            + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
+        assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    public void testKnnBBQIVFVectorsFormat() throws IOException {
+        assumeTrue("feature flag [ivf_format] must be enabled", IVF_FORMAT.isEnabled());
+        final int dims = randomIntBetween(64, 4096);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "bbq_ivf");
+            b.endObject();
+        }));
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        Codec codec = codecService.codec("default");
+        KnnVectorsFormat knnVectorsFormat;
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        }
+        String expectedString = "IVFVectorsFormat(vectorPerCluster=384)";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -2018,7 +2876,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         KnnVectorsFormat knnVectorsFormat;
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
@@ -2059,6 +2917,249 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.endObject();
             })));
             assertThat(e.getMessage(), containsString("only supports even dimensions"));
+        }
+    }
+
+    public void testSyntheticVectorsMinimalValidDocument() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, false, false, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsFullDocument() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, true, true, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsWithUnmappedFields() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, true, true, true);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsMissingRootFields() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, false, false, false, false, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsPartialNestedContent() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, true, false, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testFlatPathDocument() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDocWithFlatPath(type);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    private static String buildVectorMapping() throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.startObject(); // root
+            builder.startObject("_doc");
+            builder.field("dynamic", "false");
+
+            builder.startObject("properties");
+
+            // field
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // emb
+            builder.startObject("emb");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 3);
+            builder.field("similarity", "cosine");
+            builder.endObject();
+
+            // another_field
+            builder.startObject("another_field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // obj
+            builder.startObject("obj");
+            builder.startObject("properties");
+
+            // nested
+            builder.startObject("nested");
+            builder.field("type", "nested");
+            builder.startObject("properties");
+
+            // nested.field
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // nested.emb
+            builder.startObject("emb");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 3);
+            builder.field("similarity", "cosine");
+            builder.endObject();
+
+            // double_nested
+            builder.startObject("double_nested");
+            builder.field("type", "nested");
+            builder.startObject("properties");
+
+            // double_nested.field
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // double_nested.emb
+            builder.startObject("emb");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 3);
+            builder.field("similarity", "cosine");
+            builder.endObject();
+
+            builder.endObject(); // double_nested.properties
+            builder.endObject(); // double_nested
+
+            builder.endObject(); // nested.properties
+            builder.endObject(); // nested
+
+            builder.endObject(); // obj.properties
+            builder.endObject(); // obj
+
+            builder.endObject(); // properties
+            builder.endObject(); // _doc
+            builder.endObject(); // root
+
+            return Strings.toString(builder);
+        }
+    }
+
+    private BytesReference generateRandomDoc(
+        XContentType xContentType,
+        boolean includeRootField,
+        boolean includeVector,
+        boolean includeNested,
+        boolean includeDoubleNested,
+        boolean includeUnmapped
+    ) throws IOException {
+        try (var builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+
+            if (includeRootField) {
+                builder.field("field", randomAlphaOfLengthBetween(1, 2));
+            }
+
+            if (includeVector) {
+                builder.array("emb", new float[] { 1, 2, 3 });
+            }
+
+            if (includeUnmapped) {
+                builder.field("unmapped_field", "extra");
+            }
+
+            builder.startObject("obj");
+            if (includeNested) {
+                builder.startArray("nested");
+
+                // Entry with just a field
+                builder.startObject();
+                builder.field("field", randomAlphaOfLengthBetween(3, 6));
+                builder.endObject();
+
+                // Empty object
+                builder.startObject();
+                builder.endObject();
+
+                // Entry with emb and double_nested
+                if (includeDoubleNested) {
+                    builder.startObject();
+                    builder.array("emb", new float[] { 1, 2, 3 });
+                    builder.field("field", "nested_val");
+                    builder.startArray("double_nested");
+                    for (int i = 0; i < 2; i++) {
+                        builder.startObject();
+                        builder.array("emb", new float[] { 1, 2, 3 });
+                        builder.field("field", "dn_field");
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                    builder.endObject();
+                }
+
+                builder.endArray();
+            }
+            builder.endObject();
+
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        }
+    }
+
+    private BytesReference generateRandomDocWithFlatPath(XContentType xContentType) throws IOException {
+        try (var builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+
+            // Root-level fields
+            builder.field("field", randomAlphaOfLengthBetween(1, 2));
+            builder.array("emb", new float[] { 1, 2, 3 });
+            builder.field("another_field", randomAlphaOfLengthBetween(3, 5));
+
+            // Simulated flattened "obj.nested"
+            builder.startObject("obj.nested");
+
+            builder.field("field", randomAlphaOfLengthBetween(4, 8));
+            builder.array("emb", new float[] { 1, 2, 3 });
+
+            builder.startArray("double_nested");
+            for (int i = 0; i < randomIntBetween(1, 2); i++) {
+                builder.startObject();
+                builder.field("field", randomAlphaOfLengthBetween(4, 8));
+                builder.array("emb", new float[] { 1, 2, 3 });
+                builder.endObject();
+            }
+            builder.endArray();
+
+            builder.endObject(); // end obj.nested
+
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        }
+    }
+
+    private void assertSyntheticVectors(String mapping, BytesReference source, XContentType xContentType) throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping);
+        var parsedDoc = mapperService.documentMapper().parse(new SourceToParse("0", source, xContentType));
+        try (var directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig(random(), new StandardAnalyzer());
+            try (var iw = new RandomIndexWriter(random(), directory, config)) {
+                parsedDoc.updateSeqID(0, 1);
+                parsedDoc.version().setLongValue(0);
+                iw.addDocuments(parsedDoc.docs());
+            }
+            try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                var provider = SourceProvider.fromLookup(
+                    mapperService.mappingLookup(),
+                    null,
+                    mapperService.getMapperMetrics().sourceFieldMetrics()
+                );
+                var searchSource = provider.getSource(indexReader.leaves().get(0), parsedDoc.docs().size() - 1);
+                assertToXContentEquivalent(source, searchSource.internalSourceRef(), xContentType);
+            }
         }
     }
 

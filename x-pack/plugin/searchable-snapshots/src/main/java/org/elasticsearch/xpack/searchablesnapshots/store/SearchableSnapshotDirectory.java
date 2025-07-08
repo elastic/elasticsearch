@@ -23,9 +23,8 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -43,8 +43,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,7 +60,6 @@ import org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInput;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -134,7 +131,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
-    private volatile BlobContainer blobContainer;
     private volatile boolean loaded;
     private volatile SearchableSnapshotRecoveryState recoveryState;
 
@@ -182,7 +178,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private synchronized boolean invariant() {
         assert loaded != (snapshot == null);
-        assert loaded != (blobContainer == null);
         assert loaded != (recoveryState == null);
         return true;
     }
@@ -212,7 +207,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             synchronized (this) {
                 alreadyLoaded = this.loaded;
                 if (alreadyLoaded == false) {
-                    this.blobContainer = blobContainerSupplier.get();
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
@@ -226,14 +220,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return alreadyLoaded == false;
     }
 
-    @Nullable
     public BlobContainer blobContainer() {
-        final BlobContainer blobContainer = this.blobContainer;
+        final BlobContainer blobContainer = blobContainerSupplier.get();
         assert blobContainer != null;
         return blobContainer;
     }
 
-    @Nullable
     public BlobStoreIndexShardSnapshot snapshot() {
         final BlobStoreIndexShardSnapshot snapshot = this.snapshot;
         assert snapshot != null;
@@ -287,6 +279,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public final String[] listAll() {
         ensureOpen();
+        return listAllFiles();
+    }
+
+    private String[] listAllFiles() {
         return files().stream().map(BlobStoreIndexShardSnapshot.FileInfo::physicalName).sorted(String::compareTo).toArray(String[]::new);
     }
 
@@ -298,42 +294,39 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Override
     public Set<String> getPendingDeletions() {
-        throw unsupportedException();
+        throw unsupportedException("getPendingDeletions");
     }
 
     @Override
-    public void sync(Collection<String> names) {
-        throw unsupportedException();
-    }
+    public void sync(Collection<String> names) {}
 
     @Override
-    public void syncMetaData() {
-        throw unsupportedException();
-    }
+    public void syncMetaData() {}
 
     @Override
     public void deleteFile(String name) {
-        throw unsupportedException();
+        throw unsupportedException("deleteFile(" + name + ')');
     }
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) {
-        throw unsupportedException();
+        throw unsupportedException("createOutput(" + name + ", " + context + ')');
     }
 
     @Override
     public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
-        throw unsupportedException();
+        throw unsupportedException("createTempOutput(" + prefix + ", " + suffix + ", " + context + ')');
     }
 
     @Override
     public void rename(String source, String dest) {
-        throw unsupportedException();
+        throw unsupportedException("rename(" + source + ", " + dest + ')');
     }
 
-    private static UnsupportedOperationException unsupportedException() {
-        assert false : "this operation is not supported and should have not be called";
-        return new UnsupportedOperationException("Searchable snapshot directory does not support this operation");
+    private UnsupportedOperationException unsupportedException(String description) {
+        var message = "Searchable snapshot directory does not support the operation [" + description + ']';
+        assert false : message + ", current directory files: " + Strings.arrayToCommaDelimitedString(this.listAllFiles());
+        return new UnsupportedOperationException(message);
     }
 
     @Override
@@ -590,23 +583,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
         }
 
-        Repository repository;
-        final String repositoryName;
-        if (SNAPSHOT_REPOSITORY_UUID_SETTING.exists(indexSettings.getSettings())) {
-            repository = repositoryByUuid(
-                repositories.getRepositories(),
-                SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings.getSettings()),
-                SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings())
-            );
-            repositoryName = repository.getMetadata().name();
-        } else {
-            // repository containing pre-7.12 snapshots has no UUID so we assume it matches by name
-            repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings());
-            repository = repositories.repository(repositoryName);
-            assert repository.getMetadata().name().equals(repositoryName) : repository.getMetadata().name() + " vs " + repositoryName;
-        }
+        final Supplier<BlobStoreRepository> repositorySupplier = new RepositorySupplier(
+            repositories,
+            SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings()),
+            SNAPSHOT_REPOSITORY_UUID_SETTING.exists(indexSettings.getSettings())
+                ? SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings.getSettings())
+                : null
+        );
 
-        final BlobStoreRepository blobStoreRepository = SearchableSnapshots.getSearchableRepository(repository);
+        final BlobStoreRepository initialRepository = repositorySupplier.get();
 
         final IndexId indexId = new IndexId(
             SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
@@ -617,37 +602,46 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
         );
 
-        final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer = new LazyInitializable<>(
-            () -> new RateLimitingBlobContainer(
-                blobStoreRepository,
-                blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())
-            )
+        final Supplier<BlobContainer> blobContainerSupplier = new BlobContainerSupplier(
+            repositorySupplier,
+            indexId,
+            shardPath.getShardId().id()
         );
+
         final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot = new LazyInitializable<>(
-            () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
+            () -> repositorySupplier.get().loadShardSnapshot(blobContainerSupplier.get(), snapshotId)
         );
 
         final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
 
-        return new InMemoryNoOpCommitDirectory(
-            new SearchableSnapshotDirectory(
-                lazyBlobContainer::getOrCompute,
-                lazySnapshot::getOrCompute,
-                blobStoreCacheService,
-                repositoryName,
-                snapshotId,
-                indexId,
-                shardPath.getShardId(),
-                indexSettings.getSettings(),
-                currentTimeNanosSupplier,
-                cache,
-                cacheDir,
-                shardPath,
-                threadPool,
-                sharedBlobCacheService
-            )
+        final var dir = new SearchableSnapshotDirectory(
+            blobContainerSupplier,
+            lazySnapshot::getOrCompute,
+            blobStoreCacheService,
+            initialRepository.getMetadata().name(),
+            snapshotId,
+            indexId,
+            shardPath.getShardId(),
+            indexSettings.getSettings(),
+            currentTimeNanosSupplier,
+            cache,
+            cacheDir,
+            shardPath,
+            threadPool,
+            sharedBlobCacheService
         );
+
+        // Archives indices mounted as searchable snapshots always require a writeable Lucene directory in order to rewrite the segments
+        // infos file to the latest Lucene version. Similarly, searchable snapshot indices created before 9.0.0 also require a writeable
+        // directory because in previous versions commits were executed during recovery (to associate translogs with Lucene indices),
+        // creating additional files that need to be sent and written to replicas during peer-recoveries. From 9.0.0 we merged a change to
+        // skip commits creation during recovery for searchable snapshots (see https://github.com/elastic/elasticsearch/pull/118606).
+        var version = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(indexSettings.getSettings());
+        if (version.before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0) || indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+            return new InMemoryNoOpCommitDirectory(dir);
+        }
+        return dir;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {
@@ -689,43 +683,5 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public SharedBlobCacheService<CacheKey>.CacheFile getFrozenCacheFile(String fileName, long length) {
         return sharedBlobCacheService.getCacheFile(createCacheKey(fileName), length);
-    }
-
-    private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {
-        for (Repository repository : repositories.values()) {
-            if (repository.getMetadata().uuid().equals(repositoryUuid)) {
-                return repository;
-            }
-        }
-        throw new RepositoryMissingException("uuid [" + repositoryUuid + "], original name [" + originalName + "]");
-    }
-
-    /**
-     * A {@link FilterBlobContainer} that uses {@link BlobStoreRepository#maybeRateLimitRestores(InputStream)} to limit the rate at which
-     * blobs are read from the repository.
-     */
-    private static class RateLimitingBlobContainer extends FilterBlobContainer {
-
-        private final BlobStoreRepository blobStoreRepository;
-
-        RateLimitingBlobContainer(BlobStoreRepository blobStoreRepository, BlobContainer blobContainer) {
-            super(blobContainer);
-            this.blobStoreRepository = blobStoreRepository;
-        }
-
-        @Override
-        protected BlobContainer wrapChild(BlobContainer child) {
-            return new RateLimitingBlobContainer(blobStoreRepository, child);
-        }
-
-        @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName));
-        }
-
-        @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName, position, length));
-        }
     }
 }

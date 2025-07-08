@@ -1,5 +1,0 @@
-pr: 116650
-summary: Fix bug in ML autoscaling when some node info is unavailable
-area: Machine Learning
-type: bug
-issues: []

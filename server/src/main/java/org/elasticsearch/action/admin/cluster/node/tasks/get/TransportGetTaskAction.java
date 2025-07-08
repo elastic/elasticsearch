@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -69,6 +70,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     private final TransportService transportService;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetTaskAction(
@@ -77,7 +79,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(TYPE.name(), transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -85,6 +88,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         this.transportService = transportService;
         this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -140,6 +144,20 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             // Task isn't running, go look in the task index
             getFinishedTaskFromIndex(thisTask, request, listener);
         } else {
+            if (projectResolver.supportsMultipleProjects()) {
+                var requestProjectId = projectResolver.getProjectId();
+                assert requestProjectId != null : "project ID cannot be null";
+                if (requestProjectId == null) {
+                    listener.onFailure(new IllegalStateException("No Project ID specified"));
+                    return;
+                }
+                if (requestProjectId.id().equals(runningTask.getProjectId()) == false) {
+                    listener.onFailure(
+                        new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", request.getTaskId())
+                    );
+                    return;
+                }
+            }
             if (request.getWaitForCompletion()) {
                 final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
                 RemovedTaskListener removedTaskListener = new RemovedTaskListener() {

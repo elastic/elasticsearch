@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -26,7 +25,6 @@ import java.util.List;
 import static org.elasticsearch.Version.V_8_12_0;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@UpdateForV9(owner = UpdateForV9.Owner.ENTERPRISE_SEARCH) // Investigate what needs to be added in terms of 9.0 migration testing
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
     // DSL was introduced with version 8.12.0 of ES.
     private static final Version DSL_DEFAULT_RETENTION_VERSION = V_8_12_0;
@@ -43,7 +41,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(org.elasticsearch.test.cluster.util.Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

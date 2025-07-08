@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -121,9 +123,10 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         return new NamedXContentRegistry(entries);
     }
 
-    private TransformState processJSON(ReservedLifecycleAction action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(ProjectId projectId, ReservedLifecycleAction action, TransformState prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            return action.transform(projectId, action.fromXContent(parser), prevState);
         }
     }
 
@@ -132,7 +135,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
-        ClusterState state = ClusterState.builder(clusterName).build();
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).build();
+        ClusterState state = ClusterState.builder(clusterName).putProjectMetadata(projectMetadata).build();
         ReservedLifecycleAction action = new ReservedLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
         TransformState prevState = new TransformState(state, Set.of());
 
@@ -150,7 +155,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         assertThat(
-            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
+            expectThrows(XContentParseException.class, () -> processJSON(projectId, action, prevState, badPolicyJSON)).getMessage(),
             is("[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?")
         );
     }
@@ -160,7 +165,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
-        ClusterState state = ClusterState.builder(clusterName).build();
+        ProjectId projectId = randomProjectIdOrDefault();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).build();
+        ClusterState state = ClusterState.builder(clusterName).putProjectMetadata(projectMetadata).build();
 
         ReservedLifecycleAction action = new ReservedLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
 
@@ -168,7 +175,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         TransformState prevState = new TransformState(state, Set.of());
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(projectId, action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -200,10 +207,11 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, twoPoliciesJSON);
+        updatedState = processJSON(projectId, action, prevState, twoPoliciesJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
         IndexLifecycleMetadata ilmMetadata = updatedState.state()
             .metadata()
+            .getProject(projectId)
             .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
 
@@ -221,9 +229,12 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
+        updatedState = processJSON(projectId, action, prevState, onePolicyRemovedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        ilmMetadata = updatedState.state()
+            .metadata()
+            .getProject(projectId)
+            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle"));
 
         String onePolicyRenamedJSON = """
@@ -240,9 +251,12 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         prevState = updatedState;
-        updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
+        updatedState = processJSON(projectId, action, prevState, onePolicyRenamedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        ilmMetadata = updatedState.state()
+            .metadata()
+            .getProject(projectId)
+            .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
     }
 
@@ -257,37 +271,38 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             if ((getQueueArgs[2] instanceof ReservedStateUpdateTaskExecutor executor)) {
                 doAnswer(submitTaskInvocation -> {
                     Object[] submitTaskArgs = submitTaskInvocation.getArguments();
-                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
-                        @Override
-                        public ReservedStateUpdateTask getTask() {
-                            return (ReservedStateUpdateTask) submitTaskArgs[1];
-                        }
+                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask<?>> context =
+                        new ClusterStateTaskExecutor.TaskContext<>() {
+                            @Override
+                            public ReservedStateUpdateTask<?> getTask() {
+                                return (ReservedStateUpdateTask<?>) submitTaskArgs[1];
+                            }
 
-                        @Override
-                        public void success(Runnable onPublicationSuccess) {}
+                            @Override
+                            public void success(Runnable onPublicationSuccess) {}
 
-                        @Override
-                        public void success(Consumer<ClusterState> publishedStateConsumer) {}
+                            @Override
+                            public void success(Consumer<ClusterState> publishedStateConsumer) {}
 
-                        @Override
-                        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+                            @Override
+                            public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
 
-                        @Override
-                        public void success(
-                            Consumer<ClusterState> publishedStateConsumer,
-                            ClusterStateAckListener clusterStateAckListener
-                        ) {}
+                            @Override
+                            public void success(
+                                Consumer<ClusterState> publishedStateConsumer,
+                                ClusterStateAckListener clusterStateAckListener
+                            ) {}
 
-                        @Override
-                        public void onFailure(Exception failure) {
-                            fail("Shouldn't fail here");
-                        }
+                            @Override
+                            public void onFailure(Exception failure) {
+                                fail("Shouldn't fail here");
+                            }
 
-                        @Override
-                        public Releasable captureResponseHeaders() {
-                            return null;
-                        }
-                    };
+                            @Override
+                            public Releasable captureResponseHeaders() {
+                                return null;
+                            }
+                        };
                     executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
                     return null;
                 }).when(taskQueue).submitTask(anyString(), any(), any());
@@ -304,7 +319,8 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of()
         );
 
         String testJSON = """
@@ -377,10 +393,8 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(
-                new ReservedClusterSettingsAction(clusterSettings),
-                new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
-            )
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of(new ReservedLifecycleAction(xContentRegistry(), client, licenseState))
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
@@ -396,7 +410,8 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of()
         );
 
         AtomicReference<Exception> x = new AtomicReference<>();
@@ -434,10 +449,8 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(
-                new ReservedClusterSettingsAction(clusterSettings),
-                new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
-            )
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of(new ReservedLifecycleAction(xContentRegistry(), client, licenseState))
         );
 
         controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);

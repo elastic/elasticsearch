@@ -1,0 +1,5 @@
+pr: 129440
+summary: Fix filtered knn vector search when query timeouts are enabled
+area: Vector Search
+type: bug
+issues: []

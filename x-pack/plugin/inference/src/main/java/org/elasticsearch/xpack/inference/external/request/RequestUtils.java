@@ -34,5 +34,9 @@ public class RequestUtils {
         }
     }
 
+    public static URI buildUri(String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+        return buildUri(null, service, uriBuilder);
+    }
+
     private RequestUtils() {}
 }

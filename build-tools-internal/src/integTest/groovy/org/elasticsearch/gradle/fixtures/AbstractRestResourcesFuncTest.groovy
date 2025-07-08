@@ -13,6 +13,27 @@ package org.elasticsearch.gradle.fixtures;
 abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
+        settingsFile.text = """
+        plugins {
+            id 'elasticsearch.java-toolchain'
+        }
+
+        toolchainManagement {
+          jvm {
+            javaRepositories {
+              repository('bundledOracleOpendJdk') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+              }
+              repository('adoptiumJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+              }
+              repository('archivedOracleJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+              }
+            }
+          }
+        }
+        """ + settingsFile.text
         subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:test-clusters") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:yaml-rest-runner") << "apply plugin: 'elasticsearch.java'"

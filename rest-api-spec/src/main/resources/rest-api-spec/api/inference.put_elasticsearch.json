@@ -1,0 +1,35 @@
+{
+  "inference.put_elasticsearch": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html",
+      "description": "Configure an Elasticsearch inference endpoint"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{task_type}/{elasticsearch_inference_id}",
+          "methods": ["PUT"],
+          "parts": {
+            "task_type": {
+              "type": "string",
+              "description": "The task type"
+            },
+            "elasticsearch_inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings"
+    }
+  }
+}

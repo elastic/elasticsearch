@@ -1,5 +1,0 @@
-pr: 114521
-summary: Add support for registered country fields for maxmind geoip databases
-area: Ingest Node
-type: enhancement
-issues: []

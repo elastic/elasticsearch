@@ -13,6 +13,7 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.text.ParseException;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -186,6 +187,16 @@ public class JSONObjectUtils {
         try {
             return AccessController.doPrivileged(
                 (PrivilegedExceptionAction<Base64URL>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getBase64URL(o, key)
+            );
+        } catch (PrivilegedActionException e) {
+            throw (ParseException) e.getException();
+        }
+    }
+
+    public static Date getEpochSecondAsDate(final Map<String, Object> o, final String key) throws ParseException {
+        try {
+            return AccessController.doPrivileged(
+                (PrivilegedExceptionAction<Date>) () -> org.elasticsearch.nimbus.jose.util.JSONObjectUtils.getEpochSecondAsDate(o, key)
             );
         } catch (PrivilegedActionException e) {
             throw (ParseException) e.getException();

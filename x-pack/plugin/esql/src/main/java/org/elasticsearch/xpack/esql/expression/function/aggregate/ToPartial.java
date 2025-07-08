@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -80,10 +81,8 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
                 : in.readNamedWriteable(Expression.class)
         );
@@ -129,37 +128,41 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        final ToAggregator toAggregator = (ToAggregator) function;
+    public AggregatorFunctionSupplier supplier() {
+        final AggregatorFunctionSupplier supplier = ((ToAggregator) function).supplier();
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext) {
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return ToPartialAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return ToPartialGroupingAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
                 assert false : "aggregatorFactory() is override";
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
                 assert false : "groupingAggregatorFactory() is override";
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
-                final AggregatorFunctionSupplier supplier;
-                if (mode.isInputPartial()) {
-                    try (var dummy = toAggregator.supplier(inputChannels).aggregator(DriverContext.getLocalDriver())) {
-                        var intermediateChannels = IntStream.range(0, dummy.intermediateBlockCount()).boxed().toList();
-                        supplier = toAggregator.supplier(intermediateChannels);
-                    }
-                } else {
-                    supplier = toAggregator.supplier(inputChannels);
-                }
+            public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
+                List<Integer> intermediateChannels = mode.isInputPartial()
+                    ? IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).boxed().toList()
+                    : channels;
                 return new Aggregator.Factory() {
                     @Override
                     public Aggregator apply(DriverContext driverContext) {
-                        final AggregatorFunction aggregatorFunction = supplier.aggregator(driverContext);
-                        return new Aggregator(new ToPartialAggregatorFunction(aggregatorFunction, inputChannels), mode);
+                        final AggregatorFunction aggregatorFunction = supplier.aggregator(driverContext, intermediateChannels);
+                        return new Aggregator(new ToPartialAggregatorFunction(aggregatorFunction, channels), mode);
                     }
 
                     @Override
@@ -170,21 +173,18 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
             }
 
             @Override
-            public GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode) {
-                final AggregatorFunctionSupplier supplier;
-                if (mode.isInputPartial()) {
-                    try (var dummy = toAggregator.supplier(inputChannels).aggregator(DriverContext.getLocalDriver())) {
-                        var intermediateChannels = IntStream.range(0, dummy.intermediateBlockCount()).boxed().toList();
-                        supplier = toAggregator.supplier(intermediateChannels);
-                    }
-                } else {
-                    supplier = toAggregator.supplier(inputChannels);
-                }
+            public GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode, List<Integer> channels) {
+                List<Integer> intermediateChannels = mode.isInputPartial()
+                    ? IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).boxed().toList()
+                    : channels;
                 return new GroupingAggregator.Factory() {
                     @Override
                     public GroupingAggregator apply(DriverContext driverContext) {
-                        final GroupingAggregatorFunction aggregatorFunction = supplier.groupingAggregator(driverContext);
-                        return new GroupingAggregator(new ToPartialGroupingAggregatorFunction(aggregatorFunction, inputChannels), mode);
+                        final GroupingAggregatorFunction aggregatorFunction = supplier.groupingAggregator(
+                            driverContext,
+                            intermediateChannels
+                        );
+                        return new GroupingAggregator(new ToPartialGroupingAggregatorFunction(aggregatorFunction, channels), mode);
                     }
 
                     @Override

@@ -18,7 +18,6 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -70,18 +69,17 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) && in.readBoolean()) {
-            inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
-            for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
-                inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
-            }
-            outboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
-            for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
-                outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
-            }
-        } else {
-            inboundHandlingTimeBucketFrequencies = new long[0];
-            outboundHandlingTimeBucketFrequencies = new long[0];
+        if (in.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
+            && in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+            in.readBoolean();
+        }
+        inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+        for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
+            inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
+        }
+        outboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+        for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
+            outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
@@ -99,15 +97,17 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            assert (inboundHandlingTimeBucketFrequencies.length > 0) == (outboundHandlingTimeBucketFrequencies.length > 0);
-            out.writeBoolean(inboundHandlingTimeBucketFrequencies.length > 0);
-            for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
-                out.writeVLong(handlingTimeBucketFrequency);
-            }
-            for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
-                out.writeVLong(handlingTimeBucketFrequency);
-            }
+        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
+        assert outboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
+        if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
+            && out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+            out.writeBoolean(true);
+        }
+        for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
+            out.writeVLong(handlingTimeBucketFrequency);
+        }
+        for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
+            out.writeVLong(handlingTimeBucketFrequency);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeMap(transportActionStats, StreamOutput::writeWriteable);
@@ -166,24 +166,13 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         return transportActionStats;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    // Review and simplify the if-else blocks containing this symbol once v9 is released
-    private static final boolean IMPOSSIBLE_IN_V9 = true;
-
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
-        if (inboundHandlingTimeBucketFrequencies.length == 0) {
-            // Stats came from before v8.1
-            assert IMPOSSIBLE_IN_V9;
-        } else {
-            assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
-        }
+        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         return true;
     }
 
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    // review the "if" blocks checking for non-empty once we have
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject(Fields.TRANSPORT);
@@ -193,19 +182,10 @@ public class TransportStats implements Writeable, ChunkedToXContent {
             builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
             builder.field(Fields.TX_COUNT, txCount);
             builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
-            if (inboundHandlingTimeBucketFrequencies.length > 0) {
-                histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
-                histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
-            } else {
-                // Stats came from before v8.1
-                assert IMPOSSIBLE_IN_V9;
-            }
-            if (transportActionStats.isEmpty() == false) {
-                builder.startObject(Fields.ACTIONS);
-            } else {
-                // Stats came from before v8.8
-                assert IMPOSSIBLE_IN_V9;
-            }
+            assert inboundHandlingTimeBucketFrequencies.length > 0;
+            histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
+            histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
+            builder.startObject(Fields.ACTIONS);
             return builder;
         }),
 
@@ -215,12 +195,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
                 return builder;
             }),
 
-            Iterators.single((builder, params) -> {
-                if (transportActionStats.isEmpty() == false) {
-                    builder.endObject();
-                }
-                return builder.endObject();
-            })
+            Iterators.single((builder, params) -> { return builder.endObject().endObject(); })
         );
     }
 

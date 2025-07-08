@@ -1,8 +1,14 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
@@ -13,7 +19,7 @@ dependencies {
 
 tasks.named("javaRestTest").configure { enabled = false }
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
+buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
     def cluster = testClusters.register(baseName) {
         versions = [bwcVersion.toString(), project.version]
@@ -33,19 +39,22 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
         mustRunAfter("precommit")
         classpath = sourceSets.javaRestTest.runtimeClasspath
         testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+        def socketsProvider1 = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+        def socketsProvider2 = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
         doFirst {
             // Getting the endpoints causes a wait for the cluster
-            println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
+            println "Endpoints are: ${-> socketsProvider1.get()}"
             println "Upgrading one node to create a mixed cluster"
-            cluster.get().nextNodeToNextVersion()
-
-            println "Upgrade complete, endpoints are: ${-> testClusters.named(baseName).get().allHttpSocketURI.join(",")}"
-            nonInputProperties.systemProperty('tests.rest.cluster', cluster.map(c -> c.allHttpSocketURI.join(",")))
-            nonInputProperties.systemProperty('tests.clustername', baseName)
+            getRegistry().get().nextNodeToNextVersion(cluster)
+            println "Upgrade complete, endpoints are: ${-> socketsProvider2.get()} }"
         }
+        nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
+        nonInputProperties.systemProperty('tests.clustername', baseName)
         systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-        onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+
+        def bwcEnabled = project.bwc_tests_enabled
+        onlyIf("BWC tests disabled") { bwcEnabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

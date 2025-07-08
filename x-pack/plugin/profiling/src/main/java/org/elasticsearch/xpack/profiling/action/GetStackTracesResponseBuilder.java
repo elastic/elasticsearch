@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.profiling.action;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
 class GetStackTracesResponseBuilder {
@@ -18,8 +17,7 @@ class GetStackTracesResponseBuilder {
     private int totalFrames;
     private Map<String, StackFrame> stackFrames;
     private Map<String, String> executables;
-    private Map<String, TraceEvent> stackTraceEvents;
-    private List<TransportGetStackTracesAction.HostEventCount> hostEventCounts;
+    private Map<TraceEventID, TraceEvent> stackTraceEvents;
     private double samplingRate;
     private long totalSamples;
     private Double requestedDuration;
@@ -67,19 +65,11 @@ class GetStackTracesResponseBuilder {
         this.executables = executables;
     }
 
-    public void setStackTraceEvents(Map<String, TraceEvent> stackTraceEvents) {
+    public void setStackTraceEvents(Map<TraceEventID, TraceEvent> stackTraceEvents) {
         this.stackTraceEvents = stackTraceEvents;
     }
 
-    public void setHostEventCounts(List<TransportGetStackTracesAction.HostEventCount> hostEventCounts) {
-        this.hostEventCounts = hostEventCounts;
-    }
-
-    public List<TransportGetStackTracesAction.HostEventCount> getHostEventCounts() {
-        return hostEventCounts;
-    }
-
-    public Map<String, TraceEvent> getStackTraceEvents() {
+    public Map<TraceEventID, TraceEvent> getStackTraceEvents() {
         return stackTraceEvents;
     }
 
@@ -149,17 +139,17 @@ class GetStackTracesResponseBuilder {
     public GetStackTracesResponse build() {
         // Merge the TraceEvent data into the StackTraces.
         if (stackTraces != null) {
-            for (Map.Entry<String, StackTrace> entry : stackTraces.entrySet()) {
-                String stacktraceID = entry.getKey();
-                TraceEvent event = stackTraceEvents.get(stacktraceID);
-                if (event != null) {
-                    StackTrace stackTrace = entry.getValue();
-                    stackTrace.count = event.count;
+            for (Map.Entry<TraceEventID, TraceEvent> entry : stackTraceEvents.entrySet()) {
+                TraceEventID traceEventID = entry.getKey();
+                StackTrace stackTrace = stackTraces.get(traceEventID.stacktraceID());
+                if (stackTrace != null) {
+                    TraceEvent event = entry.getValue();
                     if (event.subGroups != null) {
                         stackTrace.subGroups = event.subGroups;
                     }
-                    stackTrace.annualCO2Tons = event.annualCO2Tons;
-                    stackTrace.annualCostsUSD = event.annualCostsUSD;
+                    stackTrace.count += event.count;
+                    stackTrace.annualCO2Tons += event.annualCO2Tons;
+                    stackTrace.annualCostsUSD += event.annualCostsUSD;
                 }
             }
         }

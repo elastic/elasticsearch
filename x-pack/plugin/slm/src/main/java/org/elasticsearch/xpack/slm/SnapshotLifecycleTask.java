@@ -17,10 +17,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
@@ -199,7 +199,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * For the given job id, return an optional policy metadata object, if one exists
      */
     static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final String jobId, final ClusterState state) {
-        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getSnapshotConfigurations)
             .flatMap(
                 configMap -> configMap.values()
@@ -219,7 +219,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     static Set<SnapshotId> currentlyRunningSnapshots(ClusterState clusterState) {
         final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         final Set<SnapshotId> currentlyRunning = new HashSet<>();
-        for (final List<SnapshotsInProgress.Entry> entriesForRepo : snapshots.entriesByRepo()) {
+        @FixForMultiProject(description = "replace with snapshots.entriesByRepo(ProjectId) when SLM is project aware")
+        final Iterable<List<SnapshotsInProgress.Entry>> entriesByRepo = snapshots.entriesByRepo();
+        for (final List<SnapshotsInProgress.Entry> entriesForRepo : entriesByRepo) {
             for (SnapshotsInProgress.Entry entry : entriesForRepo) {
                 currentlyRunning.add(entry.snapshot().getSnapshotId());
             }
@@ -271,10 +273,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
-            RegisteredPolicySnapshots registeredSnapshots = currentState.metadata()
-                .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+            final var project = currentState.metadata().getProject();
+            SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            RegisteredPolicySnapshots registeredSnapshots = project.custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
 
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
@@ -347,11 +348,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 currentSLMMode(currentState),
                 newStats
             );
-            Metadata newMeta = Metadata.builder(currentState.metadata())
-                .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
-                .putCustom(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(newRegistered))
-                .build();
-            return ClusterState.builder(currentState).metadata(newMeta).build();
+            return currentState.copyAndUpdateProject(
+                project.id(),
+                builder -> builder.putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata)
+                    .putCustom(RegisteredPolicySnapshots.TYPE, new RegisteredPolicySnapshots(newRegistered))
+            );
         }
 
         @Override

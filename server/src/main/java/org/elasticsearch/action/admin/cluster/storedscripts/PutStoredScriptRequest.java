@@ -9,12 +9,16 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -28,40 +32,45 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
-    private String id;
-    private String context;
-    private BytesReference content;
-    private XContentType xContentType;
-    private StoredScriptSource source;
+    @Nullable
+    private final String id;
+
+    @Nullable
+    private final String context;
+
+    private final int contentLength;
+
+    private final StoredScriptSource source;
 
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+            || in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+            contentLength = in.readVInt();
+        } else {
+            BytesReference content = in.readBytesReference();
+            contentLength = content.length();
+
+            in.readEnum(XContentType.class);    // and drop
+        }
         context = in.readOptionalString();
         source = new StoredScriptSource(in);
-    }
-
-    public PutStoredScriptRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-        super(masterNodeTimeout, ackTimeout);
     }
 
     public PutStoredScriptRequest(
         TimeValue masterNodeTimeout,
         TimeValue ackTimeout,
-        String id,
-        String context,
-        BytesReference content,
-        XContentType xContentType,
+        @Nullable String id,
+        @Nullable String context,
+        int contentLength,
         StoredScriptSource source
     ) {
         super(masterNodeTimeout, ackTimeout);
         this.id = id;
         this.context = context;
-        this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
-        this.source = source;
+        this.contentLength = contentLength;
+        this.source = Objects.requireNonNull(source);
     }
 
     @Override
@@ -74,10 +83,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
             validationException = addValidationError("id cannot contain '#' for stored script", validationException);
         }
 
-        if (content == null) {
-            validationException = addValidationError("must specify code for stored script", validationException);
-        }
-
         return validationException;
     }
 
@@ -85,76 +90,46 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return id;
     }
 
-    public PutStoredScriptRequest id(String id) {
-        this.id = id;
-        return this;
-    }
-
     public String context() {
         return context;
     }
 
-    public PutStoredScriptRequest context(String context) {
-        this.context = context;
-        return this;
-    }
-
-    public BytesReference content() {
-        return content;
-    }
-
-    public XContentType xContentType() {
-        return xContentType;
+    public int contentLength() {
+        return contentLength;
     }
 
     public StoredScriptSource source() {
         return source;
     }
 
-    /**
-     * Set the script source and the content type of the bytes.
-     */
-    public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
-        this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
-        this.source = StoredScriptSource.parse(content, xContentType);
-        return this;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        out.writeBytesReference(content);
-        XContentHelper.writeTo(out, xContentType);
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+            || out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+            out.writeVInt(contentLength);
+        } else {
+            // generate a bytes reference of the correct size (the content isn't actually used in 8.18)
+            out.writeBytesReference(new BytesArray(new byte[contentLength]));
+            XContentHelper.writeTo(out, XContentType.JSON); // value not actually used by 8.18
+        }
         out.writeOptionalString(context);
         source.writeTo(out);
     }
 
     @Override
     public String toString() {
-        String source = "_na_";
-
-        try {
-            source = XContentHelper.convertToJson(content, false, xContentType);
-        } catch (Exception e) {
-            // ignore
-        }
-
-        return "put stored script {id ["
-            + id
-            + "]"
-            + (context != null ? ", context [" + context + "]" : "")
-            + ", content ["
-            + source
-            + "]}";
+        return Strings.format(
+            "put stored script {id [%s]%s, content [%s]}",
+            id,
+            context != null ? ", context [" + context + "]" : "",
+            source
+        );
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("script");
-        source.toXContent(builder, params);
-
-        return builder;
+        return builder.field("script", source, params);
     }
 }

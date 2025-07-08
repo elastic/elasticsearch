@@ -1,0 +1,249 @@
+// Tests focused on the SAMPLE aggregation function
+// Note: this tests only basic behavior, because of the non-deterministic
+// behavior of SAMPLE and limitations of the CSV tests.
+
+
+documentation
+required_capability: agg_sample
+
+// tag::doc[]
+FROM employees
+| STATS sample = SAMPLE(gender, 5)
+// end::doc[]
+// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// presence of randomness, and be able to specify an expected result for the docs.
+| EVAL sample = ["F", "M", "M", "F", "M"]
+;
+
+// tag::doc-result[]
+sample:keyword
+[F, M, M, F, M]
+// end::doc-result[]
+;
+
+
+sample size
+required_capability: agg_sample
+
+FROM employees 
+| STATS sample_boolean  = SAMPLE(still_hired,    1),
+        sample_datetime = SAMPLE(hire_date,      2),
+        sample_double   = SAMPLE(height,         3),
+        sample_integer  = SAMPLE(emp_no,         4),
+        sample_keyword  = SAMPLE(first_name,     5),
+        sample_long     = SAMPLE(languages.long, 6)
+| EVAL  count_boolean   = MV_COUNT(sample_boolean),
+        count_datetime  = MV_COUNT(sample_datetime),
+        count_double    = MV_COUNT(sample_double),
+        count_integer   = MV_COUNT(sample_integer),
+        count_keyword   = MV_COUNT(sample_keyword),
+        count_long      = MV_COUNT(sample_long)
+| KEEP count_*
+;
+        
+count_boolean:integer | count_datetime:integer | count_double:integer | count_integer:integer | count_keyword:integer | count_long:integer
+1                     | 2                      | 3                    | 4                     | 5                     | 6
+;
+
+
+sample values (boolean, datetime, double, integer, keyword, long)
+required_capability: agg_sample
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| STATS sample_boolean  = MV_SORT(SAMPLE(still_hired,    99)),
+        sample_datetime = MV_SORT(SAMPLE(hire_date,      99)),
+        sample_double   = MV_SORT(SAMPLE(height,         99)),
+        sample_integer  = MV_SORT(SAMPLE(emp_no,         99)),
+        sample_keyword  = MV_SORT(SAMPLE(first_name,     99)),
+        sample_long     = MV_SORT(SAMPLE(languages.long, 99))
+;
+        
+sample_boolean:boolean | sample_datetime:datetime                                                       | sample_double:double | sample_integer:integer | sample_keyword:keyword   | sample_long:long
+[false, true, true]    | [1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z, 1986-08-28T00:00:00.000Z] | [1.83, 2.03, 2.08]   | [10001, 10002, 10003]  | [Bezalel, Georgi, Parto] | [2, 4, 5] 
+;
+
+
+multivalued
+required_capability: agg_sample
+
+FROM mv_sample_data 
+| STATS sample = SAMPLE(message, 20)
+| EVAL sample = MV_SORT(sample)
+;
+
+sample:keyword
+[Banana, Banana, Banana, Banana, Banana, Banana, Banana, Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3, Connection error, Connection error, Connection error, Disconnected]
+;
+
+
+some null input
+required_capability: agg_sample
+
+FROM employees
+| SORT emp_no
+| LIMIT 15
+| STATS sample = MV_SORT(SAMPLE(gender, 999)) 
+;
+
+sample:keyword
+[F, F, F, F, M, M, M, M, M]
+;
+
+
+some null output
+required_capability: agg_sample
+
+FROM employees
+| WHERE emp_no >= 10008 AND emp_no <= 10011
+| STATS sample = SAMPLE(gender, 1) BY emp_no
+| SORT emp_no
+;
+
+sample:keyword | emp_no:integer
+M              | 10008
+F              | 10009
+null           | 10010
+null           | 10011
+;
+
+
+stats by
+required_capability: agg_sample
+
+FROM employees 
+| STATS sample_keyword = MV_SORT(SAMPLE(gender, 999)),
+        sample_integer = MV_SORT(SAMPLE(salary, 999)) BY job_positions 
+| SORT job_positions
+;
+
+sample_keyword:keyword                                       | sample_integer:integer                                                                                                                       | job_positions:keyword     
+[F, F, F, F, F, M, M, M, M, M, M, M, M, M, M, M]             | [25976, 31897, 35742, 37691, 39356, 39728, 39878, 43026, 43602, 47411, 47896, 48942, 50128, 57305, 58121, 61358, 66817, 74970]               | Accountant                
+[F, F, F, F, F, F, F, M, M, M, M]                            | [28941, 30404, 31120, 37716, 42716, 43889, 44307, 44817, 45797, 54518, 62233, 62405, 69904]                                                  | Architect                 
+[F, F, F, F, M, M, M, M, M, M, M]                            | [29175, 30404, 35742, 36051, 37853, 39638, 39878, 40612, 41933, 50249, 58121]                                                                | Business Analyst          
+[F, M, M, M, M, M, M, M, M, M, M]                            | [25945, 29175, 31897, 34341, 37137, 39878, 42716, 48233, 50249, 56415, 58715, 67492, 74999]                                                  | Data Scientist            
+[F, F, M, M, M, M]                                           | [25324, 27215, 36174, 37137, 39110, 48942, 49281, 50064, 56415, 58715]                                                                       | Head Human Resources      
+[F, F, F, F, F, F, M, M, M, M, M, M, M, M, M]                | [26436, 30404, 31897, 32272, 39356, 43906, 44817, 46595, 48233, 49281, 50064, 50128, 56415, 66174, 69904]                                    | Internship                
+[F, F, F, F, F, F, F, M, M, M, M, M]                         | [25324, 25976, 30404, 32272, 32568, 41933, 43026, 43602, 43906, 50064, 56760, 62233, 64675, 74970]                                           | Junior Developer          
+[F, F, F, F, F, F, M, M, M, M, M, M, M, M, M, M, M, M, M]    | [25324, 28035, 32568, 36051, 37112, 38376, 39728, 42716, 44307, 45656, 49818, 50064, 50249, 52044, 60335, 65367, 66817, 69904, 74970, 74999] | Principal Support Engineer
+[F, F, F, F, F, F, M, M, M, M, M, M, M, M]                   | [32568, 33956, 37716, 41933, 43906, 44307, 45656, 45797, 47896, 49095, 51956, 58121, 58715, 61358, 62233, 68431, 73717, 74970]               | Purchase Manager          
+[F, F, F, M, M, M, M, M, M, M, M, M]                         | [27215, 32568, 34341, 35222, 36051, 38645, 38992, 39356, 39878, 48233, 54518, 61358, 65030]                                                  | Python Developer          
+[F, M, M, M, M, M, M, M, M, M]                               | [28336, 31120, 36174, 37137, 38645, 39638, 40612, 43026, 43889, 45656, 45797, 48233, 48735, 61358, 71165]                                    | Reporting Analyst         
+[F, F, F, F, F, F, F, M, M, M, M, M, M, M, M, M, M, M, M, M] | [25945, 31897, 35222, 35742, 37691, 37716, 37853, 38992, 43906, 49281, 52833, 57305, 60781, 62233, 62405, 66174, 66817, 68547, 73851, 74999] | Senior Python Developer   
+[F, F, F, F, F, F, F, M, M, M, M, M, M, M]                   | [29175, 31120, 33370, 37716, 40612, 42716, 44307, 44817, 49095, 54518, 56371, 56415, 60335, 65030, 67492]                                    | Senior Team Lead          
+[F, F, F, F, M, M, M, M, M, M]                               | [25324, 34341, 35222, 36174, 39728, 41933, 43026, 47896, 49281, 54462, 60408]                                                                | Support Engineer          
+[F, F, F, F, M, M, M, M, M, M, M, M, M]                      | [31120, 35742, 36174, 37691, 39356, 39638, 39728, 40031, 45656, 45797, 52044, 54518, 60335, 67492, 71165]                                    | Tech Lead                 
+[F, F, F, F, M, M, M, M, M, M, M]                            | [32263, 37702, 44956, 52121, 54329, 55360, 61805, 63528, 70011, 73578, 74572]                                                                | null                      
+;
+
+
+multiple samples are different
+required_capability: agg_sample
+
+FROM employees
+| STATS sample1 = MV_SORT(SAMPLE(last_name, 50)),
+        sample2 = MV_SORT(SAMPLE(last_name, 50))
+| EVAL samples = MV_ZIP(sample1, sample2, "|")
+| KEEP samples
+| MV_EXPAND samples
+| EVAL tokens = SPLIT(samples, "|"),
+       token_different = MV_SLICE(tokens, 0) != MV_SLICE(tokens, 1)
+| WHERE token_different == true
+| STATS token_different_count = COUNT()
+| EVAL samples_different = token_different_count > 0
+| KEEP samples_different
+;
+
+samples_different:boolean
+true
+;
+
+
+sample cartesian_point
+required_capability: agg_sample
+ 
+FROM airports_web | SORT abbrev | LIMIT 3 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample)
+;
+
+sample:cartesian_point
+[POINT (809321.6344269889 1006514.3393965173), POINT (-1.1868515102256078E7 4170563.5012235222), POINT (-437732.64923689933 585738.5549131387)]
+;
+
+
+sample cartesian_shape
+required_capability: agg_sample
+ 
+FROM cartesian_multipolygons | SORT id | LIMIT 1 | STATS sample = SAMPLE(shape, 999) | MV_EXPAND sample
+;
+
+sample:cartesian_shape
+MULTIPOLYGON (((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0)),((2.0 0.0, 3.0 0.0, 3.0 1.0, 2.0 1.0, 2.0 0.0)),((2.0 2.0, 3.0 2.0, 3.0 3.0, 2.0 3.0, 2.0 2.0)),((0.0 2.0, 1.0 2.0, 1.0 3.0, 0.0 3.0, 0.0 2.0)))
+;
+
+
+sample date_nanos
+required_capability: agg_sample
+
+FROM date_nanos | STATS sample = SAMPLE(nanos,999) | EVAL sample = MV_SORT(sample)
+;
+
+sample:date_nanos
+[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-10-23T12:15:03.360103847Z, 2023-10-23T12:15:03.360103847Z, 2023-10-23T12:27:28.948Z, 2023-10-23T13:33:34.937193Z, 2023-10-23T13:51:54.732102837Z, 2023-10-23T13:52:55.015787878Z, 2023-10-23T13:53:55.832987654Z, 2023-10-23T13:55:01.543123456Z]
+;
+
+
+sample geo_point
+required_capability: agg_sample
+ 
+FROM airports | SORT abbrev | LIMIT 2 | STATS sample = SAMPLE(location, 999) | EVAL sample = MV_SORT(sample)
+;
+
+sample:geo_point
+[POINT (-106.6166851616 35.0491578018276), POINT (-3.93221929167636 5.2543984451492)]
+;
+
+
+sample geo_shape
+required_capability: agg_sample
+ 
+FROM countries_bbox | SORT id | LIMIT 1 | STATS sample = SAMPLE(shape, 999)
+;
+
+sample:geo_shape
+BBOX (-70.059664, -69.874864, 12.627773, 12.411109)
+;
+
+
+sample ip
+required_capability: agg_sample
+
+FROM k8s | SORT @timestamp | LIMIT 5 | STATS sample = SAMPLE(client.ip,999) | EVAL sample = MV_SORT(sample)
+;
+
+sample:ip
+[10.10.20.30, 10.10.20.30, 10.10.20.31, 10.10.20.34, 10.10.20.34]
+;
+
+
+sample text
+required_capability: agg_sample
+
+FROM books | SORT book_no | LIMIT 3 | STATS sample = SAMPLE(title,999) | EVAL sample = MV_SORT(sample)
+;
+
+sample:keyword
+[Realms of Tolkien: Images of Middle-earth, Selected Passages from Correspondence with Friends, The brothers Karamazov]
+;
+
+
+
+sample version
+required_capability: agg_sample
+
+FROM apps | STATS sample = SAMPLE(version,999) | EVAL sample = MV_SORT(sample)
+;
+
+sample:version
+[1, 1.2.3.4, 1.2.3.4, 1.11.0, 2.1, 2.3.4, 2.12.0, 5.2.9-SNAPSHOT, 5.2.9, 5.2.9, 5.2.9, bad]
+;

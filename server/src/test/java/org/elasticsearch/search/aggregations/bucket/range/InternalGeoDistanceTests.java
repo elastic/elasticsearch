@@ -63,7 +63,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
+            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations));
         }
         return new InternalGeoDistance(name, buckets, keyed, metadata);
     }
@@ -86,9 +86,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
                 double to = from + randomDouble();
-                buckets.add(
-                    new InternalGeoDistance.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false)
-                );
+                buckets.add(new InternalGeoDistance.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY));
             }
             case 3 -> {
                 if (metadata == null) {

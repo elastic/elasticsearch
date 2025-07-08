@@ -104,7 +104,6 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             autoFollowStats = new AutoFollowStats(in);
             followStats = new FollowStatsAction.StatsResponses(in);
         }

@@ -41,7 +41,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        Path userAgentConfigDirectory = parameters.env.configFile().resolve("ingest-user-agent");
+        Path userAgentConfigDirectory = parameters.env.configDir().resolve("ingest-user-agent");
 
         if (Files.exists(userAgentConfigDirectory) == false && Files.isDirectory(userAgentConfigDirectory)) {
             throw new IllegalStateException(
@@ -102,7 +102,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
     }
 
     @Override
-    public Map<String, UnaryOperator<Metadata.Custom>> getCustomMetadataUpgraders() {
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
         return Map.of(
             IngestMetadata.TYPE,
             ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(

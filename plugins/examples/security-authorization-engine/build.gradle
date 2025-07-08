@@ -2,12 +2,12 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
-  name 'security-authorization-engine'
-  description 'An example spi extension plugin for security that implements an Authorization Engine'
-  classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
+  name = 'security-authorization-engine'
+  description = 'An example spi extension plugin for security that implements an Authorization Engine'
+  classname ='org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
-  licenseFile rootProject.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
 
 dependencies {
@@ -16,7 +16,7 @@ dependencies {
   testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
-  javaRestTestImplementation("co.elastic.clients:elasticsearch-java:${elasticsearchVersion}")
+  javaRestTestImplementation "co.elastic.clients:elasticsearch-java:[9.0,10.0)"
   javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
   javaRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
   javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"

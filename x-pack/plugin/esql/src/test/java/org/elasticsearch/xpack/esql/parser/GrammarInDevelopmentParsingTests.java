@@ -19,15 +19,19 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentLookup() throws Exception {
-        parse("row a = 1 | lookup \"foo\" on j", "lookup");
+        parse("row a = 1 | lookup_\uD83D\uDC14 \"foo\" on j", "lookup_\uD83D\uDC14");
     }
 
     public void testDevelopmentMetrics() throws Exception {
-        parse("metrics foo", "metrics");
+        parse("TS foo", "TS");
     }
 
     public void testDevelopmentMatch() throws Exception {
         parse("row a = 1 | match foo", "match");
+    }
+
+    public void testDevelopmentRerank() {
+        parse("row a = 1 | rerank \"foo\" on title with reranker", "rerank");
     }
 
     void parse(String query, String errorMessage) {

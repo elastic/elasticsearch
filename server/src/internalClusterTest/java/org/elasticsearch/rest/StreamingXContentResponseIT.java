@@ -186,7 +186,7 @@ public class StreamingXContentResponseIT extends ESIntegTestCase {
                         ActionRunnable.run(ActionListener.releaseAfter(refs.acquireListener(), ref), () -> {
                             Thread.yield();
                             streamingXContentResponse.writeFragment(
-                                p -> ChunkedToXContentHelper.field(fragment.getKey(), fragment.getValue()),
+                                p -> ChunkedToXContentHelper.chunk((b, xp) -> b.field(fragment.getKey(), fragment.getValue())),
                                 refs.acquire()
                             );
                         })

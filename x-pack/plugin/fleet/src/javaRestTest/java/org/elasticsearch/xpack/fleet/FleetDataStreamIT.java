@@ -15,7 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.List;
 
@@ -26,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class FleetDataStreamIT extends ESRestTestCase {
+public class FleetDataStreamIT extends AbstractFleetIT {
 
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
@@ -46,6 +45,11 @@ public class FleetDataStreamIT extends ESRestTestCase {
             .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
             .put(ThreadContext.PREFIX + ".X-elastic-product-origin", "fleet")
             .build();
+    }
+
+    @Override
+    protected boolean preserveSecurityIndicesUponCompletion() {
+        return true;
     }
 
     public void testAliasWithSystemDataStream() throws Exception {

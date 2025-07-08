@@ -22,7 +22,7 @@ public class ElserMlNodeTaskSettings implements TaskSettings {
 
     public static final String NAME = "elser_mlnode_task_settings";
 
-    public static ElserMlNodeTaskSettings DEFAULT = new ElserMlNodeTaskSettings();
+    public static final ElserMlNodeTaskSettings DEFAULT = new ElserMlNodeTaskSettings();
 
     public ElserMlNodeTaskSettings() {}
 

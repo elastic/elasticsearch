@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -28,10 +32,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
+public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
@@ -77,7 +82,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet generated = new AttributeSet(asAttributes(fields));
+        AttributeSet generated = AttributeSet.of(asAttributes(fields));
         return Expressions.references(fields).subtract(generated);
     }
 
@@ -126,11 +131,6 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
     }
 
     @Override
-    public String commandName() {
-        return "EVAL";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(fields);
     }
@@ -160,5 +160,23 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval> {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), fields);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        fields.forEach(field -> {
+            // check supported types
+            DataType dataType = field.dataType();
+            if (DataType.isRepresentable(dataType) == false) {
+                failures.add(
+                    fail(
+                        field,
+                        "EVAL does not support type [{}] as the return data type of expression [{}]",
+                        dataType.typeName(),
+                        field.child().sourceText()
+                    )
+                );
+            }
+        });
     }
 }

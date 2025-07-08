@@ -39,8 +39,10 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // we test with 2 shards since otherwise it's pretty fragile if there are difference in the num or shards such that
         // all shards are relocated to the second node which is not what we want here. It's solely a test for the settings to take effect
         final int numShards = 2;
-        assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
-        assertAcked(prepareCreate("test_1").setSettings(indexSettings(numShards, 0)));
+        assertAcked(
+            prepareCreate("test").setSettings(indexSettings(numShards, 0)),
+            prepareCreate("test_1").setSettings(indexSettings(numShards, 0))
+        );
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);

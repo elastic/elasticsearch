@@ -29,7 +29,7 @@ public class TimeFieldTests extends ESTestCase {
 
         ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
 
-        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+        assertThat(timeField.value(hit, new SourceSupplier(hit)), equalTo(new Object[] { millis }));
         assertThat(timeField.getName(), equalTo("time"));
         assertThat(timeField.getSearchField(), equalTo("time"));
         assertThat(timeField.getTypes(), containsInAnyOrder("date", "date_nanos"));
@@ -51,7 +51,7 @@ public class TimeFieldTests extends ESTestCase {
 
         ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
 
-        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+        assertThat(timeField.value(hit, new SourceSupplier(hit)), equalTo(new Object[] { millis }));
         assertThat(timeField.getName(), equalTo("time"));
         assertThat(timeField.getSearchField(), equalTo("time"));
         assertThat(timeField.getTypes(), containsInAnyOrder("date", "date_nanos"));
@@ -69,7 +69,7 @@ public class TimeFieldTests extends ESTestCase {
 
         ExtractedField timeField = new TimeField("time", ExtractedField.Method.SCRIPT_FIELD);
 
-        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+        assertThat(timeField.value(hit, new SourceSupplier(hit)), equalTo(new Object[] { millis }));
         assertThat(timeField.getName(), equalTo("time"));
         assertThat(timeField.getSearchField(), equalTo("time"));
         assertThat(timeField.getTypes(), containsInAnyOrder("date", "date_nanos"));
@@ -87,7 +87,7 @@ public class TimeFieldTests extends ESTestCase {
         final ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
 
         assertThat(
-            expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
+            expectThrows(IllegalStateException.class, () -> timeField.value(hit, new SourceSupplier(hit))).getMessage(),
             startsWith("Unexpected value for a time field")
         );
     }

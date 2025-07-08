@@ -73,7 +73,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (DiscoveryNode.hasRole(otherSettings, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)) {
-            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
+            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(10, ByteSizeUnit.MB));
         }
         return builder.build();
     }

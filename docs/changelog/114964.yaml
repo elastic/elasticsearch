@@ -1,6 +1,0 @@
-pr: 114964
-summary: Add a `monitor_stats` privilege and allow that privilege for remote cluster
-  privileges
-area: Authorization
-type: enhancement
-issues: []

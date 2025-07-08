@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -178,7 +178,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings),
             client,
             licenseState,
@@ -202,7 +201,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
         var usageAction = newUsageAction(commonSettings, randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -232,7 +231,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(expected));
 
@@ -253,7 +252,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -411,7 +410,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), false, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -507,7 +506,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, false, false);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -604,7 +603,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         XContentSource source;
@@ -639,7 +638,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
@@ -661,7 +660,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -687,7 +686,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -989,20 +988,23 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_1",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(10, 1, 1000, 100)
-                                        ),
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(20, 2, 2000, 200)
-                                        ),
-                                        // Adding a non inference processor that should be ignored
-                                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_1",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(10, 1, 1000, 100)
+                                            ),
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(20, 2, 2000, 200)
+                                            ),
+                                            // Adding a non inference processor that should be ignored
+                                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                        )
                                     )
                                 )
                             ),
@@ -1017,12 +1019,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_1",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(30, 3, 3000, 300)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_1",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(30, 3, 3000, 300)
+                                            )
                                         )
                                     )
                                 )
@@ -1038,12 +1043,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_2",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(40, 4, 4000, 400)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_2",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(40, 4, 4000, 400)
+                                            )
                                         )
                                     )
                                 )
@@ -1090,12 +1098,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_3",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(50, 5, 5000, 500)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_3",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(50, 5, 5000, 500)
+                                            )
                                         )
                                     )
                                 )

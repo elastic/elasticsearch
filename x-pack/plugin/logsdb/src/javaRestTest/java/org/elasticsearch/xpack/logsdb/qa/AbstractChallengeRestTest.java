@@ -12,9 +12,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -31,6 +32,10 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public abstract class AbstractChallengeRestTest extends ESRestTestCase {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     private final String baselineDataStreamName;
     private final String contenderDataStreamName;
     private final String baselineTemplateName;
@@ -49,7 +54,8 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .user(USER, PASS)
+        .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .build();
@@ -57,6 +63,11 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public AbstractChallengeRestTest(
@@ -221,44 +232,16 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
 
     public abstract void contenderMappings(XContentBuilder builder) throws IOException;
 
-    public void baselineSettings(Settings.Builder builder) {}
+    public abstract void baselineSettings(Settings.Builder builder);
 
-    public void contenderSettings(Settings.Builder builder) {}
+    public abstract void contenderSettings(Settings.Builder builder);
 
     public void commonSettings(Settings.Builder builder) {}
 
-    private Response indexDocuments(
-        final String dataStreamName,
-        final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier
-    ) throws IOException {
-        final StringBuilder sb = new StringBuilder();
-        int id = 0;
-        for (var document : documentsSupplier.get()) {
-            sb.append(Strings.format("{ \"create\": { \"_id\" : \"%d\" } }", id)).append("\n");
-            sb.append(Strings.toString(document)).append("\n");
-            id++;
-        }
-        var request = new Request("POST", "/" + dataStreamName + "/_bulk");
-        request.setJsonEntity(sb.toString());
-        request.addParameter("refresh", "true");
-        return client.performRequest(request);
-    }
-
-    public Response indexBaselineDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier) throws IOException {
-        return indexDocuments(getBaselineDataStreamName(), documentsSupplier);
-    }
-
-    public Response indexContenderDocuments(final CheckedSupplier<List<XContentBuilder>, IOException> documentsSupplier)
-        throws IOException {
-        return indexDocuments(getContenderDataStreamName(), documentsSupplier);
-    }
-
-    public Tuple<Response, Response> indexDocuments(
-        final CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
-        final CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
-    ) throws IOException {
-        return new Tuple<>(indexBaselineDocuments(baselineSupplier), indexContenderDocuments(contenderSupplier));
-    }
+    public abstract void indexDocuments(
+        CheckedSupplier<List<XContentBuilder>, IOException> baselineSupplier,
+        CheckedSupplier<List<XContentBuilder>, IOException> contenderSupplier
+    ) throws IOException;
 
     public Response queryBaseline(final SearchSourceBuilder search) throws IOException {
         return query(search, this::getBaselineDataStreamName);

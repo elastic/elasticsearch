@@ -1,0 +1,6 @@
+pr: 126803
+summary: "[Security Solution] Add `read` index privileges to `kibana_system` role\
+  \ for Microsoft Defender integration indexes"
+area: Authorization
+type: enhancement
+issues: []

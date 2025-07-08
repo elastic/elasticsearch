@@ -39,7 +39,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     private static final String RULE_FILES = "rule_files";
 
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
         config = getIcuConfig(environment, settings);
     }
 
@@ -99,7 +99,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     // parse a single RBBi rule file
     private static BreakIterator parseRules(String filename, Environment env) throws IOException {
 
-        final Path path = env.configFile().resolve(filename);
+        final Path path = env.configDir().resolve(filename);
         String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));
 
         return new RuleBasedBreakIterator(rules.toString());

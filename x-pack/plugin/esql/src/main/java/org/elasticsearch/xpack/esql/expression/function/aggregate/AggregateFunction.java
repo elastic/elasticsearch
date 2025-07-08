@@ -7,50 +7,36 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
  */
-public abstract class AggregateFunction extends Function {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            Avg.ENTRY,
-            Count.ENTRY,
-            CountDistinct.ENTRY,
-            Max.ENTRY,
-            Median.ENTRY,
-            MedianAbsoluteDeviation.ENTRY,
-            Min.ENTRY,
-            Percentile.ENTRY,
-            Rate.ENTRY,
-            SpatialCentroid.ENTRY,
-            Sum.ENTRY,
-            Top.ENTRY,
-            Values.ENTRY,
-            // internal functions
-            ToPartial.ENTRY,
-            FromPartial.ENTRY,
-            WeightedAvg.ENTRY
-        );
-    }
+public abstract class AggregateFunction extends Function implements PostAnalysisPlanVerificationAware {
 
     private final Expression field;
     private final List<? extends Expression> parameters;
@@ -75,10 +61,8 @@ public abstract class AggregateFunction extends Function {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : emptyList()
         );
@@ -86,9 +70,9 @@ public abstract class AggregateFunction extends Function {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeNamedWriteable(filter);
             out.writeNamedWriteableCollection(parameters);
         } else {
@@ -110,7 +94,8 @@ public abstract class AggregateFunction extends Function {
     }
 
     public boolean hasFilter() {
-        return filter != null && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold()) == false);
+        return filter != null
+            && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold(FoldContext.small() /* TODO remove me */)) == false);
     }
 
     public Expression filter() {
@@ -150,5 +135,18 @@ public abstract class AggregateFunction extends Function {
                 && Objects.equals(other.parameters(), parameters());
         }
         return false;
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (p, failures) -> {
+            // `dedup` for now is not exposed as a command,
+            // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
+            if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
+                p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
+                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                }));
+            }
+        };
     }
 }

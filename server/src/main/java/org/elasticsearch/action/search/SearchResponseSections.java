@@ -9,14 +9,12 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.transport.LeakTracker;
 
 import java.util.Collections;
 import java.util.Map;
@@ -25,7 +23,7 @@ import java.util.Map;
  * Holds some sections that a search response is composed of (hits, aggs, suggestions etc.) during some steps of the search response
  * building.
  */
-public class SearchResponseSections implements RefCounted {
+public class SearchResponseSections implements Releasable {
 
     public static final SearchResponseSections EMPTY_WITH_TOTAL_HITS = new SearchResponseSections(
         SearchHits.EMPTY_WITH_TOTAL_HITS,
@@ -53,8 +51,6 @@ public class SearchResponseSections implements RefCounted {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
-    private final RefCounted refCounted;
-
     public SearchResponseSections(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -65,14 +61,12 @@ public class SearchResponseSections implements RefCounted {
         int numReducePhases
     ) {
         this.hits = hits;
-        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
     }
 
     public final SearchHits hits() {
@@ -97,26 +91,7 @@ public class SearchResponseSections implements RefCounted {
     }
 
     @Override
-    public void incRef() {
-        refCounted.incRef();
-    }
-
-    @Override
-    public boolean tryIncRef() {
-        return refCounted.tryIncRef();
-    }
-
-    @Override
-    public boolean decRef() {
-        if (refCounted.decRef()) {
-            hits.decRef();
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean hasReferences() {
-        return refCounted.hasReferences();
+    public void close() {
+        hits.decRef();
     }
 }

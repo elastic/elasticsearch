@@ -12,11 +12,10 @@ package org.elasticsearch.health.node;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -55,7 +54,6 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         "The cluster is running low on room to add new shards. Adding data to new indices is at risk";
     private static final String INDEX_CREATION_RISK =
         "The cluster is running low on room to add new shards. Adding data to new indices might soon fail.";
-    private static final String HELP_GUIDE = "https://ela.st/fix-shards-capacity";
     private static final TriFunction<String, Setting<?>, String, Diagnosis> SHARD_MAX_CAPACITY_REACHED_FN = (
         id,
         setting,
@@ -63,13 +61,11 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             new Diagnosis.Definition(
                 NAME,
                 id,
-                "Elasticsearch is about to reach the maximum number of shards it can host, based on your current settings.",
-                "Increase the value of ["
-                    + setting.getKey()
-                    + "] cluster setting or remove "
+                "Elasticsearch is about to reach the maximum number of shards it can host as set by [" + setting.getKey() + "].",
+                "Increase the number of nodes in your cluster or remove some "
                     + indexType
-                    + " indices to clear up resources.",
-                HELP_GUIDE
+                    + " indices to reduce the number of shards in the cluster.",
+                ReferenceDocs.CLUSTER_SHARD_LIMIT.toString()
             ),
             null
         );
@@ -83,22 +79,20 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         new HealthIndicatorImpact(NAME, "creation_of_new_indices_at_risk", 2, INDEX_CREATION_RISK, List.of(ImpactArea.INGEST))
     );
     static final Diagnosis SHARDS_MAX_CAPACITY_REACHED_DATA_NODES = SHARD_MAX_CAPACITY_REACHED_FN.apply(
-        "increase_max_shards_per_node",
+        "decrease_shards_per_non_frozen_node",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
-        "data"
+        "non-frozen"
     );
     static final Diagnosis SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES = SHARD_MAX_CAPACITY_REACHED_FN.apply(
-        "increase_max_shards_per_node_frozen",
+        "decrease_shards_per_frozen_node",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         "frozen"
     );
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
 
-    public ShardsCapacityHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
+    public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.featureService = featureService;
     }
 
     @Override
@@ -111,15 +105,6 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         var state = clusterService.state();
         var healthMetadata = HealthMetadata.getFromClusterState(state);
         if (healthMetadata == null || healthMetadata.getShardLimitsMetadata() == null) {
-            if (featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_SHARDS_CAPACITY_INDICATOR) == false) {
-                return createIndicator(
-                    HealthStatus.GREEN,
-                    "No shard limits configured yet. The cluster currently has mixed versions (an upgrade may be in progress).",
-                    HealthIndicatorDetails.EMPTY,
-                    List.of(),
-                    List.of()
-                );
-            }
             return unknownIndicator();
         }
 

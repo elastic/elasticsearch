@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -68,6 +69,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         final var infoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.setUpdateFrequency(infoService, TimeValue.timeValueMillis(200));
         assertNotNull("info should not be null", ClusterInfoServiceUtils.refresh(infoService));
+        ClusterRerouteUtils.reroute(client()); // ensure we leverage the latest cluster info
 
         final var telemetryPlugin = getTelemetryPlugin(internalCluster().getMasterName());
         telemetryPlugin.collect();
@@ -112,6 +114,15 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         assertThat(desiredBalanceNodeDiskUsageMetrics.size(), equalTo(2));
         for (var nodeStat : desiredBalanceNodeDiskUsageMetrics) {
             assertThat(nodeStat.value().doubleValue(), greaterThanOrEqualTo(0.0));
+            assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
+            assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
+        }
+        final var currentNodeWeightsMetrics = telemetryPlugin.getDoubleGaugeMeasurement(
+            DesiredBalanceMetrics.CURRENT_NODE_WEIGHT_METRIC_NAME
+        );
+        assertThat(currentNodeWeightsMetrics.size(), equalTo(2));
+        for (var nodeStat : currentNodeWeightsMetrics) {
+            assertTrue(nodeStat.isDouble());
             assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
             assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
         }
@@ -194,6 +205,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
             testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME),
             matcher
         );
+        assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_WEIGHT_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_WRITE_LOAD_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_DISK_USAGE_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME), matcher);

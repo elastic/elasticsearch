@@ -566,7 +566,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
 
         Settings settings = Settings.builder()
-            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
+            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.of(randomBytesLength - 1, ByteSizeUnit.BYTES))
             .build();
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");

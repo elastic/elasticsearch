@@ -199,7 +199,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 randomQueryUsage(QUERY_TYPES.size()),
                 version.onOrAfter(TransportVersions.V_8_12_0) ? randomRescorerUsage(RESCORER_TYPES.size()) : Map.of(),
                 randomSectionsUsage(SECTIONS.size()),
-                version.onOrAfter(TransportVersions.RETRIEVERS_TELEMETRY_ADDED) ? randomRetrieversUsage(RETRIEVERS.size()) : Map.of(),
+                version.onOrAfter(TransportVersions.V_8_16_0) ? randomRetrieversUsage(RETRIEVERS.size()) : Map.of(),
                 randomLongBetween(0, Long.MAX_VALUE)
             );
             assertSerialization(testInstance, version);

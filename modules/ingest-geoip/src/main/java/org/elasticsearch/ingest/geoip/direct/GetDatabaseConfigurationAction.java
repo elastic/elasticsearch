@@ -18,13 +18,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationMetadata.DATABASE;
@@ -91,6 +92,11 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
             this.databases = in.readCollectionAsList(DatabaseConfigurationMetadata::new);
         }
 
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(databases);
+        }
+
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
             return in.readCollectionAsList(NodeResponse::new);
@@ -122,9 +128,66 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
             builder.endObject();
             return builder;
         }
+
+        /*
+         * This implementation of equals exists solely for testing the serialization of this object.
+         */
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(databases, response.databases)
+                && Objects.equals(getClusterName(), response.getClusterName())
+                && Objects.equals(equalsHashCodeFailures(), response.equalsHashCodeFailures())
+                && Objects.equals(getNodes(), response.getNodes())
+                && Objects.equals(equalsHashCodeNodesMap(), response.equalsHashCodeNodesMap());
+        }
+
+        /*
+         * This implementation of hashCode exists solely for testing the serialization of this object.
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(databases, getClusterName(), equalsHashCodeFailures(), getNodes(), equalsHashCodeNodesMap());
+        }
+
+        /*
+         * FailedNodeException does not implement equals or hashCode, making it difficult to test the serialization of this class. This
+         * helper method wraps the failures() list with a class that does implement equals and hashCode.
+         */
+        private List<EqualsHashCodeFailedNodeException> equalsHashCodeFailures() {
+            return failures().stream().map(EqualsHashCodeFailedNodeException::new).toList();
+        }
+
+        private record EqualsHashCodeFailedNodeException(FailedNodeException failedNodeException) {
+            @Override
+            public boolean equals(Object o) {
+                if (o == this) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                EqualsHashCodeFailedNodeException other = (EqualsHashCodeFailedNodeException) o;
+                return Objects.equals(failedNodeException.nodeId(), other.failedNodeException.nodeId())
+                    && Objects.equals(failedNodeException.getMessage(), other.failedNodeException.getMessage());
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(failedNodeException.nodeId(), failedNodeException.getMessage());
+            }
+        }
+
+        /*
+         * The getNodesMap method changes the value of the nodesMap, causing failures when testing the concurrent serialization and
+         * deserialization of this class. Since this is a response object, we do not actually care about concurrency since it will not
+         * happen in practice. So this helper method synchronizes access to getNodesMap, which can be used from equals and hashCode for
+         * tests.
+         */
+        private synchronized Map<String, NodeResponse> equalsHashCodeNodesMap() {
+            return getNodesMap();
+        }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         private final String[] databaseIds;
 
@@ -186,6 +249,7 @@ public class GetDatabaseConfigurationAction extends ActionType<Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeCollection(databases);
         }
 

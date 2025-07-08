@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -18,12 +19,23 @@ import static org.hamcrest.Matchers.equalTo;
 public class NamedWriteablesTests extends ESTestCase {
 
     public void testTopNStatus() throws Exception {
-        try (EsqlPlugin plugin = new EsqlPlugin()) {
+        try (EsqlPlugin plugin = new EsqlPlugin(Settings.EMPTY)) {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(plugin.getNamedWriteables());
-            TopNOperatorStatus origin = new TopNOperatorStatus(randomNonNegativeInt(), randomNonNegativeLong());
+            TopNOperatorStatus origin = new TopNOperatorStatus(
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
             TopNOperatorStatus copy = (TopNOperatorStatus) copyNamedWriteable(origin, registry, Operator.Status.class);
             assertThat(copy.occupiedRows(), equalTo(origin.occupiedRows()));
             assertThat(copy.ramBytesUsed(), equalTo(origin.ramBytesUsed()));
+            assertThat(copy.pagesReceived(), equalTo(origin.pagesReceived()));
+            assertThat(copy.pagesEmitted(), equalTo(origin.pagesEmitted()));
+            assertThat(copy.rowsReceived(), equalTo(origin.rowsReceived()));
+            assertThat(copy.rowsEmitted(), equalTo(origin.rowsEmitted()));
         }
     }
 }

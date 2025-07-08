@@ -46,6 +46,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -259,12 +261,44 @@ public class MasterServiceTests extends ESTestCase {
         assertThat(registeredActions.toString(), registeredActions, contains(MasterService.STATE_UPDATE_ACTION_NAME));
     }
 
-    public void testThreadContext() throws InterruptedException {
+    public void testThreadContext() {
         try (var master = createMasterService(true)) {
-            final CountDownLatch latch = new CountDownLatch(1);
+
+            master.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
+                try (var ignored = threadPool.getThreadContext().newEmptyContext()) {
+                    if (randomBoolean()) {
+                        randomExecutor(threadPool).execute(() -> publishListener.onResponse(null));
+                        randomExecutor(threadPool).execute(() -> ackListener.onCommit(TimeValue.timeValueMillis(randomInt(10000))));
+                        randomExecutor(threadPool).execute(
+                            () -> ackListener.onNodeAck(
+                                clusterStatePublicationEvent.getNewState().nodes().getMasterNode(),
+                                randomBoolean() ? null : new RuntimeException("simulated ack failure")
+                            )
+                        );
+                    } else {
+                        randomExecutor(threadPool).execute(
+                            () -> publishListener.onFailure(new FailedToCommitClusterStateException("simulated publish failure"))
+                        );
+                    }
+                }
+            });
+
+            final Releasable onPublishComplete;
+            final Releasable onAckingComplete;
+            final Runnable awaitComplete;
+            {
+                final var publishLatch = new CountDownLatch(1);
+                final var ackingLatch = new CountDownLatch(1);
+                onPublishComplete = Releasables.assertOnce(publishLatch::countDown);
+                onAckingComplete = Releasables.assertOnce(ackingLatch::countDown);
+                awaitComplete = () -> {
+                    safeAwait(publishLatch);
+                    safeAwait(ackingLatch);
+                };
+            }
 
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
-
                 final var expectedHeaders = new HashMap<String, String>();
                 expectedHeaders.put(randomIdentifier(), randomIdentifier());
                 for (final var copiedHeader : Task.HEADERS_TO_COPY) {
@@ -272,25 +306,25 @@ public class MasterServiceTests extends ESTestCase {
                         expectedHeaders.put(copiedHeader, randomIdentifier());
                     }
                 }
-
-                final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
-                    "testResponse",
-                    Collections.singletonList("testResponse")
-                );
                 threadPool.getThreadContext().putHeader(expectedHeaders);
 
-                final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
-                final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
+                final Map<String, List<String>> expectedResponseHeaders = Map.of("testResponse", List.of(randomIdentifier()));
+
+                final TimeValue ackTimeout = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueMillis(randomInt(10000));
+                final TimeValue masterTimeout = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueMillis(randomInt(10000));
 
                 master.submitUnbatchedStateUpdateTask(
                     "test",
                     new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, masterTimeout), null) {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            assertTrue(threadPool.getThreadContext().isSystemContext());
-                            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
-                            threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
-                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                            // the task is executed in the context in which the task was originally created.
+                            // note: this is typically not a system context.
+                            assertExpectedThreadContext(Map.of());
+
+                            expectedResponseHeaders.forEach(
+                                (name, values) -> values.forEach(v -> threadPool.getThreadContext().addResponseHeader(name, v))
+                            );
 
                             if (randomBoolean()) {
                                 return ClusterState.builder(currentState).build();
@@ -303,44 +337,44 @@ public class MasterServiceTests extends ESTestCase {
 
                         @Override
                         public void onFailure(Exception e) {
-                            assertFalse(threadPool.getThreadContext().isSystemContext());
-                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                            latch.countDown();
+                            assertExpectedThreadContext(
+                                e instanceof ProcessClusterEventTimeoutException ? Map.of() : expectedResponseHeaders
+                            );
+                            onPublishComplete.close();
+                            onAckingComplete.close(); // no acking takes place if publication failed
                         }
 
                         @Override
                         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                            assertFalse(threadPool.getThreadContext().isSystemContext());
-                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                            latch.countDown();
+                            assertExpectedThreadContext(expectedResponseHeaders);
+                            onPublishComplete.close();
                         }
 
                         @Override
                         public void onAllNodesAcked() {
-                            assertFalse(threadPool.getThreadContext().isSystemContext());
-                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                            latch.countDown();
+                            onAckCompletion();
                         }
 
                         @Override
                         public void onAckFailure(Exception e) {
-                            assertFalse(threadPool.getThreadContext().isSystemContext());
-                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                            latch.countDown();
+                            onAckCompletion();
                         }
 
                         @Override
                         public void onAckTimeout() {
+                            onAckCompletion();
+                        }
+
+                        private void onAckCompletion() {
+                            assertExpectedThreadContext(expectedResponseHeaders);
+                            onAckingComplete.close();
+                        }
+
+                        private void assertExpectedThreadContext(Map<String, List<String>> expectedResponseHeaders) {
                             assertFalse(threadPool.getThreadContext().isSystemContext());
                             assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                             assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                            latch.countDown();
                         }
-
                     }
                 );
 
@@ -349,7 +383,7 @@ public class MasterServiceTests extends ESTestCase {
                 assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getResponseHeaders());
             }
 
-            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            awaitComplete.run();
         }
     }
 

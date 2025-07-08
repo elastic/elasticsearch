@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -74,7 +73,7 @@ public final class TransportActionProxy {
                 @Override
                 public TransportResponse read(StreamInput in) throws IOException {
                     if (in.getTransportVersion().equals(channel.getVersion()) && in.supportReadAllToReleasableBytesReference()) {
-                        return new BytesTransportResponse(in);
+                        return new BytesTransportResponse(in.readAllToReleasableBytesReference());
                     } else {
                         return responseFunction.apply(wrappedRequest).read(in);
                     }
@@ -97,36 +96,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static final class BytesTransportResponse extends TransportResponse {
-        final ReleasableBytesReference bytes;
-
-        BytesTransportResponse(StreamInput in) throws IOException {
-            super(in);
-            this.bytes = in.readAllToReleasableBytesReference();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            bytes.writeTo(out);
-        }
-
-        @Override
-        public void incRef() {
-            bytes.incRef();
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            return bytes.tryIncRef();
-        }
-
-        @Override
-        public boolean decRef() {
-            return bytes.decRef();
-        }
-    }
-
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends AbstractTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 

@@ -20,12 +20,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -68,7 +66,6 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
-import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -137,6 +134,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBu
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -204,7 +202,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
@@ -231,11 +228,11 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
@@ -687,15 +684,6 @@ public class SearchModule {
                 .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators),
             builder
         );
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerQuery(
-                new QuerySpec<>(
-                    CommonTermsQueryBuilder.NAME_V7,
-                    (streamInput) -> new CommonTermsQueryBuilder(),
-                    CommonTermsQueryBuilder::fromXContent
-                )
-            );
-        }
 
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
 
@@ -816,15 +804,6 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder::parse
             )
         );
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerPipelineAggregation(
-                new PipelineAggregationSpec(
-                    MovAvgPipelineAggregationBuilder.NAME_V7,
-                    MovAvgPipelineAggregationBuilder::new,
-                    MovAvgPipelineAggregationBuilder.PARSER
-                )
-            );
-        }
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
@@ -935,7 +914,7 @@ public class SearchModule {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
-        highlighters.register("unified", new DefaultHighlighter());
+        highlighters.register(DefaultHighlighter.NAME, new DefaultHighlighter());
         highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
 
         return unmodifiableMap(highlighters.getRegistry());
@@ -1071,8 +1050,9 @@ public class SearchModule {
         registerFetchSubPhase(new StoredFieldsPhase());
         registerFetchSubPhase(new FetchDocValuesPhase());
         registerFetchSubPhase(new ScriptFieldsPhase());
-        registerFetchSubPhase(new FetchSourcePhase());
         registerFetchSubPhase(new FetchFieldsPhase());
+        // register after fetch fields to handle metadata fields that needs to be copied in _source (e.g. _inference_fields).
+        registerFetchSubPhase(new FetchSourcePhase());
         registerFetchSubPhase(new FetchVersionPhase());
         registerFetchSubPhase(new SeqNoPrimaryTermPhase());
         registerFetchSubPhase(new MatchedQueriesPhase());
@@ -1103,6 +1083,7 @@ public class SearchModule {
     private void registerRetrieverParsers(List<SearchPlugin> plugins) {
         registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(RescorerRetrieverBuilder.NAME, RescorerRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }
@@ -1177,6 +1158,10 @@ public class SearchModule {
         );
         registerQuery(
             new QuerySpec<>(
+                /*
+                 * Deprecated in #64227, 7.12/8.0. We do not plan to remove this so we
+                 * do not break any users using this.
+                 */
                 (new ParseField(GeoPolygonQueryBuilder.NAME).withAllDeprecated(GeoPolygonQueryBuilder.GEO_POLYGON_DEPRECATION_MSG)),
                 GeoPolygonQueryBuilder::new,
                 GeoPolygonQueryBuilder::fromXContent
@@ -1202,12 +1187,11 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(ExactKnnQueryBuilder.NAME, ExactKnnQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[exact_knn] queries cannot be provided directly");
         }));
+        registerQuery(
+            new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, RandomSamplingQueryBuilder::fromXContent)
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
-
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
-        }
     }
 
     private void registerIntervalsSourceProviders() {
@@ -1297,10 +1281,6 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
-    }
-
-    public RankFeatureShardPhase getRankFeatureShardPhase() {
-        return new RankFeatureShardPhase();
     }
 
     public FetchPhase getFetchPhase() {

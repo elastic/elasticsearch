@@ -1,0 +1,6 @@
+pr: 126770
+summary: Remove empty results before merging
+area: Search
+type: bug
+issues:
+ - 126742

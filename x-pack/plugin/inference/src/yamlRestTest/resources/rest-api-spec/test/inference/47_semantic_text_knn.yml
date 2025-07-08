@@ -1,0 +1,407 @@
+setup:
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_rewrite_interception_supported"
+      reason: semantic_text knn support introduced in 8.18.0
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 5,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-2
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id-2
+
+  - do:
+      indices.create:
+        index: test-dense-vector-index
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: dense_vector
+                dims: 10
+                similarity: cosine
+
+  - do:
+      indices.create:
+        index: test-incompatible-dense-vector-index
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: dense_vector
+                dims: 3
+                similarity: cosine
+
+  - do:
+      index:
+        index: test-semantic-text-index
+        id: doc_1
+        body:
+          keyword_field: "foo"
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-text-index-2
+        id: doc_2
+        body:
+          keyword_field: "bar"
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-dense-vector-index
+        id: doc_3
+        body:
+          keyword_field: "baz"
+          inference_field: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-incompatible-dense-vector-index
+        id: doc_4
+        body:
+          keyword_field: "qux"
+          inference_field: [ 1, 2, 3 ]
+        refresh: true
+
+---
+"Nested knn queries using the old format on semantic_text embeddings and inference still work":
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            nested:
+              path: inference_field.inference.chunks
+              query:
+                knn:
+                  field: inference_field.inference.chunks.embeddings
+                  k: 10
+                  num_candidates: 100
+                  query_vector_builder:
+                    text_embedding:
+                      model_id: dense-inference-id
+                      model_text: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Nested knn queries using the old format on semantic_text embeddings and query vectors still work":
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            nested:
+              path: inference_field.inference.chunks
+              query:
+                knn:
+                  field: inference_field.inference.chunks.embeddings
+                  k: 10
+                  num_candidates: 100
+                  query_vector: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"knn query against semantic_text field using a specified inference ID":
+
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_id: dense-inference-id
+                  model_text: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"knn query against semantic_text field using inference ID configured in semantic_text field":
+
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"knn query against semantic_text field using query vectors":
+
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"knn query against combined dense_vector and semantic_text fields using inference":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-dense-vector-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_id: dense-inference-id
+                  model_text: test
+
+  - match: { hits.total.value: 2 }
+
+---
+"knn query against combined dense_vector and semantic_text fields still requires inference ID":
+
+  - do:
+      catch: bad_request
+      search:
+        index:
+          - test-semantic-text-index
+          - test-dense-vector-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[model_id] must not be null." }
+
+---
+"knn query against combined dense_vector and semantic_text fields using query vectors":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-dense-vector-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+
+  - match: { hits.total.value: 2 }
+
+
+---
+"knn query against incompatible dense_vector and semantic_text fields using query vectors returns the matching semantic vectors and failures for incompatible dims":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-incompatible-dense-vector-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { _shards.failures.0.index: "test-incompatible-dense-vector-index" }
+  - match: { _shards.failures.0.reason.reason: "failed to create query: The query vector has a different number of dimensions [10] than the document vectors [3]." }
+
+---
+"knn query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { hits.total.value: 2 }
+
+---
+"knn query respects filters":
+  - requires:
+      cluster_features: "search.semantic_knn_filter_fix"
+      reason: filters fixed in 8.18.0
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                term:
+                  keyword_field: "foo"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+
+
+---
+"knn query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields with smaller k returns k for each index":
+
+  - do:
+      index:
+        index: test-semantic-text-index
+        id: doc_4
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-text-index
+        id: doc_5
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-text-index-2
+        id: doc_6
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-text-index-2
+        id: doc_7
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 2
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { hits.total.value: 4 }
+
+

@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.license.License;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.IncludingAltitude;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -38,15 +40,18 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return SpatialAggregationTestCase.licenseRequirement(fieldTypes);
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = Stream.of(
-            MultiRowTestCaseSupplier.geoPointCases(1, 1000, true),
-            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, true)
+            MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO)
         ).flatMap(List::stream).map(SpatialCentroidTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 

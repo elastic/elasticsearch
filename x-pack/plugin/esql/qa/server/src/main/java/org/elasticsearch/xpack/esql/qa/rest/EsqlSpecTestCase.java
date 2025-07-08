@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
+import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -66,18 +67,22 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
-
-    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
-    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
@@ -87,6 +92,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final CsvTestCase testCase;
     protected final String instructions;
     protected final Mode mode;
+    protected static Boolean supportsTook;
 
     public enum Mode {
         SYNC,
@@ -132,17 +138,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
-            createInferenceEndpoint(client());
+        if (supportsInferenceTestService()) {
+            createInferenceEndpoints(adminClient());
         }
 
-        if (indexExists(availableDatasetsForEs(client()).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client());
+        boolean supportsLookup = supportsIndexModeLookup();
+        boolean supportsSourceMapping = supportsSourceFieldMapping();
+        if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsSourceMapping).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping);
         }
-    }
-
-    protected boolean supportsAsync() {
-        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass
@@ -156,7 +160,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
 
-        deleteInferenceEndpoint(client());
+        deleteInferenceEndpoints(adminClient());
+
     }
 
     public boolean logResults() {
@@ -173,21 +178,52 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
-            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        if (requiresInferenceEndpoint()) {
+            assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        if (supportsSourceFieldMapping() == false) {
+            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
+        }
+        if (testCase.requiredCapabilities.contains(METRICS_COMMAND.capabilityName())) {
+            assumeTrue("Skip time-series tests in mixed clusters until the development stabilizes", supportTimeSeriesCommand());
+        }
+    }
+
+    /**
+     * Skip time-series tests in mixed clusters until the development stabilizes
+     */
+    protected boolean supportTimeSeriesCommand() {
+        return true;
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
         throws IOException {
-        if (testCase.requiredCapabilities.isEmpty()) {
+        if (hasCapabilities(client, testCase.requiredCapabilities)) {
             return;
         }
+
+        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
+
+        for (String feature : testCase.requiredCapabilities) {
+            var esqlFeature = "esql." + feature;
+            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
+        }
+    }
+
+    protected static boolean hasCapabilities(List<String> requiredCapabilities) throws IOException {
+        return hasCapabilities(adminClient(), requiredCapabilities);
+    }
+
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+        if (requiredCapabilities.isEmpty()) {
+            return true;
+        }
         try {
-            if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
-                return;
+            if (clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false)) {
+                return true;
             }
             LOGGER.info("capabilities API returned false, we might be in a mixed version cluster so falling back to cluster features");
         } catch (ResponseException e) {
@@ -206,31 +242,41 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-
-        var features = Stream.concat(
-            new EsqlFeatures().getFeatures().stream(),
-            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
-        ).map(NodeFeature::id).collect(Collectors.toSet());
-
-        for (String feature : testCase.requiredCapabilities) {
-            var esqlFeature = "esql." + feature;
-            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
-        }
+        return false;
     }
 
     protected boolean supportsInferenceTestService() {
         return true;
     }
 
-    protected final void doTest() throws Throwable {
+    protected boolean requiresInferenceEndpoint() {
+        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName(), COMPLETION.capabilityName())
+            .anyMatch(testCase.requiredCapabilities::contains);
+    }
+
+    protected boolean supportsIndexModeLookup() throws IOException {
+        return true;
+    }
+
+    protected boolean supportsSourceFieldMapping() throws IOException {
+        return true;
+    }
+
+    protected void doTest() throws Throwable {
+        doTest(testCase.query);
+    }
+
+    protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
+        if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
+        Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
+        Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
+
+        assertNotPartial(answer);
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -246,6 +292,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+
+        if (supportsTook()) {
+            LOGGER.info("checking took incremented from {}", prevTooks);
+            long took = ((Number) answer.get("took")).longValue();
+            int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
+            assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
+    }
+
+    static Map<String, Object> assertNotPartial(Map<String, Object> answer) {
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+
+        return answer;
+    }
+
+    private Map<?, ?> tooks() throws IOException {
+        Request request = new Request("GET", "/_xpack/usage");
+        HttpEntity entity = client().performRequest(request).getEntity();
+        Map<?, ?> usage = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
+        Map<?, ?> esql = (Map<?, ?>) usage.get("esql");
+        return (Map<?, ?>) esql.get("took");
     }
 
     /**
@@ -268,7 +337,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         if (mode == Mode.ASYNC) {
-            assert supportsAsync();
             return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings);
         } else {
             return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings);
@@ -309,9 +377,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+            }
+        }
+        if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+            if (value instanceof String s) {
+                value = s.replaceAll("\\\\n", "\n");
             }
         }
         return value.toString();
@@ -430,5 +503,37 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             )
         );
         return tables;
+    }
+
+    protected boolean supportsTook() throws IOException {
+        if (supportsTook == null) {
+            supportsTook = hasCapabilities(client(), List.of("usage_contains_took"));
+        }
+        return supportsTook;
+    }
+
+    private String tookKey(long took) {
+        if (took < 10) {
+            return "lt_10ms";
+        }
+        if (took < 100) {
+            return "lt_100ms";
+        }
+        if (took < TookMetrics.ONE_SECOND) {
+            return "lt_1s";
+        }
+        if (took < TookMetrics.TEN_SECONDS) {
+            return "lt_10s";
+        }
+        if (took < TookMetrics.ONE_MINUTE) {
+            return "lt_1m";
+        }
+        if (took < TookMetrics.TEN_MINUTES) {
+            return "lt_10m";
+        }
+        if (took < TookMetrics.ONE_DAY) {
+            return "lt_1d";
+        }
+        return "gt_1d";
     }
 }

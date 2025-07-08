@@ -7,20 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores BytesRef values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
     OrdinalBytesRefBlock {
@@ -58,17 +58,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
     @Override
     BytesRefBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "BytesRefBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::readFrom);
-
-    private static BytesRefBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
@@ -227,6 +216,16 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+         */
+        Builder copyFrom(BytesRefBlock block, int position, BytesRef scratch);
 
         @Override
         Builder appendNull();

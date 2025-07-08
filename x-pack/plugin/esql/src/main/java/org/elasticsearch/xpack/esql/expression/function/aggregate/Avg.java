@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -27,6 +28,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
@@ -34,7 +36,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     @FunctionInfo(
         returnType = "double",
         description = "The average of a numeric field.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "avg"),
             @Example(
@@ -45,7 +47,14 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
                 tag = "docsStatsAvgNestedExpression"
             ) }
     )
-    public Avg(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    public Avg(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "aggregate_metric_double", "double", "integer", "long" },
+            description = "Expression that outputs values to average."
+        ) Expression field
+    ) {
         this(source, field, Literal.TRUE);
     }
 
@@ -57,10 +66,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long or counter types"
+            "aggregate_metric_double or numeric except unsigned_long or counter types"
         );
     }
 
@@ -97,9 +106,12 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
-
-        return field().foldable()
-            ? new MvAvg(s, field)
-            : new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
+        if (field.foldable()) {
+            return new MvAvg(s, field);
+        }
+        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+            return new Div(s, new Sum(s, field, filter()).surrogate(), new Count(s, field, filter()).surrogate());
+        }
+        return new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
     }
 }

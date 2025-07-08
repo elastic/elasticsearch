@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.index;
 
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,26 +18,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class IndexVersionUtilsTests extends ESTestCase {
     /**
      * Tests that {@link IndexVersions#MINIMUM_COMPATIBLE} and {@link IndexVersionUtils#allReleasedVersions()}
-     * agree with the list of index compatible versions we build in gradle.
+     * agree on the minimum version that should be tested.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98054")
-    public void testGradleVersionsMatchVersionUtils() {
+    public void testIndexCompatibleVersionMatches() {
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
-        List<IndexVersion> released = IndexVersionUtils.allReleasedVersions()
-            .stream()
-            /* Java lists all versions from the 5.x series onwards, but we only want to consider
-             * ones that we're supposed to be compatible with. */
-            .filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE))
-            .toList();
 
-        List<String> releasedIndexCompatible = released.stream()
-            .filter(v -> IndexVersion.current().equals(v) == false)
-            .map(Object::toString)
-            .toList();
-        assertEquals(releasedIndexCompatible, indexCompatible.released);
+        String minIndexVersion = IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion();
+        String lowestCompatibleVersion = indexCompatible.released.get(0);
+        assertThat(lowestCompatibleVersion, equalTo(minIndexVersion));
     }
 
     /**

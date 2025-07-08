@@ -18,17 +18,6 @@
           ]
         }
       ]
-    },
-    "params":{
-      "help":{
-        "type":"boolean",
-        "description":"Return help information",
-        "default":false
-      },
-      "s":{
-        "type":"list",
-        "description":"Comma-separated list of column names or column aliases to sort by"
-      }
     }
   }
 }

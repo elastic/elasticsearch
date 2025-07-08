@@ -23,10 +23,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
@@ -279,10 +279,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     private static final NamedWriteableRegistry REGISTRY;
 
     static {
-        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
-        writeables.addAll(Block.getNamedWriteables());
-        writeables.addAll(Attribute.getNamedWriteables());
-        writeables.add(UnsupportedAttribute.ENTRY);
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>(ExpressionWritables.attributes());
         REGISTRY = new NamedWriteableRegistry(new ArrayList<>(new HashSet<>(writeables)));
     }
 }

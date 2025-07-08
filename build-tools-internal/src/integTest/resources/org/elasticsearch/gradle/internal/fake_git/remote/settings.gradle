@@ -10,9 +10,13 @@
 rootProject.name = "root"
 
 include ":distribution:bwc:bugfix"
+include ":distribution:bwc:bugfix2"
+include ":distribution:bwc:bugfix3"
 include ":distribution:bwc:minor"
 include ":distribution:bwc:major"
 include ":distribution:bwc:staged"
+include ":distribution:bwc:staged2"
+include ":distribution:bwc:maintenance"
 include ":distribution:archives:darwin-tar"
 include ":distribution:archives:oss-darwin-tar"
 include ":distribution:archives:darwin-aarch64-tar"

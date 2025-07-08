@@ -50,7 +50,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
             UUIDs.base64UUID(),
             FailingInitializationPersistentTaskExecutor.TASK_NAME,
             new FailingInitializationTaskParams(),
-            null,
+            TEST_REQUEST_TIMEOUT,
             startPersistentTaskFuture
         );
         startPersistentTaskFuture.actionGet();

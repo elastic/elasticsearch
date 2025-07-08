@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -75,6 +76,9 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+@FixForMultiProject(
+    description = "Once/if this becomes project-aware, it must consider project blocks when using ClusterBlocks.hasGlobalBlockWithLevel"
+)
 public final class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalExporter.class);
@@ -468,7 +472,7 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
     }
 
     private static boolean hasTemplate(final ClusterState clusterState, final String templateName) {
-        final IndexTemplateMetadata template = clusterState.getMetadata().getTemplates().get(templateName);
+        final IndexTemplateMetadata template = clusterState.getMetadata().getProject().templates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
     }
@@ -629,7 +633,7 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
             currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
             Set<String> indices = new HashSet<>();
-            for (var index : clusterState.getMetadata().indices().entrySet()) {
+            for (var index : clusterState.getMetadata().getProject().indices().entrySet()) {
                 String indexName = index.getKey();
 
                 if (Regex.simpleMatch(indexPatterns, indexName)) {

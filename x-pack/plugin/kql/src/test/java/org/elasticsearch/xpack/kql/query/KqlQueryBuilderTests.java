@@ -34,8 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder> {
-
-    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(KqlPlugin.class);
     }

@@ -15,7 +15,7 @@ import java.io.IOException;
  */
 public class MlClassicTokenizer extends AbstractMlTokenizer {
 
-    public static String NAME = "ml_classic";
+    public static final String NAME = "ml_classic";
 
     MlClassicTokenizer() {}
 

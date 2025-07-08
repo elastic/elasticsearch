@@ -10,13 +10,15 @@ package org.elasticsearch.xpack.inference.external.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.Before;
 
 import java.util.List;
@@ -53,7 +55,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
         var testRan = new AtomicBoolean(false);
 
         executableAction.execute(
-            mock(DocumentsOnlyInput.class),
+            new UnifiedChatInput(List.of("one"), "system", false),
             mock(TimeValue.class),
             ActionListener.wrap(success -> testRan.set(true), e -> fail(e, "Test failed."))
         );
@@ -61,25 +63,11 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
         assertTrue("Test failed to call listener.", testRan.get());
     }
 
-    public void testInvalidInputType() {
-        var badInput = mock(InferenceInputs.class);
-        var actualException = new AtomicReference<Exception>();
-
-        executableAction.execute(
-            badInput,
-            mock(TimeValue.class),
-            ActionListener.wrap(shouldNotSucceed -> fail("Test failed."), actualException::set)
-        );
-
-        assertThat(actualException.get(), notNullValue());
-        assertThat(actualException.get().getMessage(), is("Invalid inference input type"));
-        assertThat(actualException.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) actualException.get()).status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-    }
-
     public void testMoreThanOneInput() {
-        var badInput = mock(DocumentsOnlyInput.class);
-        when(badInput.getInputs()).thenReturn(List.of("one", "two"));
+        var badInput = mock(EmbeddingsInput.class);
+        var input = List.of(new ChunkInferenceInput("one"), new ChunkInferenceInput("two"));
+        when(badInput.getInputs()).thenReturn(input);
+        when(badInput.isSingleInput()).thenReturn(false);
         var actualException = new AtomicReference<Exception>();
 
         executableAction.execute(

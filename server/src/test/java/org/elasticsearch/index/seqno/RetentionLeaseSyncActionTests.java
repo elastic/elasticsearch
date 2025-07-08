@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -109,7 +110,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -146,7 +148,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -187,7 +190,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
 
         assertNull(action.indexBlockLevel());

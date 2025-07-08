@@ -1,6 +1,3 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -8,16 +5,18 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * 2.0.
  */
 
+import org.elasticsearch.gradle.Version
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  name 'unsigned-long'
-  description 'Module for the unsigned long field type'
-  classname 'org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
+  name = 'unsigned-long'
+  description = 'Module for the unsigned long field type'
+  classname ='org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 base {
@@ -35,14 +34,4 @@ restResources {
     restApi {
         include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
     }
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
-}
-
-testClusters.configureEach {
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

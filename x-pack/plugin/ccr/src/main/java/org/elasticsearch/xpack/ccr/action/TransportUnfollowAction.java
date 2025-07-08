@@ -26,11 +26,12 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -68,7 +69,6 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final Client client
     ) {
         super(
@@ -78,7 +78,6 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             threadPool,
             actionFilters,
             UnfollowAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = Objects.requireNonNull(client);
@@ -107,7 +106,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
             @Override
             public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-                final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
+                final IndexMetadata indexMetadata = oldState.metadata().getProject().index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
 
@@ -250,7 +249,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
     }
 
     static ClusterState unfollow(String followerIndex, ClusterState current) {
-        IndexMetadata followerIMD = current.metadata().index(followerIndex);
+        IndexMetadata followerIMD = current.metadata().getProject().index(followerIndex);
         if (followerIMD == null) {
             throw new IndexNotFoundException(followerIndex);
         }
@@ -265,7 +264,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             );
         }
 
-        PersistentTasksCustomMetadata persistentTasks = current.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = current.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks != null) {
             for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasks.tasks()) {
                 if (persistentTask.getTaskName().equals(ShardFollowTask.NAME)) {
@@ -290,6 +289,8 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         // Remove ccr custom metadata
         newIndexMetadata.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
 
-        return current.copyAndUpdateMetadata(metadata -> metadata.put(newIndexMetadata));
+        @FixForMultiProject
+        final ProjectId projectId = current.metadata().getProject().id();
+        return current.copyAndUpdateProject(projectId, project -> project.put(newIndexMetadata));
     }
 }

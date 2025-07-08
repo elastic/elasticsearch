@@ -17,10 +17,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
+import org.elasticsearch.test.cluster.util.Version;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
@@ -31,23 +30,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
-
 public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .module("constant-keyword")
-        .module("data-streams")
-        .module("mapper-extras")
-        .module("x-pack-aggregate-metric")
-        .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static final ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .module("constant-keyword")
+            .module("data-streams")
+            .module("mapper-extras")
+            .module("x-pack-aggregate-metric")
+            .module("x-pack-stack")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial");
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     public LogsIndexModeFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
@@ -125,8 +131,10 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         }""";
 
     public void testLogsIndexing() throws IOException {
-        assumeTrue("Test uses data streams", oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED));
-
+        assumeTrue(
+            "otherwise first backing index of logs-apache-production will be in logsdb mode",
+            getOldClusterTestVersion().before("9.0.0")
+        );
         if (isRunningAgainstOldCluster()) {
             assertOK(client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE)));
             assertOK(client().performRequest(createDataStream("logs-apache-production")));
@@ -172,22 +180,16 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
 
-            assertIndexMappingsAndSettings(0, Matchers.nullValue(), matchesMap().extraOk());
-            assertIndexMappingsAndSettings(
-                1,
-                Matchers.equalTo("logsdb"),
-                matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic"))
-            );
+            assertIndexSettings(0, Matchers.nullValue());
+            assertIndexSettings(1, Matchers.equalTo("logsdb"));
         }
     }
 
-    private void assertIndexMappingsAndSettings(int backingIndex, final Matcher<Object> indexModeMatcher, final MapMatcher mappingsMatcher)
-        throws IOException {
+    private void assertIndexSettings(int backingIndex, final Matcher<Object> indexModeMatcher) throws IOException {
         assertThat(
             getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", backingIndex)).get("index.mode"),
             indexModeMatcher
         );
-        assertMap(getIndexMappingAsMap(getWriteBackingIndex(client(), "logs-apache-production", backingIndex)), mappingsMatcher);
     }
 
     private static Request createDataStream(final String dataStreamName) {

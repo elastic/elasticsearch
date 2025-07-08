@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -60,7 +59,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterSettings clusterSettings
     ) {
         super(
@@ -71,7 +69,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             ClusterUpdateSettingsRequest::new,
-            indexNameExpressionResolver,
             ClusterUpdateSettingsResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

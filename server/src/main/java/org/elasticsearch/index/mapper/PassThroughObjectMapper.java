@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -38,8 +37,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
 public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String PRIORITY_PARAM_NAME = "priority";
-
-    static final NodeFeature PASS_THROUGH_PRIORITY = new NodeFeature("mapper.pass_through_priority");
 
     public static class Builder extends ObjectMapper.Builder {
 

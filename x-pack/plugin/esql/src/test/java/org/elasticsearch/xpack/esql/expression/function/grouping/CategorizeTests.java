@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,9 +24,19 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Dummy test implementation for Categorize. Used just to generate documentation.
+ * <p>
+ *     Most test cases are currently skipped as this function can't build an evaluator.
+ * </p>
+ */
 public class CategorizeTests extends AbstractScalarFunctionTestCase {
     public CategorizeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return License.OperationMode.PLATINUM;
     }
 
     @ParametersFactory
@@ -37,19 +48,24 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
                     "text with " + dataType.typeName(),
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
-                        List.of(new TestCaseSupplier.TypedData(new BytesRef("blah blah blah"), dataType, "f")),
-                        "CategorizeEvaluator[v=Attribute[channel=0]]",
-                        DataType.INTEGER,
-                        equalTo(0)
-                    )
+                        List.of(new TestCaseSupplier.TypedData(new BytesRef(""), dataType, "field")),
+                        "",
+                        DataType.KEYWORD,
+                        equalTo(new BytesRef(""))
+                    ).withoutEvaluator()
                 )
             );
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Categorize(source, args.get(0));
+    }
+
+    @Override
+    public void testFold() {
+        // Cannot be folded
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -497,7 +497,7 @@ public class NodeStatsTests extends ESTestCase {
             + chunkIfPresent(nodeStats.getDiscoveryStats()) // <br/>
             + assertExpectedChunks(nodeStats.getIngestStats(), NodeStatsTests::expectedChunks, params) // <br/>
             + chunkIfPresent(nodeStats.getAdaptiveSelectionStats()) // <br/>
-            + assertExpectedChunks(nodeStats.getScriptCacheStats(), NodeStatsTests::expectedChunks, params);
+            + chunkIfPresent(nodeStats.getScriptCacheStats());
     }
 
     private static int chunkIfPresent(ToXContent xcontent) {
@@ -511,17 +511,8 @@ public class NodeStatsTests extends ESTestCase {
         return chunks;
     }
 
-    private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
-        var chunks = 3; // start, end, SUM
-        if (scriptCacheStats.general() == null) {
-            chunks += 2 + scriptCacheStats.context().size() * 4;
-        }
-
-        return chunks;
-    }
-
     private static int expectedChunks(ScriptStats scriptStats) {
-        return 7 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
+        return 4 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
             + (scriptStats.cacheEvictionsHistory() != null && scriptStats.cacheEvictionsHistory().areTimingsEmpty() == false ? 1 : 0)
             + scriptStats.contextStats().size();
     }
@@ -542,7 +533,12 @@ public class NodeStatsTests extends ESTestCase {
     private static int expectedChunks(IngestStats ingestStats) {
         return 2 + ingestStats.pipelineStats()
             .stream()
-            .mapToInt(pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size())
+            .mapToInt(
+                pipelineStats -> 2 + ingestStats.processorStats()
+                    .getOrDefault(pipelineStats.projectId(), Map.of())
+                    .getOrDefault(pipelineStats.pipelineId(), List.of())
+                    .size()
+            )
             .sum();
     }
 
@@ -555,7 +551,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
-        return switch (level) {
+        return nodeIndicesStats == null ? 0 : switch (level) {
             case NODE -> 2;
             case INDICES -> 5; // only one index
             case SHARDS -> 9; // only one shard
@@ -596,7 +592,11 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
             false,
+            ++iota,
+            ++iota,
+            ++iota,
             ++iota,
             ++iota,
             ++iota
@@ -606,6 +606,7 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
             ++iota,
             ++iota,
             ++iota,
@@ -694,7 +695,8 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, true);
+            Map<Index, ProjectId> projectsByIndex = Map.of(indexTest, randomUniqueProjectId());
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, projectsByIndex, true);
         }
         OsStats osStats = null;
         if (frequently()) {
@@ -976,11 +978,13 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
-            Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = Maps.newMapWithExpectedSize(numPipelines);
+            Map<ProjectId, Map<String, List<IngestStats.ProcessorStat>>> ingestProcessorStats = new HashMap<>();
             for (int i = 0; i < numPipelines; i++) {
+                ProjectId projectId = randomProjectIdOrDefault();
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
                 ingestPipelineStats.add(
                     new IngestStats.PipelineStat(
+                        projectId,
                         pipelineId,
                         new IngestStats.Stats(
                             randomLongBetween(0, maxStatValue),
@@ -1004,7 +1008,7 @@ public class NodeStatsTests extends ESTestCase {
                         new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), processorStats)
                     );
                 }
-                ingestProcessorStats.put(pipelineId, processorPerPipeline);
+                ingestProcessorStats.computeIfAbsent(projectId, k -> new HashMap<>()).put(pipelineId, processorPerPipeline);
             }
             ingestStats = new IngestStats(totalStats, ingestPipelineStats, ingestProcessorStats);
         }
@@ -1038,6 +1042,10 @@ public class NodeStatsTests extends ESTestCase {
         if (frequently()) {
             long maxStatValue = Long.MAX_VALUE / 5;
             indexingPressureStats = new IndexingPressureStats(
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),

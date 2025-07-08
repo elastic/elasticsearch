@@ -9,11 +9,13 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -41,6 +43,14 @@ public class ESVectorUtil {
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
 
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    }
+
+    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    }
+
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + B_QUERY + " x " + d.length);
@@ -51,6 +61,8 @@ public class ESVectorUtil {
     /**
      * Compute the inner product of two vectors, where the query vector is a byte vector and the document vector is a bit vector.
      * This will return the sum of the query vector values using the document vector as a mask.
+     * When comparing the bits with the bytes, they are done in "big endian" order. For example, if the byte vector
+     * is [1, 2, 3, 4, 5, 6, 7, 8] and the bit vector is [0b10000000], the inner product will be 1.0.
      * @param q the query vector
      * @param d the document vector
      * @return the inner product of the two vectors
@@ -59,22 +71,14 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        int result = 0;
-        // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = 0; i < d.length; i++) {
-            byte mask = d[i];
-            for (int j = 0; j < Byte.SIZE; j++) {
-                if ((mask & (1 << j)) != 0) {
-                    result += q[i * Byte.SIZE + j];
-                }
-            }
-        }
-        return result;
+        return IMPL.ipByteBit(q, d);
     }
 
     /**
      * Compute the inner product of two vectors, where the query vector is a float vector and the document vector is a bit vector.
      * This will return the sum of the query vector values using the document vector as a mask.
+     * When comparing the bits with the floats, they are done in "big endian" order. For example, if the float vector
+     * is [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] and the bit vector is [0b10000000], the inner product will be 1.0.
      * @param q the query vector
      * @param d the document vector
      * @return the inner product of the two vectors
@@ -83,16 +87,20 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        float result = 0;
-        for (int i = 0; i < d.length; i++) {
-            byte mask = d[i];
-            for (int j = 0; j < Byte.SIZE; j++) {
-                if ((mask & (1 << j)) != 0) {
-                    result += q[i * Byte.SIZE + j];
-                }
-            }
+        return IMPL.ipFloatBit(q, d);
+    }
+
+    /**
+     * Compute the inner product of two vectors, where the query vector is a float vector and the document vector is a byte vector.
+     * @param q the query vector
+     * @param d the document vector
+     * @return the inner product of the two vectors
+     */
+    public static float ipFloatByte(float[] q, byte[] d) {
+        if (q.length != d.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + d.length);
         }
-        return result;
+        return IMPL.ipFloatByte(q, d);
     }
 
     /**
@@ -145,5 +153,130 @@ public class ESVectorUtil {
             distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
         }
         return distance;
+    }
+
+    /**
+     * Calculate the loss for optimized-scalar quantization for the given parameteres
+     * @param target The vector being quantized, assumed to be centered
+     * @param interval The interval for which to calculate the loss
+     * @param points the quantization points
+     * @param norm2 The norm squared of the target vector
+     * @param lambda The lambda parameter for controlling anisotropic loss calculation
+     * @return The loss for the given parameters
+     */
+    public static float calculateOSQLoss(float[] target, float[] interval, int points, float norm2, float lambda) {
+        assert interval.length == 2;
+        float step = ((interval[1] - interval[0]) / (points - 1.0F));
+        float invStep = 1f / step;
+        return IMPL.calculateOSQLoss(target, interval, step, invStep, norm2, lambda);
+    }
+
+    /**
+     * Calculate the grid points for optimized-scalar quantization
+     * @param target The vector being quantized, assumed to be centered
+     * @param interval The interval for which to calculate the grid points
+     * @param points the quantization points
+     * @param pts The array to store the grid points, must be of length 5
+     */
+    public static void calculateOSQGridPoints(float[] target, float[] interval, int points, float[] pts) {
+        assert interval.length == 2;
+        assert pts.length == 5;
+        float invStep = (points - 1.0F) / (interval[1] - interval[0]);
+        IMPL.calculateOSQGridPoints(target, interval, points, invStep, pts);
+    }
+
+    /**
+     * Center the target vector and calculate the optimized-scalar quantization statistics
+     * @param target The vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 5
+     */
+    public static void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
+        assert target.length == centroid.length;
+        assert stats.length == 5;
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
+    }
+
+    /**
+     * Center the target vector and calculate the optimized-scalar quantization statistics
+     * @param target The vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 6
+     */
+    public static void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        assert stats.length == 6;
+        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /**
+     * Calculates the difference between two vectors and stores the result in a third vector.
+     * @param v1 the first vector
+     * @param v2 the second vector
+     * @param result the result vector, must be the same length as the input vectors
+     */
+    public static void subtract(float[] v1, float[] v2, float[] result) {
+        if (v1.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + v2.length);
+        }
+        if (result.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + result.length + "!=" + v1.length);
+        }
+        for (int i = 0; i < v1.length; i++) {
+            result[i] = v1[i] - v2[i];
+        }
+    }
+
+    /**
+     * calculates the soar distance for a vector and a centroid
+     * @param v1 the vector
+     * @param centroid the centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @return the soar distance
+     */
+    public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Optimized-scalar quantization of the provided vector to the provided destination array.
+     *
+     * @param vector the vector to quantize
+     * @param destination the array to store the result
+     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
+     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
+     * @param bit the number of bits to use for quantization, must be between 1 and 8
+     *
+     * @return return the sum of all the elements of the resulting quantized vector.
+     */
+    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
+        if (vector.length > destination.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
+        }
+        if (bit <= 0 || bit > Byte.SIZE) {
+            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
+        }
+        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
     }
 }

@@ -26,7 +26,7 @@ public class PutSynonymRuleActionTests extends ESTestCase {
             .withParams(Map.of("synonymsSet", "testSet", "synonymRuleId", "testRule"))
             .build();
 
-        FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 0);
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);
             expectThrows(IllegalArgumentException.class, () -> action.handleRequest(request, channel, nodeClient));

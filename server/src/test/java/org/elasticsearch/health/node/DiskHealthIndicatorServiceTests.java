@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -37,6 +36,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -118,7 +118,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testServiceBasics() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(discoveryNodes, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         {
             HealthStatus expectedStatus = HealthStatus.UNKNOWN;
             HealthInfo healthInfo = HealthInfo.EMPTY_HEALTH_INFO;
@@ -142,7 +142,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testIndicatorYieldsGreenWhenNodeHasUnknownStatus() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(discoveryNodes, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
 
         HealthStatus expectedStatus = HealthStatus.GREEN;
         HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(HealthStatus.UNKNOWN, discoveryNodes);
@@ -153,7 +153,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testGreen() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(discoveryNodes, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = HealthStatus.GREEN;
         HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
@@ -188,7 +188,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         final var clusterService = createClusterService(Set.of(), allNodes, indexNameToNodeIdsMap);
         HealthStatus expectedStatus = HealthStatus.YELLOW;
         HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(expectedStatus, allNodes.size(), allNodes));
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
         assertThat(result.symptom(), containsString("with roles: [data"));
@@ -266,7 +266,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             indexNameToNodeIdsMap.put(indexName, new HashSet<>(randomNonEmptySubsetOf(affectedNodeIds)));
         }
         ClusterService clusterService = createClusterService(Set.of(), discoveryNodes, indexNameToNodeIdsMap);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         Map<String, DiskHealthInfo> diskInfoByNode = new HashMap<>();
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             if (affectedNodeIds.contains(discoveryNode.getId())) {
@@ -275,7 +275,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(discoveryNode.getId(), new DiskHealthInfo(HealthStatus.GREEN));
             }
         }
-        HealthInfo healthInfo = new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of());
+        HealthInfo healthInfo = new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
 
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(HealthStatus.RED));
@@ -330,7 +335,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testRedWithBlockedIndicesAndGreenNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(discoveryNodes, true);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
 
         HealthStatus expectedStatus = HealthStatus.RED;
         HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(HealthStatus.GREEN, discoveryNodes);
@@ -375,7 +380,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testRedWithBlockedIndicesAndYellowNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(discoveryNodes, true);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = HealthStatus.RED;
         int numberOfYellowNodes = randomIntBetween(1, discoveryNodes.size());
         HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(HealthStatus.YELLOW, numberOfYellowNodes, discoveryNodes));
@@ -454,7 +459,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             }
         }
         ClusterService clusterService = createClusterService(blockedIndices, discoveryNodes, indexNameToNodeIdsMap);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
         assertThat(
@@ -493,7 +498,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             indexNameToNodeIdsMap.put(indexName, nonRedNodeIds);
         }
         ClusterService clusterService = createClusterService(Set.of(), discoveryNodes, indexNameToNodeIdsMap);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
         assertThat(result.impacts().size(), equalTo(3));
@@ -529,7 +534,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> discoveryNodesInClusterState = new HashSet<>(discoveryNodes);
         discoveryNodesInClusterState.add(DiscoveryNodeUtils.create(randomAlphaOfLength(30), UUID.randomUUID().toString()));
         ClusterService clusterService = createClusterService(discoveryNodesInClusterState, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         {
             HealthInfo healthInfo = HealthInfo.EMPTY_HEALTH_INFO;
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
@@ -561,7 +566,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, otherRole);
         Set<DiscoveryNode> discoveryNodes = createNodes(roles);
         ClusterService clusterService = createClusterService(discoveryNodes, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = randomFrom(HealthStatus.RED, HealthStatus.YELLOW);
         int numberOfProblemNodes = randomIntBetween(1, discoveryNodes.size());
         HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(expectedStatus, numberOfProblemNodes, discoveryNodes));
@@ -616,7 +621,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomNonEmptySubsetOf(OTHER_ROLES));
         Set<DiscoveryNode> nodes = createNodes(roles);
         ClusterService clusterService = createClusterService(nodes, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = randomFrom(HealthStatus.RED, HealthStatus.YELLOW);
         int numberOfProblemNodes = randomIntBetween(1, nodes.size());
         HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(expectedStatus, numberOfProblemNodes, nodes));
@@ -672,7 +677,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> masterNodes = createNodes(masterRole);
         Set<DiscoveryNode> otherNodes = createNodes(otherRoles);
         ClusterService clusterService = createClusterService(Sets.union(Sets.union(dataNodes, masterNodes), otherNodes), true);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         int numberOfRedMasterNodes = randomIntBetween(1, masterNodes.size());
         int numberOfRedOtherNodes = randomIntBetween(1, otherNodes.size());
         int numberOfYellowDataNodes = randomIntBetween(1, dataNodes.size());
@@ -894,7 +899,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> masterNodes = createNodes(20, masterRole);
         Set<DiscoveryNode> otherNodes = createNodes(10, otherRoles);
         ClusterService clusterService = createClusterService(Sets.union(Sets.union(dataNodes, masterNodes), otherNodes), true);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         int numberOfRedMasterNodes = masterNodes.size();
         int numberOfRedOtherNodes = otherNodes.size();
         int numberOfYellowDataNodes = dataNodes.size();
@@ -969,7 +974,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testSkippingFieldsWhenVerboseIsFalse() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(discoveryNodes, false);
-        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService, featureService);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = HealthStatus.RED;
         HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(false, healthInfo);
@@ -1051,7 +1056,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(node.getId(), diskHealthInfo);
             }
         }
-        return new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of());
+        return new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
     }
 
     private static ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {
@@ -1085,12 +1095,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Collection<DiscoveryNode> nodes,
         Map<String, Set<String>> indexNameToNodeIdsMap
     ) {
-        Map<String, Set<String>> features = new HashMap<>();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        for (DiscoveryNode node : nodes) {
-            nodesBuilder = nodesBuilder.add(node);
-            features.put(node.getId(), Set.of(HealthFeatures.SUPPORTS_HEALTH.id()));
-        }
+        nodes.forEach(nodesBuilder::add);
         nodesBuilder.localNodeId(randomFrom(nodes).getId());
         nodesBuilder.masterNodeId(randomFrom(nodes).getId());
         ClusterBlocks.Builder clusterBlocksBuilder = new ClusterBlocks.Builder();
@@ -1125,7 +1131,6 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         state.metadata(metadata.generateClusterUuidIfNeeded().build());
         state.routingTable(routingTable.build());
         state.blocks(clusterBlocksBuilder);
-        state.nodeFeatures(features);
         return state.build();
     }
 

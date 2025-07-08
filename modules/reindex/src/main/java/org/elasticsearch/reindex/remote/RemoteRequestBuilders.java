@@ -53,7 +53,7 @@ final class RemoteRequestBuilders {
         Request request = new Request("POST", path.toString());
 
         if (searchRequest.scroll() != null) {
-            TimeValue keepAlive = searchRequest.scroll().keepAlive();
+            TimeValue keepAlive = searchRequest.scroll();
             // V_5_0_0
             if (remoteVersion.before(Version.fromId(5000099))) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros

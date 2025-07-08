@@ -10,11 +10,12 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 
@@ -57,7 +58,21 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
 
     private record FilteredAddInput(BooleanVector mask, AddInput nextAdd, int positionCount) implements AddInput {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+            addBlock(positionOffset, groupIds);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            addBlock(positionOffset, groupIds);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+            addBlock(positionOffset, groupIds.asBlock());
+        }
+
+        private void addBlock(int positionOffset, IntBlock groupIds) {
             if (positionOffset == 0) {
                 try (IntBlock filtered = groupIds.keepMask(mask)) {
                     nextAdd.add(positionOffset, filtered);
@@ -72,11 +87,6 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
                     nextAdd.add(positionOffset, filtered);
                 }
             }
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            add(positionOffset, groupIds.asBlock());
         }
 
         @Override
@@ -106,8 +116,8 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-        next.evaluateFinal(blocks, offset, selected, driverContext);
+    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        next.evaluateFinal(blocks, offset, selected, evaluationContext);
     }
 
     @Override

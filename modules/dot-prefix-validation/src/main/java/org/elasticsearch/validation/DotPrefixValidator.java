@@ -67,13 +67,18 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         ".ml-state",
         ".ml-anomalies-unrelated"
     );
-    public static Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
+    public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
             "\\.ml-state-\\d+",
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
-            "\\.entities\\.v\\d+\\.latest\\..*"
+            "\\.entities\\.v\\d+\\.latest\\..*",
+            "\\.monitoring-es-8-.*",
+            "\\.monitoring-logstash-8-.*",
+            "\\.monitoring-kibana-8-.*",
+            "\\.monitoring-beats-8-.*",
+            "\\.monitoring-ent-search-8-.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {

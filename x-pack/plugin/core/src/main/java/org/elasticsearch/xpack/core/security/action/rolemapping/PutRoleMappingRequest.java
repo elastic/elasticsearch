@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,10 +29,10 @@ import static org.elasticsearch.xpack.core.security.authc.support.mapper.Express
 
 /**
  * Request object for adding/updating a role-mapping to the native store
- *
+ * <p>
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends LegacyActionRequest implements WriteRequest<PutRoleMappingRequest> {
 
     private String name = null;
     private boolean enabled = true;
@@ -48,9 +47,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         this.name = in.readString();
         this.enabled = in.readBoolean();
         this.roles = in.readStringCollectionAsList();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
-        }
+        this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readGenericMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
@@ -165,9 +162,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeCollection(roleTemplates);
-        }
+        out.writeCollection(roleTemplates);
         ExpressionParser.writeExpression(rules, out);
         out.writeGenericMap(metadata);
         refreshPolicy.writeTo(out);

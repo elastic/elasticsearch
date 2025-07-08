@@ -40,10 +40,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if ((other instanceof MutualInformation) == false) {
-            return false;
-        }
-        return super.equals(other);
+        return other instanceof MutualInformation && super.equals(other);
     }
 
     @Override
@@ -119,17 +116,4 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static class MutualInformationBuilder extends NXYBuilder {
-        public MutualInformationBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
-            super(includeNegatives, backgroundIsSuperset);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            super.build(builder);
-            builder.endObject();
-            return builder;
-        }
-    }
 }

@@ -74,11 +74,9 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
 
     @Override
     protected void assertMultipleValues(List<IndexableField> fields) {
-        assertEquals(4, fields.size());
-        assertEquals("LatLonPoint <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
-        assertEquals("LatLonDocValuesField <field:-1.000000024214387,0.9999999403953552>", fields.get(1).toString());
-        assertEquals("LatLonPoint <field:-2.000000006519258,1.9999999646097422>", fields.get(2).toString());
-        assertEquals("LatLonDocValuesField <field:-2.000000006519258,1.9999999646097422>", fields.get(3).toString());
+        assertEquals(2, fields.size());
+        assertEquals("LatLonPointWithDocValues <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
+        assertEquals("LatLonPointWithDocValues <field:-2.000000006519258,1.9999999646097422>", fields.get(1).toString());
     }
 
     @Override

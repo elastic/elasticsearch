@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
 
@@ -34,8 +37,11 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -89,7 +95,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             try (var finalResponse = future.get()) {
                 assertThat(finalResponse, notNullValue());
                 assertThat(finalResponse.isRunning(), is(false));
-                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
+                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long", null))));
                 assertThat(getValuesList(finalResponse).size(), equalTo(1));
             }
 
@@ -98,7 +104,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             try (var finalResponse = again.get()) {
                 assertThat(finalResponse, notNullValue());
                 assertThat(finalResponse.isRunning(), is(false));
-                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
+                assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long", null))));
                 assertThat(getValuesList(finalResponse).size(), equalTo(1));
             }
 
@@ -107,6 +113,63 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             // the stored response should no longer be retrievable
             var e = expectThrows(ResourceNotFoundException.class, () -> deleteAsyncId(id));
             assertThat(e.getMessage(), IsEqual.equalTo(id));
+        } finally {
+            scriptPermits.drainPermits();
+        }
+    }
+
+    public void testGetAsyncWhileQueryTaskIsBeingCancelled() throws Exception {
+        try (var initialResponse = sendAsyncQuery()) {
+            assertThat(initialResponse.asyncExecutionId(), isPresent());
+            assertThat(initialResponse.isRunning(), is(true));
+            String id = initialResponse.asyncExecutionId().get();
+            // ensure we have started Lucene operators
+            assertBusy(() -> {
+                var tasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks()
+                    .stream()
+                    .filter(t -> t.description().contains("_LuceneSourceOperator"))
+                    .toList();
+                assertThat(tasks.size(), greaterThanOrEqualTo(1));
+            });
+            client().admin()
+                .cluster()
+                .prepareCancelTasks()
+                .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
+                .get();
+            assertBusy(() -> {
+                List<TaskInfo> tasks = getEsqlQueryTasks().stream().filter(TaskInfo::cancelled).toList();
+                assertThat(tasks, not(empty()));
+            });
+            // get the result while the query is being cancelled
+            {
+                var getResultsRequest = new GetAsyncResultRequest(id);
+                getResultsRequest.setWaitForCompletionTimeout(timeValueMillis(10));
+                getResultsRequest.setKeepAlive(randomKeepAlive());
+                var future = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+                try (var resp = future.get()) {
+                    assertThat(initialResponse.asyncExecutionId(), isPresent());
+                    assertThat(resp.asyncExecutionId().get(), equalTo(id));
+                    assertThat(resp.isRunning(), is(true));
+                }
+            }
+            // release the permits to allow the query to proceed
+            scriptPermits.release(numberOfDocs());
+            // get the result after the cancellation is done
+            {
+                var getResultsRequest = new GetAsyncResultRequest(id);
+                getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(10));
+                getResultsRequest.setKeepAlive(randomKeepAlive());
+                var future = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+                TaskCancelledException error = expectThrows(TaskCancelledException.class, future::actionGet);
+                assertThat(error.getMessage(), equalTo("by user request"));
+            }
+            assertTrue(deleteAsyncId(id).isAcknowledged());
         } finally {
             scriptPermits.drainPermits();
         }
@@ -173,7 +236,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
         try (var response = request.execute().actionGet(60, TimeUnit.SECONDS)) {
             assertThat(response.isRunning(), is(false));
-            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
+            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long", null))));
             assertThat(getValuesList(response).size(), equalTo(1));
 
             if (keepOnCompletion) {
@@ -186,7 +249,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 try (var resp = future.actionGet(60, TimeUnit.SECONDS)) {
                     assertThat(resp.asyncExecutionId().get(), equalTo(id));
                     assertThat(resp.isRunning(), is(false));
-                    assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long"))));
+                    assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("sum(pause_me)", "long", null))));
                     assertThat(getValuesList(resp).size(), equalTo(1));
                 }
             } else {

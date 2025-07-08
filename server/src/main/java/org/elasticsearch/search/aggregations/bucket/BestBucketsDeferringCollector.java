@@ -20,6 +20,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -146,7 +147,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Replay the wrapped collector, but only on a selection of buckets.
      */
     @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
+    public void prepareSelectedBuckets(LongArray selectedBuckets) throws IOException {
         if (finished == false) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
@@ -154,9 +155,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             throw new IllegalStateException("Already been replayed");
         }
 
-        this.selectedBuckets = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long ord : selectedBuckets) {
-            this.selectedBuckets.add(ord);
+        this.selectedBuckets = new LongHash(selectedBuckets.size(), BigArrays.NON_RECYCLING_INSTANCE);
+        for (long i = 0; i < selectedBuckets.size(); i++) {
+            this.selectedBuckets.add(selectedBuckets.get(i));
         }
 
         boolean needsScores = scoreMode().needsScores();
@@ -232,21 +233,22 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * been collected directly.
      */
     @Override
-    public Aggregator wrap(final Aggregator in) {
+    public Aggregator wrap(final Aggregator in, BigArrays bigArrays) {
         return new WrappedAggregator(in) {
             @Override
-            public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
                 if (selectedBuckets == null) {
                     throw new IllegalStateException("Collection has not been replayed yet.");
                 }
-                long[] rebasedOrds = new long[owningBucketOrds.length];
-                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                    rebasedOrds[ordIdx] = selectedBuckets.find(owningBucketOrds[ordIdx]);
-                    if (rebasedOrds[ordIdx] == -1) {
-                        throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                try (LongArray rebasedOrds = bigArrays.newLongArray(owningBucketOrds.size())) {
+                    for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                        rebasedOrds.set(ordIdx, selectedBuckets.find(owningBucketOrds.get(ordIdx)));
+                        if (rebasedOrds.get(ordIdx) == -1) {
+                            throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                        }
                     }
+                    return in.buildAggregations(rebasedOrds);
                 }
-                return in.buildAggregations(rebasedOrds);
             }
         };
     }

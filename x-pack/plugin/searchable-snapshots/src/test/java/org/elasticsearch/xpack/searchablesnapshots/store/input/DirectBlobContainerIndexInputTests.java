@@ -66,13 +66,13 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST.toString()),
             partSize == input.length
                 ? randomFrom(
-                    new ByteSizeValue(partSize, ByteSizeUnit.BYTES),
-                    new ByteSizeValue(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(partSize, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
                     ByteSizeValue.ZERO,
-                    new ByteSizeValue(-1, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(-1, ByteSizeUnit.BYTES),
                     null
                 )
-                : new ByteSizeValue(partSize, ByteSizeUnit.BYTES)
+                : ByteSizeValue.of(partSize, ByteSizeUnit.BYTES)
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);

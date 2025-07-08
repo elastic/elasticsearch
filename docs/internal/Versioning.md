@@ -35,19 +35,19 @@ Every change to the transport protocol is represented by a new transport version
 higher than all previous transport versions, which then becomes the highest version
 recognized by that build of Elasticsearch. The version ids are stored
 as constants in the `TransportVersions` class.
-Each id has a standard pattern `M_NNN_SS_P`, where:
+Each id has a standard pattern `M_NNN_S_PP`, where:
 * `M` is the major version
 * `NNN` is an incrementing id
-* `SS` is used in subsidiary repos amending the default transport protocol
-* `P` is used for patches and backports
+* `S` is used in subsidiary repos amending the default transport protocol
+* `PP` is used for patches and backports
 
 When you make a change to the serialization form of any object,
 you need to create a new sequential constant in `TransportVersions`,
 introduced in the same PR that adds the change, that increments
 the `NNN` component from the previous highest version,
 with other components  set to zero.
-For example, if the previous version number is `8_413_00_1`,
-the next version number should be `8_414_00_0`.
+For example, if the previous version number is `8_413_0_01`,
+the next version number should be `8_414_0_00`.
 
 Once you have defined your constant, you then need to use it
 in serialization code. If the transport version is at or above the new id,
@@ -84,6 +84,25 @@ This task is normally performed by Core/Infra on a semi-regular basis,
 usually after each new minor release, to collapse the transport versions
 for the previous minor release. An example of such an operation can be found
 [here](https://github.com/elastic/elasticsearch/pull/104937).
+
+#### Tips
+
+- We collapse versions only on the `main` branch.
+- Use [TransportVersions.csv](../../server/src/main/resources/org/elasticsearch/TransportVersions.csv) as your guide.
+- For each release version listed in that file with a corresponding `INITIAL_ELASTICSEARCH_` entry corresponding to that version,
+  - change the prefix to `V_`
+  - replace all intervening entries since the previous patch `V_` entry with the new `V_` entry
+  - look at all uses of the new `V_` entry and look for dead code that can be deleted
+
+For example, if there's a version `1.2.3` in the CSV file,
+and `TransportVersions.java` has an entry called `INITIAL_ELASTICSEARCH_1_2_3`,
+then:
+- rename it to `V_1_2_3`,
+- replace any other intervening symbols between `V_1_2_2` and `V_1_2_3` with `V_1_2_3` itself, and
+- look through all the uses of the new `V_1_2_3` symbol; if any contain dead code, simplify it.
+
+When in doubt, you can always leave the code as-is.
+This is an optional cleanup step that is never required for correctness.
 
 ### Minimum compatibility versions
 
@@ -166,7 +185,7 @@ also has that change, and knows about the patch backport ids and what they mean.
 
 Index version is a single incrementing version number for the index data format,
 metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_SS_P`, for the major version, version id,
+transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
 subsidiary version id, and patch number respectively.
 
 Index version is stored in index metadata when an index is created,

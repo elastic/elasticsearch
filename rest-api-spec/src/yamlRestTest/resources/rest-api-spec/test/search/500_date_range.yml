@@ -124,20 +124,13 @@ setup:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "4" }
 
-
 ---
-"from, to, include_lower, include_upper deprecated":
+"test bad dates in range - past":
   - requires:
-      cluster_features: "gte_v8.16.0"
-      reason: 'from, to, include_lower, include_upper parameters are deprecated since 8.16.0'
-      test_runner_features: warnings
-
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
+      reason: "Fix for invalid date required"
   - do:
-      warnings:
-        - "Deprecated field [from] used, this field is unused and will be removed entirely"
-        - "Deprecated field [to] used, this field is unused and will be removed entirely"
-        - "Deprecated field [include_lower] used, this field is unused and will be removed entirely"
-        - "Deprecated field [include_upper] used, this field is unused and will be removed entirely"
+      catch: /illegal_argument_exception/
       search:
         index: dates
         body:
@@ -145,7 +138,24 @@ setup:
           query:
             range:
               date:
-                from: 1000
-                to: 2023
-                include_lower: false
-                include_upper: false
+                gte: -522000000
+                lte: 2023
+                format: date_optional_time
+
+---
+"test bad dates in range - future":
+  - requires:
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
+      reason: "Fix for invalid date required"
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                gte: 2020
+                lte: 522000000
+                format: date_optional_time

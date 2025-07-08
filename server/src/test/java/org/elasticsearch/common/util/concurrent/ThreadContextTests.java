@@ -18,6 +18,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -468,14 +469,25 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.putHeader("foo", "bar");
         }
 
+        final Matcher<? super String> matchesProjectId;
+        if (randomBoolean()) {
+            final String projectId = randomUUID();
+            matchesProjectId = equalTo(projectId);
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        } else {
+            matchesProjectId = nullValue();
+        }
+
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
         try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
             assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getTransient("foo"));
             assertNull(threadContext.getTransient("bar"));
+            assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), matchesProjectId);
         }
 
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+        assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), matchesProjectId);
 
         if (setOtherValues) {
             assertEquals("bar", threadContext.getTransient("foo"));
@@ -639,7 +651,6 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112256")
     public void testDropWarningsExceedingMaxSettings() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey(), 1)

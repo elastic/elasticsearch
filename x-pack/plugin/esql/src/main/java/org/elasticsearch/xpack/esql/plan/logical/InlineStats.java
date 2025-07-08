@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     underlying aggregate.
  * </p>
  */
-public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan {
+public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -81,11 +82,6 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
     }
 
     @Override
-    public String commandName() {
-        return "INLINESTATS";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         return aggregate.expressionsResolved();
     }
@@ -118,7 +114,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
                 }
             }
         }
-        return new JoinConfig(JoinType.LEFT, namedGroupings, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields);
     }
 
     @Override

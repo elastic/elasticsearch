@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -14,7 +16,7 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof QueryAndDocsInputs == false) {
-            throw createUnsupportedTypeException(inferenceInputs);
+            throw createUnsupportedTypeException(inferenceInputs, QueryAndDocsInputs.class);
         }
 
         return (QueryAndDocsInputs) inferenceInputs;
@@ -22,17 +24,25 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     private final String query;
     private final List<String> chunks;
-    private final boolean stream;
+    private final Boolean returnDocuments;
+    private final Integer topN;
 
-    public QueryAndDocsInputs(String query, List<String> chunks) {
-        this(query, chunks, false);
-    }
-
-    public QueryAndDocsInputs(String query, List<String> chunks, boolean stream) {
-        super();
+    public QueryAndDocsInputs(
+        String query,
+        List<String> chunks,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
+        boolean stream
+    ) {
+        super(stream);
         this.query = Objects.requireNonNull(query);
         this.chunks = Objects.requireNonNull(chunks);
-        this.stream = stream;
+        this.returnDocuments = returnDocuments;
+        this.topN = topN;
+    }
+
+    public QueryAndDocsInputs(String query, List<String> chunks) {
+        this(query, chunks, null, null, false);
     }
 
     public String getQuery() {
@@ -43,8 +53,16 @@ public class QueryAndDocsInputs extends InferenceInputs {
         return chunks;
     }
 
-    public boolean stream() {
-        return stream;
+    public Boolean getReturnDocuments() {
+        return returnDocuments;
     }
 
+    public Integer getTopN() {
+        return topN;
+    }
+
+    @Override
+    public boolean isSingleInput() {
+        return chunks.size() == 1;
+    }
 }

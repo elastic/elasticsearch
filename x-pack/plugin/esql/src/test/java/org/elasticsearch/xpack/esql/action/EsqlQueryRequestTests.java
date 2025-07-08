@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -144,10 +145,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiersPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
@@ -260,10 +257,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
@@ -617,10 +610,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""".replace("QUERY", query);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
-        Task task = request.createTask(id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        String localNode = randomAlphaOfLength(2);
+        Task task = request.createTask(new TaskId(localNode, id), "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
 
-        String localNode = randomAlphaOfLength(2);
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
         String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
@@ -629,6 +622,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
             .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
             .replaceAll("5326", Integer.toString(id))
             .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
+            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlQueryStatus) taskInfo.status()).id().getEncoded())
+            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
             .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
             .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))
             .replaceAll("41.7ms", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString())

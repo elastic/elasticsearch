@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,9 +29,12 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class S3HttpHandlerTests extends ESTestCase {
@@ -43,45 +47,81 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
+    private static void assertListObjectsResponse(
+        S3HttpHandler handler,
+        @Nullable String prefix,
+        @Nullable String delimiter,
+        String expectedResponse
+    ) {
+        final var queryParts = new ArrayList<String>(3);
+        if (prefix != null) {
+            queryParts.add("prefix=" + prefix);
+        }
+        if (delimiter != null) {
+            queryParts.add("delimiter=" + delimiter);
+        }
+        if (randomBoolean()) {
+            // test both ListObjects and ListObjectsV2 - they only differ in terms of pagination but S3HttpHandler doesn't do that
+            queryParts.add("list-type=2");
+        }
+        Randomness.shuffle(queryParts);
+
+        final var requestUri = "/bucket" + randomFrom("", "/") + (queryParts.isEmpty() ? "" : "?" + String.join("&", queryParts));
+        assertEquals("GET " + requestUri, new TestHttpResponse(RestStatus.OK, expectedResponse), handleRequest(handler, "GET", requestUri));
+    }
+
     public void testSimpleObjectOperations() {
         final var handler = new S3HttpHandler("bucket", "path");
 
         assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "GET", "/bucket/path/blob").status());
 
-        assertEquals(
-            new TestHttpResponse(RestStatus.OK, """
-                <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix></ListBucketResult>"""),
-            handleRequest(handler, "GET", "/bucket/?prefix=")
-        );
+        assertListObjectsResponse(handler, "", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
+            </ListBucketResult>""");
 
         final var body = randomAlphaOfLength(50);
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", body).status());
         assertEquals(new TestHttpResponse(RestStatus.OK, body), handleRequest(handler, "GET", "/bucket/path/blob"));
 
-        assertEquals(new TestHttpResponse(RestStatus.OK, """
-            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix>\
+        assertListObjectsResponse(handler, "", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
             <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
-            </ListBucketResult>"""), handleRequest(handler, "GET", "/bucket/?prefix="));
+            </ListBucketResult>""");
 
-        assertEquals(new TestHttpResponse(RestStatus.OK, """
-            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix>\
+        assertListObjectsResponse(handler, "path/", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
             <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
-            </ListBucketResult>"""), handleRequest(handler, "GET", "/bucket/?prefix=path/"));
+            </ListBucketResult>""");
 
-        assertEquals(
-            new TestHttpResponse(RestStatus.OK, """
-                <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/other</Prefix></ListBucketResult>"""),
-            handleRequest(handler, "GET", "/bucket/?prefix=path/other")
-        );
+        assertListObjectsResponse(handler, "path/other", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/other</Prefix><IsTruncated>false</IsTruncated>\
+            </ListBucketResult>""");
+
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/subpath1/blob", randomAlphaOfLength(50)).status());
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/subpath2/blob", randomAlphaOfLength(50)).status());
+        assertListObjectsResponse(handler, "path/", "/", """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult>\
+            <Prefix>path/</Prefix><Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>\
+            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
+            <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
+            </ListBucketResult>""");
 
         assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/blob").status());
         assertEquals(RestStatus.NO_CONTENT, handleRequest(handler, "DELETE", "/bucket/path/blob").status());
 
-        assertEquals(
-            new TestHttpResponse(RestStatus.OK, """
-                <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix></ListBucketResult>"""),
-            handleRequest(handler, "GET", "/bucket/?prefix=")
-        );
+        assertListObjectsResponse(handler, "", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
+            <Contents><Key>path/subpath1/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath2/blob</Key><Size>50</Size></Contents>\
+            </ListBucketResult>""");
+
+        assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath1/blob").status());
+        assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath2/blob").status());
+
+        assertListObjectsResponse(handler, "", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
+            </ListBucketResult>""");
     }
 
     public void testGetWithBytesRange() {
@@ -196,10 +236,10 @@ public class S3HttpHandlerTests extends ESTestCase {
                 </CompleteMultipartUpload>""", part1Etag, part2Etag))
         );
 
-        assertEquals(new TestHttpResponse(RestStatus.OK, """
-            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix>\
+        assertListObjectsResponse(handler, "", null, """
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
             <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
-            </ListBucketResult>"""), handleRequest(handler, "GET", "/bucket/?prefix="));
+            </ListBucketResult>""");
 
         assertEquals(new TestHttpResponse(RestStatus.OK, part1 + part2), handleRequest(handler, "GET", "/bucket/path/blob"));
 
@@ -261,7 +301,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             <Delimiter /><Prefix>path/blob</Prefix><MaxUploads>10000</MaxUploads><IsTruncated>false</IsTruncated>\
             </ListMultipartUploadsResult>"""), handleRequest(handler, "GET", "/bucket/?uploads&prefix=path/blob"));
 
-        assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, Strings.format("""
+        final var completeUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, Strings.format("""
             <?xml version="1.0" encoding="UTF-8"?>
             <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Part>
@@ -272,7 +312,13 @@ public class S3HttpHandlerTests extends ESTestCase {
                   <ETag>%s</ETag>
                   <PartNumber>2</PartNumber>
                </Part>
-            </CompleteMultipartUpload>""", part1Etag, part2Etag)).status());
+            </CompleteMultipartUpload>""", part1Etag, part2Etag));
+        if (completeUploadResponse.status() == RestStatus.OK) {
+            // possible, but rare, indicating that S3 started processing the upload before returning an error
+            assertThat(completeUploadResponse.body().utf8ToString(), allOf(containsString("<Error>"), containsString("NoSuchUpload")));
+        } else {
+            assertEquals(RestStatus.NOT_FOUND, completeUploadResponse.status());
+        }
     }
 
     private static String getUploadId(BytesReference createUploadResponseBody) {

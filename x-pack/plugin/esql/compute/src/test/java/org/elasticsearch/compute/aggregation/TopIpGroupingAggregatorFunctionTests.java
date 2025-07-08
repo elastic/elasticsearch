@@ -11,8 +11,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.List;
-
 public class TopIpGroupingAggregatorFunctionTests extends AbstractTopBytesRefGroupingAggregatorFunctionTests {
     @Override
     protected BytesRef randomValue() {
@@ -20,8 +18,8 @@ public class TopIpGroupingAggregatorFunctionTests extends AbstractTopBytesRefGro
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopIpAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new TopIpAggregatorFunctionSupplier(LIMIT, true);
     }
 
     @Override

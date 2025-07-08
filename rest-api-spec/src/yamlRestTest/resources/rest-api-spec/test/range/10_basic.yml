@@ -520,10 +520,6 @@ setup:
 ---
 "Null bounds":
 
-  - requires:
-      cluster_features: ["mapper.range.null_values_off_by_one_fix"]
-      reason: fixed in 8.15.0
-
   - do:
       index:
         index: test

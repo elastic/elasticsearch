@@ -45,6 +45,6 @@ public class GeoBoundingBoxQueryLegacyGeoShapeIT extends GeoBoundingBoxQueryInte
 
     @Override
     public IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomCompatibleVersion(random());
+        return IndexVersionUtils.randomCompatibleWriteVersion(random());
     }
 }

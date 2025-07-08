@@ -170,8 +170,8 @@ public class ScriptedMetricAggContexts {
             CombineScript newInstance(Map<String, Object> params, Map<String, Object> state);
         }
 
-        public static String[] PARAMETERS = {};
-        public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_combine", Factory.class);
+        public static final String[] PARAMETERS = {};
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_combine", Factory.class);
     }
 
     public abstract static class ReduceScript {
@@ -198,6 +198,6 @@ public class ScriptedMetricAggContexts {
         }
 
         public static String[] PARAMETERS = {};
-        public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_reduce", Factory.class);
+        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_reduce", Factory.class);
     }
 }

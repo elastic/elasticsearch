@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -46,6 +48,16 @@ public class GroupingAggregator implements Releasable {
                 }
 
                 @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                }
+
+                @Override
                 public void add(int positionOffset, IntVector groupIds) {
                     aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
@@ -70,11 +82,11 @@ public class GroupingAggregator implements Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
         if (mode.isOutputPartial()) {
             aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset, selected, driverContext);
+            aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
         }
     }
 

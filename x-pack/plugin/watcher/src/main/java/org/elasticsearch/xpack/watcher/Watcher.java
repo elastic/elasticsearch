@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -38,6 +36,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -240,6 +239,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NodeScope
     );
     private static final Setting<Integer> SETTING_BULK_ACTIONS = Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Deprecated(forRemoval = true) // This setting is no longer used
     private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS = Setting.intSetting(
         "xpack.watcher.bulk.concurrent_requests",
@@ -256,9 +256,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     );
     private static final Setting<ByteSizeValue> SETTING_BULK_SIZE = Setting.byteSizeSetting(
         "xpack.watcher.bulk.size",
-        new ByteSizeValue(1, ByteSizeUnit.MB),
-        new ByteSizeValue(1, ByteSizeUnit.MB),
-        new ByteSizeValue(10, ByteSizeUnit.MB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(10, ByteSizeUnit.MB),
         NodeScope
     );
 
@@ -679,24 +679,24 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.WATCHER, WatcherUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.WATCHER, WatcherInfoTransportAction.class);
+    public List<ActionHandler> getActions() {
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.WATCHER, WatcherUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.WATCHER, WatcherInfoTransportAction.class);
         if (false == enabled) {
             return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
-            new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
-            new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
-            new ActionHandler<>(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
-            new ActionHandler<>(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
-            new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
-            new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
-            new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
-            new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
-            new ActionHandler<>(QueryWatchesAction.INSTANCE, TransportQueryWatchesAction.class),
-            new ActionHandler<>(UpdateWatcherSettingsAction.INSTANCE, TransportUpdateWatcherSettingsAction.class),
-            new ActionHandler<>(GetWatcherSettingsAction.INSTANCE, TransportGetWatcherSettingsAction.class),
+            new ActionHandler(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
+            new ActionHandler(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
+            new ActionHandler(GetWatchAction.INSTANCE, TransportGetWatchAction.class),
+            new ActionHandler(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class),
+            new ActionHandler(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
+            new ActionHandler(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
+            new ActionHandler(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
+            new ActionHandler(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
+            new ActionHandler(QueryWatchesAction.INSTANCE, TransportQueryWatchesAction.class),
+            new ActionHandler(UpdateWatcherSettingsAction.INSTANCE, TransportUpdateWatcherSettingsAction.class),
+            new ActionHandler(GetWatcherSettingsAction.INSTANCE, TransportGetWatcherSettingsAction.class),
             usageAction,
             infoAction
         );
@@ -825,9 +825,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
         Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
-        boolean manuallyStopped = Optional.ofNullable(clusterService.state().metadata().<WatcherMetadata>custom(WatcherMetadata.TYPE))
-            .map(WatcherMetadata::manuallyStopped)
-            .orElse(false);
+        boolean manuallyStopped = Optional.ofNullable(
+            clusterService.state().metadata().getProject().<WatcherMetadata>custom(WatcherMetadata.TYPE)
+        ).map(WatcherMetadata::manuallyStopped).orElse(false);
 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest(TimeValue.THIRTY_SECONDS /* TODO should this be longer? */);

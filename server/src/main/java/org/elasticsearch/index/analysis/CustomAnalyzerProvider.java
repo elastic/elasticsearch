@@ -30,7 +30,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
     private Analyzer customAnalyzer;
 
     public CustomAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.analyzerSettings = settings;
     }
 

@@ -13,6 +13,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
@@ -142,7 +144,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals
      */
-    public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException;
 
     /**
      * Release this aggregation and its sub-aggregations.
@@ -153,11 +155,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Build the result of this aggregation if it is at the "top level"
      * of the aggregation tree. If, instead, it is a sub-aggregation of
      * another aggregation then the aggregation that contains it will call
-     * {@link #buildAggregations(long[])}.
+     * {@link #buildAggregations(LongArray)}.
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        return buildAggregations(new long[] { 0 })[0];
+        return buildAggregations(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true))[0];
     }
 
     /**

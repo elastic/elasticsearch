@@ -35,7 +35,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             assertThat(
-                indicesAdmin().prepareGetSettings(indexName)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .setNames("index.number_of_replicas")
                     .get()
                     .getSetting(indexName, "index.number_of_replicas"),
@@ -47,7 +47,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             assertThat(
-                indicesAdmin().prepareGetSettings(indexName)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .setNames("index.number_of_replicas")
                     .get()
                     .getSetting(indexName, "index.number_of_replicas"),
@@ -60,7 +60,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             assertThat(
-                indicesAdmin().prepareGetSettings(indexName)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .setNames("index.number_of_replicas")
                     .get()
                     .getSetting(indexName, "index.number_of_replicas"),

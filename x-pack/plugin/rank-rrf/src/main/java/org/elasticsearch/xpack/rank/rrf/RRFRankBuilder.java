@@ -194,9 +194,6 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public RetrieverBuilder toRetriever(SearchSourceBuilder source, Predicate<NodeFeature> clusterSupportsFeature) {
-        if (false == clusterSupportsFeature.test(RRFRetrieverBuilder.RRF_RETRIEVER_COMPOSITION_SUPPORTED)) {
-            return null;
-        }
         int totalQueries = source.subSearches().size() + source.knnSearch().size();
         if (totalQueries < 2) {
             throw new IllegalArgumentException("[rrf] requires at least 2 sub-queries to be defined");
@@ -205,7 +202,7 @@ public class RRFRankBuilder extends RankBuilder {
         for (int i = 0; i < source.subSearches().size(); i++) {
             RetrieverBuilder standardRetriever = new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder());
             standardRetriever.retrieverName(source.subSearches().get(i).getQueryBuilder().queryName());
-            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null));
+            retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever));
         }
         for (int i = 0; i < source.knnSearch().size(); i++) {
             KnnSearchBuilder knnSearchBuilder = source.knnSearch().get(i);
@@ -215,10 +212,11 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getQueryVectorBuilder(),
                 knnSearchBuilder.k(),
                 knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getRescoreVectorBuilder(),
                 knnSearchBuilder.getSimilarity()
             );
             knnRetriever.retrieverName(knnSearchBuilder.queryName());
-            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null));
+            retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever));
         }
         return new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant());
     }

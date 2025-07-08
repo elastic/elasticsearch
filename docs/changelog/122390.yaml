@@ -1,0 +1,5 @@
+pr: 122390
+summary: Add health indicator impact to `HealthPeriodicLogger`
+area: Health
+type: enhancement
+issues: []

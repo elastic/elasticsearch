@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -27,10 +26,22 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return buildWithConfiguration(source, args, EsqlTestUtils.TEST_CFG);
+        return buildWithConfiguration(source, args, testCase.getConfiguration());
     }
 
-    static Configuration randomConfiguration() {
+    public void testSerializationWithConfiguration() {
+        Configuration config = randomConfiguration();
+        Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
+
+        assertSerialization(expr, config);
+
+        Configuration differentConfig = randomValueOtherThan(config, AbstractConfigurationFunctionTestCase::randomConfiguration);
+
+        Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
+        assertNotEquals(expr, differentExpr);
+    }
+
+    private static Configuration randomConfiguration() {
         // TODO: Randomize the query and maybe the pragmas.
         return new Configuration(
             randomZone(),
@@ -43,22 +54,8 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
             StringUtils.EMPTY,
             randomBoolean(),
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            randomBoolean()
         );
-    }
-
-    public void testSerializationWithConfiguration() {
-        Configuration config = randomConfiguration();
-        Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
-
-        assertSerialization(expr, config);
-
-        Configuration differentConfig;
-        do {
-            differentConfig = randomConfiguration();
-        } while (config.equals(differentConfig));
-
-        Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
-        assertFalse(expr.equals(differentExpr));
     }
 }

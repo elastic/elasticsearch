@@ -18,8 +18,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.UnparsedModel;
@@ -46,6 +47,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Executor executor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteInferenceEndpointAction(
@@ -53,9 +55,9 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteInferenceEndpointAction.NAME,
@@ -64,13 +66,13 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
-            indexNameExpressionResolver,
             DeleteInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -110,12 +112,26 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 if (errorString != null) {
                     listener.onFailure(new ElasticsearchStatusException(errorString, RestStatus.CONFLICT));
                     return;
+                } else if (isInferenceIdReserved(request.getInferenceEndpointId())) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Strings.format(
+                                "[%s] is a reserved inference endpoint. Use the force=true query parameter "
+                                    + "to delete the inference endpoint.",
+                                request.getInferenceEndpointId()
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
                 }
             }
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(unparsedModel, listener);
+                var model = service.get()
+                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+                service.get().stop(model, listener);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -178,6 +194,10 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         return null;
     }
 
+    private boolean isInferenceIdReserved(String inferenceEndpointId) {
+        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
+    }
+
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {
         StringBuilder errorString = new StringBuilder();
 
@@ -205,21 +225,16 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private static Set<String> endpointIsReferencedInIndex(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> indexes = extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
-        return indexes;
+        return extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
     }
 
     private static Set<String> endpointIsReferencedInPipelines(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
-            state,
-            Set.of(inferenceEndpointId)
-        );
-        return modelIdsReferencedByPipelines;
+        return InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(inferenceEndpointId));
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteInferenceEndpointAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.WRITE);
     }
 
 }

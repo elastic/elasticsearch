@@ -59,7 +59,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     // Organic queries will have their scores capped to this number range,
     // We reserve the highest float exponent for scores of pinned queries
-    private static final float MAX_ORGANIC_SCORE = Float.intBitsToFloat((0xfe << 23)) - 1;
+    public static final float MAX_ORGANIC_SCORE = Float.intBitsToFloat((0xfe << 23)) - 1;
 
     public PinnedQueryBuilder(QueryBuilder organicQuery, String... ids) {
         this(organicQuery, Arrays.asList(ids), null);
@@ -124,28 +124,19 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      */
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_7_15_0)) {
-            ids = in.readStringCollectionAsList();
-            docs = null;
-        } else {
-            ids = in.readOptionalStringCollectionAsList();
-            docs = in.readBoolean() ? in.readCollectionAsList(SpecifiedDocument::new) : null;
-        }
+        ids = in.readOptionalStringCollectionAsList();
+        docs = in.readBoolean() ? in.readCollectionAsList(SpecifiedDocument::new) : null;
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_7_15_0)) {
-            out.writeStringCollection(this.ids);
+        out.writeOptionalStringCollection(this.ids);
+        if (docs == null) {
+            out.writeBoolean(false);
         } else {
-            out.writeOptionalStringCollection(this.ids);
-            if (docs == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeCollection(docs);
-            }
+            out.writeBoolean(true);
+            out.writeCollection(docs);
         }
         out.writeNamedWriteable(organicQuery);
     }
@@ -297,6 +288,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 }

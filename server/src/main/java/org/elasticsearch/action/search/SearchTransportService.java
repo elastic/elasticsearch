@@ -13,12 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -49,11 +48,11 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -68,7 +67,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
- * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
+ * An encapsulation of {@link SearchService} operations exposed through
  * transport.
  */
 public class SearchTransportService {
@@ -124,22 +123,8 @@ public class SearchTransportService {
         this.responseWrapper = responseWrapper;
     }
 
-    private static final ActionListenerResponseHandler<SearchFreeContextResponse> SEND_FREE_CONTEXT_LISTENER =
-        new ActionListenerResponseHandler<>(
-            ActionListener.noop(),
-            SearchFreeContextResponse::readFrom,
-            TransportResponseHandler.TRANSPORT_WORKER
-        );
-
-    public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
-        transportService.sendRequest(
-            connection,
-            FREE_CONTEXT_ACTION_NAME,
-            new SearchFreeContextRequest(originalIndices, contextId),
-            TransportRequestOptions.EMPTY,
-            // no need to respond if it was freed or not
-            SEND_FREE_CONTEXT_LISTENER
-        );
+    public TransportService transportService() {
+        return transportService;
     }
 
     public void sendFreeContext(
@@ -177,7 +162,7 @@ public class SearchTransportService {
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             new ClearScrollContextsRequest(),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -338,7 +323,7 @@ public class SearchTransportService {
         return new HashMap<>(clientConnections);
     }
 
-    static class ScrollFreeContextRequest extends TransportRequest {
+    static class ScrollFreeContextRequest extends AbstractTransportRequest {
         private final ShardSearchContextId contextId;
 
         ScrollFreeContextRequest(ShardSearchContextId contextId) {
@@ -362,49 +347,12 @@ public class SearchTransportService {
 
     }
 
-    private static class ClearScrollContextsRequest extends TransportRequest {
+    private static class ClearScrollContextsRequest extends AbstractTransportRequest {
         ClearScrollContextsRequest() {}
 
         ClearScrollContextsRequest(StreamInput in) throws IOException {
             super(in);
         }
-    }
-
-    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
-        private final OriginalIndices originalIndices;
-
-        SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
-            super(id);
-            this.originalIndices = originalIndices;
-        }
-
-        SearchFreeContextRequest(StreamInput in) throws IOException {
-            super(in);
-            originalIndices = OriginalIndices.readOriginalIndices(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
-        }
-
-        @Override
-        public String[] indices() {
-            if (originalIndices == null) {
-                return null;
-            }
-            return originalIndices.indices();
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            if (originalIndices == null) {
-                return null;
-            }
-            return originalIndices.indicesOptions();
-        }
-
     }
 
     public static class SearchFreeContextResponse extends TransportResponse {
@@ -456,12 +404,13 @@ public class SearchTransportService {
             SearchFreeContextResponse::readFrom
         );
 
-        transportService.registerRequestHandler(
-            FREE_CONTEXT_ACTION_NAME,
-            freeContextExecutor,
-            SearchFreeContextRequest::new,
-            freeContextHandler
-        );
+        // TODO: remove this handler once the lowest compatible version stops using it
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, in -> {
+            var res = new ScrollFreeContextRequest(in);
+            // this handler exists for BwC purposes only, we don't need the original indices to free the context
+            OriginalIndices.readOriginalIndices(in);
+            return res;
+        }, freeContextHandler);
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::readFrom);
 
         transportService.registerRequestHandler(
@@ -470,14 +419,14 @@ public class SearchTransportService {
             ClearScrollContextsRequest::new,
             (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
         TransportActionProxy.registerProxyAction(
             transportService,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             false,
-            (in) -> TransportResponse.Empty.INSTANCE
+            (in) -> ActionResponse.Empty.INSTANCE
         );
 
         transportService.registerRequestHandler(
@@ -512,7 +461,8 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                new ChannelActionListener<>(channel),
+                channel.getVersion()
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
@@ -524,7 +474,8 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                new ChannelActionListener<>(channel),
+                channel.getVersion()
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);

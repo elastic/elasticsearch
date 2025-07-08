@@ -8,7 +8,6 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -16,7 +15,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.
@@ -30,7 +29,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     versions = [bwcVersion.toString(), project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
-    requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
   }
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 3
@@ -38,7 +36,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     firstNode.setting 'node.attr.gateway', 'true'
     lastNode.setting 'node.attr.gateway', 'true'
     setting 'xpack.security.enabled', 'false'
-    requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
   }
 
 
@@ -46,13 +43,11 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     useCluster localCluster
     useCluster remoteCluster
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(localCluster.name).map { it.allHttpSocketURI.join(",") })
+    nonInputProperties.systemProperty('tests.rest.remote_cluster', getClusterInfo(remoteCluster.name).map { it.allHttpSocketURI.join(",") })
 
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-    }
-
-    onlyIf("FIPS mode disabled") { BuildParams.inFipsJvm == false }
+    def fipsDisabled = buildParams.inFipsJvm == false
+    onlyIf("FIPS mode disabled") { fipsDisabled }
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
@@ -63,28 +58,28 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       cluster.nodes.forEach { node ->
         node.getAllTransportPortURI()
       }
-      cluster.nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(cluster)
     }
   }
 
   tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
-      remoteCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(remoteCluster)
     }
   }
 
   tasks.register("${baseName}#twoThirdUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgraded"
     doFirst {
-      remoteCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(remoteCluster)
     }
   }
 
   tasks.register("${baseName}#fullUpgraded", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdUpgraded"
     doFirst {
-      remoteCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(remoteCluster)
     }
   }
 

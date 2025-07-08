@@ -1,0 +1,162 @@
+toc:
+  - file: index.md
+  - file: querydsl.md
+    children:
+      - file: query-dsl/query-filter-context.md
+      - file: query-dsl/compound-queries.md
+        children:
+          - file: query-dsl/query-dsl-bool-query.md
+          - file: query-dsl/query-dsl-boosting-query.md
+          - file: query-dsl/query-dsl-constant-score-query.md
+          - file: query-dsl/query-dsl-dis-max-query.md
+          - file: query-dsl/query-dsl-function-score-query.md
+      - file: query-dsl/full-text-queries.md
+        children:
+          - file: query-dsl/query-dsl-intervals-query.md
+          - file: query-dsl/query-dsl-match-query.md
+          - file: query-dsl/query-dsl-match-bool-prefix-query.md
+          - file: query-dsl/query-dsl-match-query-phrase.md
+          - file: query-dsl/query-dsl-match-query-phrase-prefix.md
+          - file: query-dsl/query-dsl-combined-fields-query.md
+          - file: query-dsl/query-dsl-multi-match-query.md
+          - file: query-dsl/query-dsl-query-string-query.md
+          - file: query-dsl/query-dsl-simple-query-string-query.md
+      - file: query-dsl/geo-queries.md
+        children:
+          - file: query-dsl/query-dsl-geo-bounding-box-query.md
+          - file: query-dsl/query-dsl-geo-distance-query.md
+          - file: query-dsl/query-dsl-geo-grid-query.md
+          - file: query-dsl/query-dsl-geo-polygon-query.md
+          - file: query-dsl/query-dsl-geo-shape-query.md
+      - file: query-dsl/shape-queries.md
+        children:
+          - file: query-dsl/query-dsl-shape-query.md
+      - file: query-dsl/joining-queries.md
+        children:
+          - file: query-dsl/query-dsl-nested-query.md
+          - file: query-dsl/query-dsl-has-child-query.md
+          - file: query-dsl/query-dsl-has-parent-query.md
+          - file: query-dsl/query-dsl-parent-id-query.md
+      - file: query-dsl/query-dsl-match-all-query.md
+      - file: query-dsl/span-queries.md
+        children:
+          - file: query-dsl/query-dsl-span-containing-query.md
+          - file: query-dsl/query-dsl-span-field-masking-query.md
+          - file: query-dsl/query-dsl-span-first-query.md
+          - file: query-dsl/query-dsl-span-multi-term-query.md
+          - file: query-dsl/query-dsl-span-near-query.md
+          - file: query-dsl/query-dsl-span-not-query.md
+          - file: query-dsl/query-dsl-span-query.md
+          - file: query-dsl/query-dsl-span-term-query.md
+          - file: query-dsl/query-dsl-span-within-query.md
+      - file: query-dsl/vector-queries.md
+        children:
+          - file: query-dsl/query-dsl-knn-query.md
+          - file: query-dsl/query-dsl-sparse-vector-query.md
+          - file: query-dsl/query-dsl-semantic-query.md
+          - file: query-dsl/query-dsl-text-expansion-query.md
+          - file: query-dsl/query-dsl-weighted-tokens-query.md
+      - file: query-dsl/specialized-queries.md
+        children:
+          - file: query-dsl/query-dsl-distance-feature-query.md
+          - file: query-dsl/query-dsl-mlt-query.md
+          - file: query-dsl/query-dsl-percolate-query.md
+          - file: query-dsl/query-dsl-rank-feature-query.md
+          - file: query-dsl/query-dsl-script-query.md
+          - file: query-dsl/query-dsl-script-score-query.md
+          - file: query-dsl/query-dsl-wrapper-query.md
+          - file: query-dsl/query-dsl-pinned-query.md
+          - file: query-dsl/query-dsl-rule-query.md
+      - file: query-dsl/term-level-queries.md
+        children:
+          - file: query-dsl/query-dsl-exists-query.md
+          - file: query-dsl/query-dsl-fuzzy-query.md
+          - file: query-dsl/query-dsl-ids-query.md
+          - file: query-dsl/query-dsl-prefix-query.md
+          - file: query-dsl/query-dsl-range-query.md
+          - file: query-dsl/query-dsl-regexp-query.md
+          - file: query-dsl/query-dsl-term-query.md
+          - file: query-dsl/query-dsl-terms-query.md
+          - file: query-dsl/query-dsl-terms-set-query.md
+          - file: query-dsl/query-dsl-wildcard-query.md
+      - file: query-dsl/query-dsl-minimum-should-match.md
+      - file: query-dsl/query-dsl-multi-term-rewrite.md
+      - file: query-dsl/regexp-syntax.md
+  - file: esql.md
+    children:
+      - file: esql/esql-syntax-reference.md
+        children:
+          - file: esql/esql-syntax.md
+          - file: esql/esql-commands.md
+            children:
+              - file: esql/commands/source-commands.md
+              - file: esql/commands/processing-commands.md
+          - file: esql/esql-functions-operators.md
+            children:
+              - file: esql/functions-operators/aggregation-functions.md
+              - file: esql/functions-operators/grouping-functions.md
+              - file: esql/functions-operators/conditional-functions-and-expressions.md
+              - file: esql/functions-operators/date-time-functions.md
+              - file: esql/functions-operators/ip-functions.md
+              - file: esql/functions-operators/math-functions.md
+              - file: esql/functions-operators/search-functions.md
+              - file: esql/functions-operators/spatial-functions.md
+              - file: esql/functions-operators/string-functions.md
+              - file: esql/functions-operators/type-conversion-functions.md
+              - file: esql/functions-operators/mv-functions.md
+              - file: esql/functions-operators/operators.md
+      - file: esql/esql-advanced.md
+        children:
+          - file: esql/esql-process-data-with-dissect-grok.md
+          - file: esql/esql-enrich-data.md
+          - file: esql/esql-lookup-join.md
+      - file: esql/esql-types-and-fields.md
+        children:
+          - file: esql/esql-implicit-casting.md
+          - file: esql/esql-time-spans.md
+          - file: esql/esql-metadata-fields.md
+          - file: esql/esql-multivalued-fields.md
+
+      - file: esql/limitations.md
+      - file: esql/esql-examples.md
+  - file: sql.md
+    children:
+      - file: sql/sql-spec.md
+        children:
+          - file: sql/sql-lexical-structure.md
+          - file: sql/sql-commands.md
+          - file: sql/sql-syntax-describe-table.md
+          - file: sql/sql-syntax-select.md
+          - file: sql/sql-syntax-show-catalogs.md
+          - file: sql/sql-syntax-show-columns.md
+          - file: sql/sql-syntax-show-functions.md
+          - file: sql/sql-syntax-show-tables.md
+          - file: sql/sql-data-types.md
+          - file: sql/sql-index-patterns.md
+          - file: sql/sql-index-frozen.md
+      - file: sql/sql-functions.md
+        children:
+          - file: sql/sql-operators.md
+          - file: sql/sql-operators-logical.md
+          - file: sql/sql-operators-math.md
+          - file: sql/sql-operators-cast.md
+          - file: sql/sql-like-rlike-operators.md
+          - file: sql/sql-functions-aggs.md
+          - file: sql/sql-functions-grouping.md
+          - file: sql/sql-functions-datetime.md
+          - file: sql/sql-functions-search.md
+          - file: sql/sql-functions-math.md
+          - file: sql/sql-functions-string.md
+          - file: sql/sql-functions-type-conversion.md
+          - file: sql/sql-functions-geo.md
+          - file: sql/sql-functions-conditional.md
+          - file: sql/sql-functions-system.md
+      - file: sql/sql-syntax-reserved.md
+      - file: sql/sql-limitations.md
+  - file: eql.md
+    children:
+      - file: eql/eql-syntax.md
+      - file: eql/eql-function-ref.md
+      - file: eql/eql-pipe-ref.md
+      - file: eql/eql-ex-threat-detection.md
+  - file: kql.md

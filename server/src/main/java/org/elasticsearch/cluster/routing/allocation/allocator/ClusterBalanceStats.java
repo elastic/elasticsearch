@@ -39,7 +39,7 @@ public record ClusterBalanceStats(
     Map<String, NodeBalanceStats> nodes
 ) implements Writeable, ToXContentObject {
 
-    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
+    public static final ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
 
     public static ClusterBalanceStats createFrom(
         ClusterState clusterState,
@@ -231,9 +231,8 @@ public record ClusterBalanceStats(
             long actualShardSize = 0L;
 
             for (ShardRouting shardRouting : routingNode) {
-                var indexMetadata = metadata.index(shardRouting.index());
+                var indexMetadata = metadata.indexMetadata(shardRouting.index());
                 var shardSize = clusterInfo.getShardSize(shardRouting, 0L);
-                assert indexMetadata != null;
                 forecastWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
                 forecastShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(shardSize);
                 actualShardSize += shardSize;

@@ -21,8 +21,8 @@ import java.util.Objects;
 
 // unfortunately we can't use UnresolvedNamedExpression
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
-    private final String unresolvedMsg;
     private final boolean customMessage;
+    private final String unresolvedMsg;
     private final Object resolutionMetadata;
 
     public UnresolvedAttribute(Source source, String name) {
@@ -119,16 +119,16 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
-        }
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (UnresolvedAttribute) o;
+        return super.innerEquals(other)
+            && Objects.equals(resolutionMetadata, other.resolutionMetadata)
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 }

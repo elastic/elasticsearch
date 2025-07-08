@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     @Before
@@ -104,7 +103,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() throws Exception {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        internalCluster().startNodes(1);
 
         // Trigger the creation of the system index
         indexDoc(nonPrimarySystemIndex, "1", "foo", "bar");
@@ -115,7 +113,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         // Check that a non-primary system index is not assigned as the write index for the alias
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -132,7 +130,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     public void testNonPrimarySystemIndexCreationThrowsError() {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        internalCluster().startNodes(1);
 
         // Create the system index
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex(nonPrimarySystemIndex));
@@ -269,8 +266,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     private void doCreateTest(Runnable runnable, String concreteIndex) {
-        internalCluster().startNodes(1);
-
         // Trigger the creation of the system index
         runnable.run();
         ensureGreen(INDEX_NAME);
@@ -278,7 +273,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings(), concreteIndex);
 
         // Remove the index and alias...
-        assertAcked(indicesAdmin().prepareAliases().removeAlias(concreteIndex, INDEX_NAME).get());
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias(concreteIndex, INDEX_NAME).get());
         assertAcked(indicesAdmin().prepareDelete(concreteIndex));
 
         // ...so that we can check that the they will still be auto-created again,
@@ -293,8 +288,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     public void testConcurrentAutoCreates() throws InterruptedException {
-        internalCluster().startNodes(3);
-
         final Client client = client();
         final int count = randomIntBetween(5, 30);
         final CountDownLatch latch = new CountDownLatch(count);
@@ -322,7 +315,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     private void assertAliases(String concreteIndex) {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -334,7 +327,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     private void assertHasAliases(Set<String> aliasNames, String name, String primaryName, int aliasCount) throws InterruptedException,
         java.util.concurrent.ExecutionException {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -357,8 +350,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      */
     private void assertMappingsAndSettings(String expectedMappings, String concreteIndex) {
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
@@ -370,8 +364,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
-        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
+            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Settings actual = getSettingsResponse.getIndexToSettings().get(concreteIndex);
 

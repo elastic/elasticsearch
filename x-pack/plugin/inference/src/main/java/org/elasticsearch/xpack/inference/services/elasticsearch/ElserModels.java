@@ -16,7 +16,7 @@ public class ElserModels {
     public static final String ELSER_V2_MODEL = ".elser_model_2";
     public static final String ELSER_V2_MODEL_LINUX_X86 = ".elser_model_2_linux-x86_64";
 
-    public static Set<String> VALID_ELSER_MODEL_IDS = Set.of(
+    public static final Set<String> VALID_ELSER_MODEL_IDS = Set.of(
         ElserModels.ELSER_V1_MODEL,
         ElserModels.ELSER_V2_MODEL,
         ElserModels.ELSER_V2_MODEL_LINUX_X86
@@ -24,10 +24,6 @@ public class ElserModels {
 
     public static boolean isValidModel(String model) {
         return model != null && VALID_ELSER_MODEL_IDS.contains(model);
-    }
-
-    public static boolean isValidEisModel(String model) {
-        return ELSER_V2_MODEL.equals(model);
     }
 
 }

@@ -109,7 +109,7 @@ public class LdapMetadataResolver {
 
     public static class LdapMetadataResult {
 
-        public static LdapMetadataResult EMPTY = new LdapMetadataResult(null, null, Map.of());
+        public static final LdapMetadataResult EMPTY = new LdapMetadataResult(null, null, Map.of());
 
         private final String fullName;
         private final String email;

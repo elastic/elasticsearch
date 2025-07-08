@@ -37,6 +37,11 @@ public class ElasticDeployedModel extends ElasticsearchInternalModel {
     }
 
     @Override
+    protected String modelNotFoundErrorMessage(String modelId) {
+        throw new IllegalStateException("cannot start model [" + modelId + "] that uses an existing deployment");
+    }
+
+    @Override
     public ActionListener<CreateTrainedModelAssignmentAction.Response> getCreateTrainedModelAssignmentActionListener(
         Model model,
         ActionListener<Boolean> listener

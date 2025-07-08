@@ -137,7 +137,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(MOCK_CONTEXT));
+            // updated in #130531 so that a field that is neither indexed nor has doc values will generate a TermQuery
+            // to avoid ISE from FieldExistsQuery
+            assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
@@ -244,7 +246,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
             Integer.MAX_VALUE,
-            IndexVersion.current()
+            IndexVersion.current(),
+            randomFrom(Mapper.SourceKeepMode.values())
         ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));

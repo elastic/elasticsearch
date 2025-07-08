@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.env.Environment;
@@ -29,14 +28,9 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class StopTokenFilterTests extends ESTokenStreamTestCase {
     public void testPositionIncrementSetting() throws IOException {
-        boolean versionSet = false;
         Builder builder = Settings.builder()
             .put("index.analysis.filter.my_stop.type", "stop")
             .put("index.analysis.filter.my_stop.enable_position_increments", false);
-        if (random().nextBoolean()) {
-            builder.put("index.analysis.filter.my_stop.version", "5.0");
-            versionSet = true;
-        }
         builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         Settings settings = builder.build();
         try {
@@ -45,18 +39,10 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("enable_position_increments is not supported anymore"));
         }
-        if (versionSet) {
-            assertWarnings("Setting [version] on analysis component [my_stop] has no effect and is deprecated");
-        }
     }
 
     public void testCorrectPositionIncrementSetting() throws IOException {
         Builder builder = Settings.builder().put("index.analysis.filter.my_stop.type", "stop");
-        boolean versionSet = false;
-        if (random().nextBoolean()) {
-            builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
-            versionSet = true;
-        }
         builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_stop");
@@ -65,9 +51,6 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream create = tokenFilter.create(tokenizer);
         assertThat(create, instanceOf(StopFilter.class));
-        if (versionSet) {
-            assertWarnings("Setting [version] on analysis component [my_stop] has no effect and is deprecated");
-        }
     }
 
     public void testThatSuggestStopFilterWorks() throws Exception {

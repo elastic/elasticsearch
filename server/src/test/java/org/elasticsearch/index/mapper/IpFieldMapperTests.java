@@ -21,6 +21,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +31,6 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -208,6 +208,12 @@ public class IpFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal."
         );
+
+        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> {
+            b.field("type", "ip");
+            b.field("null_value", ":1");
+        }));
+        assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testDimension() throws IOException {
@@ -429,7 +435,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> InetAddresses.toAddrString(InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) v).bytes));
+    protected String randomSyntheticSourceKeep() {
+        return "all";
     }
 }

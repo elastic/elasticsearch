@@ -46,7 +46,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         protected String requestName;
 
         public NodeRequest(StreamInput in) throws IOException {

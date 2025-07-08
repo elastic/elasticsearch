@@ -65,7 +65,7 @@ public class DateUtils {
         .appendValue(MINUTE_OF_HOUR, 2)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2)
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 0, 9, true)
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
 
@@ -172,6 +172,10 @@ public class DateUtils {
      */
     public static ZonedDateTime asDateTime(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
+    }
+
+    public static ZonedDateTime asDateTime(Instant instant) {
+        return ZonedDateTime.ofInstant(instant, UTC);
     }
 
     public static long asMillis(ZonedDateTime zonedDateTime) {

@@ -1,5 +1,0 @@
-[discrete]
-[[migrate_rest_api_changes]]
-=== REST API changes
-
-//See https://www.elastic.co/guide/en/elasticsearch/reference/8.0/migrating-8.0.html#breaking_80_rest_api_changes for formatting examples

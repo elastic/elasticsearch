@@ -11,10 +11,18 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(':libs:entitlement')
-  implementation 'org.ow2.asm:asm:9.7'
+  compileOnly project(':libs:core')
+  compileOnly project(':libs:logging')
+  implementation 'org.ow2.asm:asm:9.8'
+  implementation 'org.ow2.asm:asm-util:9.8'
+  implementation 'org.ow2.asm:asm-tree:9.8'
+  implementation 'org.ow2.asm:asm-analysis:9.8'
   testImplementation project(":test:framework")
   testImplementation project(":libs:entitlement:bridge")
-  testImplementation 'org.ow2.asm:asm-util:9.7'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
 }
 
 tasks.named('test').configure {

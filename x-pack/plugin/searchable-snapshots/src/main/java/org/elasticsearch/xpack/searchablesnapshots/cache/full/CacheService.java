@@ -71,7 +71,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
-    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.of(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = ByteSizeValue.ofBytes(Integer.MAX_VALUE);
 
     /**
@@ -82,7 +82,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
-        new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
+        ByteSizeValue.of(32, ByteSizeUnit.MB),                 // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -96,7 +96,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "recovery_range_size",
-        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
+        ByteSizeValue.of(128, ByteSizeUnit.KB),                // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -245,7 +245,11 @@ public class CacheService extends AbstractLifecycleComponent {
         final Lifecycle.State state = lifecycleState();
         assert state != Lifecycle.State.INITIALIZED : state;
         if (state != Lifecycle.State.STARTED) {
-            throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
+            if (state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED) {
+                throw new AlreadyClosedException("Failed to read data from cache: cache service is [" + state + ']');
+            } else {
+                throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
+            }
         }
     }
 

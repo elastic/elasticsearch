@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.core.UpdateForV10;
+
 public final class XPackField {
     // These should be moved back to XPackPlugin once its moved to common
     /** Name constant for the security feature. */
@@ -58,6 +60,7 @@ public final class XPackField {
     /** Name constant for the voting-only-node feature. */
     public static final String VOTING_ONLY = "voting_only";
     /** Name constant for the frozen index feature. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
     public static final String FROZEN_INDICES = "frozen_indices";
     /** Name constant for spatial features. */
     public static final String SPATIAL = "spatial";

@@ -37,7 +37,7 @@ public class AzureStorageService {
      * The maximum size of a BlockBlob block.
      * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
      */
-    public static ByteSizeValue MAX_BLOCK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+    public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
 
     /**
      * The maximum number of blocks.
@@ -68,6 +68,7 @@ public class AzureStorageService {
     public static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.ofBytes(MAX_BLOB_SIZE);
 
     private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
+    private final int multipartUploadMaxConcurrency;
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
@@ -81,6 +82,7 @@ public class AzureStorageService {
         refreshSettings(clientsSettings);
         this.azureClientProvider = azureClientProvider;
         this.stateless = DiscoveryNode.isStateless(settings);
+        this.multipartUploadMaxConcurrency = azureClientProvider.getMultipartUploadMaxConcurrency();
     }
 
     public AzureBlobServiceClient client(String clientName, LocationMode locationMode, OperationPurpose purpose) {
@@ -195,5 +197,9 @@ public class AzureStorageService {
         } catch (Exception e) {
             return Set.of();
         }
+    }
+
+    public int getMultipartUploadMaxConcurrency() {
+        return multipartUploadMaxConcurrency;
     }
 }

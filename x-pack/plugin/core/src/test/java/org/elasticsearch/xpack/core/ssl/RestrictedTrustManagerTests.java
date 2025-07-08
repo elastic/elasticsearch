@@ -218,7 +218,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);
             } else {
-                assertNotValid(trustManager, cert, inFipsJvm() ? "Unable to find certificate chain." : "PKIX path building failed.*");
+                assertNotValid(trustManager, cert, inFipsJvm() ? "Unable to construct a valid chain" : "PKIX path building failed.*");
             }
         }
     }

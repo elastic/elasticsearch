@@ -193,7 +193,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
      * check if watcher has been stopped manually via the stop API
      */
     private static boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+        WatcherMetadata watcherMetadata = state.getMetadata().getProject().custom(WatcherMetadata.TYPE);
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 

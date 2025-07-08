@@ -16,9 +16,6 @@ ignore_above index setting negative value:
 
 ---
 keyword ignore_above mapping setting negative value:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       catch: bad_request
       indices.create:
@@ -32,9 +29,6 @@ keyword ignore_above mapping setting negative value:
 
 ---
 flattened ignore_above mapping setting negative value:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       catch: bad_request
       indices.create:
@@ -48,9 +42,6 @@ flattened ignore_above mapping setting negative value:
 
 ---
 wildcard ignore_above mapping setting negative value:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       catch: bad_request
       indices.create:

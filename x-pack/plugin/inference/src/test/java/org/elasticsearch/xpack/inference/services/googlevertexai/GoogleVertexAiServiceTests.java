@@ -14,11 +14,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
@@ -26,13 +28,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -42,14 +47,19 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -60,6 +70,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     private ThreadPool threadPool;
 
     private HttpClientManager clientManager;
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     @Before
     public void init() throws Exception {
@@ -73,6 +84,54 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         clientManager.close();
         terminate(threadPool);
         webServer.close();
+    }
+
+    public void testParseRequestConfig_CreateGoogleVertexAiChatCompletionModel() throws IOException {
+        var projectId = "project";
+        var location = "location";
+        var modelId = "model";
+        var serviceAccountJson = """
+            {
+                "some json"
+            }
+            """;
+
+        try (var service = createGoogleVertexAiService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(GoogleVertexAiChatCompletionModel.class));
+
+                var vertexAIModel = (GoogleVertexAiChatCompletionModel) model;
+
+                assertThat(vertexAIModel.getServiceSettings().modelId(), is(modelId));
+                assertThat(vertexAIModel.getServiceSettings().location(), is(location));
+                assertThat(vertexAIModel.getServiceSettings().projectId(), is(projectId));
+                assertThat(vertexAIModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
+                assertThat(vertexAIModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
+                assertThat(vertexAIModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
+                assertThat(vertexAIModel.getServiceSettings().rateLimitSettings().timeUnit(), equalTo(MINUTES));
+
+            }, e -> fail("Model parsing should succeeded, but failed: " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.CHAT_COMPLETION,
+                getRequestConfigMap(
+                    new HashMap<>(
+                        Map.of(
+                            ServiceFields.MODEL_ID,
+                            modelId,
+                            GoogleVertexAiServiceFields.LOCATION,
+                            location,
+                            GoogleVertexAiServiceFields.PROJECT_ID,
+                            projectId
+                        )
+                    ),
+                    getTaskSettingsMapEmpty(),
+                    getSecretSettingsMap(serviceAccountJson)
+                ),
+                modelListener
+            );
+        }
     }
 
     public void testParseRequestConfig_CreatesGoogleVertexAiEmbeddingsModel() throws IOException {
@@ -290,7 +349,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -314,7 +373,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -342,7 +401,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -370,7 +429,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [googlevertexai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -421,6 +480,53 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(Boolean.TRUE));
             assertThat(embeddingsModel.getTaskSettings(), is(new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, InputType.SEARCH)));
             assertThat(embeddingsModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException {
+        var projectId = "project";
+        var location = "location";
+        var modelId = "model";
+        var autoTruncate = true;
+        var serviceAccountJson = """
+            {
+                "some json"
+            }
+            """;
+
+        try (var service = createGoogleVertexAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                new HashMap<>(
+                    Map.of(
+                        ServiceFields.MODEL_ID,
+                        modelId,
+                        GoogleVertexAiServiceFields.LOCATION,
+                        location,
+                        GoogleVertexAiServiceFields.PROJECT_ID,
+                        projectId
+                    )
+                ),
+                getTaskSettingsMap(autoTruncate, InputType.INGEST),
+                getSecretSettingsMap(serviceAccountJson)
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.CHAT_COMPLETION,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(GoogleVertexAiChatCompletionModel.class));
+
+            var chatCompletionModel = (GoogleVertexAiChatCompletionModel) model;
+            assertThat(chatCompletionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(chatCompletionModel.getServiceSettings().location(), is(location));
+            assertThat(chatCompletionModel.getServiceSettings().projectId(), is(projectId));
+            assertThat(chatCompletionModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
+            assertThat(chatCompletionModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
+            assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
+            assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().timeUnit(), equalTo(MINUTES));
         }
     }
 
@@ -827,6 +933,37 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            var model = GoogleVertexAiRerankModelTests.createModel(randomAlphaOfLength(10), randomNonNegativeInt());
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), similarityMeasure);
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
     // testInfer tested via end-to-end notebook tests in AppEx repo
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -835,149 +972,54 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                           "provider": "googlevertexai",
-                           "task_types": [
-                                {
-                                    "task_type": "text_embedding",
-                                    "configuration": {
-                                         "input_type": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "dropdown",
-                                             "label": "Input Type",
-                                             "options": [
-                                                 {
-                                                     "label": "classification",
-                                                     "value": "classification"
-                                                 },
-                                                 {
-                                                     "label": "clustering",
-                                                     "value": "clustering"
-                                                 },
-                                                 {
-                                                     "label": "ingest",
-                                                     "value": "ingest"
-                                                 },
-                                                 {
-                                                     "label": "search",
-                                                     "value": "search"
-                                                 }
-                                             ],
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the type of input passed to the model.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                        },
-                                        "auto_truncate": {
-                                            "default_value": null,
-                                            "depends_on": [],
-                                            "display": "toggle",
-                                            "label": "Auto Truncate",
-                                            "order": 2,
-                                            "required": false,
-                                            "sensitive": false,
-                                            "tooltip": "Specifies if the API truncates inputs longer than the maximum token length automatically.",
-                                            "type": "bool",
-                                            "ui_restrictions": [],
-                                            "validations": [],
-                                            "value": false
-                                        }
-                                    }
-                                },
-                                {
-                                    "task_type": "rerank",
-                                    "configuration": {
-                                        "top_n": {
-                                            "default_value": null,
-                                            "depends_on": [],
-                                            "display": "toggle",
-                                            "label": "Top N",
-                                            "order": 1,
-                                            "required": false,
-                                            "sensitive": false,
-                                            "tooltip": "Specifies the number of the top n documents, which should be returned.",
-                                            "type": "bool",
-                                            "ui_restrictions": [],
-                                            "validations": [],
-                                            "value": false
-                                        }
-                                    }
-                                }
-                           ],
-                           "configuration": {
+                           "service": "googlevertexai",
+                           "name": "Google Vertex AI",
+                           "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                           "configurations": {
                                "service_account_json": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "API Key for the provider you're connecting to.",
                                    "label": "Credentials JSON",
-                                   "order": 1,
                                    "required": true,
                                    "sensitive": true,
-                                   "tooltip": "API Key for the provider you're connecting to.",
+                                   "updatable": true,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "project_id": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Project",
-                                   "order": 4,
                                    "required": true,
                                    "sensitive": false,
-                                   "tooltip": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
+                                   "updatable": false,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "location": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "order": 3,
                                    "required": true,
                                    "sensitive": false,
-                                   "tooltip": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "updatable": false,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                },
                                "rate_limit.requests_per_minute": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "numeric",
+                                   "description": "Minimize the number of rate limit errors.",
                                    "label": "Rate Limit",
-                                   "order": 6,
                                    "required": false,
                                    "sensitive": false,
-                                   "tooltip": "Minimize the number of rate limit errors.",
+                                   "updatable": false,
                                    "type": "int",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "model_id": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "ID of the LLM you're using.",
                                    "label": "Model ID",
-                                   "order": 2,
                                    "required": true,
                                    "sensitive": false,
-                                   "tooltip": "ID of the LLM you're using.",
+                                   "updatable": false,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                }
                            }
                        }
@@ -999,7 +1041,9 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     }
 
     private GoogleVertexAiService createGoogleVertexAiService() {
-        return new GoogleVertexAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool));
     }
 
     private Map<String, Object> getRequestConfigMap(

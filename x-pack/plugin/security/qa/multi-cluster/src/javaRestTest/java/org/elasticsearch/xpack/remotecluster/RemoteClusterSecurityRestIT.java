@@ -15,12 +15,14 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -31,6 +33,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -152,6 +155,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         final String indexName = "index_fulfilling";
         final String roleName = "taskCancellationRoleName";
         final String userName = "taskCancellationUsername";
+        String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
         try {
             // create some index on the fulfilling cluster, to be searched from the querying cluster
             {
@@ -203,13 +207,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "name": "*:*",
                           "error_type": "exception",
-                          "stall_time_seconds": 60
+                          "stall_time_seconds": 10
                         }
                       ]
                     }
                   }
                 }""");
-            String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
             submitAsyncSearchRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", headerFromRandomAuthMethod(userName, PASS))
@@ -305,6 +308,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/user/" + userName)));
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/role/" + roleName)));
             assertOK(performRequestAgainstFulfillingCluster(new Request("DELETE", indexName)));
+            // wait for search related tasks to finish on the query cluster
+            assertBusy(() -> {
+                try {
+                    Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                    assertOK(queryingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(queryingClusterTasks.getEntity()),
+                        false
+                    );
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            fail("there are still search tasks running");
+                        }
+                    });
+                } catch (ResponseException e) {
+                    fail(e.getMessage());
+                }
+            });
         }
     }
 
@@ -607,6 +629,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
             }
         }
+        assertNoRcs1DeprecationWarnings();
     }
 
     @SuppressWarnings("unchecked")
@@ -678,6 +701,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         taskConsumer.accept(task);
                     }
                 }
+            }
+        }
+    }
+
+    private void assertNoRcs1DeprecationWarnings() throws IOException {
+        for (int i = 0; i < queryCluster.getNumNodes(); i++) {
+            try (InputStream log = queryCluster.getNodeLog(i, LogType.DEPRECATION)) {
+                Streams.readAllLines(
+                    log,
+                    line -> assertThat(
+                        line,
+                        not(
+                            containsString(
+                                "The certificate-based security model is deprecated and will be removed in a future major version. "
+                                    + "Migrate the remote cluster from the certificate-based to the API key-based security model."
+                            )
+                        )
+                    )
+                );
             }
         }
     }

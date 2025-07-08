@@ -103,6 +103,24 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         return totalSizeInBytes;
     }
 
+    public long maxOperationSizeInBytes() {
+        long maxOperationSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                if (((IndexRequest) request).source() != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).source().length());
+                }
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null && doc.source() != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().source().length());
+                }
+            }
+        }
+        return maxOperationSizeInBytes;
+    }
+
     public BulkItemRequest[] items() {
         return items;
     }
@@ -197,6 +215,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public long largestOperationSize() {
+        long maxOperationSize = 0;
+        for (BulkItemRequest item : items) {
+            maxOperationSize = Math.max(maxOperationSize, item.ramBytesUsed());
+        }
+        return maxOperationSize;
     }
 
     public boolean isSimulated() {

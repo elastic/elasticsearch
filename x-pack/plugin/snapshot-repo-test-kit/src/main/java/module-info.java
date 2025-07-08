@@ -17,8 +17,4 @@ module org.elasticsearch.repositories.blobstore.testkit {
 
     exports org.elasticsearch.repositories.blobstore.testkit.analyze;
     exports org.elasticsearch.repositories.blobstore.testkit.integrity;
-
-    provides org.elasticsearch.features.FeatureSpecification
-        with
-            org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKitFeatures;
 }

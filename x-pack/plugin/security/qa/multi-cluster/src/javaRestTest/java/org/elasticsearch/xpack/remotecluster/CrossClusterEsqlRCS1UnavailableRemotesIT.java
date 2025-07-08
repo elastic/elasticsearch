@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClusterSecurityTestCase {
@@ -94,6 +95,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
         assertThat((int) map.get("took"), greaterThan(0));
         assertThat(columns.size(), is(4));
         assertThat(values.size(), is(9));
+        assertThat((boolean) map.get("is_partial"), is(false));
 
         assertThat((int) clusters.get("total"), is(2));
         assertThat((int) clusters.get("successful"), is(2));
@@ -177,7 +179,14 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
             // A simple query that targets our remote cluster.
             String query = "FROM *,my_remote_cluster:* | LIMIT 10";
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(query)));
-            assertThat(ex.getMessage(), containsString("connect_transport_exception"));
+            assertThat(
+                ex.getMessage(),
+                anyOf(
+                    containsString("connect_transport_exception"),
+                    containsString("node_disconnected_exception"),
+                    containsString("node_not_connected_exception")
+                )
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();

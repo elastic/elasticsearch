@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -28,9 +29,9 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.MockReadinessService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -41,7 +42,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
@@ -99,12 +99,11 @@ public class MockNode extends Node {
             ThreadPool threadPool,
             ScriptService scriptService,
             BigArrays bigArrays,
-            RankFeatureShardPhase rankFeatureShardPhase,
             FetchPhase fetchPhase,
-            ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer
+            Tracer tracer,
+            OnlinePrewarmingService onlinePrewarmingService
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -114,26 +113,25 @@ public class MockNode extends Node {
                     threadPool,
                     scriptService,
                     bigArrays,
-                    rankFeatureShardPhase,
                     fetchPhase,
-                    responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    onlinePrewarmingService
                 );
             }
+
             return new MockSearchService(
                 clusterService,
                 indicesService,
                 threadPool,
                 scriptService,
                 bigArrays,
-                rankFeatureShardPhase,
                 fetchPhase,
-                responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
-                tracer
+                tracer,
+                onlinePrewarmingService
             );
         }
 
@@ -169,8 +167,10 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer
+            Tracer tracer,
+            String nodeId
         ) {
+
             // we use the MockTransportService.TestPlugin class as a marker to create a network
             // module with this MockNetworkService. NetworkService is such an integral part of the systme
             // we don't allow to plug it in from plugins or anything. this is a test-only override and
@@ -185,7 +185,8 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer
+                    tracer,
+                    nodeId
                 );
             } else {
                 return new MockTransportService(
@@ -195,17 +196,8 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders()
-                );
-            }
-        }
-
-        @Override
-        void processRecoverySettings(PluginsService pluginsService, ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-            if (pluginsService.filterPlugins(RecoverySettingsChunkSizePlugin.class).findAny().isEmpty() == false) {
-                clusterSettings.addSettingsUpdateConsumer(
-                    RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING,
-                    recoverySettings::setChunkSize
+                    taskManager.getTaskHeaders(),
+                    nodeId
                 );
             }
         }
@@ -279,10 +271,11 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
+        super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
+
             @Override
-            PluginsService newPluginService(Environment environment, Settings settings) {
-                return new MockPluginsService(settings, environment, classpathPlugins);
+            PluginsService newPluginService(Environment environment, PluginsLoader pluginsLoader) {
+                return new MockPluginsService(environment.settings(), environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));
 

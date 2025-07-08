@@ -29,7 +29,7 @@ public @interface GroupingAggregator {
     Class<? extends Exception>[] warnExceptions() default {};
 
     /**
-     * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.
+     * {@code true} if this is a time-series aggregation
      */
-    boolean includeTimestamps() default false;
+    boolean timeseries() default false;
 }

@@ -133,7 +133,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         if (testTemplate) {
             logger.info("-->  delete test template");
             cluster().wipeTemplates("test-template");
-            GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+            GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
             assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         }
 
@@ -161,7 +161,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
-        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> restore cluster state");
@@ -173,7 +173,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
 
         if (testTemplate) {
             logger.info("--> check that template is restored");
-            getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+            getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
             assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
         }
 
@@ -225,7 +225,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
             );
         }
 
-        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
 
         logger.info("--> try restoring index and cluster state from snapshot without global state");
@@ -238,7 +238,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
         logger.info("--> check that global state wasn't restored but index was");
-        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates().get();
+        getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         assertFalse(getPipelines("barbaz").isFound());
         assertNull(safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "foobar")).getSource());

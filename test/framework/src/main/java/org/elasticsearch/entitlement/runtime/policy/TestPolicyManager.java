@@ -63,7 +63,11 @@ public class TestPolicyManager extends PolicyManager {
         this.isTriviallyAllowingTestCode = newValue;
     }
 
-    public void addEntitledTestPackages(String[] entitledTestPackages) {
+    public void setEntitledTestPackages(String... entitledTestPackages) {
+        assertNoRedundantPrefixes(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages, false);
+        if (entitledTestPackages.length > 1) {
+            assertNoRedundantPrefixes(entitledTestPackages, entitledTestPackages, true);
+        }
         String[] packages = ArrayUtils.concat(this.entitledTestPackages, entitledTestPackages);
         Arrays.sort(packages);
         this.entitledTestPackages = packages;
@@ -120,13 +124,44 @@ public class TestPolicyManager extends PolicyManager {
     }
 
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
-        String packageName = requestingClass.getPackageName();
-        int idx = Arrays.binarySearch(entitledTestPackages, packageName);
+        return isTestFrameworkClass(entitledTestPackages, requestingClass.getPackageName());
+    }
+
+    // no redundant entries allowed, see assertNoRedundantPrefixes
+    static boolean isTestFrameworkClass(String[] sortedPrefixes, String packageName) {
+        int idx = Arrays.binarySearch(sortedPrefixes, packageName);
         if (idx >= 0) {
             return true;
         }
-        idx = -idx - 2; // candidate package (insertion point - 1)
-        return idx >= 0 && idx < entitledTestPackages.length && packageName.startsWith(entitledTestPackages[idx]);
+        idx = -idx - 2; // candidate package index (insertion point - 1)
+        if (idx >= 0 && idx < sortedPrefixes.length) {
+            String candidate = sortedPrefixes[idx];
+            if (packageName.startsWith(candidate)
+                && (packageName.length() == candidate.length() || packageName.charAt(candidate.length()) == '.')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isNotPrefixMatch(String name, String prefix, boolean discardExactMatch) {
+        assert prefix.endsWith(".") == false : "Invalid package prefix ending with '.' [" + prefix + "]";
+        if (name == prefix || name.startsWith(prefix)) {
+            if (name.length() == prefix.length()) {
+                return discardExactMatch;
+            }
+            return false == (name.length() > prefix.length() && name.charAt(prefix.length()) == '.');
+        }
+        return true;
+    }
+
+    static void assertNoRedundantPrefixes(String[] setA, String[] setB, boolean discardExactMatch) {
+        for (String a : setA) {
+            for (String b : setB) {
+                assert isNotPrefixMatch(a, b, discardExactMatch) && isNotPrefixMatch(b, a, discardExactMatch)
+                    : "Redundant prefix entries: [" + a + ", " + b + "]";
+            }
+        }
     }
 
     private boolean isTestCode(Class<?> requestingClass) {

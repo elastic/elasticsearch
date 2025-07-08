@@ -552,12 +552,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 }
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
-                        indicesService,
-                        indexShard,
-                        flags,
-                        java.util.Collections.singletonMap(shardId, sharedRam)
-                    );
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
                     if (indexShardStats == null) {
                         continue;
                     }
@@ -582,7 +577,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndicesService indicesService,
         final IndexShard indexShard,
         final CommonStatsFlags flags,
-        Map<org.elasticsearch.index.shard.ShardId, Long> precomputedSharedRam
+        Long precomputedSharedRam
     ) {
         if (indexShard.routingEntry() == null) {
             return null;

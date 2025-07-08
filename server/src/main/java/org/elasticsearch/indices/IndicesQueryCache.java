@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;

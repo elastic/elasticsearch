@@ -165,7 +165,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         IndicesQueryCache indicesQueryCache,
         IndexShard indexShard,
         CommonStatsFlags flags,
-        java.util.Map<org.elasticsearch.index.shard.ShardId, Long> precomputedSharedRam
+        Long precomputedSharedRam
     ) {
         // Filter shard level flags
         CommonStatsFlags filteredFlags = flags.clone();
@@ -187,11 +187,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Flush -> stats.flush = indexShard.flushStats();
                     case Warmer -> stats.warmer = indexShard.warmerStats();
                     case QueryCache -> {
-                        if (precomputedSharedRam != null && precomputedSharedRam.containsKey(indexShard.shardId())) {
-                            stats.queryCache = indicesQueryCache.getStats(
-                                indexShard.shardId(),
-                                precomputedSharedRam.get(indexShard.shardId())
-                            );
+                        if (precomputedSharedRam != null) {
+                            stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), precomputedSharedRam);
                         } else {
                             stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
                         }

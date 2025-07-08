@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -207,10 +206,6 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join instanceof InlineJoin) {
-                return new FragmentExec(bp);
-            }
-
             if (join.isRemote()) {
                 // This is generally wrong in case of pipeline breakers upstream from the join, but we validate against these.
                 // The only potential pipeline breakers upstream should be limits duplicated past the join from PushdownAndCombineLimits,
@@ -222,7 +217,7 @@ public class Mapper {
             PhysicalPlan left = map(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
-            if (left instanceof FragmentExec fragment) {
+            if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
@@ -236,7 +231,7 @@ public class Mapper {
                     config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
-                    join.output()
+                    join.rightOutputFields()
                 );
             }
             if (right instanceof FragmentExec fragment

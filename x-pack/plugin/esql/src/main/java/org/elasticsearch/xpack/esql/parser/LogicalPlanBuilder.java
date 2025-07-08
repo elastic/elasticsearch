@@ -727,16 +727,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
-        return fusePlanFactory(source(ctx), true);
-    }
-
-    @Override
     public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
-        return fusePlanFactory(source(ctx), false);
-    }
-
-    private PlanFactory fusePlanFactory(Source source, boolean sorted) {
+        Source source = source(ctx);
         return input -> {
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
@@ -747,19 +739,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
-
-            if (sorted == false) {
-                return dedup;
-            }
-
-            List<Order> order = List.of(
-                new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
-                new Order(source, idAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
-                new Order(source, indexAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
-            );
-
-            return new OrderBy(source, dedup, order);
+            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
         };
     }
 

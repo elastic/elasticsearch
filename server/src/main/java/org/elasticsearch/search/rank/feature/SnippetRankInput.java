@@ -33,7 +33,7 @@ public class SnippetRankInput implements CustomRankInput {
     }
 
     public SnippetRankInput(StreamInput in) throws IOException {
-        this.snippets = new RerankSnippetConfig(in);
+        this.snippets = in.readOptionalWriteable(RerankSnippetConfig::new);
         this.inferenceText = in.readString();
         this.tokenSizeLimit = in.readVInt();
     }
@@ -52,7 +52,7 @@ public class SnippetRankInput implements CustomRankInput {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        snippets.writeTo(out);
+        out.writeOptionalWriteable(snippets);
         out.writeString(inferenceText);
         out.writeVInt(tokenSizeLimit);
     }

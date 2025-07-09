@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
@@ -35,15 +36,13 @@ import java.util.Map;
 public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseRankShardContext {
 
     private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
-    private final RerankSnippetConfig snippets;
 
     public RerankingRankFeaturePhaseRankShardContext(String field) {
         this(field, null);
     }
 
-    public RerankingRankFeaturePhaseRankShardContext(String field, RerankSnippetConfig snippets) {
-        super(field);
-        this.snippets = snippets;
+    public RerankingRankFeaturePhaseRankShardContext(String field, CustomRankInput customRankInput) {
+        super(field, customRankInput);
     }
 
     @Override
@@ -54,7 +53,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
                 SearchHit hit = hits.getHits()[i];
                 DocumentField docField = hit.field(field);
-                if (docField != null && snippets == null) {
+                if (customRankInput == null && docField != null) {
                     rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
                 } else {
                     Map<String, HighlightField> highlightFields = hit.getHighlightFields();

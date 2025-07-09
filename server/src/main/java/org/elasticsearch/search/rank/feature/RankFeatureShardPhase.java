@@ -56,8 +56,8 @@ public final class RankFeatureShardPhase {
             String field = rankFeaturePhaseRankShardContext.getField();
             assert field != null : "field must not be null";
             searchContext.fetchFieldsContext(new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(field, null))));
-            CustomRankInput customRankInput = request.customRankInput();
-            if (customRankInput instanceof SnippetRankInput snippetRankInput) {
+            CustomRankInput customRankInput = rankFeaturePhaseRankShardContext.getCustomRankInput();
+            if (customRankInput instanceof SnippetRankInput snippetRankInput && snippetRankInput.snippets() != null) {
                 try {
                     HighlightBuilder highlightBuilder = new HighlightBuilder();
                     highlightBuilder.highlightQuery(snippetRankInput.snippets().snippetQueryBuilder());

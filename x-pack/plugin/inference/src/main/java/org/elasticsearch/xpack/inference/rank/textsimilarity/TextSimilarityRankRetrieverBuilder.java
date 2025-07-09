@@ -15,6 +15,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
+import org.elasticsearch.search.rank.feature.SnippetRankInput;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -202,7 +203,17 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.rankBuilder(
-            new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippets)
+            new TextSimilarityRankBuilder(
+                field,
+                inferenceId,
+                inferenceText,
+                rankWindowSize,
+                minScore,
+                failuresAllowed,
+                snippets != null
+                    ? new SnippetRankInput(snippets, inferenceText, TextSimilarityRankBuilder.tokenSizeLimit(inferenceId))
+                    : null
+            )
         );
         return sourceBuilder;
     }

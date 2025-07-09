@@ -28,7 +28,7 @@ import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
-import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
+import org.elasticsearch.search.rank.feature.SnippetRankInput;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -178,9 +178,9 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             Float minScore,
             boolean failuresAllowed,
             String throwingType,
-            RerankSnippetConfig snippets
+            SnippetRankInput snippetRankInput
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippets);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippetRankInput);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -198,7 +198,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
             if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
-                return new RankFeaturePhaseRankShardContext(field()) {
+                return new RankFeaturePhaseRankShardContext(field(), null) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                         throw new UnsupportedOperationException("rfs - simulated failure");

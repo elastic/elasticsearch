@@ -153,7 +153,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
             @Override
             public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                return new RankFeaturePhaseRankShardContext(field) {
+                return new RankFeaturePhaseRankShardContext(field, null) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];

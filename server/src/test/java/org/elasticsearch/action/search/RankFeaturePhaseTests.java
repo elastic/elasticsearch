@@ -41,6 +41,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
@@ -69,7 +70,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         DEFAULT_RANK_WINDOW_SIZE,
         defaultQueryPhaseRankShardContext(new ArrayList<>(), DEFAULT_RANK_WINDOW_SIZE),
         defaultQueryPhaseRankCoordinatorContext(DEFAULT_RANK_WINDOW_SIZE),
-        defaultRankFeaturePhaseRankShardContext(DEFAULT_FIELD),
+        defaultRankFeaturePhaseRankShardContext(DEFAULT_FIELD, null),
         defaultRankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE)
     );
 
@@ -502,7 +503,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             DEFAULT_RANK_WINDOW_SIZE,
             defaultQueryPhaseRankShardContext(Collections.emptyList(), DEFAULT_RANK_WINDOW_SIZE),
             defaultQueryPhaseRankCoordinatorContext(DEFAULT_RANK_WINDOW_SIZE),
-            defaultRankFeaturePhaseRankShardContext(DEFAULT_FIELD),
+            defaultRankFeaturePhaseRankShardContext(DEFAULT_FIELD, null),
             defaultRankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE)
         );
         // create a SearchSource to attach to the request
@@ -648,7 +649,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             rankWindowSize,
             defaultQueryPhaseRankShardContext(Collections.emptyList(), rankWindowSize),
             defaultQueryPhaseRankCoordinatorContext(rankWindowSize),
-            defaultRankFeaturePhaseRankShardContext(DEFAULT_FIELD),
+            defaultRankFeaturePhaseRankShardContext(DEFAULT_FIELD, null),
             defaultRankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, rankWindowSize)
         );
         // create a SearchSource to attach to the request
@@ -804,8 +805,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
         };
     }
 
-    private RankFeaturePhaseRankShardContext defaultRankFeaturePhaseRankShardContext(String field) {
-        return new RankFeaturePhaseRankShardContext(field) {
+    private RankFeaturePhaseRankShardContext defaultRankFeaturePhaseRankShardContext(String field, CustomRankInput customRankInput) {
+        return new RankFeaturePhaseRankShardContext(field, customRankInput) {
             @Override
             public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                 RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];

@@ -515,7 +515,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
                             @Override
                             public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName, null) {
                                     @Override
                                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
@@ -752,7 +752,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
                                 @Override
                                 public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName, null) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                                             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
@@ -879,7 +879,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
                             @Override
                             public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName, null) {
                                     @Override
                                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
@@ -1012,7 +1012,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
                                 @Override
                                 public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName, null) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                                             throw new UnsupportedOperationException("simulated failure");
@@ -1140,7 +1140,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
                                 @Override
                                 public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName, null) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                                             if (shardId == 0) {

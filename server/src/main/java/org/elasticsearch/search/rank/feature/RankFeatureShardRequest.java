@@ -40,29 +40,16 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
 
     private final int[] docIds;
 
-    private final CustomRankInput customRankInput;
-
     public RankFeatureShardRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId contextId,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds
     ) {
-        this(originalIndices, contextId, shardSearchRequest, docIds, null);
-    }
-
-    public RankFeatureShardRequest(
-        OriginalIndices originalIndices,
-        ShardSearchContextId contextId,
-        ShardSearchRequest shardSearchRequest,
-        List<Integer> docIds,
-        @Nullable CustomRankInput customRankInput
-    ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
         this.docIds = docIds.stream().flatMapToInt(IntStream::of).toArray();
         this.contextId = contextId;
-        this.customRankInput = customRankInput;
     }
 
     public RankFeatureShardRequest(StreamInput in) throws IOException {
@@ -71,16 +58,6 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
         docIds = in.readIntArray();
         contextId = in.readOptionalWriteable(ShardSearchContextId::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            String name = in.readOptionalString();
-            if (name != null && name.equals(SnippetRankInput.NAME)) {
-                customRankInput = new SnippetRankInput(in);
-            } else {
-                customRankInput = null;
-            }
-        } else {
-            customRankInput = null;
-        }
     }
 
     @Override
@@ -90,13 +67,6 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         out.writeOptionalWriteable(shardSearchRequest);
         out.writeIntArray(docIds);
         out.writeOptionalWriteable(contextId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            String name = customRankInput != null ? customRankInput.name() : null;
-            out.writeOptionalString(name);
-            if (customRankInput != null) {
-                customRankInput.writeTo(out);
-            }
-        }
     }
 
     @Override
@@ -125,10 +95,6 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
 
     public ShardSearchContextId contextId() {
         return contextId;
-    }
-
-    public CustomRankInput customRankInput() {
-        return customRankInput;
     }
 
     @Override

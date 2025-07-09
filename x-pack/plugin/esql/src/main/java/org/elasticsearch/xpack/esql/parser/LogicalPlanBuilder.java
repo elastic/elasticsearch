@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
@@ -90,7 +89,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -514,8 +512,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
-        String stringValue = policyToken.getText();
+    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+        String stringValue;
+        if (ctx.ENRICH_POLICY_NAME() != null) {
+            stringValue = ctx.ENRICH_POLICY_NAME().getText();
+        } else {
+            stringValue = ctx.QUOTED_STRING().getText();
+            stringValue = stringValue.substring(1, stringValue.length() - 1);
+        }
+
         int index = stringValue.indexOf(":");
         Mode mode = null;
         if (index >= 0) {
@@ -527,7 +532,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (mode == null) {
                 throw new ParsingException(
-                    source(policyToken),
+                    source(ctx),
                     "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
                     modeValue,
                     Arrays.stream(Mode.values()).map(s -> "_" + s).toList()

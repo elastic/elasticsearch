@@ -8,13 +8,10 @@
  */
 
 
+
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.testclusters.TestClusterValueSource
-import org.elasticsearch.gradle.testclusters.TestClustersRegistry
-import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -89,6 +86,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         setting 'health.master_history.no_master_transitions_threshold', '10'
       }
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+      requiresFeature 'sub_objects_auto', Version.fromString("8.16.0")
       if (bwcVersion.before(Version.fromString("8.18.0"))) {
         jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
         jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'

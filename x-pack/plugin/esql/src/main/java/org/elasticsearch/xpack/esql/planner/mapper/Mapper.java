@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -191,7 +190,7 @@ public class Mapper {
         // TODO: share code with local LocalMapper?
         if (unary instanceof Sample sample) {
             mappedChild = addExchangeForFragment(sample, mappedChild);
-            return new SampleExec(sample.source(), mappedChild, sample.probability(), sample.seed());
+            return new SampleExec(sample.source(), mappedChild, sample.probability());
         }
 
         //
@@ -207,14 +206,10 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join instanceof InlineJoin) {
-                return new FragmentExec(bp);
-            }
-
             PhysicalPlan left = map(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
-            if (left instanceof FragmentExec fragment) {
+            if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
@@ -228,7 +223,7 @@ public class Mapper {
                     config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
-                    join.output()
+                    join.rightOutputFields()
                 );
             }
             if (right instanceof FragmentExec fragment

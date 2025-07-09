@@ -243,13 +243,6 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
-        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
-        long maxSeqNo = seqNoStats.maxSeqNo();
-        long localCheckpoint = seqNoStats.localCheckpoint();
-        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
-    }
-
     private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
         assert config.getTranslogConfig().hasTranslog();
         final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
@@ -446,7 +439,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        listener.onResponse(RefreshResult.NO_REFRESH);
+        ActionListener.completeWith(listener, () -> refresh(source));
     }
 
     @Override

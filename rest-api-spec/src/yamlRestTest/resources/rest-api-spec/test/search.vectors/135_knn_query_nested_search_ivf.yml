@@ -1,0 +1,193 @@
+setup:
+  - requires:
+      cluster_features: "mapper.ivf_nested_support"
+      reason: 'ivf nested support required'
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    dims: 5
+                    index: true
+                    similarity: l2_norm
+                    index_options:
+                      type: bbq_ivf
+
+          aliases:
+            my_alias:
+              filter:
+                term:
+                  name: "rabbit.jpg"
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          nested:
+          - paragraph_id: 0
+            vector: [230, 300.33, -34.8988, 15.555, -200]
+          - paragraph_id: 1
+            vector: [240, 300, -3, 1, -20]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+          - paragraph_id: 0
+            vector: [-0.5, 100, -13, 14.8, -156]
+          - paragraph_id: 2
+            vector: [0, 100, 0, 14.8, -156]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [0.5, 111.3, -13, 14.8, -156]
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: {}
+
+---
+"nested kNN search that returns diverse parents docs":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [-0.5, 90, -10, 14.8, -156]
+                  num_candidates: 3
+  - match: {hits.total.value: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90, -10, 14.8, -156 ]
+                  num_candidates: 3
+              inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
+
+  - match: {hits.total.value: 3}
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: "rabbit.jpg" }
+  - match: { hits.hits.1.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2.fields.name.0: "cow.jpg" }
+  - match: { hits.hits.2.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+
+---
+"nested kNN search pre-filtered on alias with filter on top level fields":
+  - do:
+      search:
+        index: my_alias # filter on name: "rabbit.jpg"
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  num_candidates: 1
+              inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
+
+  - match: {hits.total.value: 1}  # as alias is passed as pre-filter, we get a single result
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
+
+---
+"nested kNN search post-filtered on top level fields":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            bool:
+              must:
+                - term:
+                    name: "rabbit.jpg"
+                - nested:
+                    path: nested
+                    query:
+                      knn:
+                        field: nested.vector
+                        query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                        num_candidates: 1
+  - match: { hits.total.value: 0 } # no hits because returned single vector did not pass post-filter
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          query:
+            bool:
+              must:
+                - term:
+                    name: "rabbit.jpg"
+                - nested:
+                    path: nested
+                    query:
+                      knn:
+                        field: nested.vector
+                        query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                        num_candidates: 3
+                    inner_hits: { size: 1, fields: [ "nested.paragraph_id" ], _source: false }
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }

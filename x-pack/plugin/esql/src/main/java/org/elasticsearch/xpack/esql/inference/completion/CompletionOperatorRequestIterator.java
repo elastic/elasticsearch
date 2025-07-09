@@ -58,6 +58,10 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
      * Wraps a single prompt string into an {@link InferenceAction.Request}.
      */
     private InferenceAction.Request inferenceRequest(String prompt) {
+        if (prompt == null) {
+            return null;
+        }
+
         return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
     }
 

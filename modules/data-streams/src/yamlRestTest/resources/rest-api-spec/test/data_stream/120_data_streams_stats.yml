@@ -185,8 +185,19 @@ setup:
         body:  { "@timestamp": 1593639468350 }
         refresh: true
 
+  # Wait for the shards to be allocated to avoid missing results in the stats request
+  # See https://github.com/elastic/elasticsearch/issues/118217#issuecomment-2996315057 for more context
+  - do:
+      cluster.health:
+        index: simple-data-stream1,simple-data-stream2
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
+
   - do:
       indices.data_streams_stats: {}
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.failed: 0 }
   - match: { data_stream_count: 2 }
   - match: { backing_indices: 3 }
   - length: { data_streams: 2 }

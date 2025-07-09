@@ -46,8 +46,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
         assertThat(result.allAssignments().isEmpty(), is(true));
     }
@@ -82,8 +81,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(currentMetadata, equalTo(result));
@@ -122,8 +120,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -152,8 +149,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
                 Map.of(),
                 Map.of(),
                 Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-                1,
-                false
+                1
             ).rebalance()
         );
     }
@@ -168,8 +164,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             Map.of(),
             Map.of(),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -196,8 +191,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -233,8 +227,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -270,8 +263,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -307,8 +299,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -341,8 +332,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -381,8 +371,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -446,8 +435,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2, node3)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -511,8 +499,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -582,8 +569,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(2)));
@@ -632,8 +618,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assertThat(result.allAssignments(), is(aMapWithSize(1)));
@@ -667,8 +652,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
@@ -714,8 +698,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams1, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(deployment1);
@@ -754,8 +737,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         {
@@ -809,8 +791,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of("zone-1"), List.of(node1), List.of("zone-2"), List.of(node2)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         List<String> assignedNodes = new ArrayList<>();
@@ -864,8 +845,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         {
@@ -915,8 +895,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.empty(),
-            1,
-            false
+            1
         ).rebalance().build();
 
         {
@@ -967,8 +946,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams2, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         {
@@ -1021,8 +999,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams2, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         {
@@ -1075,8 +1052,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node1, node2)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams2, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         {
@@ -1122,8 +1098,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            2,
-            false
+            2
         ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
@@ -1145,8 +1120,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             nodeLoads,
             Map.of(List.of(), List.of(node)),
             Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
-            1,
-            false
+            1
         ).rebalance().build();
 
         assignment = result.getDeploymentAssignment(modelId);

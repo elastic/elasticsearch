@@ -17,6 +17,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -27,8 +28,8 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.internal.CancellableBulkScorer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -160,8 +161,8 @@ public class QueryToFilterAdapter {
                 query = ((ConstantScoreQuery) query).getQuery();
                 continue;
             }
-            if (query instanceof XIndexSortSortedNumericDocValuesRangeQuery) {
-                query = ((XIndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+            if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
+                query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
                 continue;
             }
             if (query instanceof IndexOrDocValuesQuery) {
@@ -192,7 +193,7 @@ public class QueryToFilterAdapter {
     /**
      * Count the number of documents that match this filter in a leaf.
      */
-    long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
+    long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live, Runnable checkCancelled) throws IOException {
         /*
          * weight().count will return the count of matches for ctx if it can do
          * so in constant time, otherwise -1. The Weight is responsible for
@@ -216,20 +217,22 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return 0;
         }
-        scorer.score(counter, live, 0, DocIdSetIterator.NO_MORE_DOCS);
+        CancellableBulkScorer cancellableScorer = new CancellableBulkScorer(scorer, checkCancelled);
+        cancellableScorer.score(counter, live, 0, DocIdSetIterator.NO_MORE_DOCS);
         return counter.readAndReset(ctx);
     }
 
     /**
      * Collect all documents that match this filter in this leaf.
      */
-    void collect(LeafReaderContext ctx, LeafCollector collector, Bits live) throws IOException {
+    void collect(LeafReaderContext ctx, LeafCollector collector, Bits live, Runnable checkCancelled) throws IOException {
         BulkScorer scorer = weight().bulkScorer(ctx);
         if (scorer == null) {
             // No hits in this segment.
             return;
         }
-        scorer.score(collector, live, 0, DocIdSetIterator.NO_MORE_DOCS);
+        CancellableBulkScorer cancellableScorer = new CancellableBulkScorer(scorer, checkCancelled);
+        cancellableScorer.score(collector, live, 0, DocIdSetIterator.NO_MORE_DOCS);
     }
 
     /**

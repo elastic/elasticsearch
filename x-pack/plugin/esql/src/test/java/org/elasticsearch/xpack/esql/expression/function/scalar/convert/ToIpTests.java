@@ -143,8 +143,8 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
         return new MapExpression(
             Source.EMPTY,
             List.of(
-                new Literal(Source.EMPTY, "leading_zeros", DataType.KEYWORD),
-                new Literal(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT), DataType.KEYWORD)
+                Literal.keyword(Source.EMPTY, "leading_zeros"),
+                Literal.keyword(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT))
             )
         );
     }
@@ -182,8 +182,10 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String stringEvaluator(ToIp.LeadingZeros leadingZeros) {
+        if (leadingZeros == null) {
+            return "ParseIpLeadingZerosRejectedEvaluator[string=" + readEvaluator() + "]";
+        }
         return switch (leadingZeros) {
-            case null -> "ParseIpLeadingZerosRejectedEvaluator";
             case REJECT -> "ParseIpLeadingZerosRejectedEvaluator";
             case DECIMAL -> "ParseIpLeadingZerosAreDecimalEvaluator";
             case OCTAL -> "ParseIpLeadingZerosAreOctalEvaluator";

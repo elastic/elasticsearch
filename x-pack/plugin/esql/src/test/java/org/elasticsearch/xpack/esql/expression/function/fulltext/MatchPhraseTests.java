@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +30,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
@@ -40,11 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match_phrase")
 public class MatchPhraseTests extends AbstractFunctionTestCase {
-
-    @Before
-    public void checkCapability() {
-        assumeTrue("MatchPhrase is not supported in this version of ESQL", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
-    }
 
     public MatchPhraseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -94,7 +86,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD))
+                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
                         UNSUPPORTED,
                         "options"

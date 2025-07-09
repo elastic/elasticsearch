@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +53,7 @@ public class ReproduceInfoPrinter extends RunListener {
      * Are we in the integ test phase?
      */
     static boolean inVerifyPhase() {
-        return Boolean.parseBoolean(System.getProperty("tests.verify.phase"));
+        return Booleans.parseBoolean(System.getProperty("tests.verify.phase", "false"));
     }
 
     @Override
@@ -65,7 +66,9 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
+        boolean isBwcTest = Booleans.parseBoolean(System.getProperty("tests.bwc", "false"))
+            || System.getProperty("tests.bwc.main.version") != null
+            || System.getProperty("tests.bwc.refspec.main") != null;
 
         // append Gradle test runner test filter string
         b.append("\"" + task + "\"");
@@ -104,7 +107,7 @@ public class ReproduceInfoPrinter extends RunListener {
     }
 
     private static boolean isRestApiCompatibilityTest() {
-        return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
+        return Booleans.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     @SuppressForbidden(reason = "printing repro info")
@@ -174,12 +177,14 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.bwc",
                 "tests.bwc.version",
                 "build.snapshot",
-                "tests.configure_test_clusters_with_one_processor"
+                "tests.configure_test_clusters_with_one_processor",
+                "tests.bwc.main.version",
+                "tests.bwc.refspec.main"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
-            if (Boolean.parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
+            if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
                 appendOpt("license.key", "x-pack/license-tools/src/test/resources/public.key");
             }
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());

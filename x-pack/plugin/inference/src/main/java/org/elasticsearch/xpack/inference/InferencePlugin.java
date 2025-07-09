@@ -149,10 +149,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.inference.CustomServiceFeatureFlag.CUSTOM_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 
@@ -344,22 +342,24 @@ public class InferencePlugin extends Plugin
         }
         inferenceServiceRegistry.set(serviceRegistry);
 
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var inferenceStats = InferenceStats.create(meterRegistry);
+        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
+
         var actionFilter = new ShardBulkInferenceActionFilter(
             services.clusterService(),
             serviceRegistry,
             modelRegistry.get(),
             getLicenseState(),
-            services.indexingPressure()
+            services.indexingPressure(),
+            inferenceStats
         );
         shardBulkInferenceActionFilter.set(actionFilter);
-
-        var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
         components.add(httpClientManager);
-        components.add(inferenceStats);
+        components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
         // if the rate limiting feature flags are enabled, otherwise provide noop implementation
@@ -382,11 +382,7 @@ public class InferencePlugin extends Plugin
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-        List<InferenceServiceExtension.Factory> conditionalServices = CUSTOM_SERVICE_FEATURE_FLAG.isEnabled()
-            ? List.of(context -> new CustomService(httpFactory.get(), serviceComponents.get()))
-            : List.of();
-
-        List<InferenceServiceExtension.Factory> availableServices = List.of(
+        return List.of(
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
@@ -403,10 +399,9 @@ public class InferencePlugin extends Plugin
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
-            ElasticsearchInternalService::new
+            ElasticsearchInternalService::new,
+            context -> new CustomService(httpFactory.get(), serviceComponents.get())
         );
-
-        return Stream.concat(availableServices.stream(), conditionalServices.stream()).toList();
     }
 
     @Override

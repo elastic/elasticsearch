@@ -112,7 +112,9 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
             matchesMap().entry("documents_found", documentsFound)
                 .entry(
                     "profile",
-                    matchesMap().entry("drivers", instanceOf(List.class))
+                    matchesMap() //
+                        .entry("drivers", instanceOf(List.class))
+                        .entry("plans", instanceOf(List.class))
                         .entry("planning", matchesMap().extraOk())
                         .entry("query", matchesMap().extraOk())
                 )

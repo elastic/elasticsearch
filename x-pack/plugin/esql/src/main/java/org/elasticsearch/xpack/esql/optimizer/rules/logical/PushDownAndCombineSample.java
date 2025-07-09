@@ -62,8 +62,7 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
         var child = sample.child();
         if (child instanceof Sample sampleChild) {
             var probability = combinedProbability(context, sample, sampleChild);
-            var seed = combinedSeed(context, sample, sampleChild);
-            plan = new Sample(sample.source(), probability, seed, sampleChild.child());
+            plan = new Sample(sample.source(), probability, sampleChild.child());
         } else if (child instanceof Enrich
             || child instanceof Eval
             || child instanceof Filter
@@ -81,23 +80,5 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
         var parentProbability = (double) Foldables.valueOf(context.foldCtx(), parent.probability());
         var childProbability = (double) Foldables.valueOf(context.foldCtx(), child.probability());
         return Literal.of(parent.probability(), parentProbability * childProbability);
-    }
-
-    private static Expression combinedSeed(LogicalOptimizerContext context, Sample parent, Sample child) {
-        var parentSeed = parent.seed();
-        var childSeed = child.seed();
-        Expression seed;
-        if (parentSeed != null) {
-            if (childSeed != null) {
-                var seedValue = (int) Foldables.valueOf(context.foldCtx(), parentSeed);
-                seedValue ^= (int) Foldables.valueOf(context.foldCtx(), childSeed);
-                seed = Literal.of(parentSeed, seedValue);
-            } else {
-                seed = parentSeed;
-            }
-        } else {
-            seed = childSeed;
-        }
-        return seed;
     }
 }

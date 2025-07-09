@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -130,7 +130,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
-            new ClusterStateRequest(request.masterNodeTimeout()).clear().metadata(true),
+            new RemoteClusterStateRequest(request.masterNodeTimeout()).clear().metadata(true),
             listener::onFailure,
             consumer
         );
@@ -151,7 +151,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
-        AutoFollowMetadata currentAutoFollowMetadata = localState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        final var localProject = localState.metadata().getProject();
+        AutoFollowMetadata currentAutoFollowMetadata = localProject.custom(AutoFollowMetadata.TYPE);
         Map<String, List<String>> followedLeaderIndices;
         Map<String, AutoFollowPattern> patterns;
         Map<String, Map<String, String>> headers;
@@ -215,8 +216,9 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         );
         patterns.put(request.getName(), autoFollowPattern);
 
-        return localState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
+        return localState.copyAndUpdateProject(
+            localProject.id(),
+            builder -> builder.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
         );
     }
 

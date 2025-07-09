@@ -91,7 +91,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             "https://us-east1-aiplatform.googleapis.com/v1/projects/my-gcp-project"
                 + "/locations/global/publishers/google/models/gemini-1.5-flash-001:streamGenerateContent?alt=sse"
         );
-        URI actualUri = GoogleVertexAiChatCompletionModel.buildUri(location, projectId, model);
+        URI actualUri = GoogleVertexAiChatCompletionModel.buildUriStreaming(location, projectId, model);
         assertThat(actualUri, is(expectedUri));
     }
 
@@ -113,6 +113,6 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
     }
 
     public static URI buildDefaultUri() throws URISyntaxException {
-        return GoogleVertexAiChatCompletionModel.buildUri(DEFAULT_LOCATION, DEFAULT_PROJECT_ID, DEFAULT_MODEL_ID);
+        return GoogleVertexAiChatCompletionModel.buildUriStreaming(DEFAULT_LOCATION, DEFAULT_PROJECT_ID, DEFAULT_MODEL_ID);
     }
 }

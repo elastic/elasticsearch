@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
@@ -126,23 +128,28 @@ public class SearchContextStats implements SearchStats {
         return false;
     }
 
-    public boolean exists(String field) {
-        var stat = cache.get(field);
-        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field);
+    @Override
+    public boolean exists(FieldName field) {
+        var stat = cache.get(field.string());
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.string());
     }
 
-    public boolean isIndexed(String field) {
-        return cache.computeIfAbsent(field, this::makeFieldStats).config.indexed;
+    @Override
+    public boolean isIndexed(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.indexed;
     }
 
-    public boolean hasDocValues(String field) {
-        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasDocValues;
+    @Override
+    public boolean hasDocValues(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
     }
 
-    public boolean hasExactSubfield(String field) {
-        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasExactSubfield;
+    @Override
+    public boolean hasExactSubfield(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
     }
 
+    @Override
     public long count() {
         var count = new long[] { 0 };
         boolean completed = doWithContexts(r -> {
@@ -152,12 +159,13 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public long count(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public long count(FieldName field) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.count == null) {
             var count = new long[] { 0 };
             boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field);
+                count[0] += countEntries(r, field.string());
                 return true;
             }, false);
             stat.count = completed ? count[0] : -1;
@@ -165,9 +173,10 @@ public class SearchContextStats implements SearchStats {
         return stat.count;
     }
 
-    public long count(String field, BytesRef value) {
+    @Override
+    public long count(FieldName field, BytesRef value) {
         var count = new long[] { 0 };
-        Term term = new Term(field, value);
+        Term term = new Term(field.string(), value);
         boolean completed = doWithContexts(r -> {
             count[0] += r.docFreq(term);
             return true;
@@ -175,12 +184,13 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public byte[] min(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public byte[] min(FieldName field, DataType dataType) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.min == null) {
             var min = new byte[][] { null };
             doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field);
+                byte[] localMin = PointValues.getMinPackedValue(r, field.string());
                 // TODO: how to compare with the previous min
                 if (localMin != null) {
                     if (min[0] == null) {
@@ -197,12 +207,13 @@ public class SearchContextStats implements SearchStats {
         return null;
     }
 
-    public byte[] max(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public byte[] max(FieldName field, DataType dataType) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.max == null) {
             var max = new byte[][] { null };
             doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field);
+                byte[] localMax = PointValues.getMaxPackedValue(r, field.string());
                 // TODO: how to compare with the previous max
                 if (localMax != null) {
                     if (max[0] == null) {
@@ -219,8 +230,10 @@ public class SearchContextStats implements SearchStats {
         return null;
     }
 
-    public boolean isSingleValue(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public boolean isSingleValue(FieldName field) {
+        String fieldName = field.string();
+        var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
             if (stat.config.exists == false) {
@@ -229,11 +242,11 @@ public class SearchContextStats implements SearchStats {
                 // fields are MV per default
                 var sv = new boolean[] { false };
                 for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(field) ? context.getFieldType(field) : null;
+                    MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
                     if (mappedType != null) {
                         sv[0] = true;
                         doWithContexts(r -> {
-                            sv[0] &= detectSingleValue(r, mappedType, field);
+                            sv[0] &= detectSingleValue(r, mappedType, fieldName);
                             return sv[0];
                         }, true);
                         break;
@@ -293,9 +306,9 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
-    public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
         for (SearchExecutionContext ctx : contexts) {
-            MappedFieldType type = ctx.getFieldType(name);
+            MappedFieldType type = ctx.getFieldType(name.string());
             if (type == null) {
                 return false;
             }
@@ -310,10 +323,11 @@ public class SearchContextStats implements SearchStats {
         return true;
     }
 
-    public String constantValue(String name) {
+    @Override
+    public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {
-            MappedFieldType f = ctx.getFieldType(name);
+            MappedFieldType f = ctx.getFieldType(name.string());
             if (f == null) {
                 return null;
             }

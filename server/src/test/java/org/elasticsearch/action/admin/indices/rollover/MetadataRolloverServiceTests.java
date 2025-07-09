@@ -63,8 +63,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -651,17 +649,17 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             );
             long after = testThreadPool.absoluteTimeInMillis();
             Settings rolledOverIndexSettings = rolloverResult.clusterState()
-                .projectState(projectId)
                 .metadata()
+                .getProject(projectId)
                 .index(rolloverResult.rolloverIndexName())
                 .getSettings();
             Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
-            for (String settingName : dataStream.getEffectiveSettings(clusterState.projectState(projectId).metadata()).keySet()) {
+            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata().getProject(projectId)).keySet()) {
                 assertTrue(rolledOverIndexSettingNames.contains(settingName));
             }
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            String newIndexName = rolloverResult.rolloverIndexName();
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            assertThat(newIndexName, DataStreamTestHelper.backingIndexEqualTo(dataStream.getName(), (int) dataStream.getGeneration() + 1));
             ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
@@ -770,13 +768,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final String sourceIndexName;
         final String defaultRolloverIndexName;
         final boolean useDataStream = randomBoolean();
+        final var now = Instant.now();
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         boolean isFailureStoreRollover = false;
         if (useDataStream) {
-            DataStream dataStream = DataStreamTestHelper.randomInstance()
-                // ensure no replicate data stream
-                .promoteDataStream();
+            // ensure no replicate data stream
+            DataStream dataStream = DataStreamTestHelper.randomInstance(now::toEpochMilli).promoteDataStream();
             rolloverTarget = dataStream.getName();
             if (dataStream.isFailureStoreExplicitlyEnabled() && randomBoolean()) {
                 sourceIndexName = dataStream.getWriteFailureIndex().getName();
@@ -784,11 +782,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(
                     dataStream.getName(),
                     dataStream.getGeneration() + 1,
-                    System.currentTimeMillis()
+                    now.toEpochMilli()
                 );
             } else {
                 sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
-                defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+                defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(
+                    dataStream.getName(),
+                    dataStream.getGeneration() + 1,
+                    now.toEpochMilli()
+                );
             }
             ComposableIndexTemplate template = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStream.getName() + "*"))
@@ -835,7 +837,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             newIndexName,
             new CreateIndexRequest("_na_"),
             null,
-            Instant.now(),
+            now,
             randomBoolean(),
             true,
             null,

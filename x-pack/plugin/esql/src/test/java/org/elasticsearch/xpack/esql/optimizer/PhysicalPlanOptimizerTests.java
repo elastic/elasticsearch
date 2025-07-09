@@ -109,8 +109,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -136,6 +136,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -988,12 +989,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var bq = as(source.query(), BoolQueryBuilder.class);
         assertThat(bq.must(), hasSize(2));
         var first = as(sv(bq.must().get(0), "emp_no"), RangeQueryBuilder.class);
-        assertThat(first.fieldName(), equalTo("emp_no"));
+        assertThat(first.fieldName().toString(), equalTo("emp_no"));
         assertThat(first.from(), equalTo(-1));
         assertThat(first.includeLower(), equalTo(false));
         assertThat(first.to(), nullValue());
         var second = as(sv(bq.must().get(1), "salary"), RangeQueryBuilder.class);
-        assertThat(second.fieldName(), equalTo("salary"));
+        assertThat(second.fieldName().toString(), equalTo("salary"));
         assertThat(second.from(), nullValue());
         assertThat(second.to(), equalTo(10));
         assertThat(second.includeUpper(), equalTo(false));
@@ -2442,7 +2443,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(range2.fieldName(), is("first_name"));
         var sort = source.sorts();
         assertThat(sort.size(), is(1));
-        assertThat(sort.get(0).field().fieldName(), is("first_name"));
+        assertThat(sort.get(0).field().fieldName().string(), is("first_name"));
     }
 
     /**
@@ -2501,7 +2502,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(exists.fieldName(), is("first_name"));
         var sort = source.sorts();
         assertThat(sort.size(), is(1));
-        assertThat(sort.get(0).field().fieldName(), is("last_name"));
+        assertThat(sort.get(0).field().fieldName().string(), is("last_name"));
     }
 
     /**
@@ -2547,7 +2548,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var source = as(exchange.child(), LocalSourceExec.class);
-        assertEquals(LocalSupplier.EMPTY, source.supplier());
+        assertEquals(EmptyLocalSupplier.EMPTY, source.supplier());
     }
 
     /**
@@ -2913,7 +2914,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
-        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var planWithInvalidJoinRightSide = plan.transformUp(
             LookupJoinExec.class,
@@ -3223,8 +3224,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var stats = new EsqlTestUtils.TestSearchStats() {
-            public boolean exists(String field) {
-                return "salary".equals(field);
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return "salary".equals(field.string());
             }
         };
         var optimized = optimizedPlan(plan, stats);
@@ -5092,7 +5094,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias.name(), is("distance"));
         var stDistance = as(alias.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
 
         // Validate the filter condition
         var and = as(filter.condition(), And.class);
@@ -5146,7 +5148,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.value(), instanceOf(BytesRef.class));
         assertThat(poiRef.value().toString(), is(poi.value().toString()));
@@ -6502,7 +6504,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.value(), instanceOf(BytesRef.class));
         assertThat(poiRef.value().toString(), is(poi.value().toString()));
@@ -6688,7 +6690,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias2.name(), is("distance"));
         var stDistance = as(alias2.child(), StDistance.class);
         var location = as(stDistance.left(), FieldAttribute.class);
-        assertThat(location.fieldName(), is("location"));
+        assertThat(location.fieldName().string(), is("location"));
         var poiRef = as(stDistance.right(), Literal.class);
         assertThat(poiRef.value(), instanceOf(BytesRef.class));
         assertThat(poiRef.value().toString(), is(poi.value().toString()));
@@ -7841,7 +7843,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        plan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), plan, TEST_SEARCH_STATS);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -8045,11 +8047,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
      */
     public void testSamplePushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var plan = physicalPlan("""
             FROM test
-            | SAMPLE +0.1 -234
+            | SAMPLE +0.1
             """);
         var optimized = optimizedPlan(plan);
 
@@ -8063,22 +8065,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = boolQuery.filter();
         var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
         assertThat(randomSampling.probability(), equalTo(0.1));
-        assertThat(randomSampling.seed(), equalTo(-234));
         assertThat(randomSampling.hash(), equalTo(0));
-    }
-
-    public void testSample_seedNotSupportedInOperator() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE.isEnabled());
-
-        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1"));
-        optimizedPlan(physicalPlan("FROM test | SAMPLE 0.1 42"));
-        optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1"));
-
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> optimizedPlan(physicalPlan("FROM test | MV_EXPAND first_name | SAMPLE 0.1 42"))
-        );
-        assertThat(e.getMessage(), equalTo("Found 1 problem\nline 1:47: Seed not supported when sampling can't be pushed down to Lucene"));
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -8223,7 +8210,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats);
+            var localPlan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), fragment, searchStats);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 
@@ -8261,7 +8248,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query, config)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);
@@ -8297,12 +8284,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final SearchStats SEARCH_STATS_SHORT_DELEGATES = new EsqlTestUtils.TestSearchStats() {
         @Override
-        public boolean hasExactSubfield(String field) {
+        public boolean hasExactSubfield(FieldAttribute.FieldName field) {
             return false;
         }
 
         @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
             return value.length() < 4;
         }
     };

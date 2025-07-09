@@ -974,7 +974,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     {
                            "service": "googlevertexai",
                            "name": "Google Vertex AI",
-                           "task_types": ["text_embedding", "rerank", "chat_completion"],
+                           "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                            "configurations": {
                                "service_account_json": {
                                    "description": "API Key for the provider you're connecting to.",
@@ -983,7 +983,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "sensitive": true,
                                    "updatable": true,
                                    "type": "str",
-                                   "supported_task_types": ["text_embedding", "rerank", "chat_completion"]
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "project_id": {
                                    "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
@@ -992,7 +992,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
-                                   "supported_task_types": ["text_embedding", "rerank", "chat_completion"]
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "location": {
                                    "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
@@ -1001,7 +1001,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
-                                   "supported_task_types": ["text_embedding", "chat_completion"]
+                                   "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                },
                                "rate_limit.requests_per_minute": {
                                    "description": "Minimize the number of rate limit errors.",
@@ -1010,7 +1010,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "int",
-                                   "supported_task_types": ["text_embedding", "rerank", "chat_completion"]
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "model_id": {
                                    "description": "ID of the LLM you're using.",
@@ -1019,7 +1019,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
-                                   "supported_task_types": ["text_embedding", "rerank", "chat_completion"]
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                }
                            }
                        }

@@ -242,8 +242,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         final FlatVectorsScorer delegate;
         final VectorScorerFactory factory;
 
-        ESFlatVectorsScorer(FlatVectorsScorer delegte) {
-            this.delegate = delegte;
+        ESFlatVectorsScorer(FlatVectorsScorer delegate) {
+            this.delegate = delegate;
             factory = VectorScorerFactory.instance().orElse(null);
         }
 

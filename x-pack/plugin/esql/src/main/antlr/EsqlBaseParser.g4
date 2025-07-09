@@ -33,12 +33,12 @@ query
     ;
 
 sourceCommand
-    : explainCommand
-    | fromCommand
+    : fromCommand
     | rowCommand
     | showCommand
     // in development
     | {this.isDevVersion()}? timeSeriesCommand
+    | {this.isDevVersion()}? explainCommand
     ;
 
 processingCommand
@@ -56,15 +56,15 @@ processingCommand
     | mvExpandCommand
     | joinCommand
     | changePointCommand
+    | completionCommand
+    | sampleCommand
+    | forkCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
-    | {this.isDevVersion()}? rrfCommand
-    | {this.isDevVersion()}? sampleCommand
+    | {this.isDevVersion()}? fuseCommand
     ;
 
 whereCommand
@@ -108,18 +108,21 @@ indexPatternAndMetadataFields:
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
-    | indexString (CAST_OP selectorString)?
+    : clusterString COLON unquotedIndexString
+    | unquotedIndexString CAST_OP selectorString
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
     ;
 
 selectorString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -212,6 +215,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -235,11 +239,11 @@ commandOption
     ;
 
 explainCommand
-    : EXPLAIN subqueryExpression
+    : DEV_EXPLAIN subqueryExpression
     ;
 
 subqueryExpression
-    : OPENING_BRACKET query CLOSING_BRACKET
+    : LP query RP
     ;
 
 showCommand
@@ -247,34 +251,28 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=enrichPolicyName (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichPolicyName
+    : ENRICH_POLICY_NAME
+    | QUOTED_STRING
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
-//
-// In development
-//
-lookupCommand
-    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+sampleCommand
+    : SAMPLE probability=constant
     ;
 
 changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
-    ;
-
 forkCommand
-    : DEV_FORK forkSubQueries
+    : FORK forkSubQueries
     ;
 
 forkSubQueries
@@ -291,26 +289,45 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : evalCommand
-    | whereCommand
-    | limitCommand
-    | statsCommand
-    | sortCommand
-    | dissectCommand
-    ;
-
-rrfCommand
-   : DEV_RRF
-   ;
-
-rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceId=identifierOrParameter)?
+    : processingCommand
     ;
 
 completionCommand
-    : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;
 
-sampleCommand
-    : DEV_SAMPLE probability=decimalValue seed=integerValue?
+//
+// In development
+//
+lookupCommand
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+inlinestatsCommand
+    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
+    ;
+
+fuseCommand
+    : DEV_FUSE
+    ;
+
+inferenceCommandOptions
+    : inferenceCommandOption (COMMA inferenceCommandOption)*
+    ;
+
+inferenceCommandOption
+    : identifier ASSIGN inferenceCommandOptionValue
+    ;
+
+inferenceCommandOptionValue
+    : constant
+    | identifier
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
     ;

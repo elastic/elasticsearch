@@ -399,6 +399,18 @@ public final class ServiceUtils {
         return requiredField;
     }
 
+    public static String extractOptionalEmptyString(Map<String, Object> map, String settingName, ValidationException validationException) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        String optionalField = ServiceUtils.removeAsType(map, settingName, String.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+
+        return optionalField;
+    }
+
     public static String extractOptionalString(
         Map<String, Object> map,
         String settingName,
@@ -422,6 +434,35 @@ public final class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> extractOptionalList(
+        Map<String, Object> map,
+        String settingName,
+        Class<T> type,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var optionalField = ServiceUtils.removeAsType(map, settingName, List.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (optionalField != null) {
+            for (Object o : optionalField) {
+                if (o.getClass().equals(type) == false) {
+                    validationException.addValidationError(ServiceUtils.invalidTypeErrorMsg(settingName, o, "String"));
+                }
+            }
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return (List<T>) optionalField;
     }
 
     public static Integer extractRequiredPositiveInteger(
@@ -1041,6 +1082,12 @@ public final class ServiceUtils {
             validationException.addValidationError(
                 org.elasticsearch.common.Strings.format("Input type [%s] is not supported for [%s]", inputType, name)
             );
+        }
+    }
+
+    public static void checkByteBounds(short value) {
+        if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
         }
     }
 

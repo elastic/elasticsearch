@@ -94,6 +94,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -256,7 +257,8 @@ public class InternalEngine extends Engine {
             mergeScheduler = createMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPoolMergeExecutorService()
+                engineConfig.getThreadPoolMergeExecutorService(),
+                engineConfig.getMergeMetrics()
             );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle(pauseIndexingOnThrottle);
@@ -521,7 +523,7 @@ public class InternalEngine extends Engine {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
                 case "segments":
-                case "segments_stats":
+                case SEGMENTS_STATS_SOURCE:
                     break;
                 default:
                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
@@ -2734,7 +2736,7 @@ public class InternalEngine extends Engine {
     }
 
     // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
-    private static final boolean TESTS_VERBOSE = Boolean.parseBoolean(System.getProperty("tests.verbose"));
+    private static final boolean TESTS_VERBOSE = Booleans.parseBoolean(System.getProperty("tests.verbose", "false"));
 
     private static final boolean SHUFFLE_FORCE_MERGE = Booleans.parseBoolean(
         System.getProperty("es.shuffle_forced_merge", Boolean.TRUE.toString())
@@ -2917,10 +2919,11 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMetrics mergeMetrics
     ) {
         if (threadPoolMergeExecutorService != null) {
-            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
@@ -2930,9 +2933,10 @@ public class InternalEngine extends Engine {
         EngineThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            MergeMetrics mergeMetrics
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes, mergeMetrics);
         }
 
         @Override
@@ -3619,5 +3623,10 @@ public class InternalEngine extends Engine {
             // Can't estimate if the searcher is closed
             return 0L;
         }
+    }
+
+    // Used to clean up unowned documents. Client-visible deletes should always be soft deletes.
+    protected void deleteByQuery(ShardSplittingQuery query) throws Exception {
+        indexWriter.deleteDocuments(query);
     }
 }

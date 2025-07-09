@@ -96,7 +96,7 @@ public class ParsingTests extends ESTestCase {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias, TEST_CFG);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 Function functionCall = (Function) row.fields().get(0).child();
@@ -162,8 +162,27 @@ public class ParsingTests extends ESTestCase {
         assertEquals("1:13: Invalid value for LIMIT [-1], expecting a non negative integer", error("row a = 1 | limit -1"));
     }
 
+    public void testInvalidSample() {
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [foo], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample \"foo\"")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [-1.0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample -1.0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 1")
+        );
+    }
+
     private String error(String query) {
-        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query)));
+        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query, TEST_CFG)));
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());

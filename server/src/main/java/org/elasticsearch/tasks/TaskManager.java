@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -80,6 +81,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private TaskResultsService taskResultsService;
 
+    private final String nodeId;
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final Tracer tracer;
@@ -95,11 +97,19 @@ public class TaskManager implements ClusterStateApplier {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
+    // For testing (especially the creating a random node ID, which some tests rely on)
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
+        this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
+    }
+
+    // TODO Both of the above overloads should be moved to the test package.
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.tracer = tracer;
+        this.nodeId = nodeId;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -141,7 +151,13 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        Task task = request.createTask(
+            new TaskId(nodeId, taskIdGenerator.incrementAndGet()),
+            type,
+            action,
+            request.getParentTask(),
+            headers
+        );
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {

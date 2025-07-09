@@ -60,8 +60,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ALLOCATION,
     }
 
-    private volatile UtilizationTracker apmUtilizationTracker;
-    private volatile UtilizationTracker allocationUtilizationTracker;
+    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
+    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -82,8 +82,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
-        this.apmUtilizationTracker = new UtilizationTracker();
-        this.allocationUtilizationTracker = new UtilizationTracker();
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -154,10 +152,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
         if (trackMaxQueueLatency == false) {
-            logger.info("~~~trackMaxQueueLatency is false");
             return 0;
         }
-        logger.info("~~~getting max");
         return maxQueueLatencyMillisSinceLastPoll.getThenReset();
     }
 
@@ -194,9 +190,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
 
-        logger.info("~~~queueLatencyMillis: " + queueLatencyMillis);
         if (trackMaxQueueLatency) {
-            logger.info("~~~adding: " + queueLatencyMillis);
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
         }
     }

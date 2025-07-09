@@ -289,15 +289,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * where {@link TimedRunnable#getTotalExecutionNanos()} always returns {@code timeTakenNanos}.
      */
     private Function<Runnable, WrappedRunnable> settableWrapper(long timeTakenNanos) {
-        return (runnable) -> new SettableTimedRunnable(0, timeTakenNanos, false);
-    }
-
-    /**
-     * The returned function outputs a WrappedRunnable that simulates the case
-     * where {@link TimedRunnable#getQueueTimeNanos()} always returns {@code queueTimeTakenNanos}.
-     */
-    private Function<Runnable, WrappedRunnable> settableQueuingWrapper(long queueTimeTakenNanos) {
-        return (runnable) -> new SettableTimedRunnable(queueTimeTakenNanos, 0, false);
+        return (runnable) -> new SettableTimedRunnable(timeTakenNanos, false);
     }
 
     /**
@@ -306,7 +298,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * the job failed or was rejected before it finished.
      */
     private Function<Runnable, WrappedRunnable> exceptionalWrapper() {
-        return (runnable) -> new SettableTimedRunnable(0, TimeUnit.NANOSECONDS.toNanos(-1), true);
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(-1), true);
     }
 
     /** Execute a blank task {@code times} times for the executor */
@@ -318,19 +310,13 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     public class SettableTimedRunnable extends TimedRunnable {
-        private long queuedTimeTakenNanos;
         private final long executionTimeTakenNanos;
         private final boolean testFailedOrRejected;
 
-        public SettableTimedRunnable(long queuedTimeTakenNanos, long executionTimeTakenNanos, boolean failedOrRejected) {
+        public SettableTimedRunnable(long executionTimeTakenNanos, boolean failedOrRejected) {
             super(() -> {});
-            this.queuedTimeTakenNanos = queuedTimeTakenNanos;
             this.executionTimeTakenNanos = executionTimeTakenNanos;
             this.testFailedOrRejected = failedOrRejected;
-        }
-
-        public void setQueuedTimeTakenNanos(long timeTakenNanos) {
-            this.queuedTimeTakenNanos = timeTakenNanos;
         }
 
         @Override
@@ -341,11 +327,6 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         @Override
         public boolean getFailedOrRejected() {
             return testFailedOrRejected;
-        }
-
-        @Override
-        long getQueueTimeNanos() {
-            return queuedTimeTakenNanos;
         }
     }
 

@@ -11,7 +11,6 @@ import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,8 +34,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19;
-import static org.elasticsearch.TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1;
+import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTransportSupported;
 
 public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -148,10 +146,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     }
 
     private boolean supportsPushdown(TransportVersion version) {
-        return version == null
-            || version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
-            || version.isPatchFrom(ESQL_FIXED_INDEX_LIKE_8_19)
-            || version.isPatchFrom(ESQL_FIXED_INDEX_LIKE_9_1);
+        return version == null || expressionTransportSupported(version);
     }
 
     @Override

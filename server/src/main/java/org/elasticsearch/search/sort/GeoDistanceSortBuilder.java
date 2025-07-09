@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -599,7 +600,12 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }
         }
-        return context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+        if (indexFieldData instanceof IndexGeoPointFieldData) {
+            return (IndexGeoPointFieldData) indexFieldData;
+        }
+        throw new IllegalArgumentException("unable to apply geo distance sort to field [" + fieldName +
+            "] of type [" + fieldType.typeName() + "]");
     }
 
     private Nested nested(SearchExecutionContext context) throws IOException {

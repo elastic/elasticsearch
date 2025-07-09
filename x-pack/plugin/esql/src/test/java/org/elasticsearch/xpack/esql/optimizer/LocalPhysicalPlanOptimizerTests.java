@@ -60,6 +60,8 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -104,6 +106,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -1626,6 +1629,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(expected.toString(), esQuery.query().toString());
     }
 
+    public void testKnn() {
+        testFullTextFunctionWithNonPushableDisjunction(new KnnFunctionTestCase());
+    }
+
     private void testFullTextFunctionWithNonPushableDisjunction(FullTextFunctionTestCase testCase) {
         String query = String.format(Locale.ROOT, """
             from test
@@ -1644,6 +1651,32 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(or.right(), instanceOf(GreaterThan.class));
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         assertThat(fieldExtract.child(), instanceOf(EsQueryExec.class));
+    }
+
+    public void testKnnPrefilters() {
+        String query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], 10) and integer > 10
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        QueryBuilder expectedFilterQueryBuilder = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 45, "integer > 10")
+        );
+        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null)
+            .addFilterQuery(expectedFilterQueryBuilder);
+        var expectedQuery = boolQuery()
+            .must(expectedKnnQueryBuilder)
+            .must(expectedFilterQueryBuilder);
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 
     private void testFullTextFunctionWithPushableDisjunction(FullTextFunctionTestCase testCase) {
@@ -1665,11 +1698,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     private FullTextFunctionTestCase randomFullTextFunctionTestCase() {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> new MatchFunctionTestCase();
             case 1 -> new MatchOperatorTestCase();
             case 2 -> new KqlFunctionTestCase();
             case 3 -> new QueryStringFunctionTestCase();
+            case 4 -> new KnnFunctionTestCase();
             default -> throw new IllegalStateException("Unexpected value");
         };
     }
@@ -2188,6 +2222,35 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         @Override
         public String esqlQuery() {
             return "qstr(\"" + fieldName() + ": " + queryString() + "\")";
+        }
+    }
+
+    private class KnnFunctionTestCase extends FullTextFunctionTestCase {
+
+        final int k;
+
+        KnnFunctionTestCase() {
+            super(Knn.class, "dense_vector", randomVector());
+            k = randomIntBetween(1, 10);
+        }
+
+        private static Object randomVector() {
+            int numDims = randomIntBetween(10, 20);
+            float[] vector = new float[numDims];
+            for (int i = 0; i < numDims; i++) {
+                vector[i] = randomFloat();
+            }
+            return vector;
+        }
+
+        @Override
+        public QueryBuilder queryBuilder() {
+            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null);
+        }
+
+        @Override
+        public String esqlQuery() {
+            return "knn(" + fieldName() + ", " + Arrays.toString(((float[]) queryString())) + ", " + k + ")";
         }
     }
 }

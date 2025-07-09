@@ -33,10 +33,6 @@ public class KnnQuery extends Query {
 
     public static final String RESCORE_OVERSAMPLE_FIELD = "rescore_oversample";
 
-    public KnnQuery(Source source, String field, float[] query, Map<String, Object> options) {
-        this(source, field, query, options, List.of());
-    }
-
     public KnnQuery(Source source, String field, float[] query, Map<String, Object> options, List<QueryBuilder> filterQueries) {
         super(source);
         assert options != null;
@@ -67,7 +63,7 @@ public class KnnQuery extends Query {
         }
         return queryBuilder;
     }
-    
+
     public KnnQuery withFilterQueries(List<QueryBuilder> newFilterQueries) {
         List<QueryBuilder> combinedFilterQueries = new ArrayList<>(filterQueries);
         combinedFilterQueries.addAll(newFilterQueries);
@@ -100,7 +96,7 @@ public class KnnQuery extends Query {
     public boolean scorable() {
         return true;
     }
-    
+
     public List<QueryBuilder> filterQueries() {
         return filterQueries;
     }

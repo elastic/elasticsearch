@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
@@ -252,10 +254,10 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = Match.fieldAsFieldAttribute(field());
 
-        Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
+        Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         @SuppressWarnings("unchecked")
         List<Number> queryFolded = (List<Number>) query().fold(FoldContext.small() /* TODO remove me */);
@@ -268,12 +270,28 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Map<String, Object> opts = queryOptions();
         opts.put(K_FIELD.getPreferredName(), kValue);
 
-        return new KnnQuery(source(), fieldName, queryAsFloats, opts);
+        List<QueryBuilder> filterQueries = new ArrayList<>();
+        for (Expression filterExpression : filterExpressions()) {
+            filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
+        }
+
+        return new KnnQuery(source(), fieldName, queryAsFloats, opts, filterQueries);
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
         return new Knn(source(), field(), query(), k(), options(), queryBuilder, filterExpressions());
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        Translatable translatable = super.translatable(pushdownPredicates);
+        // We need to check whether filter expressions are translatable as well
+        for(Expression filterExpression : filterExpressions()) {
+            translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
+        }
+
+        return translatable;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {

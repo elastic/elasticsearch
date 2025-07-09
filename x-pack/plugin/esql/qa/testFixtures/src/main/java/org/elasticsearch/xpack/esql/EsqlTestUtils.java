@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -446,7 +447,7 @@ public final class EsqlTestUtils {
     }
 
     public static LogicalPlan emptySource() {
-        return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
+        return new LocalRelation(Source.EMPTY, emptyList(), EmptyLocalSupplier.EMPTY);
     }
 
     public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
@@ -863,7 +864,7 @@ public final class EsqlTestUtils {
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {
-        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp), false);
     }
 
     public static RLike rlike(Expression left, String exp) {

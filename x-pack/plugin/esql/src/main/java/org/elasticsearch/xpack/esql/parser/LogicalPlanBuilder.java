@@ -398,6 +398,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
             }
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
+        } else if (val == null) {
+            throw new ParsingException(source, "Invalid value for LIMIT [null], expecting a non negative integer");
         } else {
             throw new ParsingException(
                 source,

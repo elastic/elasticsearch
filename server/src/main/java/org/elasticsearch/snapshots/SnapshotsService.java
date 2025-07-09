@@ -9,10 +9,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -4496,25 +4492,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
         final List<LongWithAttributes> shardsByState = new ArrayList<>();
-        final ObjectIntMap<ShardState> shardCounts = new ObjectIntHashMap<>(TRACKED_SHARD_STATES.size());
+
         currentState.metadata().projects().forEach((projectId, project) -> {
             final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
             if (repositoriesMetadata != null) {
                 for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
-                    TRACKED_SHARD_STATES.forEach(shardState -> shardCounts.put(shardState, 0));
-                    for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.forRepo(projectId, repository.name())) {
-                        for (ShardSnapshotStatus shardSnapshotStatus : snapshot.shards().values()) {
-                            if (shardCounts.containsKey(shardSnapshotStatus.state())) {
-                                shardCounts.addTo(shardSnapshotStatus.state(), 1);
-                            }
-                        }
-                    }
+                    final Map<ShardState, Integer> shardStateSummary = snapshotsInProgress.shardStateSummaryForRepository(
+                        projectId,
+                        repository.name()
+                    );
                     final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
-                    for (ObjectIntCursor<ShardState> entry : shardCounts) {
-                        shardsByState.add(
-                            new LongWithAttributes(entry.value, Maps.copyMapWithAddedEntry(attributesMap, "state", entry.key.name()))
-                        );
-                    }
+                    shardStateSummary.forEach(
+                        (shardState, count) -> shardsByState.add(
+                            new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
+                        )
+                    );
                 }
             }
         });

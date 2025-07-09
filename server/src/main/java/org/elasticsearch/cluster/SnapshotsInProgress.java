@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
@@ -176,6 +178,28 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public List<Entry> forRepo(ProjectId projectId, String repository) {
         return forRepo(new ProjectRepo(projectId, repository));
+    }
+
+    /**
+     * Get a summary how many shards are in each {@link ShardState} for this repository
+     *
+     * @param projectId The project ID
+     * @param repository The repository name
+     * @return A map of each shard state to the count of shards in that state for all in-progress snapshots
+     */
+    public Map<ShardState, Integer> shardStateSummaryForRepository(ProjectId projectId, String repository) {
+        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).shardStateSummary;
+    }
+
+    /**
+     * Get a summary how many snapshots are in each {@link State} for this repository
+     *
+     * @param projectId The project ID
+     * @param repository The repository name
+     * @return A map of each snapshot state to the count of in-progress snapshots in that state
+     */
+    public Map<State, Integer> snapshotStateSummaryForRepository(ProjectId projectId, String repository) {
+        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).snapshotStateSummary;
     }
 
     /**
@@ -1875,7 +1899,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      *
      * @param entries all snapshots executing for a single repository
      */
-    private record ByRepo(List<Entry> entries) implements Diffable<ByRepo> {
+    private record ByRepo(List<Entry> entries, Map<State, Integer> snapshotStateSummary, Map<ShardState, Integer> shardStateSummary)
+        implements
+            Diffable<ByRepo> {
 
         static final ByRepo EMPTY = new ByRepo(List.of());
         private static final DiffableUtils.NonDiffableValueSerializer<String, Integer> INT_DIFF_VALUE_SERIALIZER =
@@ -1892,7 +1918,27 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             };
 
         private ByRepo(List<Entry> entries) {
-            this.entries = List.copyOf(entries);
+            this(List.copyOf(entries), calculateStateSummaries(entries));
+        }
+
+        private ByRepo(List<Entry> entries, Tuple<Map<State, Integer>, Map<ShardState, Integer>> stateSummaries) {
+            this(entries, stateSummaries.v1(), stateSummaries.v2());
+        }
+
+        private static Tuple<Map<State, Integer>, Map<ShardState, Integer>> calculateStateSummaries(List<Entry> entries) {
+            final int[] snapshotCounts = new int[State.values().length];
+            final int[] shardCounts = new int[ShardState.values().length];
+            for (Entry entry : entries) {
+                snapshotCounts[entry.state().ordinal()]++;
+                for (ShardSnapshotStatus shardSnapshotStatus : entry.shards().values()) {
+                    shardCounts[shardSnapshotStatus.state().ordinal()]++;
+                }
+            }
+            final Map<State, Integer> snapshotStates = Arrays.stream(State.values())
+                .collect(Collectors.toUnmodifiableMap(state -> state, state -> snapshotCounts[state.ordinal()]));
+            final Map<ShardState, Integer> shardStates = Arrays.stream(ShardState.values())
+                .collect(Collectors.toUnmodifiableMap(shardState -> shardState, state -> shardCounts[state.ordinal()]));
+            return Tuple.tuple(snapshotStates, shardStates);
         }
 
         @Override

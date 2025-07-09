@@ -878,7 +878,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetch,
+            fetchSourceContext.excludeVectors(),
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -915,7 +920,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            fetchSourceContext.excludeVectors(),
+            includes,
+            excludes
+        );
         return this;
     }
 
@@ -924,6 +934,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchSourceBuilder excludeVectors(boolean excludeVectors) {
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            excludeVectors,
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 

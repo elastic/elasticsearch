@@ -1530,11 +1530,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         @Deprecated(forRemoval = true)
-        public DataStream dataStream(String dataStreamName) {
-            return getSingleProject().dataStream(dataStreamName);
-        }
-
-        @Deprecated(forRemoval = true)
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
             getSingleProject().dataStreams(dataStreams, dataStreamAliases);
             return this;

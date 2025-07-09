@@ -223,6 +223,9 @@
       "returnType" : "boolean"
     }
   ],
+  "examples" : [
+    "FROM employees\n| WHERE birth_date IS NULL"
+  ],
   "preview" : false,
   "snapshot_only" : false
 }

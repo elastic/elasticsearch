@@ -19,6 +19,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Aggregates field values for long.
@@ -48,28 +50,32 @@ class ValuesLongAggregator {
         return state.toBlock(driverContext.blockFactory());
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext);
     }
 
     public static void combine(GroupingState state, int groupId, long v) {
-        state.values.add(groupId, v);
+        state.addValue(groupId, v);
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, LongBlock values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getLong(i));
+            state.addValue(groupId, values.getLong(i));
         }
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        for (int id = 0; id < state.values.size(); id++) {
-            if (state.values.getKey1(id) == statePosition) {
-                long value = state.values.getKey2(id);
-                combine(current, currentGroupId, value);
-            }
+        if (statePosition > state.maxGroupId) {
+            return;
+        }
+        var sorted = state.sortedForOrdinalMerging(current);
+        var start = statePosition > 0 ? sorted.counts[statePosition - 1] : 0;
+        var end = sorted.counts[statePosition];
+        for (int i = start; i < end; i++) {
+            int id = sorted.ids[i];
+            current.addValue(currentGroupId, state.getValue(id));
         }
     }
 
@@ -113,6 +119,20 @@ class ValuesLongAggregator {
     }
 
     /**
+     * Values are collected in a hash. Iterating over them in order (row by row) to build the output,
+     * or merging with other state, can be expensive. To optimize this, we build a sorted structure once,
+     * and then use it to iterate over the values in order.
+     *
+     * @param ids positions of the {@link GroupingState#values} to read.
+     */
+    private record Sorted(Releasable releasable, int[] counts, int[] ids) implements Releasable {
+        @Override
+        public void close() {
+            releasable.close();
+        }
+    }
+
+    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over the performance of rendering
      * results. That's good, but it's a pretty intensive emphasis, requiring
@@ -120,15 +140,25 @@ class ValuesLongAggregator {
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
+        private int maxGroupId = -1;
+        private final BlockFactory blockFactory;
         private final LongLongHash values;
 
-        private GroupingState(BigArrays bigArrays) {
-            values = new LongLongHash(1, bigArrays);
+        private Sorted sortedForOrdinalMerging = null;
+
+        private GroupingState(DriverContext driverContext) {
+            this.blockFactory = driverContext.blockFactory();
+            values = new LongLongHash(1, driverContext.bigArrays());
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+        }
+
+        void addValue(int groupId, long v) {
+            values.add(groupId, v);
+            maxGroupId = Math.max(maxGroupId, groupId);
         }
 
         /**
@@ -140,8 +170,15 @@ class ValuesLongAggregator {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
 
+            try (var sorted = buildSorted(selected)) {
+                return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
+            }
+        }
+
+        private Sorted buildSorted(IntVector selected) {
             long selectedCountsSize = 0;
             long idsSize = 0;
+            Sorted sorted = null;
             try {
                 /*
                  * Get a count of all groups less than the maximum selected group. Count
@@ -216,10 +253,23 @@ class ValuesLongAggregator {
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-                return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
+                final long totalMemoryUsed = selectedCountsSize + idsSize;
+                sorted = new Sorted(() -> blockFactory.adjustBreaker(-totalMemoryUsed), selectedCounts, ids);
+                return sorted;
             } finally {
-                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                if (sorted == null) {
+                    blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                }
             }
+        }
+
+        private Sorted sortedForOrdinalMerging(GroupingState other) {
+            if (sortedForOrdinalMerging == null) {
+                try (var selected = IntVector.range(0, maxGroupId + 1, blockFactory)) {
+                    sortedForOrdinalMerging = buildSorted(selected);
+                }
+            }
+            return sortedForOrdinalMerging;
         }
 
         Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
@@ -234,11 +284,11 @@ class ValuesLongAggregator {
                     int count = end - start;
                     switch (count) {
                         case 0 -> builder.appendNull();
-                        case 1 -> append(builder, ids[start]);
+                        case 1 -> builder.appendLong(getValue(ids[start]));
                         default -> {
                             builder.beginPositionEntry();
                             for (int i = start; i < end; i++) {
-                                append(builder, ids[i]);
+                                builder.appendLong(getValue(ids[i]));
                             }
                             builder.endPositionEntry();
                         }
@@ -249,9 +299,8 @@ class ValuesLongAggregator {
             }
         }
 
-        private void append(LongBlock.Builder builder, int id) {
-            long value = values.getKey2(id);
-            builder.appendLong(value);
+        long getValue(int valueId) {
+            return values.getKey2(valueId);
         }
 
         @Override
@@ -261,7 +310,7 @@ class ValuesLongAggregator {
 
         @Override
         public void close() {
-            values.close();
+            Releasables.closeExpectNoException(values, sortedForOrdinalMerging);
         }
     }
 }

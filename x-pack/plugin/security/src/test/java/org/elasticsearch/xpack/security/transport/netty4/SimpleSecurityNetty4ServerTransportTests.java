@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
+import io.netty.handler.ssl.SslHandshakeTimeoutException;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
@@ -99,7 +100,6 @@ import javax.net.ssl.SNIMatcher;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -955,7 +955,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 exception = expectThrows(ExecutionException.class, ConnectTransportException.class, future::get); // long wait
                 assertEquals("[][" + dummy.getAddress() + "] connect_exception", exception.getMessage());
                 assertThat(
-                    asInstanceOf(SSLHandshakeException.class, exception.getCause()).getMessage(),
+                    asInstanceOf(SslHandshakeTimeoutException.class, exception.getCause()).getMessage(),
                     equalTo("handshake timed out after " + handshakeTimeoutMillis + "ms")
                 );
             }

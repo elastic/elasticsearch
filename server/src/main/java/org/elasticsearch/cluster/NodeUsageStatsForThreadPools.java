@@ -86,7 +86,7 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.totalThreadPoolThreads);
-            out.writeDouble(this.averageThreadPoolUtilization);
+            out.writeFloat(this.averageThreadPoolUtilization);
             out.writeVLong(this.averageThreadPoolQueueLatencyMillis);
         }
 

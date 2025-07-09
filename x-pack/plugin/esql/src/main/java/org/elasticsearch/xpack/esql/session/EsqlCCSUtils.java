@@ -30,11 +30,13 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
+import org.elasticsearch.xpack.esql.action.ResolutionFailure;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class EsqlCCSUtils {
 
@@ -59,6 +62,22 @@ public class EsqlCCSUtils {
             }
         }
         return unavailableRemotes;
+    }
+
+    static Map<String, ResolutionFailure> groupResolutionFailuresByCluster(List<FieldCapabilitiesFailure> failures) {
+        Map<String, List<FieldCapabilitiesFailure>> groupedByCluster = new HashMap<>();
+        for (FieldCapabilitiesFailure failure : failures) {
+            String clusterAlias = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+            groupedByCluster.computeIfAbsent(clusterAlias, k -> new ArrayList<>()).add(failure);
+        }
+        return groupedByCluster.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> new ResolutionFailure(e.getValue().stream().map(FieldCapabilitiesFailure::getException).toList())
+                )
+            );
     }
 
     /**

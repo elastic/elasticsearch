@@ -47,14 +47,11 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -294,18 +291,6 @@ public class MetadataRolloverService {
         @Nullable AutoShardingResult autoShardingResult,
         boolean isFailureStoreRollover
     ) throws Exception {
-
-        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
-            // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
-            // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
-            // rollover
-            throw new SnapshotInProgressException(
-                "Cannot roll over data stream that is being snapshotted: "
-                    + dataStream.getName()
-                    + ". Try again after snapshot finishes or cancel the currently running snapshot."
-            );
-        }
-
         final Metadata metadata = currentState.getMetadata();
         final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;

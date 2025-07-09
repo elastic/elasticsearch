@@ -1149,12 +1149,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(1);
         final ActionFuture<RolloverResponse> rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest("ds", null));
 
-        if (partial) {
-            assertTrue(rolloverResponse.get().isRolledOver());
-        } else {
-            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse);
-            assertThat(e.getMessage(), containsString("Cannot roll over data stream that is being snapshotted:"));
-        }
+        assertTrue(rolloverResponse.get().isRolledOver());
         unblockAllDataNodes(repoName);
         final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);
 

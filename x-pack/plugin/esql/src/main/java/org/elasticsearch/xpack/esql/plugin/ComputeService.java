@@ -183,6 +183,7 @@ public class ComputeService {
     public void execute(
         String sessionId,
         CancellableTask rootTask,
+        EsqlFlags flags,
         PhysicalPlan physicalPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -195,7 +196,7 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
             return;
         }
 
@@ -222,6 +223,7 @@ public class ComputeService {
                 mainSessionId,
                 "main.final",
                 LOCAL_CLUSTER,
+                flags,
                 List.of(),
                 configuration,
                 foldContext,
@@ -254,6 +256,7 @@ public class ComputeService {
                     executePlan(
                         childSessionId,
                         rootTask,
+                        flags,
                         subplan,
                         configuration,
                         foldContext,
@@ -278,6 +281,7 @@ public class ComputeService {
     public void executePlan(
         String sessionId,
         CancellableTask rootTask,
+        EsqlFlags flags,
         PhysicalPlan physicalPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -322,6 +326,7 @@ public class ComputeService {
                 newChildSession(sessionId),
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
+                flags,
                 List.of(),
                 configuration,
                 foldContext,
@@ -408,6 +413,7 @@ public class ComputeService {
                             sessionId,
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
+                            flags,
                             List.of(),
                             configuration,
                             foldContext,
@@ -424,6 +430,7 @@ public class ComputeService {
                             sessionId,
                             LOCAL_CLUSTER,
                             rootTask,
+                            flags,
                             configuration,
                             dataNodePlan,
                             Set.of(localConcreteIndices.indices()),
@@ -576,7 +583,13 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            var localPlan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
+            var localPlan = PlannerUtils.localPlan(
+                context.flags(),
+                context.searchExecutionContexts(),
+                context.configuration(),
+                context.foldCtx(),
+                plan
+            );
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
@@ -650,6 +663,10 @@ public class ComputeService {
                 new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
             );
         }
+    }
+
+    public EsqlFlags createFlags() {
+        return new EsqlFlags(clusterService.getClusterSettings());
     }
 
     private static class ComputeGroupTaskRequest extends AbstractTransportRequest {

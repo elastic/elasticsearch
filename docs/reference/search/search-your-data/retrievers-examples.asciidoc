@@ -1617,8 +1617,6 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.0.details.0/]
-// TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.1.details.0/]
 // TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
 ==============
 

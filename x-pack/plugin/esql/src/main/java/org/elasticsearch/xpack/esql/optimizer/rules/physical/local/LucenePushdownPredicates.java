@@ -39,7 +39,7 @@ public interface LucenePushdownPredicates {
      * <p>
      *     If this is not null {@link Expression}s should not claim to be
      *     serializable unless their {@link QueryBuilder}
-     *     {@link QueryBuilder#supportsVersion supports} the version.
+     *     {@link QueryBuilder#getMinimalSupportedVersion supports} the version.
      * </p>
      * <p>
      *     This is done on the coordinating node <strong>and</strong>. And for

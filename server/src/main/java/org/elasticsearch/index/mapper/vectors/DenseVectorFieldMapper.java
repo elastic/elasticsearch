@@ -100,6 +100,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
@@ -115,6 +116,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
@@ -252,8 +254,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
+        final boolean isSyntheticVector;
 
-        public Builder(String name, IndexVersion indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated, boolean isSyntheticVector) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
@@ -285,6 +288,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         }
                     }
                 });
+            this.isSyntheticVector = isSyntheticVector;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
@@ -426,6 +430,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
+            boolean isSyntheticVectorFinal = (context.isSourceSynthetic() == false) && indexed.getValue() && isSyntheticVector;
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(
@@ -441,7 +446,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
-                indexVersionCreated
+                indexVersionCreated,
+                isSyntheticVectorFinal
             );
         }
     }
@@ -2372,7 +2378,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        (n, c) -> new Builder(
+            n,
+            c.getIndexSettings().getIndexVersionCreated(),
+            INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -2826,17 +2836,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
+    private final boolean isSyntheticVector;
 
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
-        IndexVersion indexCreatedVersion
+        IndexVersion indexCreatedVersion,
+        boolean isSyntheticVector
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
+        this.isSyntheticVector = isSyntheticVector;
     }
 
     @Override
@@ -2958,7 +2971,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion).init(this);
+        return new Builder(leafName(), indexCreatedVersion, isSyntheticVector).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
@@ -3013,6 +3026,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        if (isSyntheticVector) {
+            var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
+            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
+        }
+        return null;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(
             () -> fieldType().indexed
@@ -3022,15 +3044,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
-        private FloatVectorValues values;
-        private ByteVectorValues byteVectorValues;
+        private FloatVectorValues floatValues;
+        private ByteVectorValues byteValues;
+        private NumericDocValues magnitudeReader;
+
         private boolean hasValue;
         private boolean hasMagnitude;
         private int ord;
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
-        private NumericDocValues magnitudeReader;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
@@ -3038,42 +3061,41 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getFloatVectorValues(fullPath());
-            if (values != null) {
-                if (indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity)) {
-                    magnitudeReader = leafReader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            floatValues = reader.getFloatVectorValues(fullPath());
+            if (floatValues != null) {
+                if (shouldNormalize()) {
+                    magnitudeReader = reader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
-                KnnVectorValues.DocIndexIterator iterator = values.iterator();
-                return docId -> {
-                    if (iterator.docID() > docId) {
-                        return hasValue = false;
-                    }
-                    if (iterator.docID() == docId) {
-                        return hasValue = true;
-                    }
-                    hasValue = docId == iterator.advance(docId);
-                    hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
-                    ord = iterator.index();
-                    return hasValue;
-                };
+                return createLoader(floatValues.iterator(), true);
             }
-            byteVectorValues = leafReader.getByteVectorValues(fullPath());
-            if (byteVectorValues != null) {
-                KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
-                return docId -> {
-                    if (iterator.docID() > docId) {
-                        return hasValue = false;
-                    }
-                    if (iterator.docID() == docId) {
-                        return hasValue = true;
-                    }
-                    hasValue = docId == iterator.advance(docId);
-                    ord = iterator.index();
-                    return hasValue;
-                };
+
+            byteValues = reader.getByteVectorValues(fullPath());
+            if (byteValues != null) {
+                return createLoader(byteValues.iterator(), false);
             }
+
             return null;
+        }
+
+        private boolean shouldNormalize() {
+            return indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity);
+        }
+
+        private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
+            return docId -> {
+                if (iterator.docID() > docId) {
+                    return hasValue = false;
+                }
+                if (iterator.docID() == docId || iterator.advance(docId) == docId) {
+                    ord = iterator.index();
+                    hasValue = true;
+                    hasMagnitude = checkMagnitude && magnitudeReader != null && magnitudeReader.advanceExact(docId);
+                } else {
+                    hasValue = false;
+                }
+                return hasValue;
+            };
         }
 
         @Override
@@ -3086,26 +3108,53 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (false == hasValue) {
                 return;
             }
-            float magnitude = Float.NaN;
-            if (hasMagnitude) {
-                magnitude = Float.intBitsToFloat((int) magnitudeReader.longValue());
-            }
+            float magnitude = hasMagnitude ? Float.intBitsToFloat((int) magnitudeReader.longValue()) : Float.NaN;
             b.startArray(leafName());
-            if (values != null) {
-                for (float v : values.vectorValue(ord)) {
-                    if (hasMagnitude) {
-                        b.value(v * magnitude);
-                    } else {
-                        b.value(v);
-                    }
+            if (floatValues != null) {
+                for (float v : floatValues.vectorValue(ord)) {
+                    b.value(hasMagnitude ? v * magnitude : v);
                 }
-            } else if (byteVectorValues != null) {
-                byte[] vectorValue = byteVectorValues.vectorValue(ord);
-                for (byte value : vectorValue) {
-                    b.value(value);
+            } else if (byteValues != null) {
+                for (byte v : byteValues.vectorValue(ord)) {
+                    b.value(v);
                 }
             }
             b.endArray();
+        }
+
+        /**
+         * Returns a deep-copied vector for the current document, either as a list of floats
+         * (with optional cosine normalization) or a list of bytes.
+         *
+         * @throws IOException if reading fails
+         */
+        private List<?> copyVectorAsList() throws IOException {
+            assert hasValue : "vector is null for ord=" + ord;
+            if (floatValues != null) {
+                float[] raw = floatValues.vectorValue(ord);
+                List<Float> copyList = new ArrayList<>(raw.length);
+
+                if (hasMagnitude) {
+                    float mag = Float.intBitsToFloat((int) magnitudeReader.longValue());
+                    for (int i = 0; i < raw.length; i++) {
+                        copyList.add(raw[i] * mag);
+                    }
+                } else {
+                    for (int i = 0; i < raw.length; i++) {
+                        copyList.add(raw[i]);
+                    }
+                }
+                return copyList;
+            } else if (byteValues != null) {
+                byte[] raw = byteValues.vectorValue(ord);
+                List<Byte> copyList = new ArrayList<>(raw.length);
+                for (int i = 0; i < raw.length; i++) {
+                    copyList.add(raw[i]);
+                }
+                return copyList;
+            }
+
+            throw new IllegalStateException("No vector values available to copy.");
         }
 
         @Override

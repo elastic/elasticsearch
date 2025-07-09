@@ -642,6 +642,17 @@ steps:
           image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
+      - label: third-party / ms-graph
+        command: |
+          .ci/scripts/run-gradle.sh msGraphThirdPartyTest
+        env:
+          USE_3RD_PARTY_MS_GRAPH_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
   - group: lucene-compat
     steps:
       - label: "{{matrix.LUCENE_VERSION}} / lucene-compat"

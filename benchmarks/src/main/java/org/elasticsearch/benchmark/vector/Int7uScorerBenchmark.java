@@ -24,6 +24,8 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -55,24 +57,27 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 /**
  * Benchmark that compares various scalar quantized vector similarity function
  * implementations;: scalar, lucene's panama-ized, and Elasticsearch's native.
- * Run with ./gradlew -p benchmarks run --args 'VectorScorerBenchmark'
+ * Run with ./gradlew -p benchmarks run --args 'Int7uScorerBenchmark'
  */
-public class VectorScorerBenchmark {
+public class Int7uScorerBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        if (supportsHeapSegments() == false) {
+            final Logger LOG = LogManager.getLogger(Int7uScorerBenchmark.class);
+            LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
+        }
     }
 
     @Param({ "96", "768", "1024" })
-    int dims;
-    int size = 2; // there are only two vectors to compare
+    public int dims;
+    final int size = 2; // there are only two vectors to compare
 
     Directory dir;
     IndexInput in;
     VectorScorerFactory factory;
 
-    byte[] vec1;
-    byte[] vec2;
+    byte[] vec1, vec2;
     float vec1Offset;
     float vec2Offset;
     float scoreCorrectionConstant;
@@ -130,47 +135,16 @@ public class VectorScorerBenchmark {
         nativeSqrScorer = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer();
         nativeSqrScorer.setScoringOrdinal(0);
 
-        // setup for getInt7SQVectorScorer / query vector scoring
-        float[] queryVec = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            queryVec[i] = ThreadLocalRandom.current().nextFloat();
-        }
-        luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
-        nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
-        luceneSqrScorerQuery = luceneScorer(values, VectorSimilarityFunction.EUCLIDEAN, queryVec);
-        nativeSqrScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.EUCLIDEAN, values, queryVec).get();
-
-        // sanity
-        var f1 = dotProductLucene();
-        var f2 = dotProductNative();
-        var f3 = dotProductScalar();
-        if (f1 != f2) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "native[" + f2 + "]");
-        }
-        if (f1 != f3) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
-        }
-        // square distance
-        f1 = squareDistanceLucene();
-        f2 = squareDistanceNative();
-        f3 = squareDistanceScalar();
-        if (f1 != f2) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "native[" + f2 + "]");
-        }
-        if (f1 != f3) {
-            throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
-        }
-
-        var q1 = dotProductLuceneQuery();
-        var q2 = dotProductNativeQuery();
-        if (q1 != q2) {
-            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
-        }
-
-        var sqr1 = squareDistanceLuceneQuery();
-        var sqr2 = squareDistanceNativeQuery();
-        if (sqr1 != sqr2) {
-            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
+        if (supportsHeapSegments()) {
+            // setup for getInt7SQVectorScorer / query vector scoring
+            float[] queryVec = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVec[i] = ThreadLocalRandom.current().nextFloat();
+            }
+            luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
+            nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
+            luceneSqrScorerQuery = luceneScorer(values, VectorSimilarityFunction.EUCLIDEAN, queryVec);
+            nativeSqrScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.EUCLIDEAN, values, queryVec).get();
         }
     }
 
@@ -240,6 +214,10 @@ public class VectorScorerBenchmark {
     @Benchmark
     public float squareDistanceNativeQuery() throws IOException {
         return nativeSqrScorerQuery.score(1);
+    }
+
+    static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
     }
 
     QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {

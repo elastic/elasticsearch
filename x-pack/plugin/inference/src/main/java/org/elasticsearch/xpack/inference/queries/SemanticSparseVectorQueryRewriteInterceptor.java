@@ -79,12 +79,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.should(
-            createSubQueryForIndices(
-                indexInformation.nonInferenceIndices(),
-                createSubQueryForIndices(indexInformation.nonInferenceIndices(), sparseVectorQueryBuilder)
-            )
-        );
+        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), sparseVectorQueryBuilder));
         // We always perform nested subqueries on semantic_text fields, to support
         // sparse_vector queries using query vectors.
         for (String inferenceId : inferenceIdsIndices.keySet()) {

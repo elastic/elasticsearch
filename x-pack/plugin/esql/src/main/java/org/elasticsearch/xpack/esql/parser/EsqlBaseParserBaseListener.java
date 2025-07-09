@@ -661,30 +661,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -692,18 +668,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -781,13 +745,49 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterRrfCommand(EsqlBaseParser.RrfCommandContext ctx) { }
+  @Override public void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) { }
+  @Override public void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -848,18 +848,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *

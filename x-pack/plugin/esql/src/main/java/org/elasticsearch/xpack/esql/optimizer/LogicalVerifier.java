@@ -13,6 +13,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.expression.Attribute.datatypeEquals;
+
 public final class LogicalVerifier {
 
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
@@ -20,19 +23,19 @@ public final class LogicalVerifier {
     private LogicalVerifier() {}
 
     /** Verifies the optimized logical plan. */
-    public Failures verify(LogicalPlan plan, boolean skipRemoteEnrichVerification) {
+    public Failures verify(LogicalPlan planAfter, boolean skipRemoteEnrichVerification, LogicalPlan planBefore) {
         Failures failures = new Failures();
         Failures dependencyFailures = new Failures();
 
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-            var enriches = plan.collectFirstChildren(Enrich.class::isInstance);
+            var enriches = planAfter.collectFirstChildren(Enrich.class::isInstance);
             if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
                 return failures;
             }
         }
 
-        plan.forEachUp(p -> {
+        planAfter.forEachUp(p -> {
             PlanConsistencyChecker.checkPlan(p, dependencyFailures);
 
             if (failures.hasFailures() == false) {
@@ -46,6 +49,12 @@ public final class LogicalVerifier {
                 });
             }
         });
+
+        if (datatypeEquals(planBefore.output(), planAfter.output()) == false) {
+            failures.add(
+                fail(planAfter, "Layout has changed from [{}] to [{}]. ", planBefore.output().toString(), planAfter.output().toString())
+            );
+        }
 
         if (dependencyFailures.hasFailures()) {
             throw new IllegalStateException(dependencyFailures.toString());

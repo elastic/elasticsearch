@@ -134,4 +134,19 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
+
+    /**
+     * Compares the size and datatypes of two lists of attributes for equality.
+     */
+    public static boolean datatypeEquals(List<Attribute> left, List<Attribute> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).dataType().equals(right.get(i).dataType()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

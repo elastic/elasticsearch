@@ -34,15 +34,15 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+        return verify(execute(plan), plan);
     }
 
-    PhysicalPlan verify(PhysicalPlan plan) {
-        Failures failures = verifier.verify(plan, false);
+    PhysicalPlan verify(PhysicalPlan planAfter, PhysicalPlan planBefore) {
+        Failures failures = verifier.verify(planAfter, false, planBefore);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
-        return plan;
+        return planAfter;
     }
 
     @Override

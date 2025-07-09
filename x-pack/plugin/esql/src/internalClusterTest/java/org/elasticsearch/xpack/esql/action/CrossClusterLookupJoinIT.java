@@ -300,6 +300,59 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             // FIXME: verify whether we need to skip or succeed here
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            var remoteTagIndex = columns.indexOf("remote_tag");
+            var lookupNameIndex = columns.indexOf("lookup_name");
+            var tagIndex = columns.indexOf("tag");
+            assertThat(remoteTagIndex, greaterThanOrEqualTo(0));
+            for (var row : values) {
+                // remote tag column should be null
+                assertNull(row.get(remoteTagIndex));
+                if (row.get(tagIndex).equals("local")) {
+                    // local value should be present
+                    assertThat((String) row.get(lookupNameIndex), containsString("lookup_"));
+                } else {
+                    // remote value should be null
+                    assertNull(row.get(lookupNameIndex));
+                }
+            }
+        }
+
+        try (
+            // Using remote_tag as key which is not present in local index
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL remote_tag = to_string(v) | LOOKUP JOIN values_lookup ON remote_tag",
+                randomBoolean()
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(2));
+
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            var localTagIndex = columns.indexOf("local_tag");
+            var remoteTagIndex = columns.indexOf("remote_tag");
+            var lookupNameIndex = columns.indexOf("lookup_name");
+            var tagIndex = columns.indexOf("tag");
+            assertThat(localTagIndex, greaterThanOrEqualTo(0));
+            for (var row : values) {
+                // remote tag column should be null
+                assertNull(row.get(localTagIndex));
+                if (row.get(tagIndex).equals("remote") && List.of("0", "1", "4", "9").contains((String) row.get(remoteTagIndex))) {
+                    // remote value should be present
+                    assertThat((String) row.get(lookupNameIndex), containsString("lookup_"));
+                } else {
+                    // local value should be null
+                    assertNull(row.get(lookupNameIndex));
+                }
+            }
         }
 
         // TODO: verify whether this should be an error or not when the key field is missing
@@ -408,12 +461,17 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 randomBoolean()
             )
         ) {
-            var columns = resp.columns();
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
             assertThat(columns, hasSize(9));
-            var keyColumn = columns.stream().filter(c -> c.name().equals("lookup_key")).findFirst();
-            assertTrue(keyColumn.isPresent());
-            assertThat(keyColumn.get().type(), equalTo(DataType.UNSUPPORTED));
-            assertThat(keyColumn.get().originalTypes(), hasItems("keyword", "long"));
+            var lookupKeyIndex = columns.indexOf("lookup_key");
+            assertThat(lookupKeyIndex, greaterThanOrEqualTo(0));
+            var keyColumn = resp.columns().get(lookupKeyIndex);
+            assertThat(keyColumn.type(), equalTo(DataType.UNSUPPORTED));
+            assertThat(keyColumn.originalTypes(), hasItems("keyword", "long"));
+            List<List<Object>> values = getValuesList(resp);
+            for (var row : values) {
+                assertNull(row.get(lookupKeyIndex));
+            }
         }
     }
 

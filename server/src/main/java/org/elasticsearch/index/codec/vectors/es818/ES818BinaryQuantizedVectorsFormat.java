@@ -87,8 +87,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  */
 public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
-    public static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "false"));
-
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
     public static final String NAME = "ES818BinaryQuantizedVectorsFormat";
 
@@ -100,17 +98,24 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final FlatVectorsFormat rawVectorFormat = USE_DIRECT_IO
-        ? new DirectIOLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
-        : new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
-
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
+    private final FlatVectorsFormat rawVectorFormat;
+
     /** Creates a new instance with the default number of vectors per cluster. */
     public ES818BinaryQuantizedVectorsFormat() {
+        this(false);
+    }
+
+    /** Creates a new instance with the default number of vectors per cluster,
+     * and whether direct IO should be used to access raw vectors. */
+    public ES818BinaryQuantizedVectorsFormat(boolean useDirectIO) {
         super(NAME);
+        rawVectorFormat = useDirectIO
+            ? new DirectIOLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
+            : new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
     }
 
     @Override

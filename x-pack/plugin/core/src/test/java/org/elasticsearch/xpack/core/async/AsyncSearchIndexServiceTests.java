@@ -109,7 +109,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public TestAsyncResponse convertToFailure(Exception exc) {
-            return new TestAsyncResponse(test, expirationTimeMillis, exc.getMessage());
+            return new TestAsyncResponse("", expirationTimeMillis, exc.getMessage());
         }
 
         @Override

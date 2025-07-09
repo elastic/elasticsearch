@@ -1,0 +1,6 @@
+pr: 116538
+summary: "Test/yaml-rest-runner: add \"eventually\" section"
+area: Infra/Core
+type: enhancement
+issues:
+ - 116445

@@ -7954,4 +7954,49 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightAndPrefilter = as(knn.filterExpressions().get(0), GreaterThan.class);
         assertThat(leftAnd.right(), equalTo(rightAndPrefilter));
     }
+
+    public void testMultipleKnnQueriesInPrefilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        /*
+            and
+                or
+                    knn(dense_vector, [0, 1, 2], 10)
+                    integer > 10
+                or
+                    keyword == "test"
+                    knn(dense_vector, [4, 5, 6], 10)
+         */
+        var query = """
+            from test
+            | where ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+
+        // First OR (knn1 OR integer > 10)
+        var firstOr = as(and.left(), Or.class);
+        var firstKnn = as(firstOr.left(), Knn.class);
+        var integerGt = as(firstOr.right(), GreaterThan.class);
+
+        // Second OR (keyword == "test" OR knn2)
+        var secondOr = as(and.right(), Or.class);
+        var keywordEq = as(secondOr.left(), Equals.class);
+        var secondKnn = as(secondOr.right(), Knn.class);
+
+        // First KNN should have the second OR as its filter
+        List<Expression> firstKnnFilters = firstKnn.filterExpressions();
+        assertThat(firstKnnFilters.size(), equalTo(1));
+        var secondOrWithoutFilters = secondOr.replaceChildren(List.of(secondOr.left(), secondKnn.withFilters(List.of())));
+        assertTrue(firstKnnFilters.contains(secondOrWithoutFilters));
+
+        // Second KNN should have the first OR as its filter
+        List<Expression> secondKnnFilters = secondKnn.filterExpressions();
+        assertThat(secondKnnFilters.size(), equalTo(1));
+        var firstOrWithoutFilters = firstOr.replaceChildren(List.of(firstKnn.withFilters(List.of()), firstOr.right()));
+        assertTrue(secondKnnFilters.contains(firstOrWithoutFilters));
+    }
 }

@@ -17,6 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
+/**
+ * Rewrites an expression tree to push down conjunctions in the prefilter of {@link Knn} functions.
+ *  Given an expression tree like {@code (A OR B) AND (C AND knn())} this rule will rewrite it to
+ *     {@code (A OR B) AND (C AND knn(filterExpressions = [(A OR B), C]))}
+*/
 public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.OptimizerRule<Filter> {
 
     @Override
@@ -28,12 +33,22 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
         return condition.equals(newCondition) ? filter : filter.with(newCondition);
     }
 
-    private static Expression pushConjunctionsToKnn(Expression expression, List<Expression> filters, Expression addedFilter) {
+    /**
+     * Updates knn function prefilters. This method processes conjunctions so knn functions on one side of the conjunction receive
+     * the other side of the conjunction as a prefilter
+     *
+     * @param expression expression to process recursively
+     * @param filters current filters to apply to the expression. They contain expressions on the other side of the traversed conjunctions
+     * @param addedFilter a new filter to add to the list of filters for the processing
+     * @return the updated expression, or the original expression if it doesn't need to be updated
+     */
+    private static Expression pushConjunctionsToKnn(Expression expression, Stack<Expression> filters, Expression addedFilter) {
         if (addedFilter != null) {
-            filters.add(addedFilter);
+            filters.push(addedFilter);
         }
-        Expression result = switch(expression) {
+        Expression result = switch (expression) {
             case And and:
+                // Traverse both sides of the And, using the other side as the added filter
                 Expression newLeft = pushConjunctionsToKnn(and.left(), filters, and.right());
                 Expression newRight = pushConjunctionsToKnn(and.right(), filters, and.left());
                 if (newLeft.equals(and.left()) && newRight.equals(and.right())) {
@@ -41,12 +56,20 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
                 }
                 yield and.replaceChildrenSameSize(List.of(newLeft, newRight));
             case Knn knn:
-                yield knn.withFilters(List.copyOf(filters));
+                // Create a copy of the filters, and check the number of existing filters. We don't check for equality
+                // as having two knn functions on opposite sides of the And is valid, but could lead to infinite number
+                // of changes as the knn functions would recveive the other knn functions as filters and would be constantly
+                // updating
+                List<Expression> newFilters = new ArrayList<>(filters);
+                if (newFilters.size() == knn.filterExpressions().size()) {
+                    yield knn;
+                }
+                yield knn.withFilters(newFilters);
             default:
                 List<Expression> children = expression.children();
                 boolean childrenChanged = false;
 
-                // TODO This copies transformChildren
+                // This copies transformChildren algorithm to avoid unnecessary changes
                 List<Expression> transformedChildren = null;
 
                 for (int i = 0, s = children.size(); i < s; i++) {
@@ -66,7 +89,7 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
         };
 
         if (addedFilter != null) {
-            filters.removeLast();
+            filters.pop();
         }
 
         return result;

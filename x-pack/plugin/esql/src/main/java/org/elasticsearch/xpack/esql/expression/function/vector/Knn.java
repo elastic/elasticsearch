@@ -287,7 +287,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         Translatable translatable = super.translatable(pushdownPredicates);
         // We need to check whether filter expressions are translatable as well
-        for(Expression filterExpression : filterExpressions()) {
+        for (Expression filterExpression : filterExpressions()) {
             translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
         }
 

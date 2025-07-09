@@ -7,7 +7,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-public class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
+public final class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
 
     private final ExponentialHistogram.BucketIterator itA;
     private final ExponentialHistogram.BucketIterator itB;

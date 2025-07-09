@@ -9,7 +9,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import java.util.Arrays;
 
-public class FixedSizeExponentialHistogram implements ExponentialHistogramBuilder, ExponentialHistogram {
+public final class FixedSizeExponentialHistogram implements ExponentialHistogramBuilder, ExponentialHistogram {
 
     // scale of 52 is the largest scale being able to represent the smallest and largest double numbers
     // while giving a relative error less

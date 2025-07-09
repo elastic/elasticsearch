@@ -9,7 +9,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.adjustScale;
 
-public class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
+public final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
 
     private final ExponentialHistogram.BucketIterator delegate;
     private final int scaleAdjustment;

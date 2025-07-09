@@ -235,8 +235,19 @@ public class QueryPhase {
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
             } finally {
-                // Search phase has finished, no longer need to check for timeout
-                if (timeoutRunnable != null) {
+                /*
+                 * If the request ALLOWS PARTIAL RESULTS, we remove the query-cancellation callback
+                 * **before** moving to later phases.
+                 *
+                 * Reason: When allowPartialSearchResults == true we want only the **query** phase
+                 * to be interruptible by timeout, the fetch phase must run to completion so the client
+                 * receives the hits already collected. Otherwise, the timeout cancellation could fire
+                 * during fetch and return an empty SearchHits[] (see bug #130071).
+                 *
+                 * When allowPartialSearchResults==false, we keep the callback active,
+                 * preserving the cross-phase timeout propagation introduced in PR #98715.
+                 */
+                if (searchContext.request().allowPartialSearchResults() && timeoutRunnable != null) {
                     searcher.removeQueryCancellation(timeoutRunnable);
                 }
             }

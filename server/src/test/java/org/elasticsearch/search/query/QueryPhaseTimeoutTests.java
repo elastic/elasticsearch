@@ -45,7 +45,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -457,57 +456,22 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         return context;
     }
 
-    /**
-     * Verifies that the timeout callback registered by {@link QueryPhase}
-     * is always removed after the query finishes.
-     */
-    public void testCancellationCallbackRemoved() throws Exception {
-        class TrackingSearcher extends ContextIndexSearcher {
-            Runnable added;
-            boolean removed;
-
-            TrackingSearcher(IndexReader reader) throws IOException {
-                super(
-                    reader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    LuceneTestCase.MAYBE_CACHE_POLICY,
-                    true
-                );
-            }
-
-            @Override
-            public void addQueryCancellation(Runnable r) {
-                super.addQueryCancellation(r);
-                added = r;
-            }
-
-            @Override
-            public void removeQueryCancellation(Runnable r) {
-                super.removeQueryCancellation(r);
-                if (r == added) removed = true;
-            }
-        }
-
+    public void testQueryCancellationCallbackRemovedWhenPartialAllowed() throws Exception {
         TrackingSearcher searcher = new TrackingSearcher(reader);
-
-        TestSearchContext ctx = new TestSearchContext(null, indexShard, searcher) {
-            @Override
-            public long getRelativeTimeInMillis() {
-                return 0L;
-            } // Freeze clock to ensure the timeout condition is never triggered
-
-            @Override
-            public TimeValue timeout() {
-                return TimeValue.timeValueMillis(5);
-            }
-        };
-        ctx.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-
-        QueryPhase.executeQuery(ctx);
-
-        assertNotNull("callback should be registered", searcher.added);
+        try (TestSearchContext ctx = createSearchContextWithAllowPartialResults(searcher, true)) {
+            QueryPhase.executeQuery(ctx);
+            assertNotNull("callback should be registered", searcher.added);
+        }
         assertTrue("callback should be removed", searcher.removed);
+    }
+
+    public void testQueryCancellationCallbackNotRemovedWhenPartialDisallowed() throws Exception {
+        TrackingSearcher searcher = new TrackingSearcher(reader);
+        try (TestSearchContext ctx = createSearchContextWithAllowPartialResults(searcher, false)) {
+            QueryPhase.executeQuery(ctx);
+            assertNotNull("callback should be registered", searcher.added);
+        }
+        assertFalse("callback must stay registered for later phases", searcher.removed);
     }
 
     private static final class TestSuggester extends Suggester<TestSuggestionContext> {
@@ -624,6 +588,47 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         @Override
         public final boolean isCacheable(LeafReaderContext ctx) {
             return false;
+        }
+    }
+
+    private TestSearchContext createSearchContextWithAllowPartialResults(TrackingSearcher searcher, boolean allowPartial) {
+        TestSearchContext context = new TestSearchContext(null, indexShard, searcher) {
+
+            @Override
+            public ShardSearchRequest request() {
+                SearchRequest req = new SearchRequest();
+                req.allowPartialSearchResults(allowPartial);
+                return new ShardSearchRequest(OriginalIndices.NONE, req, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1F, 0, null);
+            }
+        };
+
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+        return context;
+    }
+
+    private class TrackingSearcher extends ContextIndexSearcher {
+        Runnable added;
+        boolean removed;
+
+        TrackingSearcher(IndexReader reader) throws IOException {
+            super(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                LuceneTestCase.MAYBE_CACHE_POLICY,
+                true
+            );
+        }
+
+        @Override
+        public void addQueryCancellation(Runnable r) {
+            added = r;
+        }
+
+        @Override
+        public void removeQueryCancellation(Runnable r) {
+            if (r == added) removed = true;
         }
     }
 }

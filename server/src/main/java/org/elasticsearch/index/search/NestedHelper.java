@@ -24,6 +24,8 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.List;
+
 /** Utility class to filter parent and children clauses when building nested
  * queries. */
 public final class NestedHelper {
@@ -163,5 +165,42 @@ public final class NestedHelper {
             return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
         }
         return true;
+    }
+
+    /**
+     * Returns true if the given query might match both nested documents and non-nested documents
+     */
+    public static boolean mightMatchMixedDocs(Query query, String nestedPath, SearchExecutionContext searchExecutionContext) {
+        // First check if the individual query might match both types, such as match_all or wildcard or meta field queries
+        boolean mightMatchNestedDocs = mightMatchNestedDocs(query, searchExecutionContext);
+        boolean mightMatchNonNestedDocs = mightMatchNonNestedDocs(query, nestedPath, searchExecutionContext);
+        if (mightMatchNestedDocs && mightMatchNonNestedDocs) {
+            return true;
+        }
+
+        if (query instanceof final BooleanQuery bq) {
+            List<BooleanClause> clauses = bq.clauses();
+            if (clauses.isEmpty()) {
+                return false;
+            }
+            boolean hasNested = false;
+            boolean hasNonNested = false;
+            for (BooleanClause clause : clauses) {
+                Query clauseQuery = clause.query();
+                boolean clauseMatchesNested = mightMatchNestedDocs(clauseQuery, searchExecutionContext);
+                boolean clauseMatchesNonNested = mightMatchNonNestedDocs(clauseQuery, nestedPath, searchExecutionContext);
+                if (clauseMatchesNested) {
+                    hasNested = true;
+                }
+                if (clauseMatchesNonNested) {
+                    hasNonNested = true;
+                }
+                if (hasNested && hasNonNested) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

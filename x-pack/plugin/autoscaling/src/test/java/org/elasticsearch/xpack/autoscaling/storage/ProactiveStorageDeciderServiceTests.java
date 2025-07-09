@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -60,28 +64,25 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
-        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+        @FixForMultiProject(description = "Use non-default project ID and remove last boolean parameter")
+        ProjectMetadata originalProject = DataStreamTestHelper.getProjectWithDataStreams(
             Metadata.DEFAULT_PROJECT_ID,
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
             System.currentTimeMillis(),
             Settings.EMPTY,
             0,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
-        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
-        stateBuilder.routingTable(
-            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
-                .build()
+        stateBuilder.putRoutingTable(
+            originalProject.id(),
+            addRouting(originalProject, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
         );
-        long lastCreated = System.currentTimeMillis();
-        applyCreatedDates(
-            originalState,
-            stateBuilder,
-            (DataStream) originalState.metadata().getProject().getIndicesLookup().get("test"),
-            lastCreated,
-            1
+        stateBuilder.putProjectMetadata(
+            applyCreatedDates(originalProject, (DataStream) originalProject.getIndicesLookup().get("test"), System.currentTimeMillis(), 1)
         );
         ClusterState interimState = stateBuilder.build();
         final ClusterState state = startAll(interimState);
@@ -103,7 +104,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         AutoscalingCapacity currentCapacity = ReactiveStorageDeciderDecisionTests.randomCurrentCapacity();
-        ClusterInfo info = randomClusterInfo(state);
+        ClusterInfo info = randomClusterInfo(state.projectState(originalProject.id()));
         AutoscalingDeciderContext context = new AutoscalingDeciderContext() {
             @Override
             public ClusterState state() {
@@ -151,7 +152,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             assertThat(
                 reason.forecasted(),
                 lessThanOrEqualTo(
-                    totalSize(state.metadata().getProject().dataStreams().get("test").getIndices(), state.routingTable(), info)
+                    totalSize(
+                        state.metadata().getProject(originalProject.id()).dataStreams().get("test").getIndices(),
+                        state.routingTable(originalProject.id()),
+                        info
+                    )
                 )
             );
 
@@ -170,21 +175,24 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testForecastNoDates() {
-        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+        @FixForMultiProject(description = "Use non-default project ID and remove last boolean parameter")
+        ProjectMetadata originalProject = DataStreamTestHelper.getProjectWithDataStreams(
             Metadata.DEFAULT_PROJECT_ID,
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
             System.currentTimeMillis(),
             Settings.EMPTY,
             between(0, 4),
-            randomBoolean()
+            randomBoolean(),
+            false
         );
-        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
-        stateBuilder.routingTable(
-            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
-                .build()
-        );
-        ClusterState state = stateBuilder.build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(originalProject)
+            .putRoutingTable(
+                originalProject.id(),
+                addRouting(originalProject, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            )
+            .build();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
             null,
@@ -200,26 +208,26 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testForecastZero() {
-        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
+        @FixForMultiProject(description = "Use non-default project ID and remove last two boolean parameters")
+        ProjectMetadata originalProject = DataStreamTestHelper.getProjectWithDataStreams(
+            Metadata.DEFAULT_PROJECT_ID,
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
             System.currentTimeMillis(),
             Settings.EMPTY,
-            between(0, 4)
+            between(0, 4),
+            false,
+            false
         );
-        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
-        stateBuilder.routingTable(
-            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
-                .build()
+        stateBuilder.putRoutingTable(
+            originalProject.id(),
+            addRouting(originalProject, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
         );
         long lastCreated = randomNonNegativeLong();
-        applyCreatedDates(
-            originalState,
-            stateBuilder,
-            (DataStream) originalState.metadata().getProject().getIndicesLookup().get("test"),
-            lastCreated,
-            1
+        stateBuilder.putProjectMetadata(
+            applyCreatedDates(originalProject, (DataStream) originalProject.getIndicesLookup().get("test"), lastCreated, 1)
         );
         ClusterState state = stateBuilder.build();
         state = randomAllocate(state);
@@ -228,7 +236,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
-            randomClusterInfo(state),
+            randomClusterInfo(state.projectState(originalProject.id())),
             null,
             Sets.newHashSet(state.nodes()),
             Set.of()
@@ -241,36 +249,35 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testForecast() {
         int indices = between(1, 10);
         int shardCopies = between(1, 2);
-        ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
-            Metadata.DEFAULT_PROJECT_ID,
+        @FixForMultiProject(description = "Use non-default project ID and remove last boolean parameter")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        ProjectMetadata originalProject = DataStreamTestHelper.getProjectWithDataStreams(
+            projectId,
             List.of(Tuple.tuple("test", indices)),
             List.of(),
             System.currentTimeMillis(),
             Settings.EMPTY,
             shardCopies - 1,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
-        ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
-        stateBuilder.routingTable(
-            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
-                .build()
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        stateBuilder.putRoutingTable(
+            projectId,
+            addRouting(originalProject, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
         );
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         long lastCreated = randomNonNegativeLong();
-        applyCreatedDates(
-            originalState,
-            stateBuilder,
-            (DataStream) originalState.metadata().getProject().getIndicesLookup().get("test"),
-            lastCreated,
-            1
+        stateBuilder.putProjectMetadata(
+            applyCreatedDates(originalProject, (DataStream) originalProject.getIndicesLookup().get("test"), lastCreated, 1)
         );
         ClusterState state = stateBuilder.build();
 
         state = randomAllocate(state);
 
-        DataStream dataStream = state.metadata().getProject().dataStreams().get("test");
+        DataStream dataStream = state.metadata().getProject(projectId).dataStreams().get("test");
 
-        ClusterInfo info = randomClusterInfo(state);
+        ClusterInfo info = randomClusterInfo(state.projectState(projectId));
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
@@ -287,12 +294,12 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState forecast = allocationState.forecast(window, lastCreated + 1);
             int actualWindow = Math.min(window, indices);
             int expectedIndices = actualWindow + indices;
-            assertThat(forecast.state().metadata().getProject().indices().size(), Matchers.equalTo(expectedIndices));
-            DataStream forecastDataStream = forecast.state().metadata().getProject().dataStreams().get("test");
+            assertThat(forecast.state().metadata().getProject(projectId).indices().size(), Matchers.equalTo(expectedIndices));
+            DataStream forecastDataStream = forecast.state().metadata().getProject(projectId).dataStreams().get("test");
             assertThat(forecastDataStream.getIndices().size(), Matchers.equalTo(expectedIndices));
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 
-            RoutingTable forecastRoutingTable = forecast.state().routingTable();
+            RoutingTable forecastRoutingTable = forecast.state().routingTable(projectId);
             assertThat(forecastRoutingTable.allShards().count(), Matchers.equalTo((long) (expectedIndices) * shardCopies));
 
             forecastDataStream.getIndices()
@@ -300,7 +307,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
             forecastRoutingTable.allShards().forEach(s -> assertThat(forecast.info().getShardSize(s), Matchers.notNullValue()));
 
-            long expectedTotal = totalSize(dataStream.getIndices().subList(indices - actualWindow, indices), state.routingTable(), info);
+            long expectedTotal = totalSize(
+                dataStream.getIndices().subList(indices - actualWindow, indices),
+                state.routingTable(projectId),
+                info
+            );
             List<Index> addedIndices = forecastDataStream.getIndices().subList(indices, forecastDataStream.getIndices().size());
             long actualTotal = totalSize(addedIndices, forecastRoutingTable, forecast.info());
 
@@ -388,32 +399,26 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return builder;
     }
 
-    private ClusterInfo randomClusterInfo(ClusterState state) {
-        Map<String, Long> shardSizes = state.routingTable()
+    private ClusterInfo randomClusterInfo(ProjectState projectState) {
+        Map<String, Long> shardSizes = projectState.routingTable()
             .allShards()
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         Map<String, DiskUsage> diskUsage = new HashMap<>();
-        for (var id : state.nodes().getDataNodes().keySet()) {
+        for (var id : projectState.cluster().nodes().getDataNodes().keySet()) {
             diskUsage.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
         }
         return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of(), Map.of());
     }
 
-    private ClusterState.Builder applyCreatedDates(
-        ClusterState state,
-        ClusterState.Builder builder,
-        DataStream ds,
-        long last,
-        long decrement
-    ) {
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
+    private ProjectMetadata applyCreatedDates(ProjectMetadata project, DataStream ds, long last, long decrement) {
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
         List<Index> indices = ds.getIndices();
         long start = last - (decrement * (indices.size() - 1));
         for (int i = 0; i < indices.size(); ++i) {
-            IndexMetadata previousInstance = state.metadata().getProject().index(indices.get(i));
-            metadataBuilder.put(IndexMetadata.builder(previousInstance).creationDate(start + (i * decrement)).build(), false);
+            IndexMetadata previousInstance = project.index(indices.get(i));
+            projectBuilder.put(IndexMetadata.builder(previousInstance).creationDate(start + (i * decrement)).build(), false);
         }
-        return builder.metadata(metadataBuilder);
+        return projectBuilder.build();
     }
 }

@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTransportSupported;
+
 /**
  * A {@link QueryBuilder} that wraps another {@linkplain QueryBuilder}
  * so it read with a {@link PlanStreamInput}.
@@ -58,9 +60,7 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
+        return expressionTransportSupported(version);
     }
 
     @Override

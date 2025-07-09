@@ -165,7 +165,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void doStart() {
+    protected void startInternal() {
         boolean success = false;
         try {
             sharedGroup = sharedGroupFactory.getHttpGroup();

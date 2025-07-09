@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -148,6 +147,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -177,6 +177,13 @@ public class InferencePlugin extends Plugin
     public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
         "xpack.inference.skip_validate_and_start",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final TimeValue DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
+    public static final Setting<TimeValue> SEMANTIC_TEXT_INFERENCE_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.semantic_text.inference_timeout",
+        DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -496,7 +503,7 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-        settings.add(InferenceMetadataFieldsMapper.SEMANTIC_TEXT_INFERENCE_TIMEOUT);
+        settings.add(SEMANTIC_TEXT_INFERENCE_TIMEOUT);
         return settings;
     }
 

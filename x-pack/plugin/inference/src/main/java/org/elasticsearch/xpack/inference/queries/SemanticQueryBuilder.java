@@ -226,10 +226,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         String inferenceId = getInferenceIdForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-        TimeValue inferenceTimeout = getInferenceTimeeoutForSemanticField(
-            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
-            fieldName
-        );
         SetOnce<InferenceServiceResults> inferenceResultsSupplier = new SetOnce<>();
         boolean noInferenceResults = false;
         if (inferenceId != null) {
@@ -242,7 +238,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 List.of(query),
                 Map.of(),
                 InputType.INTERNAL_SEARCH,
-                inferenceTimeout,
+                null,
                 false
             );
 
@@ -267,33 +263,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         return new SemanticQueryBuilder(this, noInferenceResults ? null : inferenceResultsSupplier, null, noInferenceResults);
-    }
-
-    @SuppressWarnings("unchecked")
-    private TimeValue getInferenceTimeeoutForSemanticField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
-        TimeValue inferenceTimeout = InferenceMetadataFieldsMapper.DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT;
-        for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            boolean fieldExistsInIndex = indexMetadata.mapping()
-                .getSourceAsMap()
-                .values()
-                .stream()
-                .filter(v -> v instanceof Map)
-                .map(v -> (Map<String, Object>) v)
-                .anyMatch(m -> m.containsKey(fieldName));
-
-            if (fieldExistsInIndex == false) {
-                continue;
-            }
-
-            TimeValue currentInferenceTimeout = indexMetadata.getSettings()
-                .getAsTime("index.semantic_text.inference_timeout", InferenceMetadataFieldsMapper.DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT);
-
-            if (currentInferenceTimeout.compareTo(inferenceTimeout) < 0) {
-                inferenceTimeout = currentInferenceTimeout;
-            }
-        }
-
-        return inferenceTimeout;
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

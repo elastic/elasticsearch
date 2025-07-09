@@ -30,7 +30,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("from test | inlinestats max(salary) by gender", ALL_FIELDS);
     }
 
@@ -39,7 +39,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("from test metadata _index, _id, _version | inlinestats max(salary)", ALL_FIELDS);
     }
 
@@ -305,7 +305,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLimitZero_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS COUNT(*), MAX(salary) BY gender
@@ -320,7 +320,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDocsDropHeight_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             FROM employees
             | DROP height
@@ -336,7 +336,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDocsDropHeightWithWildcard_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             FROM employees
             | INLINESTATS MAX(salary) BY gender
@@ -503,7 +503,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSortWithLimitOne_DropHeight_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("from employees | inlinestats avg(salary) by languages | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
@@ -803,7 +803,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testFilterById_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("FROM apps metadata _id | INLINESTATS max(rate) | WHERE _id == \"4\"", ALL_FIELDS);
     }
 
@@ -1274,7 +1274,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testProjectDropPattern_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats max(foo) by bar
@@ -1357,7 +1357,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testCountAllAndOtherStatGrouped_WithInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | inlinestats c = count(*), min = min(emp_no) by languages
@@ -1396,7 +1396,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testCountAllWithEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1409,7 +1409,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepAfterEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1422,7 +1422,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepBeforeEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1435,7 +1435,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsBeforeEval_AndInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | rename languages as l
@@ -1447,7 +1447,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsBeforeInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | stats min = min(salary) by languages
@@ -1456,7 +1456,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepBeforeInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V7.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
         assertFieldNames("""
             from test
             | keep languages, salary
@@ -1969,7 +1969,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
     }
 
-    public void testDropWildcardedFields_AfterRename() {
+    public void testDropWildcardFieldsAfterRename() {
         assertFieldNames(
             """
                 from employees
@@ -1982,7 +1982,30 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testDropWildcardFields_WithLookupJoin() {
+    public void testDropWildcardFieldsAfterLookupJoins() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames("""
+            FROM sample_data
+            | EVAL client_ip = client_ip::keyword
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | LOOKUP JOIN message_types_lookup ON message
+            | SORT @timestamp
+            | DROP *e""", Set.of("*"), Set.of());
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoins2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames("""
+            FROM sample_data
+            | EVAL client_ip = client_ip::keyword
+            | LOOKUP JOIN clientips_lookup ON client_ip
+            | DROP *e, client_ip
+            | LOOKUP JOIN message_types_lookup ON message
+            | SORT @timestamp
+            | DROP *e""", Set.of("*"), Set.of());
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoinsAndKeep() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
@@ -1995,6 +2018,55 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | DROP *e""",
             Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
             Set.of()
+        );
+    }
+
+    public void testDropWildcardFieldsAfterLookupJoinKeepLookupJoin() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("message_types_lookup")
+        );
+    }
+
+    public void testDropWildcardFieldsAfterKeepAndLookupJoins() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("clientips_lookup", "message_types_lookup")
+        );
+    }
+
+    public void testDropWildcardFieldsAfterKeepAndLookupJoins2() {
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data
+                | EVAL client_ip = client_ip::keyword
+                | KEEP @timestamp, *e*, client_ip
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | DROP *e
+                | LOOKUP JOIN message_types_lookup ON message
+                | SORT @timestamp
+                | DROP *e, client_ip""",
+            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("clientips_lookup", "message_types_lookup")
         );
     }
 

@@ -51,7 +51,9 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(
         returnType = "date",
         description = "Returns a date by parsing the second argument using the format specified in the first argument.",
-        examples = @Example(file = "docs", tag = "dateParse")
+        examples = { @Example(file = "date", tag = "date-parse"), @Example(description = """
+            If any column is multivalued, this will return a `null` result.
+            """, file = "date", tag = "date-parse-mv"), }
     )
     public DateParse(
         Source source,

@@ -35,6 +35,9 @@ import java.io.IOException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19;
+import static org.elasticsearch.TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1;
+
 public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -145,7 +148,10 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     }
 
     private boolean supportsPushdown(TransportVersion version) {
-        return version == null || version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE);
+        return version == null
+            || version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
+            || version.isPatchFrom(ESQL_FIXED_INDEX_LIKE_8_19)
+            || version.isPatchFrom(ESQL_FIXED_INDEX_LIKE_9_1);
     }
 
     @Override

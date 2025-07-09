@@ -60,6 +60,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -794,7 +795,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
-            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sample', 'sort'"));
         }
     }
 
@@ -1014,21 +1015,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // Create more than 10 indices to trigger multiple batches of data node execution.
         // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
         for (int i = 1; i <= 20; i++) {
-            createIndex("idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
+            createIndex("no_sort_field_idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
         }
         bulkLoadTestDataLookupMode(10);
         // lookup join with and without sort
         for (String sort : List.of("", "| sort integer")) {
-            var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
+            var query = requestObjectBuilder().query(
+                format(null, "from {},no_sort_field_idx* | lookup join {} on integer {}", testIndexName(), testIndexName(), sort)
+            );
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(21, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }
         // clean up
         for (int i = 1; i <= 20; i++) {
-            assertThat(deleteIndex("idx" + i).isAcknowledged(), is(true));
+            assertThat(deleteIndex("no_sort_field_idx" + i).isAcknowledged(), is(true));
         }
     }
 
@@ -1247,13 +1249,21 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
+    public static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        Mode mode,
+        boolean checkPartialResults
+    ) throws IOException {
+        var results = mode == ASYNC
+            ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
+            : runEsqlSync(requestObject, assertWarnings);
+        return checkPartialResults ? assertNotPartial(results) : results;
+    }
+
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
         throws IOException {
-        if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
-        } else {
-            return runEsqlSync(requestObject, assertWarnings);
-        }
+        return runEsql(requestObject, assertWarnings, mode, true);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
@@ -1408,7 +1418,76 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesMap().entry("name", "integer").entry("type", "integer")),
             values
         );
+    }
 
+    public void testReplaceStringCasingWithInsensitiveWildcardMatch() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "reserved": {
+                        "type": "keyword"
+                    },
+                    "optional": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+        doc.setJsonEntity("""
+            {
+                "reserved": "_\\"_$_(_)_+_._[_]_^_{_|_}___",
+                "optional": "_#_&_<_>___"
+            }
+            """);
+        client().performRequest(doc);
+        var query = "FROM " + testIndexName() + """
+            | WHERE TO_LOWER(reserved) LIKE "_\\"_$_(_)_+_._[_]_^_{_|_}*"
+            | WHERE TO_LOWER(optional) LIKE "_#_&_<_>*"
+            | KEEP reserved, optional
+            """;
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("_\"_$_(_)_+_._[_]_^_{_|_}___", "_#_&_<_>___"))));
+    }
+
+    public void testRLikeHandlingOfEmptyLanguagePattern() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "field": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        for (var val : List.of("#", "foo#bar")) {
+            Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "field": "%s"
+                }
+                """.formatted(val));
+            client().performRequest(doc);
+        }
+        // pushed down, matches nothing
+        var query = "FROM " + testIndexName() + " | WHERE TO_LOWER(field) RLIKE \"#\"";
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches nothing
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches one doc
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"\\\\#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"))));
+
+        // matches both docs
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \".*\\\\#.*\" | SORT field";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
@@ -1581,7 +1660,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=6000s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {

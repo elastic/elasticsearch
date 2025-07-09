@@ -96,8 +96,10 @@ class SampleBooleanAggregator {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try (BooleanBlock.Builder booleanBlock = driverContext.blockFactory().newBooleanBlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+            BooleanBlock.Builder booleanBlock = driverContext.blockFactory().newBooleanBlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +121,6 @@ class SampleBooleanAggregator {
                     }
                 }
             }
-            block.close();
             return booleanBlock.build();
         }
     }

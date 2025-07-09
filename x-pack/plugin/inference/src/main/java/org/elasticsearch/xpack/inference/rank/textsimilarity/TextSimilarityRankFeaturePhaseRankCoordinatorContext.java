@@ -19,11 +19,15 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
@@ -91,7 +95,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             } else if (r.getEndpoints().isEmpty() == false
                 && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
                     configuredTopN = googleVertexAiTaskSettings.topN();
-                }
+                } else if (r.getEndpoints().isEmpty() == false
+                    && r.getEndpoints().get(0).getTaskSettings() instanceof HuggingFaceRerankTaskSettings huggingFaceRerankTaskSettings) {
+                        configuredTopN = huggingFaceRerankTaskSettings.getTopNDocumentsOnly();
+                    }
             if (configuredTopN != null && configuredTopN < rankWindowSize) {
                 l.onFailure(
                     new IllegalArgumentException(
@@ -114,7 +121,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
                 InferenceAction.Request inferenceRequest = generateRequest(featureData);
                 try {
-                    client.execute(InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+                    executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
                 } finally {
                     inferenceRequest.decRef();
                 }

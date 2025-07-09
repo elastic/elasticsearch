@@ -104,7 +104,7 @@ While nesting `bool` queries can be powerful, it can also lead to complex and sl
 
 ## Scoring with `bool.filter` [score-bool-filter]
 
-Queries specified under the `filter` element have no effect on scoring — scores are returned as `0`. Scores are only affected by the query that has been specified. For instance, all three of the following queries return all documents where the `status` field contains the term `active`.
+Queries specified under the `filter` element have no effect on scoring — scores are returned as `0`. Scores are only affected by the query that has been specified. For instance, all three of the following queries return all documents where the `status` field contains the term `active`.
 
 This first query assigns a score of `0` to all documents, as no scoring query has been specified:
 

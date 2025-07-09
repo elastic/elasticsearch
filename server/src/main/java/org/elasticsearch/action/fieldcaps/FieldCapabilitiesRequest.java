@@ -10,9 +10,9 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -70,7 +70,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             includeEmptyFields = in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             clusterAlias = in.readOptionalString();
         } else {
             clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -124,7 +125,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(includeEmptyFields);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_ADD_CLUSTER_ALIAS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_19_FIELD_CAPS_ADD_CLUSTER_ALIAS)) {
             out.writeOptionalString(clusterAlias);
         }
     }

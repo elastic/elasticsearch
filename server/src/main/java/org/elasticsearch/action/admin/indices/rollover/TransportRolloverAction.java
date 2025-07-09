@@ -276,7 +276,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 AutoShardingResult rolloverAutoSharding = null;
                 final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
-                if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
+                // Failure stores currently don't support auto sharding yet.
+                if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM) && targetFailureStore == false) {
                     DataStream dataStream = (DataStream) indexAbstraction;
                     IndexStats indexStats = statsResponse != null ? statsResponse.getIndex(dataStream.getWriteIndex().getName()) : null;
                     rolloverAutoSharding = dataStreamAutoShardingService.calculate(projectState, dataStream, indexStats);

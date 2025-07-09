@@ -10,7 +10,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -128,8 +127,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             clusterService,
             threadPool,
             client,
-            services.xContentRegistry(),
-            services.projectResolver()
+            services.xContentRegistry()
         );
         templateRegistry.initialize();
         snapshotHistoryStore.set(new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService));
@@ -233,7 +231,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return actions;
     }
 
-    List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
         return List.of(new ReservedSnapshotAction());
     }
 

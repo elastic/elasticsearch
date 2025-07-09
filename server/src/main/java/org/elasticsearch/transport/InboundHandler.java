@@ -390,6 +390,7 @@ public class InboundHandler {
                 () -> "error processing handshake version [" + header.getVersion() + "] received on [" + channel + "], closing channel",
                 e
             );
+            channel.setCloseException(e);
             channel.close();
         }
     }

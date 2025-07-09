@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +38,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest, ToXContent {
+    public static class Request extends LegacyActionRequest implements IndicesRequest, ToXContent {
         private final String sourceIndex;
         private final String destIndex;
         private Settings settingsOverride;
@@ -152,7 +152,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
          * This only exists for the sake of testing the xcontent parser
          */
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (mappingsOverride.containsKey("_doc")) {
                 builder.field(MAPPINGS_OVERRIDE_FIELD.getPreferredName(), mappingsOverride.get("_doc"));
             }

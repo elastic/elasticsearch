@@ -1,0 +1,5 @@
+pr: 128464
+summary: Add support for parameters in LIMIT command
+area: ES|QL
+type: enhancement
+issues: []

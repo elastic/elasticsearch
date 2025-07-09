@@ -68,11 +68,7 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testLuceneQuery_AllLiterals_NonTranslatable() {
-        var function = new StartsWith(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, "test", DataType.KEYWORD),
-            new Literal(Source.EMPTY, "test", DataType.KEYWORD)
-        );
+        var function = new StartsWith(Source.EMPTY, Literal.keyword(Source.EMPTY, "test"), Literal.keyword(Source.EMPTY, "test"));
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
@@ -91,13 +87,13 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
         var function = new StartsWith(
             Source.EMPTY,
             new FieldAttribute(Source.EMPTY, "field", new EsField("prefix", DataType.KEYWORD, Map.of(), true)),
-            new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
+            Literal.keyword(Source.EMPTY, "a*b?c\\")
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
 
         var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "a\\*b\\?c\\\\*")));
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "a\\*b\\?c\\\\*", false, false)));
     }
 }

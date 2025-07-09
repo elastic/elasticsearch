@@ -278,13 +278,26 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void close() {
+            handleClose(null);
+        }
+
+        @Override
+        public void closeAndFail(Exception e) {
+            handleClose(e);
+        }
+
+        private void handleClose(Exception e) {
             if (isClosing.compareAndSet(false, true)) {
                 try {
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
                     // Call the super method to trigger listeners
-                    super.close();
+                    if (e == null) {
+                        super.close();
+                    } else {
+                        super.closeAndFail(e);
+                    }
                 }
             }
         }
@@ -760,6 +773,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } finally {
             if (closeChannel) {
+                channel.setCloseException(e);
                 CloseableChannel.closeChannel(channel);
             }
         }
@@ -1120,7 +1134,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.running(nodeChannels::close));
+                            ch.addCloseListener(new ActionListener<Void>() {
+                                @Override
+                                public void onResponse(Void ignored) {
+                                    nodeChannels.close();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    nodeChannels.closeAndFail(e);
+                                }
+                            });
                         });
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));
@@ -1181,7 +1205,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onFailure(Exception e) {
-            assert false : e; // never called
+            long closeTimeMillis = threadPool.relativeTimeInMillis();
+            logger.debug(
+                () -> format(
+                    "closed transport connection [%d] to [%s] with age [%dms], exception:",
+                    connectionId,
+                    node,
+                    closeTimeMillis - openTimeMillis
+                ),
+                e
+            );
         }
     }
 

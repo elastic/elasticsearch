@@ -9,10 +9,10 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +27,7 @@ public class StatelessPrimaryRelocationAction {
         "internal:index/shard/recovery/stateless_primary_relocation"
     );
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final long recoveryId;
         private final ShardId shardId;

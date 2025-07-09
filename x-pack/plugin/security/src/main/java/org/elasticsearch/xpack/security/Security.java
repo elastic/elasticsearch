@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -100,7 +99,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -110,7 +109,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -208,6 +206,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -1101,6 +1100,10 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
+        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
+
+        components.add(customApiKeyAuthenticator);
+
         authcService.set(
             new AuthenticationService(
                 settings,
@@ -1113,6 +1116,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
+                customApiKeyAuthenticator,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1246,6 +1250,48 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, CustomApiKeyAuthenticator> customApiKeyAuthenticatorByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = extension.getCustomApiKeyAuthenticator(extensionComponents);
+            if (customApiKeyAuthenticator != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
+            }
+        }
+
+        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to noop implementation.",
+                CustomApiKeyAuthenticator.class.getCanonicalName()
+            );
+            return new CustomApiKeyAuthenticator.Noop();
+
+        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
+            );
+
+        } else {
+            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
+            final String extensionName = authenticatorByExtensionEntry.getKey();
+            logger.debug(
+                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
+                customApiKeyAuthenticator.getClass().getCanonicalName(),
+                extensionName
+            );
+            return customApiKeyAuthenticator;
+        }
     }
 
     private ServiceAccountService createServiceAccountService(
@@ -2045,7 +2091,7 @@ public class Security extends Plugin
         HttpServerTransport.Dispatcher dispatcher,
         BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
@@ -2097,7 +2143,7 @@ public class Security extends Plugin
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
-                tracer,
+                telemetryProvider,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
                 (httpRequest, channel, listener) -> {
@@ -2135,7 +2181,7 @@ public class Security extends Plugin
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
         HttpValidator httpValidator,
@@ -2149,7 +2195,7 @@ public class Security extends Plugin
             dispatcher,
             clusterSettings,
             sharedGroupFactory,
-            tracer,
+            telemetryProvider,
             tlsConfig,
             acceptPredicate,
             (httpRequest, channel, listener) -> {
@@ -2181,7 +2227,7 @@ public class Security extends Plugin
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
         HttpValidator httpValidator
@@ -2194,7 +2240,7 @@ public class Security extends Plugin
             dispatcher,
             clusterSettings,
             sharedGroupFactory,
-            tracer,
+            telemetryProvider,
             tlsConfig,
             acceptPredicate,
             Objects.requireNonNull(httpValidator)
@@ -2490,7 +2536,7 @@ public class Security extends Plugin
         return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
-    List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedProjectStateHandlers() {
+    List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
             return Collections.emptyList();

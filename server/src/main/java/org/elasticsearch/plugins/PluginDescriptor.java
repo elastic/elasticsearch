@@ -250,6 +250,31 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return descriptor;
     }
 
+    /**
+     * Reads the internal descriptor for a classic plugin.
+     *
+     * @param stream the InputStream from which to read the plugin data
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
+    public static PluginDescriptor readInternalDescriptorFromStream(InputStream stream) throws IOException {
+        final Map<String, String> propsMap;
+        {
+            final Properties props = new Properties();
+            props.load(stream);
+            propsMap = props.stringPropertyNames().stream().collect(Collectors.toMap(Function.identity(), props::getProperty));
+        }
+
+        PluginDescriptor descriptor = readerInternalDescriptor(propsMap, INTERNAL_DESCRIPTOR_FILENAME);
+        String name = descriptor.getName();
+
+        if (propsMap.isEmpty() == false) {
+            throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
+        }
+
+        return descriptor;
+    }
+
     private static PluginDescriptor readerInternalDescriptor(Map<String, String> propsMap, String filename) {
         String name = readNonEmptyString(propsMap, filename, "name");
         String desc = readString(propsMap, name, "description");

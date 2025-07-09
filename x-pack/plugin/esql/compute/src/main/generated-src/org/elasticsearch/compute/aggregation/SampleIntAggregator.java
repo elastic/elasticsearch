@@ -96,8 +96,10 @@ class SampleIntAggregator {
         if (block.areAllValuesNull()) {
             return block;
         }
-        BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-        try (IntBlock.Builder intBlock = driverContext.blockFactory().newIntBlockBuilder(bytesRefBlock.getPositionCount())) {
+        try (
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
+            IntBlock.Builder intBlock = driverContext.blockFactory().newIntBlockBuilder(bytesRefBlock.getPositionCount())
+        ) {
             BytesRef scratch = new BytesRef();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
@@ -119,7 +121,6 @@ class SampleIntAggregator {
                     }
                 }
             }
-            block.close();
             return intBlock.build();
         }
     }

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.action.support.single.shard;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest
+public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends LegacyActionRequest
     implements
         IndicesRequest.RemoteClusterShardRequest {
 
@@ -31,7 +31,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     /**
      * The concrete index name
-     *
+     * <p>
      * Whether index property is optional depends on the concrete implementation. If index property is required the
      * concrete implementation should use {@link #validateNonNullIndex()} to check if the index property has been set
      */
@@ -67,9 +67,9 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     /**
      * @return The concrete index this request is targeted for or <code>null</code> if index is optional.
-     *         Whether index property is optional depends on the concrete implementation. If index property
-     *         is required the concrete implementation should use {@link #validateNonNullIndex()} to check
-     *         if the index property has been set
+     * Whether index property is optional depends on the concrete implementation. If index property
+     * is required the concrete implementation should use {@link #validateNonNullIndex()} to check
+     * if the index property has been set
      */
     @Nullable
     public String index() {

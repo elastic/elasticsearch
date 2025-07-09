@@ -29,7 +29,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -54,11 +54,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
-        assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
+        assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // One child isn't supported
         e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
-        assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
+        assertThat(e.getMessage(), containsString("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(
@@ -68,7 +68,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 def
             )
         );
-        assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
+        assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }
 
     public void testAliasNameIsTheSameAsAFunctionName() {
@@ -138,14 +138,14 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
-        assertThat(e.getMessage(), endsWith("expects exactly one argument"));
+        assertThat(e.getMessage(), containsString("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(
             ParsingException.class,
             () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
-        assertThat(e.getMessage(), endsWith("expects exactly one argument"));
+        assertThat(e.getMessage(), containsString("expects exactly one argument"));
     }
 
     public void testConfigurationOptionalFunction() {

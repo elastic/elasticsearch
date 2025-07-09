@@ -41,6 +41,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -112,6 +113,10 @@ public abstract class SearchContext implements Releasable {
     @Override
     public final void close() {
         closeFuture.onResponse(null);
+    }
+
+    public final boolean isClosed() {
+        return closeFuture.isDone();
     }
 
     /**
@@ -441,7 +446,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Build something to load source {@code _source}.
      */
-    public abstract SourceLoader newSourceLoader();
+    public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
 
     public abstract IdLoader newIdLoader();
 }

@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -269,6 +270,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );
             assumeFalse(
+                "can't use completion in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.COMPLETION.capabilityName())
+            );
+            assumeFalse(
                 "can't use match in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
             );
@@ -285,8 +290,16 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "can't use MATCH_PHRASE function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "can't use KQL function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
+            );
+            assumeFalse(
+                "can't use KNN function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V2.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
@@ -310,7 +323,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "CSV tests cannot currently handle FORK",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V3.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V9.capabilityName())
             );
             assumeFalse(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
@@ -554,7 +567,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
+        LogicalPlan parsed = parser.createStatement(testCase.query, EsqlTestUtils.TEST_CFG);
         var testDatasets = testDatasets(parsed);
         LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 
@@ -703,7 +716,7 @@ public class CsvTests extends ESTestCase {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
+                new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, foldCtx, searchStats)
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);

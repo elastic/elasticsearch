@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -21,14 +22,22 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Assert;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.index.mapper.BlockLoaderTestRunner.PrettyEqual.prettyEqualTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
@@ -42,7 +51,7 @@ public class BlockLoaderTestRunner {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
-        Assert.assertEquals(expected, blockLoaderResult);
+        assertThat(blockLoaderResult, prettyEqualTo(expected));
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {
@@ -74,10 +83,9 @@ public class BlockLoaderTestRunner {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
         var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReader != null) {
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), TestBlock.docs(0));
-            if (block.size() == 0) {
-                return null;
-            }
+            BlockLoader.Docs docs = TestBlock.docs(0);
+            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), docs);
+            assertThat(block.size(), equalTo(1));
             return block.get(0);
         }
 
@@ -99,9 +107,8 @@ public class BlockLoaderTestRunner {
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(context.reader().numDocs()), 1);
         blockLoader.rowStrideReader(context).read(0, storedFieldsLoader, builder);
         var block = (TestBlock) builder.build();
-        if (block.size() == 0) {
-            return null;
-        }
+        assertThat(block.size(), equalTo(1));
+
         return block.get(0);
     }
 
@@ -144,5 +151,87 @@ public class BlockLoaderTestRunner {
                 return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
+    }
+
+    // Copied from org.hamcrest.core.IsEqual and modified to pretty print failure when bytesref
+    static class PrettyEqual<T> extends BaseMatcher<T> {
+
+        private final Object expectedValue;
+
+        PrettyEqual(T equalArg) {
+            expectedValue = equalArg;
+        }
+
+        @Override
+        public boolean matches(Object actualValue) {
+            return areEqual(actualValue, expectedValue);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendValue(attemptMakeReadable(expectedValue));
+        }
+
+        @Override
+        public void describeMismatch(Object item, Description description) {
+            super.describeMismatch(attemptMakeReadable(item), description);
+        }
+
+        private static boolean areEqual(Object actual, Object expected) {
+            if (actual == null) {
+                return expected == null;
+            }
+
+            if (expected != null && isArray(actual)) {
+                return isArray(expected) && areArraysEqual(actual, expected);
+            }
+
+            return actual.equals(expected);
+        }
+
+        private static boolean areArraysEqual(Object actualArray, Object expectedArray) {
+            return areArrayLengthsEqual(actualArray, expectedArray) && areArrayElementsEqual(actualArray, expectedArray);
+        }
+
+        private static boolean areArrayLengthsEqual(Object actualArray, Object expectedArray) {
+            return Array.getLength(actualArray) == Array.getLength(expectedArray);
+        }
+
+        private static boolean areArrayElementsEqual(Object actualArray, Object expectedArray) {
+            for (int i = 0; i < Array.getLength(actualArray); i++) {
+                if (areEqual(Array.get(actualArray, i), Array.get(expectedArray, i)) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static boolean isArray(Object o) {
+            return o.getClass().isArray();
+        }
+
+        // Attempt to make assertions readable:
+        static Object attemptMakeReadable(Object expected) {
+            try {
+                if (expected instanceof BytesRef bytesRef) {
+                    expected = bytesRef.utf8ToString();
+                } else if (expected instanceof List<?> list && list.getFirst() instanceof BytesRef) {
+                    List<String> expectedList = new ArrayList<>(list.size());
+                    for (Object e : list) {
+                        expectedList.add(((BytesRef) e).utf8ToString());
+                    }
+                    expected = expectedList;
+                }
+                return expected;
+            } catch (Exception | AssertionError e) {
+                // ip/geo fields can't be converted to strings:
+                return expected;
+            }
+        }
+
+        public static <T> Matcher<T> prettyEqualTo(T operand) {
+            return new PrettyEqual<>(operand);
+        }
+
     }
 }

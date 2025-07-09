@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockClusterState
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse.RemoveBlockResult;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -65,9 +66,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.injection.guice.Inject;
@@ -350,6 +353,12 @@ public class MetadataIndexStateService {
                     + snapshottingIndices
                     + ". Try again after snapshot finishes or cancel the currently running snapshot."
             );
+        }
+
+        // Check if index closing conflicts with ongoing resharding
+        Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(currentProjectState, indicesToClose);
+        if (reshardingIndices.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot close indices that are being resharded: " + reshardingIndices);
         }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
@@ -940,6 +949,22 @@ public class MetadataIndexStateService {
                     continue;
                 }
 
+                // Check if index closing conflicts with ongoing resharding
+                Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(currentProjectState, Set.of(index));
+                if (reshardingIndices.isEmpty() == false) {
+                    closingResults.put(
+                        result.getKey(),
+                        new IndexResult(
+                            result.getKey(),
+                            new IllegalStateException(
+                                "verification of shards before closing " + index + " succeeded but index is being resharded in the meantime"
+                            )
+                        )
+                    );
+                    logger.debug("verification of shards before closing {} succeeded but index is being resharded in the meantime", index);
+                    continue;
+                }
+
                 blocks.removeIndexBlockWithId(projectId, index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(projectId, index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
@@ -1131,6 +1156,72 @@ public class MetadataIndexStateService {
             clusterBlock.isAllowReleaseResources(),
             clusterBlock.status(),
             clusterBlock.levels()
+        );
+    }
+
+    public static Tuple<ClusterState, List<RemoveBlockResult>> removeIndexBlock(
+        ProjectState projectState,
+        final Index[] indices,
+        final APIBlock block
+    ) {
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectState.metadata());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(projectState.blocks());
+        final List<String> effectivelyUnblockedIndices = new ArrayList<>();
+        final Map<String, RemoveBlockResult> results = new HashMap<>();
+
+        for (Index index : indices) {
+            try {
+                final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+                if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                    results.put(index.getName(), new RemoveBlockResult(index, new IndexClosedException(index)));
+                    continue;
+                }
+
+                final Settings indexSettings = indexMetadata.getSettings();
+                final boolean hasBlockSetting = block.setting().get(indexSettings);
+
+                final boolean hasBlock = projectState.blocks().hasIndexBlock(projectState.projectId(), index.getName(), block.block);
+                if (hasBlockSetting == false && hasBlock == false) {
+                    results.put(index.getName(), new RemoveBlockResult(index));
+                    continue;
+                }
+
+                // Remove all blocks with the same ID
+                blocks.removeIndexBlock(projectState.projectId(), index.getName(), block.block);
+
+                // Remove the block setting if it exists
+                if (hasBlockSetting) {
+                    final Settings.Builder updatedSettings = Settings.builder().put(indexSettings);
+                    updatedSettings.remove(block.settingName());
+
+                    if (block.block.contains(ClusterBlockLevel.WRITE)) {
+                        if (blocks.hasIndexBlockLevel(projectState.projectId(), index.getName(), ClusterBlockLevel.WRITE) == false) {
+                            updatedSettings.remove(VERIFIED_READ_ONLY_SETTING.getKey());
+                        }
+                    }
+
+                    final IndexMetadata updatedMetadata = IndexMetadata.builder(indexMetadata)
+                        .settings(updatedSettings)
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                        .build();
+
+                    projectBuilder.put(updatedMetadata, true);
+                }
+
+                effectivelyUnblockedIndices.add(index.getName());
+                results.put(index.getName(), new RemoveBlockResult(index));
+
+                logger.debug("remove block {} from index {} succeeded", block.block, index);
+            } catch (final IndexNotFoundException e) {
+                logger.debug("index {} has been deleted since removing block started, ignoring", index);
+                results.put(index.getName(), new RemoveBlockResult(index, e));
+            }
+        }
+
+        logger.info("completed removing [index.blocks.{}] block from indices {}", block.name, effectivelyUnblockedIndices);
+        return Tuple.tuple(
+            ClusterState.builder(projectState.cluster()).putProjectMetadata(projectBuilder).blocks(blocks).build(),
+            List.copyOf(results.values())
         );
     }
 

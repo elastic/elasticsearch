@@ -419,7 +419,8 @@ public abstract class StreamOutput extends OutputStream {
             writeInt(spare.length());
             write(spare.bytes(), 0, spare.length());
         } else {
-            BytesReference bytes = BytesReference.fromByteBuffer(text.bytes());
+            var encoded = text.bytes();
+            BytesReference bytes = new BytesArray(encoded.bytes(), encoded.offset(), encoded.length());
             writeInt(bytes.length());
             bytes.writeTo(this);
         }

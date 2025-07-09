@@ -19,8 +19,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -138,6 +139,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
     private static final String IN_SYNC_ALLOCATION_ID = "ccr_restore";
 
+    private final ProjectId projectId;
     private final RepositoryMetadata metadata;
     private final CcrSettings ccrSettings;
     private final String localClusterName;
@@ -151,7 +153,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final SingleResultDeduplicator<ClusterState> csDeduplicator;
 
-    public CcrRepository(RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
+    public CcrRepository(
+        ProjectId projectId,
+        RepositoryMetadata metadata,
+        Client client,
+        Settings settings,
+        CcrSettings ccrSettings,
+        ThreadPool threadPool
+    ) {
+        this.projectId = projectId;
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
         this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
@@ -165,7 +175,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().execute(
                 ClusterStateAction.REMOTE_TYPE,
-                new ClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
+                new RemoteClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
                 l.map(ClusterStateResponse::getState)
             )
         );
@@ -179,6 +189,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     protected void doClose() {}
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -266,7 +281,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         var remoteClient = getRemoteClusterClient();
         ClusterStateResponse clusterState = executeRecoveryAction(

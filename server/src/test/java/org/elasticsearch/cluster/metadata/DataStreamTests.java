@@ -53,7 +53,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -98,6 +97,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var generation = instance.getGeneration();
         var metadata = instance.getMetadata();
         var settings = instance.getSettings();
+        var mappings = instance.getMappings();
         var isHidden = instance.isHidden();
         var isReplicated = instance.isReplicated();
         var isSystem = instance.isSystem();
@@ -109,8 +109,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
         var failureRolloverOnWrite = instance.getFailureComponent().isRolloverOnWrite();
-        var failureAutoShardingEvent = instance.getDataComponent().getAutoShardingEvent();
-        switch (between(0, 16)) {
+        var failureAutoShardingEvent = instance.getFailureComponent().getAutoShardingEvent();
+        switch (between(0, 17)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
@@ -179,6 +179,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : new DataStreamAutoShardingEvent(indices.getLast().getName(), randomIntBetween(1, 10), randomMillisUpToYear9999());
             case 16 -> settings = randomValueOtherThan(settings, DataStreamTestHelper::randomSettings);
+            case 17 -> mappings = randomValueOtherThan(mappings, ComponentTemplateTests::randomMappings);
         }
 
         return new DataStream(
@@ -186,6 +187,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             generation,
             metadata,
             settings,
+            mappings,
             isHidden,
             isReplicated,
             isSystem,
@@ -196,7 +198,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamOptions,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, indices, rolloverOnWrite, autoShardingEvent),
             new DataStream.DataStreamIndices(
-                DataStream.BACKING_INDEX_PREFIX,
+                DataStream.FAILURE_STORE_PREFIX,
                 failureIndices,
                 failureRolloverOnWrite,
                 failureAutoShardingEvent
@@ -1609,8 +1611,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Metadata metadata = builder.build();
 
             // generation time is now - 2000
-            String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
-            Index thirdIndex = metadata.getProject().index(thirdGeneration).getIndex();
+            Index thirdIndex = dataStream.getIndices().get(2);
             List<DataStreamLifecycle.DownsamplingRound> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
                 thirdIndex,
                 metadata.getProject()::index,
@@ -1621,8 +1622,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             assertThat(roundsForThirdIndex.get(0).after(), is(TimeValue.timeValueMillis(2000)));
 
             // generation time is now - 40000
-            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
+            Index firstIndex = dataStream.getIndices().getFirst();
             List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1669,8 +1669,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Metadata metadata = builder.build();
 
             // generation time is now - 40000
-            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
+            Index firstIndex = dataStream.getIndices().getFirst();
             List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1693,8 +1692,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Metadata metadata = builder.build();
 
             // generation time is now - 40000
-            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
+            Index firstIndex = dataStream.getIndices().getFirst();
             List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1716,8 +1714,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
+            Index firstIndex = dataStream.getIndices().getFirst();
             List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
@@ -1953,6 +1950,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             generation,
             metadata,
             randomSettings(),
+            randomMappings(),
             isSystem,
             randomBoolean(),
             isSystem,
@@ -2146,6 +2144,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2165,6 +2164,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2191,6 +2191,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2216,6 +2217,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2239,6 +2241,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2271,6 +2274,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomNonNegativeInt(),
             null,
             randomSettings(),
+            randomMappings(),
             hidden,
             replicated,
             system,
@@ -2534,13 +2538,31 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(templateBuilder)
+            .componentTemplates(List.of("component-template-1"))
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder()
+                            .settings(
+                                Settings.builder()
+                                    .put("index.setting1", "componentTemplateValue")
+                                    .put("index.setting5", "componentTemplateValue")
+                            )
+                            .build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
         Settings mergedSettings = Settings.builder()
             .put("index.setting1", "dataStreamValue")
             .put("index.setting2", "dataStreamValue")
             .put("index.setting4", "templateValue")
+            .put("index.setting5", "componentTemplateValue")
             .build();
         assertThat(dataStream.getEffectiveSettings(projectMetadataBuilder.build()), equalTo(mergedSettings));
     }
@@ -2552,28 +2574,40 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()));
     }
 
-    public void testGetEffectiveIndexTemplateTemplateSettingsOnly() {
-        // We only have settings from the template, so the effective template will just be the original template
-        DataStream dataStream = createDataStream(Settings.EMPTY);
+    public void testGetEffectiveIndexTemplateTemplateNoOverrides() throws IOException {
+        // We only have settings and mappings from the template, so the effective template will just be the original template
+        DataStream dataStream = createDataStream(Settings.EMPTY, ComposableIndexTemplate.EMPTY_MAPPINGS);
         Settings templateSettings = randomSettings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings());
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .template(templateBuilder)
+            .componentTemplates(List.of("component-template-1"))
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder().settings(Settings.builder().put("index.setting5", "componentTemplateValue")).build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(indexTemplate));
     }
 
-    public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() {
+    public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() throws IOException {
         // We only have settings from the data stream, so we expect to get only those back in the effective template
         Settings dataStreamSettings = randomSettings();
-        DataStream dataStream = createDataStream(dataStreamSettings);
+        DataStream dataStream = createDataStream(dataStreamSettings, ComposableIndexTemplate.EMPTY_MAPPINGS);
         Settings templateSettings = Settings.EMPTY;
         CompressedXContent templateMappings = randomMappings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -2590,20 +2624,80 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
-    public void testGetEffectiveIndexTemplate() {
+    public void testGetEffectiveIndexTemplate() throws IOException {
         // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
         Settings dataStreamSettings = Settings.builder()
             .put("index.setting1", "dataStreamValue")
             .put("index.setting2", "dataStreamValue")
             .put("index.setting3", (String) null) // This one gets removed from the effective settings
             .build();
-        DataStream dataStream = createDataStream(dataStreamSettings);
+        CompressedXContent dataStreamMappings = new CompressedXContent(
+            Map.of("properties", Map.of("field2", Map.of("type", "text"), "field3", Map.of("type", "keyword")))
+        );
+        DataStream dataStream = createDataStream(dataStreamSettings, dataStreamMappings);
         Settings templateSettings = Settings.builder()
             .put("index.setting1", "templateValue")
             .put("index.setting3", "templateValue")
             .put("index.setting4", "templateValue")
             .build();
-        CompressedXContent templateMappings = randomMappings();
+        CompressedXContent templateMappings = new CompressedXContent(
+            Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"), "field2", Map.of("type", "keyword"))))
+        );
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
+        List<String> componentTemplates = List.of("component-template-1");
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .componentTemplates(componentTemplates)
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder().settings(Settings.builder().put("index.setting5", "componentTemplateValue")).build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        CompressedXContent mergedMappings = new CompressedXContent(
+            Map.of(
+                "properties",
+                Map.of("field1", Map.of("type", "keyword"), "field2", Map.of("type", "text"), "field3", Map.of("type", "keyword"))
+            )
+        );
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(mergedMappings);
+        ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(expectedTemplateBuilder)
+            .componentTemplates(componentTemplates)
+            .build();
+        assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
+    }
+
+    public void testGetEffectiveMappingsNoMatchingTemplate() {
+        // No matching template, so we expect an IllegalArgumentException
+        DataStream dataStream = createTestInstance();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build()));
+    }
+
+    public void testGetEffectiveIndexTemplateDataStreamMappingsOnly() throws IOException {
+        // We only have mappings from the data stream, so we expect to get only those back in the effective template
+        CompressedXContent dataStreamMappings = randomMappings();
+        DataStream dataStream = createDataStream(Settings.EMPTY, dataStreamMappings);
+        Settings templateSettings = Settings.EMPTY;
+        CompressedXContent templateMappings = new CompressedXContent(Map.of("_doc", Map.of()));
+        ;
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
@@ -2612,12 +2706,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .build();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
-        Settings mergedSettings = Settings.builder()
-            .put("index.setting1", "dataStreamValue")
-            .put("index.setting2", "dataStreamValue")
-            .put("index.setting4", "templateValue")
-            .build();
-        Template.Builder expectedTemplateBuilder = Template.builder().settings(mergedSettings).mappings(templateMappings);
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(templateSettings).mappings(dataStreamMappings);
         ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStream.getName()))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -2626,9 +2715,28 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
+    private static CompressedXContent randomMappings() {
+        try {
+            return new CompressedXContent("{\"_doc\": {\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}}");
+        } catch (IOException e) {
+            fail("got an IO exception creating fake mappings: " + e);
+            return null;
+        }
+    }
+
     private DataStream createDataStream(Settings settings) {
         DataStream dataStream = createTestInstance();
         return dataStream.copy().setSettings(settings).build();
+    }
+
+    private DataStream createDataStream(CompressedXContent mappings) {
+        DataStream dataStream = createTestInstance();
+        return dataStream.copy().setMappings(mappings).build();
+    }
+
+    private DataStream createDataStream(Settings settings, CompressedXContent mappings) {
+        DataStream dataStream = createTestInstance();
+        return dataStream.copy().setSettings(settings).setMappings(mappings).build();
     }
 
     private record DataStreamMetadata(Long creationTimeInMillis, Long rolloverTimeInMillis, Long originationTimeInMillis) {
@@ -2673,5 +2781,20 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .build();
             builder.put(im, false);
         }
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        if (randomBoolean()) {
+            return ToXContent.EMPTY_PARAMS;
+        }
+        return new ToXContent.MapParams(
+            Map.of(
+                "binary",
+                randomFrom("true", "false"),
+                Metadata.CONTEXT_MODE_PARAM,
+                randomFrom(Metadata.XContentContext.values()).toString()
+            )
+        );
     }
 }

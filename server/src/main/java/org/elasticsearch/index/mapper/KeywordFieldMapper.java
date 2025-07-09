@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
@@ -51,6 +53,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
@@ -66,8 +69,10 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -80,6 +85,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -1040,6 +1046,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean hasDocValuesSkipper() {
             return hasDocValuesSkipper;
         }
+
+        @Override
+        public Query automatonQuery(
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
+        }
     }
 
     private final boolean indexed;
@@ -1106,15 +1123,16 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value = context.parser().textOrNull();
-        if (value == null) {
-            value = fieldType().nullValue;
+        var value = context.parser().optimizedTextOrNull();
+
+        if (value == null && fieldType().nullValue != null) {
+            value = new Text(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1132,28 +1150,37 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean indexValue(DocumentParserContext context, String value) {
+        return indexValue(context, new Text(value));
+    }
+
+    private boolean indexValue(DocumentParserContext context, XContentString value) {
         if (value == null) {
             return false;
         }
+
         // if field is disabled, skip indexing
         if ((fieldType.indexOptions() == IndexOptions.NONE) && (fieldType.stored() == false) && (fieldType().hasDocValues() == false)) {
             return false;
         }
 
-        if (value.length() > fieldType().ignoreAbove()) {
+        if (value.stringLength() > fieldType().ignoreAbove()) {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
-                context.doc().add(new StoredField(originalName(), new BytesRef(value)));
+                var utfBytes = value.bytes();
+                var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                context.doc().add(new StoredField(originalName(), bytesRef));
             }
             return false;
         }
 
-        value = normalizeValue(fieldType().normalizer(), fullPath(), value);
+        if (fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
+            String normalizedString = normalizeValue(fieldType().normalizer(), fullPath(), value.string());
+            value = new Text(normalizedString);
+        }
 
-        // convert to utf8 only once before feeding postings/dv/stored fields
-        final BytesRef binaryValue = new BytesRef(value);
-
+        var utfBytes = value.bytes();
+        var binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
         if (fieldType().isDimension()) {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }

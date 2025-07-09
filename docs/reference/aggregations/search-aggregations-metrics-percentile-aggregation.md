@@ -60,7 +60,7 @@ By default, the `percentile` metric will generate a range of percentiles: `[ 1, 
 
 As you can see, the aggregation will return a calculated value for each percentile in the default range. If we assume response times are in milliseconds, it is immediately obvious that the webpage normally loads in 10-720ms, but occasionally spikes to 940-980ms.
 
-Often, administrators are only interested in outliers — the extreme percentiles. We can specify just the percents we are interested in (requested percentiles must be a value between 0-100 inclusive):
+Often, administrators are only interested in outliers — the extreme percentiles. We can specify just the percents we are interested in (requested percentiles must be a value between 0-100 inclusive):
 
 ```console
 GET latency/_search
@@ -177,7 +177,7 @@ GET latency/_search
 
 There are many different algorithms to calculate percentiles. The naive implementation simply stores all the values in a sorted array. To find the 50th percentile, you simply find the value that is at `my_array[count(my_array) * 0.5]`.
 
-Clearly, the naive implementation does not scale — the sorted array grows linearly with the number of values in your dataset. To calculate percentiles across potentially billions of values in an Elasticsearch cluster, *approximate* percentiles are calculated.
+Clearly, the naive implementation does not scale — the sorted array grows linearly with the number of values in your dataset. To calculate percentiles across potentially billions of values in an Elasticsearch cluster, *approximate* percentiles are calculated.
 
 The algorithm used by the `percentile` metric is called TDigest (introduced by Ted Dunning in [Computing Accurate Quantiles using T-Digests](https://github.com/tdunning/t-digest/blob/master/docs/t-digest-paper/histo.pdf)).
 
@@ -222,7 +222,7 @@ GET latency/_search
 1. Compression controls memory usage and approximation error
 
 
-The TDigest algorithm uses a number of "nodes" to approximate percentiles — the more nodes available, the higher the accuracy (and large memory footprint) proportional to the volume of data. The `compression` parameter limits the maximum number of nodes to `20 * compression`.
+The TDigest algorithm uses a number of "nodes" to approximate percentiles — the more nodes available, the higher the accuracy (and large memory footprint) proportional to the volume of data. The `compression` parameter limits the maximum number of nodes to `20 * compression`.
 
 Therefore, by increasing the compression value, you can increase the accuracy of your percentiles at the cost of more memory. Larger compression values also make the algorithm slower since the underlying tree data structure grows in size, resulting in more expensive operations. The default compression value is `100`.
 

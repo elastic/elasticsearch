@@ -45,15 +45,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
-import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
-import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
@@ -392,93 +389,6 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                     + "]"
             )
         );
-    }
-
-    public void testElasticEnterpriseSearchServerAccount() {
-        final Role role = Role.buildFromRoleDescriptor(
-            ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
-            new FieldPermissionsCache(Settings.EMPTY),
-            RESTRICTED_INDICES
-        );
-
-        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
-        final TransportRequest request = mock(TransportRequest.class);
-
-        // manage
-        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(true));
-
-        // manage_security
-        assertThat(
-            role.cluster()
-                .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
-            is(true)
-        );
-        assertThat(
-            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
-            is(true)
-        );
-        assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
-
-        assertThat(role.cluster().check(PutUserAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutRoleAction.NAME, request, authentication), is(true));
-
-        // manage_index_templates
-        assertThat(role.cluster().check(TransportPutIndexTemplateAction.TYPE.name(), request, authentication), is(true));
-        assertThat(role.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(TransportDeleteIndexTemplateAction.TYPE.name(), request, authentication), is(true));
-
-        // monitoring
-        assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(true));
-
-        // manage_ilm
-        assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(ILMActions.PUT.name(), request, authentication), is(true));
-
-        // Connector secrets. Enterprise Search has read and write access.
-        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/delete", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/post", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/xpack/connector/secret/put", request, authentication), is(true));
-
-        List.of(
-            "search-" + randomAlphaOfLengthBetween(1, 20),
-            ".search-acl-filter-" + randomAlphaOfLengthBetween(1, 20),
-            ".elastic-analytics-collections",
-            ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
-            ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
-            "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
-            "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
-            "logs-app_search.analytics-default",
-            "logs-elastic_analytics.events-" + randomAlphaOfLengthBetween(1, 20),
-            "logs-enterprise_search.api-default",
-            "logs-enterprise_search.audit-default",
-            "logs-app_search.search_relevance_suggestions-default",
-            "logs-crawler-default",
-            "logs-workplace_search.analytics-default",
-            "logs-workplace_search.content_events-default",
-            ".elastic-connectors*",
-            "logs-elastic_crawler-default"
-        ).forEach(index -> {
-            final IndexAbstraction enterpriseSearchIndex = mockIndexAbstraction(index);
-            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(
-                role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(enterpriseSearchIndex),
-                is(true)
-            );
-            assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
-            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
-        });
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

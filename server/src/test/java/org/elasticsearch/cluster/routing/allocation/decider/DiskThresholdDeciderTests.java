@@ -1406,7 +1406,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace, Map.of());
         }
 
         @Override

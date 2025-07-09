@@ -21,12 +21,10 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
@@ -52,17 +50,19 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
 
         // start background searches
         var stopped = new AtomicBoolean(false);
-        var queries = new LongAdder();
         var threads = new Thread[randomIntBetween(1, 5)];
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try (EsqlQueryResponse resp = run("FROM index-1")) {
                         assertThat(getValuesList(resp), hasSize(docs));
+                    } catch (Exception | AssertionError e) {
+                        logger.warn("Query failed with exception", e);
+                        stopped.set(true);
+                        throw e;
                     }
-                    queries.increment();
                 }
-            });
+            }, "testSearchWhileRelocating-" + i);
         }
         for (Thread thread : threads) {
             thread.start();
@@ -93,7 +93,6 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.exclude._name"))
             .get();
-        assertThat(queries.sum(), greaterThan((long) threads.length));
     }
 
     public void testRetryOnShardMovement() {

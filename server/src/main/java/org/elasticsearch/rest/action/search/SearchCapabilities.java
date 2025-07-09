@@ -12,6 +12,8 @@ package org.elasticsearch.rest.action.search;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestSearchAction}.
  */
@@ -49,6 +51,11 @@ public final class SearchCapabilities {
     private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
 
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+    private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
+    private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+    private static final String FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV = "field_exists_query_for_text_fields_no_index_or_dv";
+    private static final String SYNTHETIC_VECTORS_SETTING = "synthetic_vectors_setting";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -69,6 +76,13 @@ public final class SearchCapabilities {
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
+        capabilities.add(EXCLUDE_VECTORS_PARAM);
+        capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
+        capabilities.add(FIELD_EXISTS_QUERY_FOR_TEXT_FIELDS_NO_INDEX_OR_DV);
+        if (SYNTHETIC_VECTORS) {
+            capabilities.add(SYNTHETIC_VECTORS_SETTING);
+        }
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

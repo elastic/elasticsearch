@@ -377,13 +377,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 logger.trace("skipping rebalance as it is disabled");
                 return;
             }
-            if (nodes.size() < 2) { /* skip if we only have one node */
-                logger.trace("skipping rebalance as single node only");
-                return;
-            }
 
             // Balance each partition
             for (NodeSorter nodeSorter : nodeSorters) {
+                if (nodeSorter.modelNodes.length < 2) { /* skip if we only have one node */
+                    logger.trace("skipping rebalance as the partition has single node only");
+                    continue;
+                }
                 balanceByWeights(nodeSorter);
             }
         }

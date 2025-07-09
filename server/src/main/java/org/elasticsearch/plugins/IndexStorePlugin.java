@@ -19,6 +19,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -102,8 +103,9 @@ public interface IndexStorePlugin {
          * @param index         the {@link Index} of the index whose folders are going to be deleted
          * @param indexSettings settings for the index whose folders are going to be deleted
          * @param indexPaths    the paths of the folders that are going to be deleted
+         * @param reason        the reason for the deletion
          */
-        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths);
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason);
 
         /**
          * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
@@ -112,8 +114,9 @@ public interface IndexStorePlugin {
          * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
          * @param indexSettings index settings of the shard whose folders are going to be deleted
          * @param shardPaths    the paths of the folders that are going to be deleted
+         * @param reason        the reason for the deletion
          */
-        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths);
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason);
     }
 
     /**

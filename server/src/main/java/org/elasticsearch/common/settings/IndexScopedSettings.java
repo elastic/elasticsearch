@@ -49,6 +49,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
+
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
@@ -159,6 +161,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
+                DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
@@ -224,6 +227,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
+                IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
 
                 // Legacy index settings we must keep around for BWC from 7.x
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -238,6 +242,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
+        }
+        if (SYNTHETIC_VECTORS) {
+            settings.add(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING);
         }
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

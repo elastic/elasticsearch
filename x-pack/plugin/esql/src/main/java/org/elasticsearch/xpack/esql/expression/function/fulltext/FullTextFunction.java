@@ -14,6 +14,7 @@ import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -31,7 +33,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -57,6 +61,8 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -143,7 +149,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryBuilder);
+        return Objects.hash(super.hashCode(), query, queryBuilder);
     }
 
     @Override
@@ -152,7 +158,7 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
     }
 
     @Override
@@ -204,23 +210,7 @@ public abstract class FullTextFunction extends Function
             checkCommandsBeforeExpression(
                 plan,
                 condition,
-                Match.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                MultiMatch.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                Term.class,
+                FullTextFunction.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
@@ -325,6 +315,45 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
+    public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        var fieldAttribute = fieldAsFieldAttribute(field);
+        if (fieldAttribute == null) {
+            plan.forEachExpression(function.getClass(), m -> {
+                if (function.children().contains(field)) {
+                    failures.add(
+                        fail(
+                            field,
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            m.functionName(),
+                            m.functionType(),
+                            field.sourceText()
+                        )
+                    );
+                }
+            });
+        } else {
+            // Traverse the plan to find the EsRelation outputting the field
+            plan.forEachDown(p -> {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                    // Check if this EsRelation supplies the field
+                    if (esRelation.outputSet().contains(fieldAttribute)) {
+                        failures.add(
+                            fail(
+                                field,
+                                "[{}] {} cannot operate on [{}], supplied by an index [{}] in non-STANDARD mode [{}]",
+                                function.functionName(),
+                                function.functionType(),
+                                field.sourceText(),
+                                esRelation.indexPattern(),
+                                esRelation.indexMode()
+                            )
+                        );
+                    }
+                }
+            });
+        }
+    }
+
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
@@ -380,5 +409,50 @@ public abstract class FullTextFunction extends Function
                 throw new InvalidArgumentException(format(null, "Invalid option [{}] in [{}], {}", optionName, sourceText, e.getMessage()));
             }
         }
+    }
+
+    protected TypeResolution resolveOptions(Expression options, TypeResolutions.ParamOrdinal paramOrdinal) {
+        if (options != null) {
+            TypeResolution resolution = isNotNull(options, sourceText(), paramOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            // MapExpression does not have a DataType associated with it
+            resolution = isMapExpression(options, sourceText(), paramOrdinal);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            try {
+                resolvedOptions();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    protected Map<String, Object> resolvedOptions() throws InvalidArgumentException {
+        return Map.of();
+    }
+
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
+    public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
+        String fieldName = fieldAttribute.name();
+        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+            fieldName = multiTypeEsField.getName();
+        }
+        return fieldName;
+    }
+
+    public static FieldAttribute fieldAsFieldAttribute(Expression field) {
+        Expression fieldExpression = field;
+        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
     }
 }

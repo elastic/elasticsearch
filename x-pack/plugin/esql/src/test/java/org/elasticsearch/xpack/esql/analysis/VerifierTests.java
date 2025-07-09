@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -2262,6 +2263,17 @@ public class VerifierTests extends ESTestCase {
         // TODO: remove when we allow remote joins in release builds
         assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         assertTrue(Build.current().isSnapshot());
+    }
+
+    public void testRemoteLookupJoinIsDisabled() {
+        // TODO: remove when we allow remote joins in release builds
+        assumeFalse("Remote LOOKUP JOIN enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
+        );
+        assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
+
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

@@ -42,8 +42,10 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
                 assertEquals(expected, bench.dotProductLucene(), delta);
                 assertEquals(expected, bench.dotProductNative(), delta);
 
-                expected = bench.dotProductLuceneQuery();
-                assertEquals(expected, bench.dotProductNativeQuery(), delta);
+                if (Int7uScorerBenchmark.supportsHeapSegments()) {
+                    expected = bench.dotProductLuceneQuery();
+                    assertEquals(expected, bench.dotProductNativeQuery(), delta);
+                }
             } finally {
                 bench.teardown();
             }
@@ -60,8 +62,10 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
                 assertEquals(expected, bench.squareDistanceLucene(), delta);
                 assertEquals(expected, bench.squareDistanceNative(), delta);
 
-                expected = bench.squareDistanceLuceneQuery();
-                assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
+                if (Int7uScorerBenchmark.supportsHeapSegments()) {
+                    expected = bench.squareDistanceLuceneQuery();
+                    assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
+                }
             } finally {
                 bench.teardown();
             }

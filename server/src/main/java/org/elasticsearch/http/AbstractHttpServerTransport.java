@@ -235,6 +235,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
 
+    @Override
+    protected final void doStart() {
+        startInternal();
+    }
+
+    protected abstract void startInternal();
+
     /**
      * Gracefully shut down.  If {@link HttpTransportSettings#SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD} is zero, the default, then
      * forcefully close all open connections immediately.
@@ -251,7 +258,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * </ol>
      */
     @Override
-    protected void doStop() {
+    protected final void doStop() {
         synchronized (httpServerChannels) {
             if (httpServerChannels.isEmpty() == false) {
                 try {

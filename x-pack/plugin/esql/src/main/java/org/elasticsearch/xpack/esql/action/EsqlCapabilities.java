@@ -1207,6 +1207,8 @@ public class EsqlCapabilities {
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
+        LIKE_LIST_ON_INDEX_FIELDS,
+
         /**
          * Support parameters for SAMPLE command.
          */
@@ -1229,11 +1231,20 @@ public class EsqlCapabilities {
          * FUSE command
          */
         FUSE(Build.current().isSnapshot()),
-
+        /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
         /**
          * Support avg with aggregate metric doubles
          */
-        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Forbid usage of brackets in unquoted index and enrich policy names
+         * https://github.com/elastic/elasticsearch/issues/130378
+         */
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES;
 
         private final boolean enabled;
 

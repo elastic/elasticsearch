@@ -10,212 +10,109 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.snapshots.AbortedSnapshotException;
-import org.elasticsearch.snapshots.AbstractSnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.function.LongFunction;
 
-/**
- * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(SnapshotShardContext)}.
- * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
- * either its {@link #onResponse(ShardSnapshotResult)} or {@link #onFailure(Exception)} callback.
- */
-public final class SnapshotShardContext extends AbstractSnapshotShardContext {
+public abstract class SnapshotShardContext extends DelegatingActionListener<ShardSnapshotResult, ShardSnapshotResult> {
 
-    private static final Logger logger = LogManager.getLogger(SnapshotShardContext.class);
+    private final SnapshotId snapshotId;
+    private final IndexId indexId;
+    @Nullable
+    private final String shardStateIdentifier;
+    private final IndexShardSnapshotStatus snapshotStatus;
+    private final IndexVersion repositoryMetaVersion;
+    private final long snapshotStartTime;
 
-    private final Store store;
-    private final MapperService mapperService;
-    private final SnapshotIndexCommit commitRef;
-
-    /**
-     * @param store                 store to be snapshotted
-     * @param mapperService         the shards mapper service
-     * @param snapshotId            snapshot id
-     * @param indexId               id for the index being snapshotted
-     * @param commitRef             commit point reference
-     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus        snapshot status
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param snapshotStartTime     start time of the snapshot found in
-     *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#startTime()}
-     * @param listener              listener invoked on completion
-     */
-    public SnapshotShardContext(
-        Store store,
-        MapperService mapperService,
+    protected SnapshotShardContext(
         SnapshotId snapshotId,
         IndexId indexId,
-        SnapshotIndexCommit commitRef,
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         IndexVersion repositoryMetaVersion,
-        final long snapshotStartTime,
+        long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(
-            snapshotId,
-            indexId,
-            shardStateIdentifier,
-            snapshotStatus,
-            repositoryMetaVersion,
-            snapshotStartTime,
-            commitRef.closingBefore(listener)
-        );
-        this.store = store;
-        this.mapperService = mapperService;
-        this.commitRef = commitRef;
+        super(listener);
+        this.snapshotId = snapshotId;
+        this.indexId = indexId;
+        this.shardStateIdentifier = shardStateIdentifier;
+        this.snapshotStatus = snapshotStatus;
+        this.repositoryMetaVersion = repositoryMetaVersion;
+        this.snapshotStartTime = snapshotStartTime;
+    }
+
+    public SnapshotId snapshotId() {
+        return snapshotId;
+    }
+
+    public IndexId indexId() {
+        return indexId;
+    }
+
+    @Nullable
+    public String stateIdentifier() {
+        return shardStateIdentifier;
+    }
+
+    public IndexShardSnapshotStatus status() {
+        return snapshotStatus;
+    }
+
+    public IndexVersion getRepositoryMetaVersion() {
+        return repositoryMetaVersion;
+    }
+
+    public long snapshotStartTime() {
+        return snapshotStartTime;
     }
 
     @Override
-    public ShardId shardId() {
-        return store.shardId();
+    public void onResponse(ShardSnapshotResult result) {
+        delegate.onResponse(result);
     }
 
-    @Override
-    public Store store() {
-        return store;
-    }
+    public abstract ShardId shardId();
 
-    @Override
-    public MapperService mapperService() {
-        return mapperService;
-    }
+    public abstract Store store();
 
-    @Override
-    public IndexCommit indexCommit() {
-        return commitRef.indexCommit();
-    }
+    public abstract MapperService mapperService();
 
-    @Override
-    public Releasable withCommitRef() {
-        status().ensureNotAborted(); // check this first to avoid acquiring a ref when aborted even if refs are available
-        if (commitRef.tryIncRef()) {
-            return Releasables.releaseOnce(commitRef::decRef);
-        } else {
-            status().ensureNotAborted();
-            assert false : "commit ref closed early in state " + status();
-            throw new IndexShardSnapshotFailedException(shardId(), "Store got closed concurrently");
-        }
-    }
+    public abstract IndexCommit indexCommit();
 
-    @Override
-    public boolean isSearchableSnapshot() {
-        return store.indexSettings().getIndexMetadata().isSearchableSnapshot();
-    }
+    public abstract Releasable withCommitRef();
 
-    @Override
-    public Store.MetadataSnapshot metadataSnapshot() {
-        final IndexCommit snapshotIndexCommit = indexCommit();
-        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId(), snapshotId(), snapshotIndexCommit);
-        try {
-            return store.getMetadata(snapshotIndexCommit);
-        } catch (IOException e) {
-            throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file metadata", e);
-        }
-    }
+    public abstract boolean isSearchableSnapshot();
 
-    @Override
-    public Collection<String> fileNames() {
-        final IndexCommit snapshotIndexCommit = indexCommit();
-        try {
-            return snapshotIndexCommit.getFileNames();
-        } catch (IOException e) {
-            throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file names", e);
-        }
-    }
+    public abstract Store.MetadataSnapshot metadataSnapshot();
 
-    @Override
-    public boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-        if (store.tryIncRef()) {
-            try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
-                final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
-                indexInput.readBytes(tmp, 0, tmp.length);
-                assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            } finally {
-                store.decRef();
-            }
-        } else {
-            try {
-                status().ensureNotAborted();
-                assert false : "if the store is already closed we must have been aborted";
-            } catch (Exception e) {
-                assert e instanceof AbortedSnapshotException : e;
-            }
-        }
-        return true;
-    }
+    public abstract Collection<String> fileNames();
 
-    @Override
-    public void failStoreIfCorrupted(Exception e) {
-        if (Lucene.isCorruptionException(e)) {
-            try {
-                store.markStoreCorrupted((IOException) e);
-            } catch (IOException inner) {
-                inner.addSuppressed(e);
-                logger.warn("store cannot be marked as corrupted", inner);
-            }
-        }
-    }
+    public abstract boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo);
 
-    @Override
-    public AbstractSnapshotShardContext.FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException {
-        return new FileReader(file, metadata);
-    }
+    public abstract void failStoreIfCorrupted(Exception e);
 
-    class FileReader implements AbstractSnapshotShardContext.FileReader {
+    public abstract FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException;
 
-        private final String file;
-        private final Releasable commitRefReleasable;
-        private final IndexInput indexInput;
+    public abstract <T> ActionListener<T> closingBefore(ActionListener<T> delegate);
 
-        FileReader(String file, StoreFileMetadata metadata) throws IOException {
-            this.file = file;
-            this.commitRefReleasable = withCommitRef();
-            this.indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, metadata);
-        }
-
-        @Override
-        public InputStream apply(long limit) {
-            return new InputStreamIndexInput(indexInput, limit);
-        }
-
-        @Override
-        public void close() throws IOException {
-            commitRefReleasable.close();
-            indexInput.close();
-        }
-
-        @Override
-        public void verify() throws IOException {
-            Store.verify(indexInput);
-        }
+    public interface FileReader extends LongFunction<InputStream>, Closeable {
+        void verify() throws IOException;
     }
 
 }

@@ -198,17 +198,17 @@ public final class ThreadContext implements Writeable, TraceContext {
 
         final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
         if (previousTraceParent != null) {
-            newTransientHeaders.put("parent_" + Task.TRACE_PARENT_HTTP_HEADER, previousTraceParent);
+            newTransientHeaders.put(Task.PARENT_TRACE_PARENT_HEADER, previousTraceParent);
         }
 
         final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
         if (previousTraceState != null) {
-            newTransientHeaders.put("parent_" + Task.TRACE_STATE, previousTraceState);
+            newTransientHeaders.put(Task.PARENT_TRACE_STATE, previousTraceState);
         }
 
         final Object previousTraceContext = newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
         if (previousTraceContext != null) {
-            newTransientHeaders.put("parent_" + Task.APM_TRACE_CONTEXT, previousTraceContext);
+            newTransientHeaders.put(Task.PARENT_APM_TRACE_CONTEXT, previousTraceContext);
         }
 
         // this is the context when this method returns
@@ -254,10 +254,10 @@ public final class ThreadContext implements Writeable, TraceContext {
         newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
         newRequestHeaders.remove(Task.TRACE_STATE);
 
-        newTransientHeaders.remove("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
-        newTransientHeaders.remove("parent_" + Task.TRACE_STATE);
+        newTransientHeaders.remove(Task.PARENT_TRACE_PARENT_HEADER);
+        newTransientHeaders.remove(Task.PARENT_TRACE_STATE);
         newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
-        newTransientHeaders.remove("parent_" + Task.APM_TRACE_CONTEXT);
+        newTransientHeaders.remove(Task.PARENT_APM_TRACE_CONTEXT);
 
         threadLocal.set(
             new ThreadContextStruct(

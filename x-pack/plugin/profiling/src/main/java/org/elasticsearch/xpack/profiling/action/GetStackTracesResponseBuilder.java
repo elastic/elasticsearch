@@ -20,6 +20,7 @@ class GetStackTracesResponseBuilder {
     private Map<TraceEventID, TraceEvent> stackTraceEvents;
     private double samplingRate;
     private long totalSamples;
+    private long samplingFrequency;
     private Double requestedDuration;
     private final Double awsCostFactor;
     private final Double azureCostFactor;
@@ -154,5 +155,13 @@ class GetStackTracesResponseBuilder {
             }
         }
         return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, totalSamples);
+    }
+
+    public void setSamplingFrequency(long samplingFrequency) {
+        this.samplingFrequency = samplingFrequency;
+    }
+
+    public long getSamplingFrequency() {
+        return samplingFrequency;
     }
 }

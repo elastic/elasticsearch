@@ -333,6 +333,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = def(9_116_0_00);
+    public static final TransportVersion ESQL_KNN_FUNCTION_PREFILTER = def(9_117_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

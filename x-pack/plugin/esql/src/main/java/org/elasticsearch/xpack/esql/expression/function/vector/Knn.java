@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,6 +71,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     // k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
     private final transient Expression k;
     private final Expression options;
+    // Expressions to be used as prefilters in knn query
+    private final List<Expression> filterExpressions;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(NUM_CANDS_FIELD.getPreferredName(), INTEGER),
@@ -139,14 +142,23 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             optional = true
         ) Expression options
     ) {
-        this(source, field, query, k, options, null);
+        this(source, field, query, k, options, null, List.of());
     }
 
-    private Knn(Source source, Expression field, Expression query, Expression k, Expression options, QueryBuilder queryBuilder) {
+    private Knn(
+        Source source,
+        Expression field,
+        Expression query,
+        Expression k,
+        Expression options,
+        QueryBuilder queryBuilder,
+        List<Expression> filterExpressions
+    ) {
         super(source, query, expressionList(field, query, k, options), queryBuilder);
         this.field = field;
         this.k = k;
         this.options = options;
+        this.filterExpressions = filterExpressions;
     }
 
     private static List<Expression> expressionList(Expression field, Expression query, Expression k, Expression options) {
@@ -172,6 +184,10 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     public Expression options() {
         return options;
+    }
+
+    public List<Expression> filterExpressions() {
+        return filterExpressions;
     }
 
     @Override
@@ -257,7 +273,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), k(), options(), queryBuilder);
+        return new Knn(source(), field(), query(), k(), options(), queryBuilder, filterExpressions());
+    }
+
+    public Expression withFilter(Expression filterExpression) {
+        List<Expression> newFilterExpressions = new ArrayList<>(filterExpressions);
+        newFilterExpressions.add(filterExpression);
+        return new Knn(source(), field(), query(), k(), options(), queryBuilder(), List.copyOf(newFilterExpressions));
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -284,7 +306,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             newChildren.get(1),
             newChildren.get(2),
             newChildren.size() > 3 ? newChildren.get(3) : null,
-            queryBuilder()
+            queryBuilder(),
+            filterExpressions()
         );
     }
 
@@ -303,7 +326,11 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new Knn(source, field, query, null, null, queryBuilder);
+        List<Expression> filterExpressions = List.of();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_KNN_FUNCTION_PREFILTER)) {
+            filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
+        }
+        return new Knn(source, field, query, null, null, queryBuilder, filterExpressions);
     }
 
     @Override
@@ -312,6 +339,9 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_KNN_FUNCTION_PREFILTER)) {
+            out.writeNamedWriteableCollection(filterExpressions());
+        }
     }
 
     @Override
@@ -322,12 +352,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Knn knn = (Knn) o;
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
-            && Objects.equals(queryBuilder(), knn.queryBuilder());
+            && Objects.equals(queryBuilder(), knn.queryBuilder())
+            && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), queryBuilder(), filterExpressions());
     }
 
 }

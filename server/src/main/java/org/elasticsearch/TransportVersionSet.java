@@ -74,7 +74,6 @@ public class TransportVersionSet {
         return transportVersionSet;
     }
 
-
     private final String name;
     private final List<TransportVersion> versions;
 
@@ -105,12 +104,10 @@ public class TransportVersionSet {
         return TransportVersionSet.fromXContent(parser);
     }
 
-
     private static class VersionsHolder {
         private static final String MANIFEST_LOCATION = "META-INF/transport-versions-files-manifest.txt";
         private static final String METADATA_LOCATION = "org/elasticsearch/transport/";
         private static final String LATEST_SUFFIX = "-LATEST";
-
 
         private static final List<TransportVersion> ALL_VERSIONS_SORTED;
         private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
@@ -121,10 +118,7 @@ public class TransportVersionSet {
             var locallyDefinedVersionSets = loadTransportVersionSets();
             var extendedVersionSets = new ArrayList<TransportVersionSet>(); // TODO add SPI for serverless
 
-            var allVersionSets = Stream.concat(
-                locallyDefinedVersionSets.stream(),
-                extendedVersionSets.stream()
-            ).toList();
+            var allVersionSets = Stream.concat(locallyDefinedVersionSets.stream(), extendedVersionSets.stream()).toList();
 
             ALL_VERSIONS_SORTED = allVersionSets.stream().flatMap(tvSet -> tvSet.versions.stream()).sorted().toList();
 
@@ -141,7 +135,7 @@ public class TransportVersionSet {
 
             var major = Version.CURRENT.major;
             var minor = Version.CURRENT.minor;
-            var fileName =  major + "." + minor + "-" + LATEST_SUFFIX;
+            var fileName = major + "." + minor + "-" + LATEST_SUFFIX;
 
             var path = METADATA_LOCATION + fileName;
             return loadTransportVersionSet(path); // todo, use a different format?
@@ -174,8 +168,10 @@ public class TransportVersionSet {
                     throw new RuntimeException("Input stream is null");
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Failed to load TransportVersionSet at path: " + path +
-                    " specified in the manifest file: " + MANIFEST_LOCATION, e);
+                throw new RuntimeException(
+                    "Failed to load TransportVersionSet at path: " + path + " specified in the manifest file: " + MANIFEST_LOCATION,
+                    e
+                );
             }
         }
     }

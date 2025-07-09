@@ -219,16 +219,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     // moving average is 100ms, and we get one task which takes 20s the new EWMA will be ~500ms.
     public static final double DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA = 0.02;
 
-    /**
-     * If the queue latency reaches a high value (e.g. 10-30 seconds), then this thread pool is overwhelmed. It may be temporary, but that
-     * spike warrants the allocation balancer adjusting some number of shards, if possible. Therefore, it is alright to react quickly.
-     *
-     * As an example, suppose the EWMA is 10_000ms, i.e. 10 seconds.
-     * A single task in the queue that takes 30_000ms, i.e. 30 seconds, would result in a new EWMA of ~12_000ms
-     * 0.1 x 30_000ms + 0.9 x 10_000 = 3_000ms + 9_000ms = 12_000ms
-     */
-    public static final double DEFAULT_WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA = 0.1;
-
     private final Map<String, ExecutorHolder> executors;
 
     private final ThreadPoolInfo threadPoolInfo;
@@ -280,17 +270,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA,
         0.0,
         1.0,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * The {@link org.elasticsearch.common.ExponentiallyWeightedMovingAverage} alpha for tracking task queue latency.
-     */
-    public static final Setting<Double> WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA = Setting.doubleSetting(
-        "thread_pool.task_tracking.queue_latency.ewma_alpha",
-        DEFAULT_WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA,
-        0,
-        1,
         Setting.Property.NodeScope
     );
 

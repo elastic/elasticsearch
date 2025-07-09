@@ -578,64 +578,52 @@ public class EsExecutors {
 
     public static class TaskTrackingConfig {
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
-        public static final double DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST = 0.6;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
-        private final boolean trackAverageQueueLatency;
+        private final boolean trackMaxQueueLatency;
         private final double executionTimeEwmaAlpha;
-        private final double queueLatencyEwmaAlpha;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,
             false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-            DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
             true,
             false,
             false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-            DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
 
         public TaskTrackingConfig(boolean trackOngoingTasks, double executionTimeEWMAAlpha) {
-            this(true, trackOngoingTasks, false, executionTimeEWMAAlpha, DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST);
+            this(true, trackOngoingTasks, false, executionTimeEWMAAlpha);
         }
 
         /**
          * Execution tracking enabled constructor, with extra options to enable further specialized tracking.
          */
-        public TaskTrackingConfig(
-            boolean trackOngoingTasks,
-            boolean trackAverageQueueLatency,
-            double executionTimeEwmaAlpha,
-            double queueLatencyEwmaAlpha
-        ) {
-            this(true, trackOngoingTasks, trackAverageQueueLatency, executionTimeEwmaAlpha, queueLatencyEwmaAlpha);
+        public TaskTrackingConfig(boolean trackOngoingTasks, boolean trackMaxQueueLatency, double executionTimeEwmaAlpha) {
+            this(true, trackOngoingTasks, trackMaxQueueLatency, executionTimeEwmaAlpha);
         }
 
         /**
          * @param trackExecutionTime Whether to track execution stats
          * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
-         * @param trackAverageQueueLatency Whether to track the average queue latency.
+         * @param trackMaxQueueLatency Whether to track max queue latency.
          * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
-         * @param queueLatencyEwmaAlpha The alpha seed for task queue latency EWMA (ExponentiallyWeightedMovingAverage).
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
             boolean trackOngoingTasks,
-            boolean trackAverageQueueLatency,
-            double executionTimeEWMAAlpha,
-            double queueLatencyEwmaAlpha
+            boolean trackMaxQueueLatency,
+            double executionTimeEWMAAlpha
         ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
-            this.trackAverageQueueLatency = trackAverageQueueLatency;
+            this.trackMaxQueueLatency = trackMaxQueueLatency;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
-            this.queueLatencyEwmaAlpha = queueLatencyEwmaAlpha;
         }
 
         public boolean trackExecutionTime() {
@@ -646,16 +634,12 @@ public class EsExecutors {
             return trackOngoingTasks;
         }
 
-        public boolean trackQueueLatencyAverage() {
-            return trackAverageQueueLatency;
+        public boolean trackMaxQueueLatency() {
+            return trackMaxQueueLatency;
         }
 
         public double getExecutionTimeEwmaAlpha() {
             return executionTimeEwmaAlpha;
-        }
-
-        public double getQueueLatencyEwmaAlpha() {
-            return queueLatencyEwmaAlpha;
         }
     }
 

@@ -13,6 +13,8 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -27,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
@@ -37,6 +40,7 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+    private static final Logger logger = LogManager.getLogger(TaskExecutionTimeTrackingEsThreadPoolExecutor.class);
 
     public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
@@ -48,8 +52,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
-    private final boolean trackAverageQueueLatency;
-    private final ExponentiallyWeightedMovingAverage queueLatencyMillisEWMA;
+    private final boolean trackMaxQueueLatency;
+    private LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
 
     public enum UtilizationTrackingPurpose {
         APM,
@@ -77,8 +81,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        this.trackAverageQueueLatency = trackingConfig.trackQueueLatencyAverage();
-        this.queueLatencyMillisEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getQueueLatencyEwmaAlpha(), 0);
+        this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
         this.apmUtilizationTracker = new UtilizationTracker();
         this.allocationUtilizationTracker = new UtilizationTracker();
     }
@@ -149,11 +152,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         return getQueue().size();
     }
 
-    public double getQueuedTaskLatencyMillis() {
-        if (trackAverageQueueLatency == false) {
+    public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
+        if (trackMaxQueueLatency == false) {
+            logger.info("~~~trackMaxQueueLatency is false");
             return 0;
         }
-        return queueLatencyMillisEWMA.getAverage();
+        logger.info("~~~getting max");
+        return maxQueueLatencyMillisSinceLastPoll.getThenReset();
     }
 
     /**
@@ -189,8 +194,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
 
-        if (trackAverageQueueLatency) {
-            queueLatencyMillisEWMA.addValue(queueLatencyMillis);
+        logger.info("~~~queueLatencyMillis: " + queueLatencyMillis);
+        if (trackMaxQueueLatency) {
+            logger.info("~~~adding: " + queueLatencyMillis);
+            maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
         }
     }
 
@@ -233,9 +240,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             .append("total task execution time = ")
             .append(TimeValue.timeValueNanos(getTotalTaskExecutionTime()))
             .append(", ");
-        if (trackAverageQueueLatency) {
-            sb.append("task queue EWMA = ").append(TimeValue.timeValueMillis((long) getQueuedTaskLatencyMillis())).append(", ");
-        }
     }
 
     /**
@@ -255,13 +259,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     // Used for testing
-    public double getQueueLatencyEwmaAlpha() {
-        return queueLatencyMillisEWMA.getAlpha();
-    }
-
-    // Used for testing
-    public boolean trackingQueueLatencyEwma() {
-        return trackAverageQueueLatency;
+    public boolean trackingMaxQueueLatency() {
+        return trackMaxQueueLatency;
     }
 
     /**

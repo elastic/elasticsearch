@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -90,10 +89,15 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
-    public void testQueueLatencyEWMACalculation() throws Exception {
+    public void testMaxQueueLatency() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var threadPoolName = randomIdentifier();
+        final var barrier = new CyclicBarrier(2);
+        var adjustableTimedRunnable = new AdjustableQueueTimeWithExecutionBarrierTimedRunnable(
+            barrier,
+            TimeUnit.NANOSECONDS.toNanos(1000000)
+        );
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
@@ -101,33 +105,34 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             1000,
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
-            settableQueuingWrapper(TimeUnit.NANOSECONDS.toNanos(1000000)),
-            EsExecutors.daemonThreadFactory("queuetest"),
+            (runnable) -> adjustableTimedRunnable,
+            EsExecutors.daemonThreadFactory("queue-latency-test"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(
-                randomBoolean(),
-                true,
-                DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-                DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST
-            )
+            new TaskTrackingConfig(randomBoolean(), true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
         );
         executor.setupMetrics(meterRegistry, threadPoolName);
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.0);
-        // Using the settableQueuingWrapper each task will report being queued for 1ms
+        // Check that the max is zero initially and after a reset.
+        assertEquals("The queue latency should be initialized zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+        executor.execute(() -> {});
+        safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
+        assertEquals("Ran one task of 1ms, should be the max", 1, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+        assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+
+        // Check that the max is kept across multiple calls, where the last is not the max.
+        adjustableTimedRunnable.setQueuedTimeTakenNanos(5000000);
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.6); });
+        safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
+        adjustableTimedRunnable.setQueuedTimeTakenNanos(1000000);
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.84); });
-        executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.936); });
-        executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.9744); });
-        executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.98976); });
+        safeAwait(barrier);
+        assertEquals("Max should not be the last task", 5, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+        assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+
+        // Clean up.
         assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
@@ -275,10 +280,6 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
-    private void assertDoublesEqual(double expected, double actual) {
-        assertEquals(expected, actual, 0.00001);
-    }
-
     private long getPercentile(List<Measurement> measurements, String percentile) {
         return measurements.stream().filter(m -> m.attributes().get("percentile").equals(percentile)).findFirst().orElseThrow().getLong();
     }
@@ -292,7 +293,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     /**
-     * The returned function outputs a WrappedRunnabled that simulates the case
+     * The returned function outputs a WrappedRunnable that simulates the case
      * where {@link TimedRunnable#getQueueTimeNanos()} always returns {@code queueTimeTakenNanos}.
      */
     private Function<Runnable, WrappedRunnable> settableQueuingWrapper(long queueTimeTakenNanos) {
@@ -317,7 +318,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     public class SettableTimedRunnable extends TimedRunnable {
-        private final long queuedTimeTakenNanos;
+        private long queuedTimeTakenNanos;
         private final long executionTimeTakenNanos;
         private final boolean testFailedOrRejected;
 
@@ -328,6 +329,10 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             this.testFailedOrRejected = failedOrRejected;
         }
 
+        public void setQueuedTimeTakenNanos(long timeTakenNanos) {
+            this.queuedTimeTakenNanos = timeTakenNanos;
+        }
+
         @Override
         public long getTotalExecutionNanos() {
             return executionTimeTakenNanos;
@@ -336,6 +341,40 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         @Override
         public boolean getFailedOrRejected() {
             return testFailedOrRejected;
+        }
+
+        @Override
+        long getQueueTimeNanos() {
+            return queuedTimeTakenNanos;
+        }
+    }
+
+    /**
+     * This TimedRunnable override provides the following:
+     * <ul>
+     * <li> Overrides {@link TimedRunnable#getQueueTimeNanos()} so that arbitrary queue latencies can be set for the thread pool.</li>
+     * <li> Replaces any submitted Runnable task to the thread pool with a Runnable that only waits on a {@link CyclicBarrier}.</li>
+     * </ul>
+     * This allows dynamically manipulating the queue time with {@link #setQueuedTimeTakenNanos}, and provides a means of waiting for a task
+     * to start by calling {@code safeAwait(barrier)} after submitting a task.
+     * <p>
+     * Look at {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#wrapRunnable} for how the ThreadPool uses this as a wrapper around all
+     * submitted tasks.
+     */
+    public class AdjustableQueueTimeWithExecutionBarrierTimedRunnable extends TimedRunnable {
+        private long queuedTimeTakenNanos;
+
+        /**
+         * @param barrier A barrier that the caller can wait upon to ensure a task starts.
+         * @param queuedTimeTakenNanos The default queue time reported for all tasks.
+         */
+        public AdjustableQueueTimeWithExecutionBarrierTimedRunnable(CyclicBarrier barrier, long queuedTimeTakenNanos) {
+            super(() -> { safeAwait(barrier); });
+            this.queuedTimeTakenNanos = queuedTimeTakenNanos;
+        }
+
+        public void setQueuedTimeTakenNanos(long timeTakenNanos) {
+            this.queuedTimeTakenNanos = timeTakenNanos;
         }
 
         @Override

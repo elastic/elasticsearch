@@ -40,9 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.threadpool.ThreadPool.DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
-import static org.elasticsearch.threadpool.ThreadPool.DEFAULT_WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
-import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -239,14 +237,9 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
     public void testWriteThreadpoolsEwmaAlphaSetting() {
         Settings settings = Settings.EMPTY;
         var executionEwmaAlpha = DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
-        var queueLatencyEwmaAlpha = DEFAULT_WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA;
         if (randomBoolean()) {
             executionEwmaAlpha = randomDoubleBetween(0.0, 1.0, true);
-            queueLatencyEwmaAlpha = randomDoubleBetween(0.0, 1.0, true);
-            settings = Settings.builder()
-                .put(WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), executionEwmaAlpha)
-                .put(WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA.getKey(), queueLatencyEwmaAlpha)
-                .build();
+            settings = Settings.builder().put(WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.getKey(), executionEwmaAlpha).build();
         }
         var nodeName = internalCluster().startNode(settings);
         var threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
@@ -259,11 +252,10 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
 
             // Only the WRITE thread pool should enable further tracking.
             if (name.equals(ThreadPool.Names.WRITE) == false) {
-                assertFalse(executor.trackingQueueLatencyEwma());
+                assertFalse(executor.trackingMaxQueueLatency());
             } else {
                 // Verify that the WRITE thread pool has extra tracking enabled.
-                assertTrue(executor.trackingQueueLatencyEwma());
-                assertThat(Double.compare(executor.getQueueLatencyEwmaAlpha(), queueLatencyEwmaAlpha), CoreMatchers.equalTo(0));
+                assertTrue(executor.trackingMaxQueueLatency());
             }
         }
     }

@@ -21,7 +21,6 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
-import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
 import org.elasticsearch.xcontent.Text;
 
 import java.util.Arrays;

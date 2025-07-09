@@ -266,7 +266,9 @@ public class InferencePlugin extends Plugin
         throttlerManager.init(services.clusterService());
 
         var truncator = new Truncator(settings, services.clusterService());
-        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, services.clusterService()));
+        serviceComponents.set(
+            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, services.clusterService())
+        );
         threadPoolSetOnce.set(services.threadPool());
 
         var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);

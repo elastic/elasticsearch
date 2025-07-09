@@ -16,4 +16,10 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 /**
  * A container for common components need at various levels of the inference services to instantiate their internals
  */
-public record ServiceComponents(ThreadPool threadPool, ThrottlerManager throttlerManager, Settings settings, Truncator truncator, ClusterService clusterService) {}
+public record ServiceComponents(
+    ThreadPool threadPool,
+    ThrottlerManager throttlerManager,
+    Settings settings,
+    Truncator truncator,
+    ClusterService clusterService
+) {}

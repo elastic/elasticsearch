@@ -24,7 +24,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -126,7 +126,7 @@ public class NetworkModuleTests extends ESTestCase {
                 HttpServerTransport.Dispatcher requestDispatcher,
                 BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
-                Tracer tracer
+                TelemetryProvider telemetryProvider
             ) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -173,7 +173,7 @@ public class NetworkModuleTests extends ESTestCase {
                 HttpServerTransport.Dispatcher requestDispatcher,
                 BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
-                Tracer tracer
+                TelemetryProvider telemetryProvider
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -218,7 +218,7 @@ public class NetworkModuleTests extends ESTestCase {
                 HttpServerTransport.Dispatcher requestDispatcher,
                 BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
-                Tracer tracer
+                TelemetryProvider telemetryProvider
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -302,7 +302,7 @@ public class NetworkModuleTests extends ESTestCase {
             new AggregatingDispatcher(),
             (preRequest, threadContext) -> {},
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            Tracer.NOOP
+            TelemetryProvider.NOOP
         );
     }
 }

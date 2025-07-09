@@ -53,6 +53,32 @@ public class TransportVersionSet {
     static {
         Map<String, TransportVersionSet> transportVersionSets = new HashMap<>();
         // TODO: load
+        // TODO: TEST ONLY
+        transportVersionSets.put("ml-inference-custom-service-embedding-type", new TransportVersionSet(
+            "ml-inference-custom-service-embedding-type",
+            List.of(new TransportVersion(9118000))
+        ));
+        transportVersionSets.put("esql-local-relation-with-new-blocks", new TransportVersionSet(
+            "esql-local-relation-with-new-blocks",
+            List.of(new TransportVersion(9117000))
+        ));
+        transportVersionSets.put("esql-split-on-big-values", new TransportVersionSet(
+            "esql-split-on-big-values",
+            List.of(
+                new TransportVersion(9116000),
+                new TransportVersion(9112001),
+                new TransportVersion(8841063)
+            )
+        ));
+        transportVersionSets.put("ml-inference-ibm-watsonx-completion-added", new TransportVersionSet(
+            "ml-inference-ibm-watsonx-completion-added",
+            List.of(new TransportVersion(9115000))
+        ));
+        transportVersionSets.put("esql-serialize-timeseries-field-type", new TransportVersionSet(
+                "esql-serialize-timeseries-field-type",
+                List.of(new TransportVersion(9114000))
+        ));
+        // TODO: END TEST ONLY
         TRANSPORT_VERSION_SETS = Collections.unmodifiableMap(transportVersionSets);
     }
 
@@ -64,6 +90,14 @@ public class TransportVersionSet {
         return transportVersionSet;
     }
 
+    public static TransportVersion latest(String name) {
+        return get(name).latest();
+    }
+
+    public static boolean isCompatible(String name, TransportVersion version) {
+        return get(name).isCompatible(version);
+    }
+
     private final String name;
     private final List<TransportVersion> versions;
 
@@ -72,11 +106,24 @@ public class TransportVersionSet {
         this.versions = versions;
     }
 
+    public String name() {
+        return name;
+    }
+
+    public TransportVersion latest() {
+        return versions.get(0);
+    }
+
     public boolean isCompatible(TransportVersion version) {
-        boolean compatible = version.onOrAfter(versions.get(0));
+        boolean compatible = version.onOrAfter(latest());
         for (int v = 1; v < versions.size(); ++v) {
             compatible |= version.isPatchFrom(versions.get(v));
         }
         return compatible;
+    }
+
+    @Override
+    public String toString() {
+        return "TransportVersionSet{" + "name='" + name + '\'' + ", versions=" + versions + '}';
     }
 }

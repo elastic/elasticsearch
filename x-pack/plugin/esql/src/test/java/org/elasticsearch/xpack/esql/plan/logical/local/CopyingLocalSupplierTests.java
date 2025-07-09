@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.compute.data.Block;
 
+import static org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopyingLocalSupplierTests extends LocalSupplierTests {
@@ -23,7 +23,7 @@ public class CopyingLocalSupplierTests extends LocalSupplierTests {
 
     protected void assertOnBWCObject(LocalSupplier testInstance, LocalSupplier bwcDeserializedObject, TransportVersion version) {
         assertNotSame(version.toString(), bwcDeserializedObject, testInstance);
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS.isCompatible(version)) {
             assertThat(testInstance, equalTo(bwcDeserializedObject));
         } else {
             assertTrue(version.toString(), bwcDeserializedObject instanceof ImmediateLocalSupplier);

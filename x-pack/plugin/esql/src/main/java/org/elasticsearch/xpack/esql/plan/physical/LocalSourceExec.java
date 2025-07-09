@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS;
+
 public class LocalSourceExec extends LeafExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -43,7 +45,7 @@ public class LocalSourceExec extends LeafExec {
     public LocalSourceExec(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS.isCompatible(in.getTransportVersion())) {
             this.supplier = in.readNamedWriteable(LocalSupplier.class);
         } else {
             this.supplier = readLegacyLocalSupplierFrom((PlanStreamInput) in);
@@ -67,7 +69,7 @@ public class LocalSourceExec extends LeafExec {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(output);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS.isCompatible(out.getTransportVersion())) {
             out.writeNamedWriteable(supplier);
         } else {
             if (supplier == EmptyLocalSupplier.EMPTY) {

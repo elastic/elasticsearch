@@ -121,6 +121,28 @@ POST /restaurants/_bulk?refresh
 
 PUT /movies
 
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
 PUT _query_rules/my-ruleset
 {
     "rules": [
@@ -151,6 +173,8 @@ PUT _query_rules/my-ruleset
 DELETE /restaurants
 
 DELETE /movies
+
+DELETE /books
 --------------------------------------------------
 // TEARDOWN
 ////
@@ -971,6 +995,7 @@ GET books/_search
   }
 }
 ----
+// TEST[continued]
 
 <1> 3x weight
 <2> 2x weight
@@ -1005,6 +1030,7 @@ PUT /books
   }
 }
 ----
+// TEST[skip:index created in test setup]
 
 And we run this query:
 
@@ -1026,6 +1052,7 @@ GET books/_search
   }
 }
 ----
+// TEST[continued]
 
 The score breakdown would be:
 
@@ -1056,6 +1083,7 @@ GET books/_search
   }
 }
 ----
+// TEST[continued]
 
 The score breakdown would change to:
 
@@ -1086,6 +1114,7 @@ GET books/_search
   }
 }
 ----
+// TEST[continued]
 
 <1> Match fields that start with `title`
 <2> Match fields that end with `_text`

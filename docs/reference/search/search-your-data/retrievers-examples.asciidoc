@@ -1547,65 +1547,87 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
                 "_score": 0.5,
                 "_explanation": {
                     "value": 0.5,
-                    "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                    "description": "sum of:",
                     "details": [
                         {
-                            "value": 0.0,
-                            "description": "rrf score: [0], result not found in query at index [0]",
-                            "details": []
-                        },
-                        {
-                            "value": 1,
-                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
+                            "value": 0.5,
+                            "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
                             "details": [
                                 {
-                                    "value": 0.8333334,
-                                    "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                                    "value": 0.0,
+                                    "description": "rrf score: [0], result not found in query at index [0]",
+                                    "details": []
+                                },
+                                {
+                                    "value": 1,
+                                    "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
                                     "details": [
                                         {
-                                            "value": 2,
-                                            "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1)], for matching query with score",
+                                            "value": 0.8333334,
+                                            "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
                                             "details": [
                                                 {
-                                                    "value": 2.8129659,
-                                                    "description": "sum of:",
+                                                    "value": 2,
+                                                    "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1)], for matching query with score",
                                                     "details": [
                                                         {
-                                                            "value": 1.4064829,
-                                                            "description": "weight(text:information in 0) [PerFieldSimilarity], result of:",
+                                                            "value": 2.8129659,
+                                                            "description": "sum of:",
                                                             "details": [
-                                                                ***
-                                                            ]
-                                                        },
-                                                        {
-                                                            "value": 1.4064829,
-                                                            "description": "weight(text:retrieval in 0) [PerFieldSimilarity], result of:",
-                                                            "details": [
-                                                                ***
+                                                                {
+                                                                    "value": 1.4064829,
+                                                                    "description": "weight(text:information in 1) [PerFieldSimilarity], result of:",
+                                                                    "details": [
+                                                                        ***
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "value": 1.4064829,
+                                                                    "description": "weight(text:retrieval in 1) [PerFieldSimilarity], result of:",
+                                                                    "details": [
+                                                                        ***
+                                                                    ]
+                                                                }
                                                             ]
                                                         }
                                                     ]
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "value": 1,
-                                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
-                                            "details": [
+                                                },
                                                 {
                                                     "value": 1,
-                                                    "description": "doc [0] with an original score of [1.0] is at rank [1] from the following source queries.",
+                                                    "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
                                                     "details": [
                                                         {
-                                                            "value": 1.0,
-                                                            "description": "found vector with calculated similarity: 1.0",
-                                                            "details": []
+                                                            "value": 1,
+                                                            "description": "doc [1] with an original score of [1.0] is at rank [1] from the following source queries.",
+                                                            "details": [
+                                                                {
+                                                                    "value": 1.0,
+                                                                    "description": "found vector with calculated similarity: 1.0",
+                                                                    "details": []
+                                                                }
+                                                            ]
                                                         }
                                                     ]
                                                 }
                                             ]
                                         }
                                     ]
+                                }
+                            ]
+                        },
+                        {
+                            "value": 0.0,
+                            "description": "match on required clause, product of:",
+                            "details": [
+                                {
+                                    "value": 0.0,
+                                    "description": "# clause",
+                                    "details": []
+                                },
+                                {
+                                    "value": 1.0,
+                                    "description": "FieldExistsQuery [field=_primary_term]",
+                                    "details": []
                                 }
                             ]
                         }
@@ -1617,6 +1639,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.0.details.1.details.0.details.0.details.0.details.1.details.0/]
 // TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
 ==============
 

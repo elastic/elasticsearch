@@ -7852,7 +7852,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownConjunctionsToKnnPrefilter() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
         var query = """
             from test
@@ -7869,5 +7869,89 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var prefilter = as(filterExpressions.get(0), GreaterThan.class);
         assertThat(and.right(), equalTo(prefilter));
         var esRelation = as(filter.child(), EsRelation.class);
+    }
+
+    public void testNotPushDownDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], 10) or integer > 10
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        var knn = as(or.left(), Knn.class);
+        List<Expression> filterExpressions = knn.filterExpressions();
+        assertThat(filterExpressions.size(), equalTo(0));
+    }
+
+    public void testPushDownConjunctionsAndNotDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        /*
+            and
+                and
+                    or
+                        knn(dense_vector, [0, 1, 2], 10)
+                        integer > 10
+                    keyword == "test"
+                 or
+                     short < 5
+                     double > 5.0
+         */
+        // Both conjunctions are pushed down to knn prefilters, disjunctions are not
+        var query = """
+            from test
+            | where
+                 ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var leftAnd = as(and.left(), And.class);
+        var rightOr = as(and.right(), Or.class);
+        var leftOr = as(leftAnd.left(), Or.class);
+        var knn = as(leftOr.left(), Knn.class);
+        var rightOrPrefilter = as(knn.filterExpressions().get(0), Or.class);
+        assertThat(rightOr, equalTo(rightOrPrefilter));
+        var leftAndPrefilter = as(knn.filterExpressions().get(1), Equals.class);
+        assertThat(leftAnd.right(), equalTo(leftAndPrefilter));
+    }
+
+    public void testMorePushDownConjunctionsAndNotDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        /*
+            or
+                or
+                    and
+                        knn(dense_vector, [0, 1, 2], 10)
+                        integer > 10
+                    keyword == "test"
+                 and
+                     short < 5
+                     double > 5.0
+         */
+        // Just the conjunction is pushed down to knn prefilters, disjunctions are not
+        var query = """
+            from test
+            | where
+                 ((knn(dense_vector, [0, 1, 2], 10) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        var leftOr = as(or.left(), Or.class);
+        var leftAnd = as(leftOr.left(), And.class);
+        var knn = as(leftAnd.left(), Knn.class);
+        var rightAndPrefilter = as(knn.filterExpressions().get(0), GreaterThan.class);
+        assertThat(leftAnd.right(), equalTo(rightAndPrefilter));
     }
 }

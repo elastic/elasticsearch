@@ -541,7 +541,7 @@ public class IndicesService extends AbstractLifecycleComponent
         // Second pass: build stats, compute shared RAM on the fly
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
-                org.elasticsearch.index.shard.ShardId shardId = indexShard.shardId();
+                ShardId shardId = indexShard.shardId();
                 long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(shardId) : 0L;
                 long sharedRam = 0L;
                 if (sharedRamBytesUsed != 0L) {
@@ -552,7 +552,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 }
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
                     if (indexShardStats == null) {
                         continue;
                     }
@@ -570,7 +570,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
-        return indexShardStats(indicesService, indexShard, flags, null);
+        // Default to 0L for precomputedSharedRam for backward compatibility
+        return indexShardStats(indicesService, indexShard, flags, 0L);
     }
 
     IndexShardStats indexShardStats(

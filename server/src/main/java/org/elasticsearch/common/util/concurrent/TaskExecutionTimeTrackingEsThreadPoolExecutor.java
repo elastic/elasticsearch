@@ -270,7 +270,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
      */
     private class UtilizationTracker {
-        volatile long lastPollTime = System.nanoTime();;
+        volatile long lastPollTime = System.nanoTime();
         volatile long lastTotalExecutionTime = 0;
 
         public double pollUtilization() {

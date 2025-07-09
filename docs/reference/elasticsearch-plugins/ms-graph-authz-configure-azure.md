@@ -16,8 +16,8 @@ with the correct permissions.
    Entra ID.
 2) To register a new application, click **Enterprise applications** > **New
    application**.
-3) Click **Create your own application**, provide a name, and select the *
-   *Integrate any other application you don’t find in the gallery** option.
+3) Click **Create your own application**, provide a name, and select the 
+**Integrate any other application you don’t find in the gallery** option.
 
 :::{image} ./images/ms-graph-authz/01-create-enterprise-application.png
 :alt: "create your own application" page

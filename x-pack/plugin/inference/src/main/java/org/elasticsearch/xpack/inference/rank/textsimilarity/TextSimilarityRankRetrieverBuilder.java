@@ -211,46 +211,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) throws IOException {
-        if (snippets != null) {
-            QueryBuilder snippetQueryBuilder = snippets.snippetQueryBuilder();
-            if (snippetQueryBuilder == null) {
-                return new TextSimilarityRankRetrieverBuilder(
-                    innerRetrievers,
-                    inferenceId,
-                    inferenceText,
-                    field,
-                    rankWindowSize,
-                    minScore,
-                    failuresAllowed,
-                    retrieverName,
-                    preFilterQueryBuilders,
-                    new RerankSnippetConfig(snippets.numSnippets(), new MatchQueryBuilder(field, inferenceText))
-                );
-            } else {
-                QueryBuilder rewrittenSnippetQueryBuilder = snippetQueryBuilder.rewrite(ctx);
-                if (snippetQueryBuilder != rewrittenSnippetQueryBuilder) {
-                    return new TextSimilarityRankRetrieverBuilder(
-                        innerRetrievers,
-                        inferenceId,
-                        inferenceText,
-                        field,
-                        rankWindowSize,
-                        minScore,
-                        failuresAllowed,
-                        retrieverName,
-                        preFilterQueryBuilders,
-                        new RerankSnippetConfig(snippets.numSnippets(), rewrittenSnippetQueryBuilder)
-                    );
-                }
-            }
-        }
-
-        return this;
-
-    }
-
-    @Override
     public String getName() {
         return TextSimilarityRankBuilder.NAME;
     }

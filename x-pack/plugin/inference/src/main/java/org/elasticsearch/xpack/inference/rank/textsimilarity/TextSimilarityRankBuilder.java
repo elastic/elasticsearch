@@ -12,10 +12,16 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -155,6 +161,40 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     @Override
+    public RankBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        TextSimilarityRankBuilder rewritten = this;
+        if (snippets != null) {
+            QueryBuilder snippetQueryBuilder = snippets.snippetQueryBuilder();
+            if (snippetQueryBuilder == null) {
+                rewritten = new TextSimilarityRankBuilder(
+                    field,
+                    inferenceId,
+                    inferenceText,
+                    rankWindowSize(),
+                    minScore,
+                    failuresAllowed,
+                    new RerankSnippetConfig(snippets.numSnippets(), new MatchQueryBuilder(field, inferenceText))
+                );
+            } else {
+                QueryBuilder rewrittenSnippetQueryBuilder = snippetQueryBuilder.rewrite(queryRewriteContext);
+                if (snippetQueryBuilder != rewrittenSnippetQueryBuilder) {
+                    rewritten = new TextSimilarityRankBuilder(
+                        field,
+                        inferenceId,
+                        inferenceText,
+                        rankWindowSize(),
+                        minScore,
+                        failuresAllowed,
+                        new RerankSnippetConfig(snippets.numSnippets(), rewrittenSnippetQueryBuilder)
+                    );
+                }
+            }
+        }
+
+        return rewritten;
+    }
+
+    @Override
     public boolean isCompoundBuilder() {
         return false;
     }
@@ -261,5 +301,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     @Override
     protected int doHashCode() {
         return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

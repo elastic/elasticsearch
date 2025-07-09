@@ -1,0 +1,97 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "uses TOP function in STATS aggregation"
+  - do:
+      indices.create:
+        index: employees
+        body:
+          mappings:
+            properties:
+              hire_date:
+                type: date
+              salary_change:
+                type: double
+              salary:
+                type: integer
+              salary_change_long:
+                type: long
+  - do:
+      bulk:
+        index: employees
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100 }
+          - { "index": { } }
+          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200 }
+          - { "index": { } }
+          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50 }
+
+---
+Top function with constant folding:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                date = TOP(hire_date, 1+1, "dEsc"),
+                double = TOP(salary_change, 100-98, REVERSE("csed")),
+                integer = TOP(salary, 4-(1+1), Substring("Ascending",0,3)),
+                long = TOP(salary_change_long, 10 - 4*2, Concat("as","c"))
+            | LIMIT 5
+  - match: { columns.0.name: "date" }
+  - match: { columns.1.name: "double" }
+  - match: { columns.2.name: "integer" }
+  - match: { columns.3.name: "long" }
+  - length: { values: 1 }
+  - length: { values.0: 4 }
+  # Check that the values are as expected for the folded constants
+  - match: { values.0.0: [ "2021-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z" ] }
+  - match: { values.0.1: [ 200.5, 100.5 ] }
+  - match: { values.0.2: [ 40000, 50000 ] }
+  - match: { values.0.3: [ 50, 100 ] }
+
+
+---
+
+Top function with negative limit value after folding:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                date = TOP(hire_date, 10 - 20, "dEsc"),
+                double = TOP(salary_change, 100-98, REVERSE("csed")),
+                integer = TOP(salary, 4-(1+1), Substring("Ascending",0,3)),
+                long = TOP(salary_change_long, 10 - 4*2, Concat("as","c"))
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - match: { error.reason: "Found 1 problem\nline 3:27: Limit must be greater than 0 in [TOP(hire_date, 10 - 20, \"dEsc\")], found [-10]" }
+
+---
+
+Top function with invalid sort order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                date = TOP(hire_date, 2, REVERSE("csed123")),
+                double = TOP(salary_change, 100-98, REVERSE("csed")),
+                integer = TOP(salary, 4-(1+1), Substring("Ascending",0,3)),
+                long = TOP(salary_change_long, 10 - 4*2, Concat("as","c"))
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - match: { error.reason: "Found 1 problem\nline 3:30: Invalid order value in [TOP(hire_date, 2, REVERSE(\"csed123\"))], expected [ASC, DESC] but got [321desc]" }

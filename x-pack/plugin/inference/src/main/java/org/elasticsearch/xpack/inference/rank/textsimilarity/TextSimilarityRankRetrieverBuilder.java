@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -24,7 +22,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;

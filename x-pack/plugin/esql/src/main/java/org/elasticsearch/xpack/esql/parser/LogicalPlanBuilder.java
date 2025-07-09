@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
@@ -90,7 +89,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -514,8 +512,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
-        String stringValue = policyToken.getText();
+    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+        String stringValue;
+        if (ctx.ENRICH_POLICY_NAME() != null) {
+            stringValue = ctx.ENRICH_POLICY_NAME().getText();
+        } else {
+            stringValue = ctx.QUOTED_STRING().getText();
+            stringValue = stringValue.substring(1, stringValue.length() - 1);
+        }
+
         int index = stringValue.indexOf(":");
         Mode mode = null;
         if (index >= 0) {
@@ -527,7 +532,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (mode == null) {
                 throw new ParsingException(
-                    source(policyToken),
+                    source(ctx),
                     "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
                     modeValue,
                     Arrays.stream(Mode.values()).map(s -> "_" + s).toList()
@@ -718,9 +723,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
+    public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
+        Source source = source(ctx);
         return input -> {
-            Source source = source(ctx);
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
@@ -730,15 +735,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
-
-            List<Order> order = List.of(
-                new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
-                new Order(source, idAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
-                new Order(source, indexAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
-            );
-
-            return new OrderBy(source, dedup, order);
+            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
         };
     }
 

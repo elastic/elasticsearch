@@ -48,7 +48,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
-    private final boolean trackQueueLatencyAverage;
+    private final boolean trackAverageQueueLatency;
     private final ExponentiallyWeightedMovingAverage queueLatencyMillisEWMA;
 
     public enum UtilizationTrackingPurpose {
@@ -77,7 +77,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        this.trackQueueLatencyAverage = trackingConfig.trackQueueLatencyAverage();
+        this.trackAverageQueueLatency = trackingConfig.trackQueueLatencyAverage();
         this.queueLatencyMillisEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getQueueLatencyEwmaAlpha(), 0);
         this.apmUtilizationTracker = new UtilizationTracker();
         this.allocationUtilizationTracker = new UtilizationTracker();
@@ -150,7 +150,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     public double getQueuedTaskLatencyMillis() {
-        if (trackQueueLatencyAverage == false) {
+        if (trackAverageQueueLatency == false) {
             return 0;
         }
         return queueLatencyMillisEWMA.getAverage();
@@ -189,7 +189,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
 
-        if (trackQueueLatencyAverage) {
+        if (trackAverageQueueLatency) {
             queueLatencyMillisEWMA.addValue(queueLatencyMillis);
         }
     }
@@ -233,7 +233,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             .append("total task execution time = ")
             .append(TimeValue.timeValueNanos(getTotalTaskExecutionTime()))
             .append(", ");
-        if (trackQueueLatencyAverage) {
+        if (trackAverageQueueLatency) {
             sb.append("task queue EWMA = ").append(TimeValue.timeValueMillis((long) getQueuedTaskLatencyMillis())).append(", ");
         }
     }
@@ -261,7 +261,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     // Used for testing
     public boolean trackingQueueLatencyEwma() {
-        return trackQueueLatencyAverage;
+        return trackAverageQueueLatency;
     }
 
     /**

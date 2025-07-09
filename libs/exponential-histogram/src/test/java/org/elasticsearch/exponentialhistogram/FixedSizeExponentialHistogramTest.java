@@ -16,8 +16,8 @@ public class FixedSizeExponentialHistogramTest {
 
     @Test
     public void testPrintBuckets() {
-        ExponentialHistogram first = ExpHistoGenerator.createFor(0.01234, 42, 56789);
-        ExponentialHistogram second = ExpHistoGenerator.createFor(38, 50, 250, 257, 10001.1234);
+        ExponentialHistogram first = ExponentialHistogramGenerator.createFor(0.01234, 42, 56789);
+        ExponentialHistogram second = ExponentialHistogramGenerator.createFor(38, 50, 250, 257, 10001.1234);
 
         ExponentialHistogram result = ExponentialHistogramMerger.merge(7, first, second);
         printMidpoints(result);
@@ -27,7 +27,7 @@ public class FixedSizeExponentialHistogramTest {
     @Test
     public void testPrintBucketsLinearScale() {
 
-        ExponentialHistogram result = ExpHistoGenerator.createFor(
+        ExponentialHistogram result = ExponentialHistogramGenerator.createFor(
             1000,
             IntStream.range(-1_000_000, 2_000_000).mapToDouble(Double::valueOf)
         );
@@ -39,7 +39,7 @@ public class FixedSizeExponentialHistogramTest {
         printMidpoints(result);
     }
 
-    private static void printMidpoints(ExponentialHistogram histo) {
+    public static void printMidpoints(ExponentialHistogram histo) {
         StringBuilder sb = new StringBuilder("{ base : ");
         sb.append(ExponentialHistogramUtils.getLowerBucketBoundary(1, histo.scale())).append(", ");
         ExponentialHistogram.BucketIterator neg = histo.negativeBuckets();

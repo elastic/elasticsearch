@@ -26,6 +26,13 @@ public class ExponentialHistogramMerger {
         buffer = new FixedSizeExponentialHistogram(resultBucketCount);
     }
 
+    // Only inteded for testing, using this in production means an unnecessary reduction of precision
+    ExponentialHistogramMerger(int resultBucketCount, int minScale) {
+        this(resultBucketCount);
+        result.resetBuckets(minScale);
+        buffer.resetBuckets(minScale);
+    }
+
     public void add(ExponentialHistogram toAdd) {
         if (isFinished) {
             throw new IllegalStateException("get() has already been called");

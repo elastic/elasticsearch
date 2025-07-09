@@ -16,10 +16,6 @@ public record ZeroBucket(long index, int scale, long count) {
 
     private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(Long.MIN_VALUE, Integer.MIN_VALUE/256, 0);
 
-    public ZeroBucket(long index, int scale) {
-        this(index, scale, 0);
-    }
-
     public ZeroBucket(double zeroThreshold, long count) {
         this(computeIndex(zeroThreshold, DEFAULT_BUCKET_SCALE) + 1, DEFAULT_BUCKET_SCALE, count);
     }
@@ -91,8 +87,15 @@ public record ZeroBucket(long index, int scale, long count) {
         if (collapsedCount == 0) {
             return this;
         } else {
+            long newZeroCount = count + collapsedCount;
             // +1 because we need to adjust the zero threshold to the upper boundary of the collapsed bucket
-            return new ZeroBucket(highestCollapsedIndex + 1, buckets.scale(), count + collapsedCount);
+            long collapsedUpperBoundIndex = Math.addExact(highestCollapsedIndex , 1);
+            if (compareLowerBoundaries(index, scale, collapsedUpperBoundIndex, buckets.scale()) >= 0) {
+                // we still have a larger zero-threshold than the largest collapsed bucket's upper boundary
+                return new ZeroBucket(index, scale, newZeroCount);
+            } else {
+                return new ZeroBucket(collapsedUpperBoundIndex, buckets.scale(), newZeroCount);
+            }
         }
     }
 }

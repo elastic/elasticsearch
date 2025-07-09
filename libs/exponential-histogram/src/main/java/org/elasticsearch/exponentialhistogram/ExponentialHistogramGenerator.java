@@ -17,7 +17,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.c
 /**
  * Class for generating a histogram from raw values.
  */
-public class ExpHistoGenerator {
+public class ExponentialHistogramGenerator {
 
     private final double[] rawValueBuffer;
     int valueCount;
@@ -27,7 +27,7 @@ public class ExpHistoGenerator {
 
     private boolean isFinished = false;
 
-    public ExpHistoGenerator(int numBuckets) {
+    public ExponentialHistogramGenerator(int numBuckets) {
         rawValueBuffer = new double[numBuckets];
         valueCount = 0;
         valueBuffer = new FixedSizeExponentialHistogram(numBuckets);
@@ -59,7 +59,7 @@ public class ExpHistoGenerator {
     }
 
     public static ExponentialHistogram createFor(int bucketCount, DoubleStream values) {
-        ExpHistoGenerator generator = new ExpHistoGenerator(bucketCount);
+        ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(bucketCount);
         values.forEach(generator::add);
         return generator.get();
     }

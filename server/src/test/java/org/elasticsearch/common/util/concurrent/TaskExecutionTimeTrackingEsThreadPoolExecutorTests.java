@@ -117,8 +117,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
             // Check that the max is zero initially and after a reset.
             assertEquals("The queue latency should be initialized zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
-            executor.execute(() -> {
-            });
+            executor.execute(() -> {});
             safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
             assertEquals("Ran one task of 1ms, should be the max", 1, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());

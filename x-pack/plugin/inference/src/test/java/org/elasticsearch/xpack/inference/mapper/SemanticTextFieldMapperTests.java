@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.mapper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
@@ -55,7 +56,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -1561,7 +1561,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void assertSparseFeatures(LuceneDocument doc, String fieldName, int expectedCount) {
         int count = 0;
         for (IndexableField field : doc.getFields()) {
-            if (field instanceof XFeatureField featureField) {
+            if (field instanceof FeatureField featureField) {
                 assertThat(featureField.name(), equalTo(fieldName));
                 ++count;
             }

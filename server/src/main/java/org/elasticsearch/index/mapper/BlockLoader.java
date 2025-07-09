@@ -43,7 +43,7 @@ public interface BlockLoader {
         /**
          * Reads the values of all documents in {@code docs}.
          */
-        BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException;
+        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -149,7 +149,7 @@ public interface BlockLoader {
      */
     class ConstantNullsReader implements AllReader {
         @Override
-        public Block read(BlockFactory factory, Docs docs) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
             return factory.constantNulls();
         }
 
@@ -183,7 +183,7 @@ public interface BlockLoader {
             public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
                 return new ColumnAtATimeReader() {
                     @Override
-                    public Block read(BlockFactory factory, Docs docs) {
+                    public Block read(BlockFactory factory, Docs docs, int offset) {
                         return factory.constantBytes(value);
                     }
 
@@ -261,8 +261,8 @@ public interface BlockLoader {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs) throws IOException {
-                    return reader.read(factory, docs);
+                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+                    return reader.read(factory, docs, offset);
                 }
 
                 @Override

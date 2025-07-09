@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -138,7 +139,6 @@ public class ComputeService {
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
 
-    private volatile DataPartitioning defaultDataPartitioning;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -177,7 +177,6 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
     }
 
     public void execute(
@@ -561,7 +560,7 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            defaultDataPartitioning
+            new PhysicalSettings(clusterService)
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

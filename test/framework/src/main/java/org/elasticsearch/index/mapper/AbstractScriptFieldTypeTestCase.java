@@ -426,7 +426,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
-                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx));
+                // NOCOMMIT test with offset
+                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx), 0);
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }

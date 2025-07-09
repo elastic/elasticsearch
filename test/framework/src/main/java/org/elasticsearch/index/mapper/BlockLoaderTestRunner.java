@@ -84,7 +84,8 @@ public class BlockLoaderTestRunner {
         var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReader != null) {
             BlockLoader.Docs docs = TestBlock.docs(0);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), docs);
+            // NOCOMMIT test with offset
+            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), docs, 0);
             assertThat(block.size(), equalTo(1));
             return block.get(0);
         }

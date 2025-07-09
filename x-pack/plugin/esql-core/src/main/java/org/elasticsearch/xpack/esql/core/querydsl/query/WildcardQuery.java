@@ -47,7 +47,7 @@ public class WildcardQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, query, caseInsensitive);
+        return Objects.hash(field, query, caseInsensitive, forceStringMatch);
     }
 
     @Override
@@ -63,7 +63,8 @@ public class WildcardQuery extends Query {
         WildcardQuery other = (WildcardQuery) obj;
         return Objects.equals(field, other.field)
             && Objects.equals(query, other.query)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(forceStringMatch, other.forceStringMatch);
     }
 
     @Override

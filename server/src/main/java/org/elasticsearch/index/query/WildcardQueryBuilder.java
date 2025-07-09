@@ -274,7 +274,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, rewrite, caseInsensitive);
+        return Objects.hash(fieldName, value, rewrite, caseInsensitive, forceStringMatch);
     }
 
     @Override
@@ -282,7 +282,8 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(forceStringMatch, other.forceStringMatch);
     }
 
     @Override

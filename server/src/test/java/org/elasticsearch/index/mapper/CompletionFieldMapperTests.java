@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -242,8 +243,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("field");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
-        assertThat(Boolean.valueOf(configMap.get("preserve_separators").toString()), is(false));
-        assertThat(Boolean.valueOf(configMap.get("preserve_position_increments").toString()), is(true));
+        assertThat(Booleans.parseBoolean(configMap.get("preserve_separators").toString()), is(false));
+        assertThat(Booleans.parseBoolean(configMap.get("preserve_position_increments").toString()), is(true));
         assertThat(Integer.valueOf(configMap.get("max_input_length").toString()), is(14));
     }
 

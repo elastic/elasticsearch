@@ -51,7 +51,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
+            randomBoolean() ?
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(DEFAULT_EWMA_ALPHA).build() :
+                EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EWMA_ALPHA).build()
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -103,7 +105,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
+            randomBoolean() ?
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(DEFAULT_EWMA_ALPHA).build() :
+                EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EWMA_ALPHA).build()
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -135,7 +139,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+            EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(DEFAULT_EWMA_ALPHA).build()
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);
@@ -170,7 +174,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+            EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(DEFAULT_EWMA_ALPHA).build()
         );
         executor.setupMetrics(meterRegistry, threadPoolName);
 

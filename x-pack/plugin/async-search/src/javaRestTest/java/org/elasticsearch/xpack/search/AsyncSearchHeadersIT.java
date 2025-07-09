@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.qa;
+package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncSearchHeadersIT extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().plugin("x-pack-async-search").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("x-pack-async-search").build();
 
     @Override
     protected String getTestRestCluster() {

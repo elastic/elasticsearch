@@ -54,6 +54,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -261,13 +262,17 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                     Settings settings = dataStream.getEffectiveSettings(state.metadata());
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
                     if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
-                        indexMode = resolveMode(
-                            state,
-                            indexSettingProviders,
-                            dataStream,
-                            settings,
-                            dataStream.getEffectiveIndexTemplate(state.metadata())
-                        );
+                        try {
+                            indexMode = resolveMode(
+                                state,
+                                indexSettingProviders,
+                                dataStream,
+                                settings,
+                                dataStream.getEffectiveIndexTemplate(state.metadata())
+                            );
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
@@ -370,7 +375,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         return new GetDataStreamAction.Response(
             dataStreamInfos,
             request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-            globalRetentionSettings.get()
+            globalRetentionSettings.get(false),
+            globalRetentionSettings.get(true)
         );
     }
 
@@ -409,6 +415,6 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

@@ -7,26 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-$endif$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$elseif(long)$
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
-$elseif(double)$
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-$elseif(BytesRef)$
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-$elseif(boolean)$
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.data.BooleanVector;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -37,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.

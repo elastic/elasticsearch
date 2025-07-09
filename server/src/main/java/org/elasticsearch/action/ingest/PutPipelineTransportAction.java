@@ -78,7 +78,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
 
     @Override
     protected ClusterBlockException checkBlock(PutPipelineRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

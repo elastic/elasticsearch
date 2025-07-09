@@ -104,6 +104,7 @@ public class MappingGenerator {
                 var mappingParametersGenerator = specification.dataSource()
                     .get(
                         new DataSourceRequest.LeafMappingParametersGenerator(
+                            specification.dataSource(),
                             fieldName,
                             leaf.type(),
                             context.eligibleCopyToDestinations(),

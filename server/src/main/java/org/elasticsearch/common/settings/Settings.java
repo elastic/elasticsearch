@@ -79,6 +79,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
+    public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
 
     public static final String FLAT_SETTINGS_PARAM = "flat_settings";
 

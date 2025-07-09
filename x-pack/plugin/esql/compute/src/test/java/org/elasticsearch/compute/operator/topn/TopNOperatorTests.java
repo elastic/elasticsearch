@@ -17,23 +17,30 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.operator.TupleAbstractBlockSourceOperator;
+import org.elasticsearch.compute.operator.TupleDocLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -53,14 +60,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.compute.data.ElementType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
@@ -129,7 +139,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     );
 
     @Override
-    protected TopNOperator.TopNOperatorFactory simple() {
+    protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
         return new TopNOperator.TopNOperatorFactory(
             4,
             List.of(LONG),
@@ -288,14 +298,17 @@ public class TopNOperatorTests extends OperatorTestCase {
         boolean ascendingOrder,
         boolean nullsFirst
     ) {
-        return topNTwoColumns(
+        return topNTwoLongColumns(
             driverContext,
             inputValues.stream().map(v -> tuple(v, 0L)).toList(),
             limit,
-            List.of(LONG, LONG),
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst))
         ).stream().map(Tuple::v1).toList();
+    }
+
+    private static TupleLongLongBlockSourceOperator longLongSourceOperator(DriverContext driverContext, List<Tuple<Long, Long>> values) {
+        return new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000));
     }
 
     private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
@@ -464,33 +477,30 @@ public class TopNOperatorTests extends OperatorTestCase {
     public void testTopNTwoColumns() {
         List<Tuple<Long, Long>> values = Arrays.asList(tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L), tuple(1L, null));
         assertThat(
-            topNTwoColumns(
+            topNTwoLongColumns(
                 driverContext(),
                 values,
                 5,
-                List.of(LONG, LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, false))
             ),
             equalTo(List.of(tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null), tuple(null, 1L), tuple(null, null)))
         );
         assertThat(
-            topNTwoColumns(
+            topNTwoLongColumns(
                 driverContext(),
                 values,
                 5,
-                List.of(LONG, LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, true, true), new TopNOperator.SortOrder(1, true, false))
             ),
             equalTo(List.of(tuple(null, 1L), tuple(null, null), tuple(1L, 1L), tuple(1L, 2L), tuple(1L, null)))
         );
         assertThat(
-            topNTwoColumns(
+            topNTwoLongColumns(
                 driverContext(),
                 values,
                 5,
-                List.of(LONG, LONG),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true))
             ),
@@ -521,7 +531,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             elementTypes.add(e);
@@ -592,7 +602,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             elementTypes.add(e);
@@ -656,45 +666,82 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    private List<Tuple<Long, Long>> topNTwoColumns(
+    private List<Tuple<Long, Long>> topNTwoLongColumns(
         DriverContext driverContext,
-        List<Tuple<Long, Long>> inputValues,
+        List<Tuple<Long, Long>> values,
         int limit,
-        List<ElementType> elementTypes,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders
     ) {
-        List<Tuple<Long, Long>> outputValues = new ArrayList<>();
+        var page = topNTwoColumns(
+            driverContext,
+            new TupleLongLongBlockSourceOperator(driverContext.blockFactory(), values, randomIntBetween(1, 1000)),
+            limit,
+            encoder,
+            sortOrders
+        );
+        var result = pageToTuples(
+            (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
+            (block, i) -> block.isNull(i) ? null : ((LongBlock) block).getLong(i),
+            page
+        );
+        assertThat(result, hasSize(Math.min(limit, values.size())));
+        return result;
+    }
+
+    private <T, S> List<Page> topNTwoColumns(
+        DriverContext driverContext,
+        TupleAbstractBlockSourceOperator<T, S> sourceOperator,
+        int limit,
+        List<TopNEncoder> encoder,
+        List<TopNOperator.SortOrder> sortOrders
+    ) {
+        var pages = new ArrayList<Page>();
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                new TupleBlockSourceOperator(driverContext.blockFactory(), inputValues, randomIntBetween(1, 1000)),
+                sourceOperator,
                 List.of(
                     new TopNOperator(
                         driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         limit,
-                        elementTypes,
+                        sourceOperator.elementTypes(),
                         encoder,
                         sortOrders,
                         randomPageSize()
                     )
                 ),
-                new PageConsumerOperator(page -> {
-                    LongBlock block1 = page.getBlock(0);
-                    LongBlock block2 = page.getBlock(1);
-                    for (int i = 0; i < block1.getPositionCount(); i++) {
-                        outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
-                    }
-                    page.releaseBlocks();
-                })
+                new PageConsumerOperator(pages::add)
             )
         ) {
             runDriver(driver);
         }
-        assertThat(outputValues, hasSize(Math.min(limit, inputValues.size())));
         assertDriverContext(driverContext);
-        return outputValues;
+        return pages;
+    }
+
+    private static <T, S> List<Tuple<T, S>> pageToTuples(
+        BiFunction<Block, Integer, T> getFirstBlockValue,
+        BiFunction<Block, Integer, S> getSecondBlockValue,
+        List<Page> pages
+    ) {
+        var result = new ArrayList<Tuple<T, S>>();
+        for (Page page : pages) {
+            var block1 = page.getBlock(0);
+            var block2 = page.getBlock(1);
+            for (int i = 0; i < block1.getPositionCount(); i++) {
+                result.add(
+                    tuple(
+                        block1.isNull(i) ? null : getFirstBlockValue.apply(block1, i),
+                        block2.isNull(i) ? null : getSecondBlockValue.apply(block2, i)
+                    )
+                );
+            }
+            page.releaseBlocks();
+        }
+
+        return result;
     }
 
     public void testTopNManyDescriptionAndToString() {
@@ -977,7 +1024,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == AGGREGATE_METRIC_DOUBLE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
@@ -1443,6 +1490,53 @@ public class TopNOperatorTests extends OperatorTestCase {
             op.addInput(new Page(blocks));
 
             assertThat(breaker.getMemoryRequestCount(), is(94L));
+        }
+    }
+
+    public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
+        topNShardContextManagementAux(4, Stream.generate(() -> true).limit(4).toList());
+    }
+
+    public void testShardContextManagement_notAllShardsPassTopN_shardsAreReleased() {
+        topNShardContextManagementAux(2, List.of(true, false, false, true));
+    }
+
+    private void topNShardContextManagementAux(int limit, List<Boolean> expectedOpenAfterTopN) {
+        List<Tuple<BlockUtils.Doc, Long>> values = Arrays.asList(
+            tuple(new BlockUtils.Doc(0, 10, 100), 1L),
+            tuple(new BlockUtils.Doc(1, 20, 200), 2L),
+            tuple(new BlockUtils.Doc(2, 30, 300), null),
+            tuple(new BlockUtils.Doc(3, 40, 400), -3L)
+        );
+        List<RefCounted> refCountedList = Stream.<RefCounted>generate(() -> new SimpleRefCounted()).limit(4).toList();
+        var shardRefCounted = ShardRefCounted.fromList(refCountedList);
+
+        var pages = topNTwoColumns(driverContext(), new TupleDocLongBlockSourceOperator(driverContext().blockFactory(), values) {
+            @Override
+            protected Block.Builder firstElementBlockBuilder(int length) {
+                return DocBlock.newBlockBuilder(blockFactory, length).setShardRefCounted(shardRefCounted);
+            }
+        },
+            limit,
+            List.of(TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoder.DEFAULT_SORTABLE),
+            List.of(new TopNOperator.SortOrder(1, true, false))
+
+        );
+        refCountedList.forEach(RefCounted::decRef);
+
+        assertThat(refCountedList.stream().map(RefCounted::hasReferences).toList(), equalTo(expectedOpenAfterTopN));
+
+        var expectedValues = values.stream()
+            .sorted(Comparator.comparingLong(t -> t.v2() == null ? Long.MAX_VALUE : t.v2()))
+            .limit(limit)
+            .toList();
+        assertThat(
+            pageToTuples((b, i) -> (BlockUtils.Doc) BlockUtils.toJavaObject(b, i), (b, i) -> ((LongBlock) b).getLong(i), pages),
+            equalTo(expectedValues)
+        );
+
+        for (var rc : refCountedList) {
+            assertFalse(rc.hasReferences());
         }
     }
 

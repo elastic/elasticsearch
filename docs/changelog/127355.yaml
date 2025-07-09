@@ -1,0 +1,5 @@
+pr: 127355
+summary: '`text ==` and `text !=` pushdown'
+area: ES|QL
+type: enhancement
+issues: []

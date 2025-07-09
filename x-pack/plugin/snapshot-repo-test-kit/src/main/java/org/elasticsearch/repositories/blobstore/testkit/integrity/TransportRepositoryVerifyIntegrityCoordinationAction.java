@@ -9,9 +9,9 @@ package org.elasticsearch.repositories.blobstore.testkit.integrity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -98,7 +98,7 @@ public class TransportRepositoryVerifyIntegrityCoordinationAction extends Transp
     private final ClusterService clusterService;
     private final Executor managementExecutor;
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
         private final RepositoryVerifyIntegrityParams requestParams;
         private final RepositoryVerifyIntegrityResponseStream responseStream;
 

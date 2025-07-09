@@ -42,14 +42,29 @@ public enum ElementType {
     /**
      * Composite blocks which contain array of sub-blocks.
      */
-    COMPOSITE(8, "Composite", BlockFactory::newAggregateMetricDoubleBlockBuilder, CompositeBlock::readFrom),
+    COMPOSITE(
+        8,
+        "Composite",
+        (blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build composite blocks"); },
+        CompositeBlock::readFrom
+    ),
 
     /**
      * Intermediate blocks which don't support retrieving elements.
      */
     UNKNOWN(9, "Unknown", (blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build null blocks"); }, in -> {
         throw new UnsupportedOperationException("can't read unknown blocks");
-    });
+    }),
+
+    /**
+     * Blocks that contain aggregate_metric_doubles.
+     */
+    AGGREGATE_METRIC_DOUBLE(
+        10,
+        "AggregateMetricDouble",
+        BlockFactory::newAggregateMetricDoubleBlockBuilder,
+        AggregateMetricDoubleBlock::readFrom
+    );
 
     private interface BuilderSupplier {
         Block.Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize);
@@ -95,7 +110,7 @@ public enum ElementType {
         } else if (type == Boolean.class) {
             elementType = BOOLEAN;
         } else if (type == AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class) {
-            elementType = COMPOSITE;
+            elementType = AGGREGATE_METRIC_DOUBLE;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

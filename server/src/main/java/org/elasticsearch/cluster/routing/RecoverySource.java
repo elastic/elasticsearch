@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
+ * - {@link ReshardSplitRecoverySource} recovery of a shard that is created as a result of a resharding split
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
@@ -57,6 +59,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             case PEER -> PeerRecoverySource.INSTANCE;
             case SNAPSHOT -> new SnapshotRecoverySource(in);
             case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
+            case RESHARD_SPLIT -> new ReshardSplitRecoverySource(in);
         };
     }
 
@@ -78,7 +81,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         EXISTING_STORE,
         PEER,
         SNAPSHOT,
-        LOCAL_SHARDS
+        LOCAL_SHARDS,
+        RESHARD_SPLIT
     }
 
     public abstract Type getType();
@@ -317,6 +321,41 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public boolean expectEmptyRetentionLeases() {
             return false;
+        }
+    }
+
+    /**
+     * Recovery of a shard that is created as a result of a resharding split.
+     * Not to be confused with _split API.
+     */
+    public static class ReshardSplitRecoverySource extends RecoverySource {
+        private final ShardId sourceShardId;
+
+        public ReshardSplitRecoverySource(ShardId sourceShardId) {
+            this.sourceShardId = sourceShardId;
+        }
+
+        ReshardSplitRecoverySource(StreamInput in) throws IOException {
+            sourceShardId = new ShardId(in);
+        }
+
+        @Override
+        public Type getType() {
+            return Type.RESHARD_SPLIT;
+        }
+
+        public ShardId getSourceShardId() {
+            return sourceShardId;
+        }
+
+        @Override
+        protected void writeAdditionalFields(StreamOutput out) throws IOException {
+            sourceShardId.writeTo(out);
+        }
+
+        @Override
+        public void addAdditionalFields(XContentBuilder builder, Params params) throws IOException {
+            sourceShardId.toXContent(builder, params);
         }
     }
 }

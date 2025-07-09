@@ -57,6 +57,11 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         rootFileObserver = new FileObserver(path);
     }
 
+    // For testing
+    public Path getPath() {
+        return path;
+    }
+
     /**
      * Clears any state with the FileWatcher, making all files show up as new
      */

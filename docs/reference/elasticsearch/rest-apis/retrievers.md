@@ -41,6 +41,9 @@ The following retrievers are available:
 `text_similarity_reranker`
 :   A [retriever](#text-similarity-reranker-retriever) that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
+`pinned` {applies_to}`stack: GA 9.1`
+:   A [retriever](#pinned-retriever) that always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+
 `rule`
 :   A [retriever](#rule-retriever) that applies contextual [Searching with query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries.
 
@@ -255,13 +258,55 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 #### Parameters [linear-retriever-parameters]
 
+::::{note}
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+::::
+
+`query` {applies_to}`stack: ga 9.1`
+:   (Optional, String)
+
+    The query to use when using the [multi-field query format](#multi-field-query-format).
+
+`fields` {applies_to}`stack: ga 9.1`
+:   (Optional, array of strings)
+
+    The fields to query when using the [multi-field query format](#multi-field-query-format).
+    Fields can include boost values using the `^` notation (e.g., `"field^2"`).
+    If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
+`normalizer` {applies_to}`stack: ga 9.1`
+:   (Optional, String)
+
+    The normalizer to use when using the [multi-field query format](#multi-field-query-format).
+    See [normalizers](#linear-retriever-normalizers) for supported values.
+    Required when `query` is specified.
+
+    ::::{warning}
+    Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
+    See [field grouping](#multi-field-field-grouping) for more information.
+    ::::
+
 `retrievers`
-:   (Required, array of objects)
+:   (Optional, array of objects)
 
-    A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum. Each configuration can have a different weight and normalization depending on the specified retriever.
+    A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum.
+    Each configuration can have a different weight and normalization depending on the specified retriever.
 
+`rank_window_size`
+:   (Optional, integer)
 
-Each entry specifies the following parameters:
+    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance.
+    The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param).
+    `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+    Defaults to 10.
+
+`filter`
+:   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
+
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+
+Each entry in the `retrievers` array specifies the following parameters:
 
 `retriever`
 :   (Required, a `retriever` object)
@@ -276,62 +321,73 @@ Each entry specifies the following parameters:
 `normalizer`
 :   (Optional, String)
 
-    Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
-
-    * `none`
-    * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
-
-        ```
-        score = (score - min) / (max - min)
-        ```
-
+    Specifies how the retriever’s score will be normalized before applying the specified `weight`.
+    See [normalizers](#linear-retriever-normalizers) for supported values.
+    Defaults to `none`.
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
-`rank_window_size`
-:   (Optional, integer)
+#### Normalizers [linear-retriever-normalizers]
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+The `linear` retriever supports the following normalizers:
 
+* `none`: No normalization
+* `minmax`: Normalizes scores based on the following formula:
 
-`filter`
-:   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
-
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
-
+    ```
+    score = (score - min) / (max - min)
+    ```
+* `l2_norm`: Normalizes scores using the L2 norm of the score values
 
 
 ## RRF Retriever [rrf-retriever]
 
-An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever returns top documents based on the RRF formula, equally weighting two or more child retrievers. Reciprocal rank fusion (RRF) is a method for combining multiple result sets with different relevance indicators into a single result set.
+An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever returns top documents based on the RRF formula, equally weighting two or more child retrievers.
+Reciprocal rank fusion (RRF) is a method for combining multiple result sets with different relevance indicators into a single result set.
 
 
 #### Parameters [rrf-retriever-parameters]
 
+::::{note}
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+::::
+
+`query` {applies_to}`stack: ga 9.1`
+:   (Optional, String)
+
+    The query to use when using the [multi-field query format](#multi-field-query-format).
+
+`fields` {applies_to}`stack: ga 9.1`
+:   (Optional, array of strings)
+
+    The fields to query when using the [multi-field query format](#multi-field-query-format).
+    If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
 `retrievers`
-:   (Required, array of retriever objects)
+:   (Optional, array of retriever objects)
 
-    A list of child retrievers to specify which sets of returned top documents will have the RRF formula applied to them. Each child retriever carries an equal weight as part of the RRF formula. Two or more child retrievers are required.
-
+    A list of child retrievers to specify which sets of returned top documents will have the RRF formula applied to them.
+    Each child retriever carries an equal weight as part of the RRF formula. Two or more child retrievers are required.
 
 `rank_constant`
 :   (Optional, integer)
 
     This value determines how much influence documents in individual result sets per query have over the final ranked result set. A higher value indicates that lower ranked documents have more influence. This value must be greater than or equal to `1`. Defaults to `60`.
 
-
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
-
+    This value determines the size of the individual result sets per query.
+    A higher value will improve result relevance at the cost of performance.
+    The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param).
+    `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+    Defaults to 10.
 
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
-
-
 
 ### Example: Hybrid search [rrf-retriever-example-hybrid]
 
@@ -920,7 +976,232 @@ GET movies/_search
 1. The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
 2. The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
 
+## Pinned Retriever [pinned-retriever]
+```yaml {applies_to}
+stack: ga 9.1
+```
 
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the [pinned query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md), but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.
+
+#### Parameters [pinned-retriever-parameters]
+
+`ids`
+:   (Optional, array of strings)
+
+    A list of document IDs to pin at the top of the results, in the order provided.
+
+`docs`
+:   (Optional, array of objects)
+
+    A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`retriever`
+:   (Optional, retriever object)
+
+    A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
+
+Either `ids` or `docs` must be specified.
+
+### Example using `docs` [pinned-retriever-example-documents]
+
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Multi-field query format [multi-field-query-format]
+```yaml {applies_to}
+stack: ga 9.1
+```
+
+The `linear` and `rrf` retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers.
+This format automatically generates appropriate inner retrievers based on the field types and query parameters.
+This is a great way to search an index, knowing little to nothing about its schema, while also handling normalization across lexical and semantic matches.
+
+### Field grouping [multi-field-field-grouping]
+
+The multi-field query format groups queried fields into two categories:
+
+- **Lexical fields**: fields that support term queries, such as `keyword` and `text` fields.
+- **Semantic fields**: [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
+
+Each field group is queried separately and the scores/ranks are normalized such that each contributes 50% to the final score/rank.
+This balances the importance of lexical and semantic fields.
+Most indices contain more lexical than semantic fields, and without this grouping the results would often bias towards lexical field matches.
+
+::::{warning}
+In the `linear` retriever, this grouping relies on using a normalizer other than `none` (i.e., `minmax` or `l2_norm`).
+If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
+::::
+
+### Linear retriever field boosting [multi-field-field-boosting]
+
+When using the `linear` retriever, fields can be boosted using the `^` notation:
+
+```console
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",                <1>
+        "description^2",          <2>
+        "title_semantic",         <3>
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+1. 3x weight
+2. 2x weight
+3. 1x weight (default)
+
+Due to how the [field group scores](#multi-field-field-grouping) are normalized, per-field boosts have no effect on the range of the final score.
+Instead, they affect the importance of the field's score within its group.
+
+For example, if the schema looks like:
+
+```console
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+```
+
+And we run this query:
+
+```console
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title",
+        "description",
+        "title_semantic",
+        "description_semantic"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+The score breakdown would be:
+
+* Lexical fields (50% of score):
+  * `title`: 50% of lexical fields group score, 25% of final score
+  * `description`: 50% of lexical fields group score, 25% of final score
+* Semantic fields (50% of score):
+  * `title_semantic`: 50% of semantic fields group score, 25% of final score
+  * `description_semantic`: 50% of semantic fields group score, 25% of final score
+
+If we apply per-field boosts like so:
+
+```console
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",
+        "description^2",
+        "title_semantic",
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+The score breakdown would change to:
+
+* Lexical fields (50% of score):
+    * `title`: 60% of lexical fields group score, 30% of final score
+    * `description`: 40% of lexical fields group score, 20% of final score
+* Semantic fields (50% of score):
+    * `title_semantic`: 33% of semantic fields group score, 16.5% of final score
+    * `description_semantic`: 66% of semantic fields group score, 33% of final score
+
+### Wildcard field patterns [multi-field-wildcard-field-patterns]
+
+Field names support the `*` wildcard character to match multiple fields:
+
+```console
+GET books/_search
+{
+  "retriever": {
+    "rrf": {
+      "query": "machine learning",
+      "fields": [
+        "title*",    <1>
+        "*_text"     <2>
+      ]
+    }
+  }
+}
+```
+
+1. Match fields that start with `title`
+2. Match fields that end with `_text`
+
+Note, however, that wildcard field patterns will only resolve to fields that either:
+
+- Support term queries, such as `keyword` and `text` fields
+- Are `semantic_text` fields
+
+### Limitations
+
+- **Single index**: Multi-field queries currently work with single index searches only
+- **CCS (Cross Cluster Search)**: Multi-field queries do not support remote cluster searches
+
+### Examples
+
+- [RRF with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
+- [Linear retriever with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)
 
 ## Common usage guidelines [retriever-common-parameters]
 
@@ -945,6 +1226,3 @@ When a retriever is specified as part of a search, the following elements are no
 * [`terminate_after`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-terminate-after)
 * [`sort`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
 * [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) use a [rescorer retriever](#rescorer-retriever) instead
-
-
-

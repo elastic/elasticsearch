@@ -27,6 +27,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,7 +48,7 @@ public class SourceProviderTests extends ESTestCase {
             try (IndexReader reader = iw.getReader()) {
                 LeafReaderContext readerContext = reader.leaves().get(0);
 
-                SourceProvider sourceProvider = SourceProvider.fromStoredFields();
+                SourceProvider sourceProvider = SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP);
                 Source source = sourceProvider.getSource(readerContext, 0);
 
                 assertNotNull(source.internalSourceRef());
@@ -121,7 +123,7 @@ public class SourceProviderTests extends ESTestCase {
     }
 
     private static CollectorManager<SourceAssertingCollector, ?> assertingCollectorManager() {
-        SourceProvider sourceProvider = SourceProvider.fromStoredFields();
+        SourceProvider sourceProvider = SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP);
         return new CollectorManager<>() {
             @Override
             public SourceAssertingCollector newCollector() {

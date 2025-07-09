@@ -100,7 +100,8 @@ public class ColumnInfoImpl implements ColumnInfo {
     public ColumnInfoImpl(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = DataType.fromEs(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             this.originalTypes = in.readOptionalStringCollectionAsList();
             this.suggestedCast = calculateSuggestedCast(this.originalTypes);
         } else {
@@ -113,7 +114,8 @@ public class ColumnInfoImpl implements ColumnInfo {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type.outputType());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             out.writeOptionalStringCollection(originalTypes);
         }
     }

@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -21,7 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -29,7 +26,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex();
+        MatchFunctionIT.createAndPopulateIndex(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {
@@ -137,7 +134,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().must(matchQuery("content", "brown"));
 
-        try (var resp = run(query, randomPragmas(), filter)) {
+        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -160,7 +157,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().filter(matchQuery("content", "brown"));
 
-        try (var resp = run(query, randomPragmas(), filter)) {
+        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -183,7 +180,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = QueryBuilders.matchAllQuery();
 
-        try (var resp = run(query, randomPragmas(), filter)) {
+        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -205,7 +202,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().must(matchQuery("content", "fox"));
 
-        try (var resp = run(query, randomPragmas(), filter)) {
+        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -227,7 +224,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().filter(matchQuery("content", "fox"));
 
-        try (var resp = run(query, randomPragmas(), filter)) {
+        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -354,7 +351,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE and STATS commands"));
     }
 
     public void testMatchWithNonTextField() {
@@ -371,22 +368,20 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void createAndPopulateIndex() {
-        var indexName = "test";
-        var client = client().admin().indices();
-        var CreateRequest = client.prepareCreate(indexName)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
-        assertAcked(CreateRequest);
-        client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown"))
-            .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
-            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
-            .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        ensureYellow(indexName);
+    public void testMatchOperatorWithLookupJoin() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND lookup_content : "fox"
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "line 3:20: [:] operator cannot operate on [lookup_content], supplied by an index [test_lookup] "
+                    + "in non-STANDARD mode [lookup]"
+            )
+        );
     }
 }

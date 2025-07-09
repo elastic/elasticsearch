@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -35,12 +36,12 @@ public class ChangelogEntry {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
 
     private Integer pr;
-    private List<Integer> issues;
+    private String summary;
     private String area;
     private String type;
-    private String summary;
-    private Highlight highlight;
+    private List<Integer> issues;
     private Breaking breaking;
+    private Highlight highlight;
     private Deprecation deprecation;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
@@ -193,6 +194,7 @@ public class ChangelogEntry {
             this.body = body;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
         }
@@ -278,6 +280,7 @@ public class ChangelogEntry {
             this.notable = notable;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
         }

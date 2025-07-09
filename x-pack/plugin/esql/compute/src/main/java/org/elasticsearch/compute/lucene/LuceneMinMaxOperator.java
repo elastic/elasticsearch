@@ -20,10 +20,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Operator that finds the min or max value of a field using Lucene searches
@@ -65,6 +67,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
     private final String fieldName;
 
     LuceneMinMaxOperator(
+        List<? extends RefCounted> shardRefCounters,
         BlockFactory blockFactory,
         LuceneSliceQueue sliceQueue,
         String fieldName,
@@ -72,7 +75,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         int limit,
         long initialResult
     ) {
-        super(blockFactory, PAGE_SIZE, sliceQueue);
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;
@@ -102,6 +105,9 @@ final class LuceneMinMaxOperator extends LuceneOperator {
             if (scorer == null) {
                 remainingDocs = 0;
             } else {
+                if (scorer.tags().isEmpty() == false) {
+                    throw new UnsupportedOperationException("tags not supported by " + getClass());
+                }
                 final LeafReader reader = scorer.leafReaderContext().reader();
                 final Query query = scorer.weight().getQuery();
                 if (query == null || query instanceof MatchAllDocsQuery) {

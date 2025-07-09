@@ -77,6 +77,39 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.FloatBuilder denseVectors(int expectedCount, int dimensions) {
+                class FloatsBuilder extends TestBlock.Builder implements BlockLoader.FloatBuilder {
+                    int numElements = 0;
+
+                    @Override
+                    public BlockLoader.FloatBuilder appendFloat(float value) {
+                        add(value);
+                        numElements++;
+                        return this;
+                    }
+
+                    @Override
+                    public Builder appendNull() {
+                        throw new IllegalArgumentException("dense vectors should not have null values");
+                    }
+
+                    @Override
+                    public Builder endPositionEntry() {
+                        assert numElements == dimensions : "expected " + dimensions + " dimensions, but got " + numElements;
+                        numElements = 0;
+                        return super.endPositionEntry();
+                    }
+
+                    @Override
+                    public TestBlock build() {
+                        assert numElements == 0 : "endPositionEntry() was not called for the last entry";
+                        return super.build();
+                    }
+                }
+                return new FloatsBuilder();
+            }
+
+            @Override
             public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
                 return ints(expectedCount);
             }

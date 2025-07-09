@@ -1,11 +1,8 @@
 ## `LOOKUP JOIN` [esql-lookup-join]
 
-::::{warning}
-This functionality is in technical preview and may be
-changed or removed in a future release. Elastic will work to fix any
-issues, but features in technical preview are not subject to the support
-SLA of official GA features.
-::::
+```yaml {applies_to}
+stack: preview 9.0.0, ga 9.1.0
+```
 
 `LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'
 index, to your {{esql}} query results, simplifying data enrichment
@@ -42,8 +39,11 @@ If multiple documents in the lookup index match a single row in your
 results, the output will contain one row for each matching combination.
 
 ::::{tip}
-In case of name collisions, the newly created columns will override existing columns.
+For important information about using `LOOKUP JOIN`, refer to [Usage notes](../../../../esql/esql-lookup-join.md#usage-notes).
 ::::
+
+:::{include} ../types/lookup-join.md
+:::
 
 **Examples**
 

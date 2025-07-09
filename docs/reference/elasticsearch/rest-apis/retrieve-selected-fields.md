@@ -17,7 +17,7 @@ By default, each hit in the search response includes the document [`_source`](/r
 You can use both of these methods, though the `fields` option is preferred because it consults both the document data and index mappings. In some instances, you might want to use [other methods](#field-retrieval-methods) of retrieving data.
 
 
-### The `fields` option [search-fields-param]
+## The `fields` option [search-fields-param]
 
 To retrieve specific fields in the search response, use the `fields` parameter. Because it consults the index mappings, the `fields` parameter provides several advantages over referencing the `_source` directly. Specifically, the `fields` parameter:
 
@@ -33,7 +33,7 @@ Other mapping options are also respected, including [`ignore_above`](/reference/
 The `fields` option returns values in the way that matches how {{es}} indexes them. For standard fields, this means that the `fields` option looks in `_source` to find the values, then parses and formats them using the mappings. Selected fields that can’t be found in `_source` are skipped.
 
 
-#### Retrieve specific fields [search-fields-request]
+### Retrieve specific fields [search-fields-request]
 
 The following search request uses the `fields` parameter to retrieve values for the `user.id` field, all fields starting with `http.response.`, and the `@timestamp` field.
 
@@ -69,7 +69,7 @@ By default, document metadata fields like `_id` or `_index` are not returned whe
 
 
 
-#### Response always returns an array [search-fields-response]
+### Response always returns an array [search-fields-response]
 
 The `fields` response always returns an array of values for each field, even when there is a single value in the `_source`. This is because {{es}} has no dedicated array type, and any field could contain multiple values. The `fields` parameter also does not guarantee that array values are returned in a specific order. See the mapping documentation on [arrays](/reference/elasticsearch/mapping-reference/array.md) for more background.
 
@@ -109,7 +109,7 @@ The response includes values as a flat list in the `fields` section for each hit
 ```
 
 
-#### Retrieve nested fields [search-fields-nested]
+### Retrieve nested fields [search-fields-nested]
 
 ::::{dropdown}
 The `fields` response for [`nested` fields](/reference/elasticsearch/mapping-reference/nested.md) is slightly different from that of regular object fields. While leaf values inside regular `object` fields are returned as a flat list, values inside `nested` fields are grouped to maintain the independence of each object inside the original nested array. For each entry inside a nested field array, values are again returned as a flat list unless there are other `nested` fields inside the parent nested object, in which case the same procedure is repeated again for the deeper nested fields.
@@ -246,7 +246,7 @@ However, when the `fields` pattern targets the nested `user` field directly, no 
 
 
 
-#### Retrieve unmapped fields [retrieve-unmapped-fields]
+### Retrieve unmapped fields [retrieve-unmapped-fields]
 
 ::::{dropdown}
 By default, the `fields` parameter returns only values of mapped fields. However, {{es}} allows storing fields in `_source` that are unmapped, such as setting [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md) to `false` or by using an object field with `enabled: false`. These options disable parsing and indexing of the object content.
@@ -326,7 +326,7 @@ The response will contain field results under the  `session_data.object.*` path,
 
 
 
-#### Ignored field values [ignored-field-values]
+### Ignored field values [ignored-field-values]
 
 ::::{dropdown}
 The `fields` section of the response only returns values that were valid when indexed. If your search request asks for values from a field that ignored certain values because they were malformed or too large these values are returned separately in an `ignored_field_values` section.
@@ -575,9 +575,10 @@ Stored field values fetched from the document itself are always returned as an a
 Also only leaf fields can be returned via the `stored_fields` option. If an object field is specified, it will be ignored.
 
 ::::{note}
-On its own, `stored_fields` cannot be used to load fields in nested objects — if a field contains a nested object in its path, then no data will be returned for that stored field. To access nested fields, `stored_fields` must be used within an [`inner_hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) block.
+On its own, `stored_fields` cannot be used to load fields in nested objects — if a field contains a nested object in its path, then no data will be returned for that stored field. To access nested fields, `stored_fields` must be used within an [`inner_hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) block.
 ::::
 
+For an example that uses the `stored_fields` parameter, refer to [](retrieve-stored-fields.md). 
 
 
 ##### Disable stored fields [disable-stored-fields]

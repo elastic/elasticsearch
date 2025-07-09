@@ -97,6 +97,15 @@ From the `elastic-start-local` folder, check the connection to Elasticsearch usi
 source .env
 curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 ----
+
+To use the password for the `elastic` user, set and export the `ES_LOCAL_PASSWORD` environment variable. For example:
+
+[source,sh]
+----
+source .env
+export ES_LOCAL_PASSWORD
+----
+
 // NOTCONSOLE
 
 === Send requests to Elasticsearch
@@ -112,22 +121,23 @@ Here's an example curl command to create a new Elasticsearch index, using basic 
 
 [source,sh]
 ----
-curl -u elastic:$ELASTIC_PASSWORD \
+curl -u elastic:$ES_LOCAL_PASSWORD \
   -X PUT \
   http://localhost:9200/my-new-index \
   -H 'Content-Type: application/json'
 ----
+
 // NOTCONSOLE
 
 ==== Using a language client
 
-To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password you set in the environment variable.
+To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password stored in the `ES_LOCAL_PASSWORD` environment variable.
 
 You'll use the following connection details:
 
 * **Elasticsearch endpoint**: `http://localhost:9200`
 * **Username**: `elastic`
-* **Password**: `$ELASTIC_PASSWORD` (Value you set in the environment variable)
+* **Password**: `$ES_LOCAL_PASSWORD` (Value you set in the environment variable)
 
 For example, to connect with the Python `elasticsearch` client:
 
@@ -137,7 +147,7 @@ import os
 from elasticsearch import Elasticsearch
 
 username = 'elastic'
-password = os.getenv('ELASTIC_PASSWORD') # Value you set in the environment variable
+password = os.getenv('ES_LOCAL_PASSWORD') # Value you set in the environment variable
 
 client = Elasticsearch(
     "http://localhost:9200",

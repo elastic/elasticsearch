@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -110,9 +108,9 @@ public class OperationRouting {
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
-        Set<IndexShardRoutingTable> shards = computeTargetedShards(projectState, concreteIndices, routing);
+        final Set<IndexShardRoutingTable> shards = computeTargetedShards(projectState, concreteIndices, routing);
         DiscoveryNodes nodes = projectState.cluster().nodes();
-        Set<ShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
+        List<ShardIterator> res = new ArrayList<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
@@ -123,11 +121,10 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(ShardIterator.allSearchableShards(iterator));
+                res.add(ShardIterator.allSearchableShards(iterator));
             }
         }
-        List<ShardIterator> res = new ArrayList<>(set);
-        CollectionUtil.timSort(res);
+        res.sort(ShardIterator::compareTo);
         return res;
     }
 

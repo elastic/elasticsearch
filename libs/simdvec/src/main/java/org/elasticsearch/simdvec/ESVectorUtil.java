@@ -9,11 +9,13 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -40,6 +42,14 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    }
+
+    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
@@ -210,5 +220,63 @@ public class ESVectorUtil {
         }
         assert stats.length == 6;
         IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /**
+     * Calculates the difference between two vectors and stores the result in a third vector.
+     * @param v1 the first vector
+     * @param v2 the second vector
+     * @param result the result vector, must be the same length as the input vectors
+     */
+    public static void subtract(float[] v1, float[] v2, float[] result) {
+        if (v1.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + v2.length);
+        }
+        if (result.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + result.length + "!=" + v1.length);
+        }
+        for (int i = 0; i < v1.length; i++) {
+            result[i] = v1[i] - v2[i];
+        }
+    }
+
+    /**
+     * calculates the soar distance for a vector and a centroid
+     * @param v1 the vector
+     * @param centroid the centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @return the soar distance
+     */
+    public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Optimized-scalar quantization of the provided vector to the provided destination array.
+     *
+     * @param vector the vector to quantize
+     * @param destination the array to store the result
+     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
+     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
+     * @param bit the number of bits to use for quantization, must be between 1 and 8
+     *
+     * @return return the sum of all the elements of the resulting quantized vector.
+     */
+    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
+        if (vector.length > destination.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
+        }
+        if (bit <= 0 || bit > Byte.SIZE) {
+            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
+        }
+        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
     }
 }

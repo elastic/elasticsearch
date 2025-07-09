@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.project;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
 /**
@@ -27,4 +28,14 @@ public interface ProjectIdResolver {
      * @return The identifier of the current project.
      */
     ProjectId getProjectId();
+
+    /**
+     * Returns {@code false} if the cluster runs in a setup that always expects only a single default project (see also
+     * {@link Metadata#DEFAULT_PROJECT_ID}).
+     * Otherwise, it should return {@code true} to indicate the cluster can accommodate multiple projects regardless
+     * how many project it current has.
+     */
+    default boolean supportsMultipleProjects() {
+        return false;
+    }
 }

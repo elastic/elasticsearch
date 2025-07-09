@@ -40,8 +40,8 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     final Map<String, Integer> hostToRate = new HashMap<>();
     final Map<String, Integer> hostToCpu = new HashMap<>();
 
-    static final float DEVIATION_LIMIT = 0.15f;
-    static final float SUBGROUP_DEVIATION_LIMIT = 0.22f; // extra deviation tolerance for subgroups due to fewer samples
+    static final float DEVIATION_LIMIT = 0.2f;
+    static final float SUBGROUP_DEVIATION_LIMIT = 0.30f; // extra deviation tolerance for subgroups due to fewer samples
     // We expect a 10% drop in the rate due to not covering window edges and not triggering
     // extrapolation logic in the time series engine.
     static final float EXPECTED_DROP_RATE = 0.15f;

@@ -24,12 +24,13 @@ base {
 
 restResources {
   restApi {
-    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities', 'esql.query'
+    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream', 'ingest', 'cat', 'capabilities', 'esql.query', 'field_caps'
   }
 }
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  implementation project(':modules:mapper-extras')
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('spatial'))))

@@ -44,6 +44,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -1255,8 +1256,22 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             TestShardRouting.newShardRouting(
                 new ShardId(indexService.index(), 0),
                 randomAlphaOfLength(5),
-                randomBoolean(),
-                ShardRoutingState.INITIALIZING
+                true,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            ),
+            indexService.getIndexSettings().getSettings()
+        );
+        assertEquals(1, service.getActiveContexts());
+
+        boolean primary = randomBoolean();
+        service.beforeIndexShardCreated(
+            TestShardRouting.newShardRouting(
+                new ShardId(indexService.index(), 0),
+                randomAlphaOfLength(5),
+                primary,
+                ShardRoutingState.INITIALIZING,
+                primary ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
             ),
             indexService.getIndexSettings().getSettings()
         );

@@ -40,7 +40,9 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -342,7 +344,7 @@ public class ValuesSourceReaderBenchmark {
         );
         long sum = 0;
         for (Page page : pages) {
-            op.addInput(page);
+            op.addInput(page.shallowCopy());
             switch (name) {
                 case "long" -> {
                     LongVector values = op.getOutput().<LongBlock>getBlock(1).asVector();
@@ -410,7 +412,7 @@ public class ValuesSourceReaderBenchmark {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
         }
         boolean foundStoredFieldLoader = false;
-        ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
             if (e.getKey().indexOf("stored_fields") >= 0) {
                 foundStoredFieldLoader = true;
@@ -477,6 +479,7 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
+                                    ShardRefCounted.ALWAYS_REFERENCED,
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
@@ -512,7 +515,14 @@ public class ValuesSourceReaderBenchmark {
                         if (size >= BLOCK_LENGTH) {
                             pages.add(
                                 new Page(
-                                    new DocVector(blockFactory.newConstantIntVector(0, size), leafs.build(), docs.build(), null).asBlock()
+                                    new DocVector(
+
+                                        ShardRefCounted.ALWAYS_REFERENCED,
+                                        blockFactory.newConstantIntVector(0, size),
+                                        leafs.build(),
+                                        docs.build(),
+                                        null
+                                    ).asBlock()
                                 )
                             );
                             docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
@@ -525,6 +535,8 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
+
+                                ShardRefCounted.ALWAYS_REFERENCED,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
@@ -551,6 +563,8 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
+
+                                    ShardRefCounted.ALWAYS_REFERENCED,
                                     blockFactory.newConstantIntVector(0, 1),
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),

@@ -1,0 +1,6 @@
+pr: 129967
+summary: Support returning default `index_options` for `semantic_text` fields when
+  `include_defaults` is true
+area: Search
+type: bug
+issues: []

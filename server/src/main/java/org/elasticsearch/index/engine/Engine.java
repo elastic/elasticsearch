@@ -2199,7 +2199,7 @@ public abstract class Engine implements Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected final void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {

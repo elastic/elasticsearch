@@ -40,7 +40,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "deepseek",
                     "elastic",
                     "elasticsearch",
@@ -82,10 +81,11 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "alibabacloud-ai-search",
                     "amazonbedrock",
+                    "amazon_sagemaker",
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
+                    "elastic",
                     "elasticsearch",
                     "googleaistudio",
                     "googlevertexai",
@@ -95,8 +95,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openai",
                     "text_embedding_test_service",
                     "voyageai",
-                    "watsonxai",
-                    "amazon_sagemaker"
+                    "watsonxai"
                 ).toArray()
             )
         );
@@ -113,7 +112,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "alibabacloud-ai-search",
                     "cohere",
-                    "custom",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
@@ -138,15 +136,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "deepseek",
                     "googleaistudio",
+                    "googlevertexai",
                     "openai",
                     "streaming_completion_test_service",
                     "completion_test_service",
                     "hugging_face",
                     "amazon_sagemaker",
-                    "mistral"
+                    "mistral",
+                    "watsonxai"
                 ).toArray()
             )
         );
@@ -164,7 +163,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "hugging_face",
                     "amazon_sagemaker",
                     "googlevertexai",
-                    "mistral"
+                    "mistral",
+                    "watsonxai"
                 ).toArray()
             )
         );
@@ -176,7 +176,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
-                    "custom",
                     "elastic",
                     "elasticsearch",
                     "hugging_face",

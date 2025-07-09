@@ -631,7 +631,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -737,13 +737,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().ramBytesUsed();
+            long modifiedSourceSize = indexRequest.source().length();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
             } catch (EsRejectedExecutionException e) {
                 indexRequest.source(originalSource, indexRequest.getContentType());
                 item.abort(

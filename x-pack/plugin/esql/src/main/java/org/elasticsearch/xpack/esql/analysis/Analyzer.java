@@ -1998,6 +1998,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return aggFunc;
                     }
                     if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
+                        // This is related to a known bug involving AvgOverTime and aggregate_metric_double. We substitute
+                        // surrogates here so when AvgOverTime becomes Div(SumOverTime, CountOverTime), which then becomes
+                        // Div(SumOverTime(agg_metric.sum), SumOverTime(agg_metric.count)), we can distinguish between the
+                        // SumOverTimes produced here from references to Sum/CountOverTime in other parts of the query
                         return ((SurrogateExpression) aggFunc).surrogate();
                     }
                     Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, mtf);

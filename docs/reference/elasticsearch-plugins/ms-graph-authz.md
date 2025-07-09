@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/ms-graph-authz.html
+applies_to:
+  stack: ga 9.1
 ---
 
 # Microsoft Graph Authz [ms-graph-authz]

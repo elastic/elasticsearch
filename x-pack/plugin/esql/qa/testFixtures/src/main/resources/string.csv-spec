@@ -2303,8 +2303,7 @@ foo ( bar
 // end::rlikeEscapingTripleQuotes-result[]
 ;
 
-mvStringEquals
-required_capability: mv_warn
+mvStringEquals#[skip:-8.12.99,reason:changed how we push down equals]
 
 FROM mv_text
 | WHERE message == "Connected to 10.1.0.1"
@@ -2331,8 +2330,7 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
 ;
 
-mvStringNotEquals
-required_capability: mv_warn
+mvStringNotEquals#[skip:-8.12.99,reason:changed how we push down not equals]
 
 FROM mv_text
 | WHERE message != "Connected to 10.1.0.2"

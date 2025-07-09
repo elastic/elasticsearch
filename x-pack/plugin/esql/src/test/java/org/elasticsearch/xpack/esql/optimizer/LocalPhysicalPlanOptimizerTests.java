@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -1926,6 +1927,40 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var expectedQuery = boolQuery().should(knnQueryBuilder).should(rangeQueryBuilder);
 
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testNotPushDownKnnWithNonPushablePrefilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        String query = """
+            from test
+            | where ((knn(dense_vector, [0, 1, 2], 10) AND integer > 10) and ((keyword == "test") or length(text) > 10))
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var secondLimit = as(field.child(), LimitExec.class);
+        var filter = as(secondLimit.child(), FilterExec.class);
+        var and = as(filter.condition(), And.class);
+        var knn = as(and.left(), Knn.class);
+        assertEquals("(keyword == \"test\") or length(text) > 10", knn.filterExpressions().get(0).toString());
+        assertEquals("integer > 10", knn.filterExpressions().get(1).toString());
+
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+
+        // The query should only contain the pushable condition
+        QueryBuilder integerGtQuery = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 47, "integer > 10")
+        );
+
+        assertEquals(integerGtQuery.toString(), queryExec.query().toString());
     }
 
     public void testMultipleKnnQueriesInPrefilters() {

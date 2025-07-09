@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker;
 
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
+
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponse;
 
@@ -75,16 +77,18 @@ public class SageMakerServiceTests extends ESTestCase {
     private SageMakerClient client;
     private SageMakerSchemas schemas;
     private SageMakerService sageMakerService;
+    private ServiceComponents serviceComponents;
 
     @Before
     public void init() {
         modelBuilder = mock();
         client = mock();
         schemas = mock();
+        serviceComponents = mock();
         ThreadPool threadPool = mock();
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of);
+        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, serviceComponents);
     }
 
     public void testSupportedTaskTypes() {

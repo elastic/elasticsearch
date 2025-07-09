@@ -28,7 +28,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -55,13 +57,15 @@ public class SageMakerService implements InferenceService {
     private final SageMakerSchemas schemas;
     private final ThreadPool threadPool;
     private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+    private final ServiceComponents serviceComponents;
 
     public SageMakerService(
         SageMakerModelBuilder modelBuilder,
         SageMakerClient client,
         SageMakerSchemas schemas,
         ThreadPool threadPool,
-        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap
+        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
+        ServiceComponents serviceComponents
     ) {
         this.modelBuilder = modelBuilder;
         this.client = client;
@@ -74,6 +78,7 @@ public class SageMakerService implements InferenceService {
                 .setConfigurations(configurationMap.get())
                 .build()
         );
+        this.serviceComponents = serviceComponents;
     }
 
     @Override
@@ -146,6 +151,10 @@ public class SageMakerService implements InferenceService {
 
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
+        if (timeout == null) {
+            timeout = serviceComponents.clusterService().getClusterSettings().get(InferencePlugin.SEMANTIC_TEXT_INFERENCE_TIMEOUT);
+        }
+
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
             var regionAndSecrets = regionAndSecrets(sageMakerModel);
@@ -156,7 +165,7 @@ public class SageMakerService implements InferenceService {
                 client.invokeStream(
                     regionAndSecrets,
                     request,
-                    timeout != null ? timeout : DEFAULT_TIMEOUT,
+                    timeout,
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.streamResponse(sageMakerModel, response)),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -168,7 +177,7 @@ public class SageMakerService implements InferenceService {
                 client.invoke(
                     regionAndSecrets,
                     request,
-                    timeout != null ? timeout : DEFAULT_TIMEOUT,
+                    timeout,
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.response(sageMakerModel, response, threadPool.getThreadContext())),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))

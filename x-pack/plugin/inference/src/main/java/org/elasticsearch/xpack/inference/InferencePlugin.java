@@ -329,7 +329,8 @@ public class InferencePlugin extends Plugin
                     ),
                     sageMakerSchemas,
                     services.threadPool(),
-                    sageMakerConfigurations::getOrCompute
+                    sageMakerConfigurations::getOrCompute,
+                    serviceComponents.get()
                 )
             )
         );

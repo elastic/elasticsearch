@@ -8,10 +8,13 @@
  */
 
 
-
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'

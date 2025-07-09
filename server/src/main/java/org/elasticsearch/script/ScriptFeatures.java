@@ -17,6 +17,6 @@ import java.util.Set;
 public final class ScriptFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(VectorScoreScriptUtils.HAMMING_DISTANCE_FUNCTION, ScriptTermStats.TERM_STAT_FEATURE);
+        return Set.of();
     }
 }

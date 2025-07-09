@@ -19,6 +19,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.PluginsService;
@@ -53,11 +54,13 @@ import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_THROTTLE
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_THROTTLES_TOTAL;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL;
 import static org.elasticsearch.repositories.s3.S3RepositoriesMetrics.METRIC_DELETE_RETRIES_HISTOGRAM;
+import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -163,9 +166,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(4L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.PUT_OBJECT), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.PUT_OBJECT), equalTo(0L));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(3L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.PUT_OBJECT), equalTo(2L * batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(3L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.PUT_OBJECT), equalTo(2L * batch));
             assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
         }
@@ -183,9 +186,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.GET_OBJECT), equalTo(2L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(2L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(2L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
 
@@ -206,9 +209,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
         }
@@ -246,8 +249,8 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.GET_OBJECT), equalTo(3 * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(3 * batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(3 * batch));
             assertThat(
                 getLongCounterValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, Operation.GET_OBJECT),
                 equalTo(batch)
@@ -318,6 +321,51 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         );
         List<Measurement> longHistogramMeasurement = plugin.getLongHistogramMeasurement(METRIC_DELETE_RETRIES_HISTOGRAM);
         assertThat(longHistogramMeasurement.get(0).getLong(), equalTo(3L));
+    }
+
+    public void testPutDoesNotRetryOn403InStateful() {
+        final Settings settings = internalCluster().getInstance(Settings.class);
+        assertThat(DiscoveryNode.isStateless(settings), equalTo(false));
+
+        final String repository = createRepository(randomRepositoryName());
+        final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
+        final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
+        // Exclude snapshot related purpose to avoid trigger assertions for cross-checking purpose and blob names
+        final OperationPurpose purpose = randomFrom(
+            OperationPurpose.REPOSITORY_ANALYSIS,
+            OperationPurpose.CLUSTER_STATE,
+            OperationPurpose.INDICES,
+            OperationPurpose.TRANSLOG
+        );
+        final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
+        final String blobName = randomIdentifier();
+
+        plugin.resetMeter();
+        addErrorStatus(new S3ErrorResponse(FORBIDDEN, Strings.format("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Error>
+              <Code>InvalidAccessKeyId</Code>
+              <Message>The AWS Access Key Id you provided does not exist in our records.</Message>
+              <RequestId>%s</RequestId>
+            </Error>""", randomUUID())));
+
+        final var exception = expectThrows(IOException.class, () -> {
+            if (randomBoolean()) {
+                blobContainer.writeBlob(purpose, blobName, new BytesArray("blob"), randomBoolean());
+            } else {
+                blobContainer.writeMetadataBlob(
+                    purpose,
+                    blobName,
+                    randomBoolean(),
+                    randomBoolean(),
+                    outputStream -> outputStream.write("blob".getBytes())
+                );
+            }
+        });
+        assertThat(exception.getCause().getMessage(), containsString("Status Code: 403"));
+
+        assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
+        assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
     }
 
     private void addErrorStatus(RestStatus... statuses) {

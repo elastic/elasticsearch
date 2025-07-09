@@ -11,6 +11,7 @@ package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
@@ -45,7 +46,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -142,7 +143,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         );
                         exists = true;
                         return storeFilesMetadata;
-                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                    } catch (IndexNotFoundException e) {
                         logger.trace(() -> "[" + shardId + "] node is missing index, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
@@ -159,7 +160,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexService != null) {
                     customDataPath = indexService.getIndexSettings().customDataPath();
                 } else {
-                    IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+                    IndexMetadata metadata = clusterService.state().metadata().findIndex(shardId.getIndex()).orElse(null);
                     if (metadata != null) {
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {
@@ -221,9 +222,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
                 // no compatible version cares about the shard ID, we can just make one up
                 FAKE_SHARD_ID.writeTo(out);
-
-                // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
-                assert out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
             out.writeCollection(peerRecoveryRetentionLeases);
@@ -259,22 +257,9 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 .orElse(-1L);
         }
 
-        /**
-         * @return commit sync id if exists, else null
-         */
-        public String syncId() {
-            return metadataSnapshot.getSyncId();
-        }
-
         @Override
         public String toString() {
-            return "StoreFilesMetadata{"
-                + ", metadataSnapshot{size="
-                + metadataSnapshot.size()
-                + ", syncId="
-                + metadataSnapshot.getSyncId()
-                + "}"
-                + '}';
+            return "StoreFilesMetadata{" + ", metadataSnapshot{size=" + metadataSnapshot.size() + "}" + '}';
         }
     }
 
@@ -322,7 +307,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         private final ShardId shardId;
         @Nullable

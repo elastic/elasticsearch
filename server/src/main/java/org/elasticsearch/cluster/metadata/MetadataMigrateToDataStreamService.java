@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -82,6 +84,7 @@ public class MetadataMigrateToDataStreamService {
     }
 
     public void migrateToDataStream(
+        ProjectId projectId,
         MigrateToDataStreamClusterStateUpdateRequest request,
         ActionListener<AcknowledgedResponse> finalListener
     ) {
@@ -93,6 +96,7 @@ public class MetadataMigrateToDataStreamService {
                 assert writeIndexName != null;
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    projectId,
                     new String[] { writeIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
@@ -114,14 +118,16 @@ public class MetadataMigrateToDataStreamService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = migrateToDataStream(currentState, isDslOnlyMode, indexMetadata -> {
+                    ClusterState clusterState = migrateToDataStream(currentState.projectState(projectId), isDslOnlyMode, indexMetadata -> {
                         try {
                             return indexServices.createIndexMapperServiceForValidation(indexMetadata);
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
                     }, request, metadataCreateIndexService, clusterService.getSettings(), delegate.reroute());
-                    writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
+                    writeIndexRef.set(
+                        clusterState.metadata().getProject(projectId).dataStreams().get(request.aliasName).getWriteIndex().getName()
+                    );
                     return clusterState;
                 }
             }
@@ -134,7 +140,7 @@ public class MetadataMigrateToDataStreamService {
     }
 
     static ClusterState migrateToDataStream(
-        ClusterState currentState,
+        ProjectState projectState,
         boolean isDslOnlyMode,
         Function<IndexMetadata, MapperService> mapperSupplier,
         MigrateToDataStreamClusterStateUpdateRequest request,
@@ -142,36 +148,35 @@ public class MetadataMigrateToDataStreamService {
         Settings settings,
         ActionListener<Void> listener
     ) throws Exception {
-        validateRequest(currentState, request);
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
+        final var project = projectState.metadata();
+        validateRequest(project, request);
+        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) project.getIndicesLookup().get(request.aliasName);
 
-        validateBackingIndices(currentState, request.aliasName);
-        Metadata.Builder mb = Metadata.builder(currentState.metadata());
+        validateBackingIndices(project, request.aliasName);
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(project);
         for (Index index : alias.getIndices()) {
-            IndexMetadata im = currentState.metadata().index(index);
-            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true);
+            IndexMetadata im = project.index(index);
+            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true, false, false, Settings.EMPTY);
         }
-        currentState = ClusterState.builder(currentState).metadata(mb).build();
+        ClusterState updatedState = ClusterState.builder(projectState.cluster()).putProjectMetadata(mb).build();
 
         Index writeIndex = alias.getWriteIndex();
-
-        ClusterState finalCurrentState = currentState;
         List<IndexMetadata> backingIndices = alias.getIndices()
             .stream()
             .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
-            .map(x -> finalCurrentState.metadata().index(x))
+            .map(x -> updatedState.metadata().getProject(project.id()).index(x))
             .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
-        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(project.id(), request.aliasName);
         return createDataStream(
             metadataCreateIndexService,
             settings,
-            currentState,
+            updatedState,
             isDslOnlyMode,
             req,
             backingIndices,
-            currentState.metadata().index(writeIndex),
+            updatedState.metadata().getProject(project.id()).index(writeIndex),
             listener,
             // No need to initialize the failure store when migrating to a data stream.
             false
@@ -179,8 +184,8 @@ public class MetadataMigrateToDataStreamService {
     }
 
     // package-visible for testing
-    static void validateRequest(ClusterState currentState, MigrateToDataStreamClusterStateUpdateRequest request) {
-        IndexAbstraction ia = currentState.metadata().getIndicesLookup().get(request.aliasName);
+    static void validateRequest(ProjectMetadata project, MigrateToDataStreamClusterStateUpdateRequest request) {
+        IndexAbstraction ia = project.getIndicesLookup().get(request.aliasName);
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] does not exist");
         }
@@ -189,22 +194,11 @@ public class MetadataMigrateToDataStreamService {
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(currentState.metadata(), ia);
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(project, ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");
         }
-    }
-
-    // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
-    static void prepareBackingIndex(
-        Metadata.Builder b,
-        IndexMetadata im,
-        String dataStreamName,
-        Function<IndexMetadata, MapperService> mapperSupplier,
-        boolean removeAlias
-    ) throws IOException {
-        prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, Settings.EMPTY);
     }
 
     /**
@@ -218,15 +212,18 @@ public class MetadataMigrateToDataStreamService {
      *                    exception should be thrown in that case instead
      * @param failureStore <code>true</code> if the index is being migrated into the data stream's failure store, <code>false</code> if it
      *                     is being migrated into the data stream's backing indices
+     * @param makeSystem <code>true</code> if the index is being migrated into the system data stream, <code>false</code> if it
+     *                     is being migrated into non-system data stream
      * @param nodeSettings The settings for the current node
      */
     static void prepareBackingIndex(
-        Metadata.Builder b,
+        ProjectMetadata.Builder b,
         IndexMetadata im,
         String dataStreamName,
         Function<IndexMetadata, MapperService> mapperSupplier,
         boolean removeAlias,
         boolean failureStore,
+        boolean makeSystem,
         Settings nodeSettings
     ) throws IOException {
         MappingMetadata mm = im.mapping();
@@ -250,17 +247,20 @@ public class MetadataMigrateToDataStreamService {
             DataStreamFailureStoreDefinition.applyFailureStoreSettings(nodeSettings, settingsUpdate);
         }
 
-        imb.settings(settingsUpdate.build())
-            .settingsVersion(im.getSettingsVersion() + 1)
-            .mappingVersion(im.getMappingVersion() + 1)
+        Settings maybeUpdatedSettings = settingsUpdate.build();
+        if (IndexSettings.same(im.getSettings(), maybeUpdatedSettings) == false) {
+            imb.settings(maybeUpdatedSettings).settingsVersion(im.getSettingsVersion() + 1);
+        }
+        imb.mappingVersion(im.getMappingVersion() + 1)
             .mappingsUpdatedVersion(IndexVersion.current())
             .putMapping(new MappingMetadata(mapper));
+        imb.system(makeSystem);
         b.put(imb);
     }
 
     // package-visible for testing
-    static void validateBackingIndices(ClusterState currentState, String dataStreamName) {
-        IndexAbstraction ia = currentState.metadata().getIndicesLookup().get(dataStreamName);
+    static void validateBackingIndices(ProjectMetadata project, String dataStreamName) {
+        IndexAbstraction ia = project.getIndicesLookup().get(dataStreamName);
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + dataStreamName + "] does not exist");
         }
@@ -269,7 +269,7 @@ public class MetadataMigrateToDataStreamService {
         // ensure that no other aliases reference indices
         List<String> indicesWithOtherAliases = new ArrayList<>();
         for (Index index : alias.getIndices()) {
-            IndexMetadata im = currentState.metadata().index(index);
+            IndexMetadata im = project.index(index);
             if (im.getAliases().size() > 1 || im.getAliases().containsKey(alias.getName()) == false) {
                 indicesWithOtherAliases.add(index.getName());
             }

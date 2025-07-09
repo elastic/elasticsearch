@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
@@ -26,15 +27,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -299,7 +299,7 @@ public class TaskCancellationService {
         return cause instanceof NodeDisconnectedException || cause instanceof NodeNotConnectedException;
     }
 
-    private static class BanParentTaskRequest extends TransportRequest {
+    private static class BanParentTaskRequest extends AbstractTransportRequest {
 
         private final TaskId parentTaskId;
         private final boolean ban;
@@ -333,11 +333,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-                waitForCompletion = in.readBoolean();
-            } else {
-                waitForCompletion = false;
-            }
+            waitForCompletion = in.readBoolean();
         }
 
         @Override
@@ -348,9 +344,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
-                out.writeBoolean(waitForCompletion);
-            }
+            out.writeBoolean(waitForCompletion);
         }
     }
 
@@ -367,7 +361,7 @@ public class TaskCancellationService {
                 final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason, channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     childTasks.size() + 1,
-                    new ChannelActionListener<>(channel).map(r -> TransportResponse.Empty.INSTANCE)
+                    new ChannelActionListener<>(channel).map(r -> ActionResponse.Empty.INSTANCE)
                 );
                 for (CancellableTask childTask : childTasks) {
                     cancelTaskAndDescendants(childTask, request.reason, request.waitForCompletion, listener);
@@ -376,12 +370,12 @@ public class TaskCancellationService {
             } else {
                 logger.debug("Removing ban for the parent [{}] on the node [{}]", request.parentTaskId, localNodeId());
                 taskManager.removeBan(request.parentTaskId);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         }
     }
 
-    private static class CancelChildRequest extends TransportRequest {
+    private static class CancelChildRequest extends AbstractTransportRequest {
 
         private final TaskId parentTaskId;
         private final long childRequestId;
@@ -417,7 +411,7 @@ public class TaskCancellationService {
         @Override
         public void messageReceived(final CancelChildRequest request, final TransportChannel channel, Task task) throws Exception {
             taskManager.cancelChildLocal(request.parentTaskId, request.childRequestId, request.reason);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }
 

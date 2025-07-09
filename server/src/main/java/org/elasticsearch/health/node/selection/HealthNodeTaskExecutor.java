@@ -22,8 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -60,40 +59,32 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
-    private final FeatureService featureService;
     private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
     private final ClusterStateListener shutdownListener;
     private volatile boolean enabled;
 
-    private HealthNodeTaskExecutor(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        FeatureService featureService,
-        Settings settings
-    ) {
+    private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
         super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
-        this.featureService = featureService;
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
     }
 
+    @Override
+    public Scope scope() {
+        return Scope.CLUSTER;
+    }
+
     public static HealthNodeTaskExecutor create(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
-        FeatureService featureService,
         Settings settings,
         ClusterSettings clusterSettings
     ) {
-        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings
-        );
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings);
         healthNodeTaskExecutor.registerListeners(clusterSettings);
         return healthNodeTaskExecutor;
     }
@@ -157,16 +148,13 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster supports health checks
-        if (event.localNodeMaster()
-            && event.state().clusterRecovered()
-            && HealthNode.findTask(event.state()) == null
-            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
+        // Wait until master is stable before starting health task
+        if (event.localNodeMaster() && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
             persistentTasksService.sendStartRequest(
                 TASK_NAME,
                 TASK_NAME,
                 new HealthNodeTaskParams(),
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
                     if (e instanceof NodeClosedException) {
                         logger.debug("Failed to create health node task because node is shutting down", e);
@@ -186,8 +174,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void shuttingDown(ClusterChangedEvent event) {
-        DiscoveryNode node = clusterService.localNode();
-        if (isNodeShuttingDown(event, node.getId())) {
+        if (isNodeShuttingDown(event)) {
+            var node = event.state().getNodes().getLocalNode();
             abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
         }
     }
@@ -202,9 +190,18 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    private static boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
-            && event.state().metadata().nodeShutdowns().contains(nodeId);
+    private static boolean isNodeShuttingDown(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return false;
+        }
+        var shutdownsOld = event.previousState().metadata().nodeShutdowns();
+        var shutdownsNew = event.state().metadata().nodeShutdowns();
+        if (shutdownsNew == shutdownsOld) {
+            return false;
+        }
+        String nodeId = event.state().nodes().getLocalNodeId();
+        return shutdownsOld.contains(nodeId) == false && shutdownsNew.contains(nodeId);
+
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

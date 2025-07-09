@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -87,16 +88,25 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         );
 
         // verify that both indices are gone
-        Exception e1 = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareGetIndex().addIndices(systemIndex1));
+        Exception e1 = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(systemIndex1)
+        );
         assertThat(e1.getMessage(), containsString("no such index"));
 
-        Exception e2 = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareGetIndex().addIndices(associatedIndex));
+        Exception e2 = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(associatedIndex)
+        );
         assertThat(e2.getMessage(), containsString("no such index"));
 
-        Exception e3 = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareGetIndex().addIndices(systemIndex2));
+        Exception e3 = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(systemIndex2)
+        );
         assertThat(e3.getMessage(), containsString("no such index"));
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices("my_index").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("my_index").get();
         assertThat(response.getIndices(), arrayContaining("my_index"));
     }
 
@@ -208,6 +218,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         @Override
         public void cleanUpFeature(
             ClusterService clusterService,
+            ProjectResolver projectResolver,
             Client client,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
         ) {

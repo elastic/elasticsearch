@@ -33,7 +33,7 @@ public record RepositoriesMetrics(
     LongHistogram httpRequestTimeInMillisHistogram
 ) {
 
-    public static RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
+    public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
 
     /**
      * Is incremented for each request sent to the blob store (including retries)
@@ -122,21 +122,8 @@ public record RepositoriesMetrics(
     /**
      * Create the map of attributes we expect to see on repository metrics
      */
-    public static Map<String, Object> createAttributesMap(
-        RepositoryMetadata repositoryMetadata,
-        OperationPurpose purpose,
-        String operation
-    ) {
-        return Map.of(
-            "repo_type",
-            repositoryMetadata.type(),
-            "repo_name",
-            repositoryMetadata.name(),
-            "operation",
-            operation,
-            "purpose",
-            purpose.getKey()
-        );
+    public static Map<String, Object> createAttributesMap(RepositoryMetadata meta, OperationPurpose purpose, String operation) {
+        return Map.of("repo_type", meta.type(), "repo_name", meta.name(), "operation", operation, "purpose", purpose.getKey());
     }
 
 }

@@ -12,10 +12,10 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -34,12 +34,6 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
     public GetSettingsResponse(Map<String, Settings> indexToSettings, Map<String, Settings> indexToDefaultSettings) {
         this.indexToSettings = indexToSettings;
         this.indexToDefaultSettings = indexToDefaultSettings;
-    }
-
-    public GetSettingsResponse(StreamInput in) throws IOException {
-        super(in);
-        indexToSettings = in.readImmutableMap(Settings::readSettingsFromStream);
-        indexToDefaultSettings = in.readImmutableMap(Settings::readSettingsFromStream);
     }
 
     /**
@@ -83,6 +77,11 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
         }
     }
 
+    /**
+     * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(indexToSettings, StreamOutput::writeWriteable);

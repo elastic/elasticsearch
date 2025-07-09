@@ -28,7 +28,7 @@ import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.snapshots.SystemIndicesSnapshotIT;
+import org.elasticsearch.snapshots.SystemResourceSnapshotIT;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
     @Override
@@ -71,7 +70,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
@@ -85,7 +84,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
@@ -99,7 +98,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(INDEX_NAME + "-2").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(INDEX_NAME + "-2").get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(INDEX_NAME + "-2").size(), is(1));
@@ -144,7 +143,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+            .get();
         assertThat(response.indices().length, is(1));
         Settings settings = response.settings().get(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         assertThat(settings, notNullValue());
@@ -273,7 +274,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     private void assertAliasesHidden(String nonPrimaryIndex, Set<String> aliasNames, int aliasCount) throws InterruptedException,
         ExecutionException {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -298,7 +299,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return SystemIndicesSnapshotIT.SystemIndexTestPlugin.class.getSimpleName();
+            return SystemResourceSnapshotIT.SystemIndexTestPlugin.class.getSimpleName();
         }
 
         @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
@@ -52,19 +54,16 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             + "For example, the 95th percentile is the value which is greater than 95% of the "
             + "observed values and the 50th percentile is the `MEDIAN`.",
         appendix = """
-            [discrete]
-            [[esql-percentile-approximate]]
-            ==== `PERCENTILE` is (usually) approximate
+            ### `PERCENTILE` is (usually) approximate [esql-percentile-approximate]
 
-            include::../../../aggregations/metrics/percentile-aggregation.asciidoc[tag=approximate]
+            :::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
+            :::
 
-            [WARNING]
-            ====
+            ::::{warning}
             `PERCENTILE` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====
-            """,
-        isAggregation = true,
+            ::::""",
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_percentile", tag = "percentile"),
             @Example(
@@ -92,10 +91,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
                 : in.readNamedWriteable(Expression.class)
         );
@@ -157,22 +154,22 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new PercentileLongAggregatorFunctionSupplier(percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new PercentileIntAggregatorFunctionSupplier(percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue());
     }
 
     private int percentileValue() {
-        return ((Number) percentile.fold()).intValue();
+        return ((Number) percentile.fold(FoldContext.small() /* TODO remove me */)).intValue();
     }
 
     @Override

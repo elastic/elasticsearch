@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -41,6 +42,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.OTEL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PROFILING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -136,6 +138,9 @@ public final class AuthorizationUtils {
             case DATA_STREAM_LIFECYCLE_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.DATA_STREAM_LIFECYCLE_USER, version, consumer);
                 break;
+            case REINDEX_DATA_STREAM_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.REINDEX_DATA_STREAM_USER, version, consumer);
+                break;
             case LAZY_ROLLOVER_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.LAZY_ROLLOVER_USER, version, consumer);
                 break;
@@ -160,6 +165,7 @@ public final class AuthorizationUtils {
             case ENT_SEARCH_ORIGIN:
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
+            case ESQL_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -359,13 +360,13 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
-                return new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, docCount, subAggregationResults);
+                return new InternalBinaryRange.Bucket(format, range.key, range.from, range.to, docCount, subAggregationResults);
             },
             buckets -> new InternalBinaryRange(name, format, keyed, buckets, metadata())
         );
@@ -377,7 +378,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (Range range : ranges) {
-            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, 0, subAggs);
+            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, range.key, range.from, range.to, 0, subAggs);
             buckets.add(bucket);
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata());

@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -60,7 +61,7 @@ public class SyncPluginsAction {
      * @throws UserException if a plugins config file is found.
      */
     public static void ensureNoConfigFile(Environment env) throws UserException {
-        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
+        final Path pluginsConfig = env.configDir().resolve(ELASTICSEARCH_PLUGINS_YML);
         if (Files.exists(pluginsConfig)) {
             throw new UserException(
                 ExitCodes.USAGE,
@@ -78,16 +79,16 @@ public class SyncPluginsAction {
      * @throws Exception if anything goes wrong
      */
     public void execute() throws Exception {
-        final Path configPath = this.env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
-        final Path previousConfigPath = this.env.pluginsFile().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
+        final Path configPath = this.env.configDir().resolve(ELASTICSEARCH_PLUGINS_YML);
+        final Path previousConfigPath = this.env.pluginsDir().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
 
         if (Files.exists(configPath) == false) {
             // The `PluginsManager` will have checked that this file exists before invoking the action.
             throw new PluginSyncException("Plugins config does not exist: " + configPath.toAbsolutePath());
         }
 
-        if (Files.exists(env.pluginsFile()) == false) {
-            throw new PluginSyncException("Plugins directory missing: " + env.pluginsFile());
+        if (Files.exists(env.pluginsDir()) == false) {
+            throw new PluginSyncException("Plugins directory missing: " + env.pluginsDir());
         }
 
         // Parse descriptor file
@@ -207,9 +208,8 @@ public class SyncPluginsAction {
         Optional<PluginsConfig> cachedPluginsConfig,
         List<PluginDescriptor> existingPlugins
     ) {
-        final Map<String, String> cachedPluginIdToLocation = cachedPluginsConfig.map(
-            config -> config.getPlugins().stream().collect(Collectors.toMap(InstallablePlugin::getId, InstallablePlugin::getLocation))
-        ).orElse(Map.of());
+        final Map<String, String> cachedPluginIdToLocation = new HashMap<>();
+        cachedPluginsConfig.ifPresent(config -> config.getPlugins().forEach(p -> cachedPluginIdToLocation.put(p.getId(), p.getLocation())));
 
         return pluginsToMaybeUpgrade.stream().filter(eachPlugin -> {
             final String eachPluginId = eachPlugin.getId();
@@ -267,14 +267,14 @@ public class SyncPluginsAction {
         final List<PluginDescriptor> plugins = new ArrayList<>();
 
         try {
-            try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
+            try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsDir())) {
                 for (Path pluginPath : paths) {
                     String filename = pluginPath.getFileName().toString();
                     if (filename.startsWith(".")) {
                         continue;
                     }
 
-                    PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(pluginPath));
+                    PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsDir().resolve(pluginPath));
                     plugins.add(info);
 
                     // Check for a version mismatch, unless it's an official plugin since we can upgrade them.

@@ -1,6 +1,0 @@
-pr: 114309
-summary: Upgrade to AWS SDK v2
-area: Machine Learning
-type: enhancement
-issues:
- - 110590

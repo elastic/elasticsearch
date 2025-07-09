@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -35,6 +37,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCase {
+
+    private final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
 
     @After
     public void cleanupPolicy() {
@@ -120,7 +124,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
-        assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+        assertNull(EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId)));
     }
 
     public void testDeleteIsNotLocked() throws Exception {
@@ -142,7 +146,9 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         createIndex(EnrichPolicy.getIndexName(name, 1001));
         createIndex(EnrichPolicy.getIndexName(name, 1002));
 
-        indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002)).get();
+        indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002))
+            .get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
@@ -169,7 +175,8 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         expectThrows(
             IndexNotFoundException.class,
-            indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
         );
 
         if (destructiveRequiresName) {
@@ -180,7 +187,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
-        assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+        assertNull(EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId)));
     }
 
     public void testDeleteLocked() throws InterruptedException {
@@ -256,7 +263,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
             assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
-            assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+            assertNull(EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId)));
         }
     }
 
@@ -301,13 +308,13 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertNotNull(reference.get());
             assertTrue(reference.get().isAcknowledged());
 
-            assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+            assertNull(EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId)));
 
             // deleting name policy should have no effect on the other policy
-            assertNotNull(EnrichStore.getPolicy(otherName, clusterService.state()));
+            assertNotNull(EnrichStore.getPolicy(otherName, clusterService.state().metadata().getProject(projectId)));
 
             // and the index associated with the other index should be unaffected
-            indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
         }
     }
 }

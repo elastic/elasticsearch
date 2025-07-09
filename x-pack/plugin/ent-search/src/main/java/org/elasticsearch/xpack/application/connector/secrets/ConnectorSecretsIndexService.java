@@ -70,7 +70,6 @@ public class ConnectorSecretsIndexService {
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setAliasName(CONNECTOR_SECRETS_INDEX_NAME)
-            .setVersionMetaKey("version")
             .setOrigin(CONNECTORS_ORIGIN)
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .build();

@@ -242,7 +242,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     private void assertIndexExists(final String nodeName, final String indexName) {
         final GetIndexResponse getIndexResponse = client(nodeName).admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .addIndices(indexName)
             .addFeatures(GetIndexRequest.Feature.values())
             .get();
@@ -255,7 +255,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             "Index [" + indexName + "] was not deleted",
             () -> client(nodeName).admin()
                 .indices()
-                .prepareGetIndex()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .addIndices(indexName)
                 .addFeatures(GetIndexRequest.Feature.values())
                 .get()

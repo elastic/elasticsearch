@@ -1,0 +1,6 @@
+pr: 122821
+summary: Fix functions emitting warnings with no source
+area: ES|QL
+type: bug
+issues:
+ - 122588

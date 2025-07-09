@@ -1,0 +1,5 @@
+pr: 129884
+summary: Move to the Cohere V2 API for new inference endpoints
+area: Machine Learning
+type: enhancement
+issues: []

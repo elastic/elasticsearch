@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -821,7 +820,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     "fallback message",
                     "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                     Level.ERROR,
-                    "index [test-idx-1/*] shard generation [*] in [test-repo][*] not found - falling back to reading all shard snapshots"
+                    "index [test-idx-1/*] shard generation [*] in [default/test-repo][*] not found "
+                        + "- falling back to reading all shard snapshots"
                 )
             );
             mockLog.addExpectation(
@@ -829,7 +829,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     "shard blobs list",
                     "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                     Level.ERROR,
-                    "read shard snapshots [*] due to missing shard generation [*] for index [test-idx-1/*] in [test-repo][*]"
+                    "read shard snapshots [*] due to missing shard generation [*] for index [test-idx-1/*] in [default/test-repo][*]"
                 )
             );
             if (repairWithDelete) {
@@ -848,12 +848,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 clusterAdmin().prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap-1", "test-snap-2")
                     .setIndices("test-idx-1")
                     .get();
-                safeAwait(
-                    ClusterServiceUtils.addTemporaryStateListener(
-                        internalCluster().getInstance(ClusterService.class),
-                        cs -> SnapshotsInProgress.get(cs).isEmpty()
-                    )
-                );
+                safeAwait(ClusterServiceUtils.addTemporaryStateListener(cs -> SnapshotsInProgress.get(cs).isEmpty()));
                 assertThat(
                     clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
                         .setSnapshots("test-snap-2")

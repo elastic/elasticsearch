@@ -15,8 +15,10 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -175,7 +177,7 @@ public class RoutingAllocation {
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
                     if (shard.getExpectedShardSize() > 0
-                        && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && clusterState.metadata().indexMetadata(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false
                         && clusterInfo.getShardSize(shard) == null) {
                         totalSize += shard.getExpectedShardSize();
@@ -206,8 +208,17 @@ public class RoutingAllocation {
      * Get routing table of current nodes
      * @return current routing table
      */
+    @Deprecated
     public RoutingTable routingTable() {
-        return clusterState.routingTable();
+        return globalRoutingTable().getRoutingTable();
+    }
+
+    public GlobalRoutingTable globalRoutingTable() {
+        return clusterState.globalRoutingTable();
+    }
+
+    public RoutingTable routingTable(ProjectId projectId) {
+        return globalRoutingTable().routingTable(projectId);
     }
 
     /**
@@ -339,8 +350,8 @@ public class RoutingAllocation {
     /**
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
-    public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable, clusterState.getMinTransportVersion());
+    public Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable) {
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 
@@ -428,9 +439,12 @@ public class RoutingAllocation {
     }
 
     public RoutingAllocation immutableClone() {
+        GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
         return new RoutingAllocation(
             deciders,
-            routingNodesChanged() ? ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build() : clusterState,
+            routingNodesChanged()
+                ? ClusterState.builder(clusterState).routingTable(routingTable.rebuild(routingNodes(), metadata())).build()
+                : clusterState,
             clusterInfo,
             shardSizeInfo,
             currentNanoTime

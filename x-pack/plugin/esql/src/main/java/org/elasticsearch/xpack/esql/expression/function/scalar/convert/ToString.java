@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -51,7 +52,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
+        Map.entry(KEYWORD, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
         Map.entry(DATE_NANOS, ToStringFromDateNanosEvaluator.Factory::new),
@@ -59,13 +60,14 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
-        Map.entry(TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(TEXT, (source, fieldEval) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
         Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
         Map.entry(CARTESIAN_SHAPE, ToStringFromCartesianShapeEvaluator.Factory::new),
-        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new)
+        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new),
+        Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -80,6 +82,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         @Param(
             name = "field",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",

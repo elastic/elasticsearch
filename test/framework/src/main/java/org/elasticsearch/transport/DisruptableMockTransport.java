@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -76,8 +75,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            new TaskManager(settings, threadPool, taskHeaders),
-            Tracer.NOOP
+            new TaskManager(settings, threadPool, taskHeaders)
         );
     }
 

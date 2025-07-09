@@ -135,17 +135,14 @@ public class SimulateBulkRequest extends BulkRequest {
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
         this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        } else {
-            componentTemplateSubstitutions = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS)) {
             this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
         } else {
+            componentTemplateSubstitutions = Map.of();
             indexTemplateSubstitutions = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_MAPPING_ADDITION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             this.mappingAddition = (Map<String, Object>) in.readGenericValue();
         } else {
             mappingAddition = Map.of();
@@ -156,13 +153,11 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_COMPONENT_TEMPLATES_SUBSTITUTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeGenericValue(componentTemplateSubstitutions);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INDEX_TEMPLATES_SUBSTITUTIONS)) {
             out.writeGenericValue(indexTemplateSubstitutions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_MAPPING_ADDITION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeGenericValue(mappingAddition);
         }
     }

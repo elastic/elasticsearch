@@ -13,8 +13,8 @@ description = 'Fixture for GeoIPv2 service'
 dependencies {
   api project(':server')
   api project(':distribution:tools:geoip-cli')
-  api project(":libs:elasticsearch-cli")
-  api project(":libs:elasticsearch-x-content")
+  api project(":libs:cli")
+  api project(":libs:x-content")
   api("junit:junit:${versions.junit}") {
     exclude module: 'hamcrest-core'
   }

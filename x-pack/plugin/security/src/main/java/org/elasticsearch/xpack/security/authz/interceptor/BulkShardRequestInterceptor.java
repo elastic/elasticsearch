@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,11 +42,10 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authzEngine,
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationInfo authorizationInfo
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
@@ -82,6 +81,6 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                 }
             }
         }
-        listener.onResponse(null);
+        return SubscribableListener.nullSuccess();
     }
 }

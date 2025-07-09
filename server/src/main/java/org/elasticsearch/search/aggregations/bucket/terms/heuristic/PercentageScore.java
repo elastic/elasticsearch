@@ -56,10 +56,7 @@ public class PercentageScore extends SignificanceHeuristic {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        return true;
+        return obj != null && obj.getClass() == getClass();
     }
 
     @Override
@@ -67,12 +64,4 @@ public class PercentageScore extends SignificanceHeuristic {
         return getClass().hashCode();
     }
 
-    public static class PercentageScoreBuilder implements SignificanceHeuristicBuilder {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME).endObject();
-            return builder;
-        }
-    }
 }

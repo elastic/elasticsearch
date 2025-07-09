@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
@@ -72,7 +73,7 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
         updateRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, updateRequest.isRequireAlias()));
 
-        request.applyContentParser(parser -> {
+        request.applyContentParser(RestUtils.getIncludeSourceOnError(request), parser -> {
             updateRequest.fromXContent(parser);
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {

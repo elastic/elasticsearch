@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
@@ -44,21 +45,20 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             + "or may not be normally distributed. For such data it can be more descriptive "
             + "than standard deviation."
             + "\n\n"
-            + "It is calculated as the median of each data point's deviation from the median of "
+            + "It is calculated as the median of each data point’s deviation from the median of "
             + "the entire sample. That is, for a random variable `X`, the median absolute "
             + "deviation is `median(|median(X) - X|)`.",
         note = "Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
-            [WARNING]
-            ====
+            ::::{warning}
             `MEDIAN_ABSOLUTE_DEVIATION` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====""",
-        isAggregation = true,
+            ::::""",
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "median_absolute_deviation", tag = "median-absolute-deviation"),
             @Example(
-                description = "The expression can use inline functions. For example, to calculate the the "
+                description = "The expression can use inline functions. For example, to calculate the "
                     + "median absolute deviation of the maximum values of a multivalued column, first "
                     + "use `MV_MAX` to get the maximum value per row, and use the result with the "
                     + "`MEDIAN_ABSOLUTE_DEVIATION` function",
@@ -99,18 +99,18 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier();
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier();
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier();
     }
 
     @Override

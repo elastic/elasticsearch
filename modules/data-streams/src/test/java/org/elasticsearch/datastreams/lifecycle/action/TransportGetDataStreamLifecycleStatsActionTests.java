@@ -12,13 +12,11 @@ package org.elasticsearch.datastreams.lifecycle.action;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +38,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,8 +51,8 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         mock(ClusterService.class),
         mock(ThreadPool.class),
         mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
-        dataStreamLifecycleService
+        dataStreamLifecycleService,
+        TestProjectResolvers.alwaysThrow()
     );
     private Long lastRunDuration;
     private Long timeBetweenStarts;
@@ -66,11 +65,11 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         when(dataStreamLifecycleService.getLastRunDuration()).thenReturn(lastRunDuration);
         when(dataStreamLifecycleService.getTimeBetweenStarts()).thenReturn(timeBetweenStarts);
         when(dataStreamLifecycleService.getErrorStore()).thenReturn(errorStore);
-        when(errorStore.getAllIndices()).thenReturn(Set.of());
+        when(errorStore.getAllIndices(any())).thenReturn(Set.of());
     }
 
     public void testEmptyClusterState() {
-        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(ClusterState.EMPTY_STATE);
+        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(ProjectMetadata.builder(randomUniqueProjectId()).build());
         assertThat(response.getRunDuration(), is(lastRunDuration));
         assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
         assertThat(response.getDataStreamStats().isEmpty(), is(true));
@@ -79,7 +78,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
     public void testMixedDataStreams() {
         Set<String> indicesInError = new HashSet<>();
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         DataStream ilmDataStream = createDataStream(
             builder,
             "ilm-managed-index",
@@ -96,7 +95,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             "dsl-managed-index",
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(10)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(10)).build(),
             Clock.systemUTC().millis()
         );
         indicesInError.add(dslDataStream.getIndices().get(randomInt(numBackingIndices - 1)).getName());
@@ -132,11 +131,11 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             IndexMetadata indexMetadata = indexMetaBuilder.build();
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
-            builder.put(newInstance(dataStreamName, backingIndices, 3, null, false, DataStreamLifecycle.newBuilder().build()));
+            builder.put(newInstance(dataStreamName, backingIndices, 3, null, false, DataStreamLifecycle.dataLifecycleBuilder().build()));
         }
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
-        when(errorStore.getAllIndices()).thenReturn(indicesInError);
-        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(state);
+        ProjectMetadata project = builder.build();
+        when(errorStore.getAllIndices(project.id())).thenReturn(indicesInError);
+        GetDataStreamLifecycleStatsAction.Response response = action.collectStats(project);
         assertThat(response.getRunDuration(), is(lastRunDuration));
         assertThat(response.getTimeBetweenStarts(), is(timeBetweenStarts));
         assertThat(response.getDataStreamStats().size(), is(2));

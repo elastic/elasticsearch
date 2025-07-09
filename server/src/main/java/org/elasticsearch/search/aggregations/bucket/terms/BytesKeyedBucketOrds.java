@@ -75,24 +75,6 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
          * Read the current value.
          */
         void readValue(BytesRef dest);
-
-        /**
-         * An {@linkplain BucketOrdsEnum} that is empty.
-         */
-        BucketOrdsEnum EMPTY = new BucketOrdsEnum() {
-            @Override
-            public boolean next() {
-                return false;
-            }
-
-            @Override
-            public long ord() {
-                return 0;
-            }
-
-            @Override
-            public void readValue(BytesRef dest) {}
-        };
     }
 
     /**

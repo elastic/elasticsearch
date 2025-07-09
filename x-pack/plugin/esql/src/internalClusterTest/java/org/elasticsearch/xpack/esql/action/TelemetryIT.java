@@ -20,7 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -115,35 +115,68 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
-                    Map.ofEntries(),
-                    Build.current().isSnapshot()
+                    // Using the `::` cast operator and a function alias
+                    """
+                        ROW host = "1.1.1.1"
+                        | EVAL ip = host::ip::string, y = to_str(host)
+                        """,
+                    Map.ofEntries(Map.entry("ROW", 1), Map.entry("EVAL", 1)),
+                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                    true
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx max(id) BY host | LIMIT 10",
-                    Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1), Map.entry("FROM TS", 1))
-                        : Collections.emptyMap(),
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
-                    Build.current().isSnapshot()
+                    // Using the `::` cast operator and a function alias
+                    """
+                        FROM idx
+                        | EVAL ip = host::ip::string, y = to_str(host)
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1)),
+                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                    true
                 ) },
             new Object[] {
                 new Test(
                     """
                         FROM idx
-                        | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-                        | INLINESTATS max(id)
+                        | EVAL y = to_str(host)
+                        | LOOKUP JOIN lookup_idx ON host
                         """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("LOOKUP JOIN", 1)),
+                    Map.ofEntries(Map.entry("TO_STRING", 1)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    "TS time_series_idx | LIMIT 10",
+                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    Map.ofEntries(),
                     Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("INLINESTATS", 1))
-                        : Collections.emptyMap(),
+                ) },
+            new Object[] {
+                new Test(
+                    "TS time_series_idx | STATS max(id) BY host | LIMIT 10",
                     Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
+                        ? Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
                         : Collections.emptyMap(),
+                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
                     Build.current().isSnapshot()
                 ) }
+            // awaits fix for https://github.com/elastic/elasticsearch/issues/116003
+            // ,
+            // new Object[] {
+            // new Test(
+            // """
+            // FROM idx
+            // | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+            // | INLINESTATS max(id)
+            // """,
+            // Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1) : Collections.emptyMap(),
+            // Build.current().isSnapshot()
+            // ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
+            // : Collections.emptyMap(),
+            // Build.current().isSnapshot()
+            // ) }
         );
     }
 
@@ -186,19 +219,19 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 client(dataNode.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
                     try {
                         // test total commands used
-                        final List<Measurement> commandMeasurementsAll = measurements(plugin, PlanningMetricsManager.FEATURE_METRICS_ALL);
+                        final List<Measurement> commandMeasurementsAll = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS_ALL);
                         assertAllUsages(expectedCommands, commandMeasurementsAll, iteration, success);
 
                         // test num of queries using a command
-                        final List<Measurement> commandMeasurements = measurements(plugin, PlanningMetricsManager.FEATURE_METRICS);
+                        final List<Measurement> commandMeasurements = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS);
                         assertUsageInQuery(expectedCommands, commandMeasurements, iteration, success);
 
                         // test total functions used
-                        final List<Measurement> functionMeasurementsAll = measurements(plugin, PlanningMetricsManager.FUNCTION_METRICS_ALL);
+                        final List<Measurement> functionMeasurementsAll = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS_ALL);
                         assertAllUsages(expectedFunctions, functionMeasurementsAll, iteration, success);
 
                         // test number of queries using a function
-                        final List<Measurement> functionMeasurements = measurements(plugin, PlanningMetricsManager.FUNCTION_METRICS);
+                        final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
                         assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
                     } finally {
                         latch.countDown();
@@ -216,8 +249,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         Set<String> found = featureNames(metrics);
         assertThat(found, is(expected.keySet()));
         for (Measurement metric : metrics) {
-            assertThat(metric.attributes().get(PlanningMetricsManager.SUCCESS), is(success));
-            String featureName = (String) metric.attributes().get(PlanningMetricsManager.FEATURE_NAME);
+            assertThat(metric.attributes().get(PlanTelemetryManager.SUCCESS), is(success));
+            String featureName = (String) metric.attributes().get(PlanTelemetryManager.FEATURE_NAME);
             assertThat(metric.getLong(), is(iteration * expected.get(featureName)));
         }
     }
@@ -227,7 +260,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         functionsFound = featureNames(found);
         assertThat(functionsFound, is(expected.keySet()));
         for (Measurement measurement : found) {
-            assertThat(measurement.attributes().get(PlanningMetricsManager.SUCCESS), is(success));
+            assertThat(measurement.attributes().get(PlanTelemetryManager.SUCCESS), is(success));
             assertThat(measurement.getLong(), is(iteration));
         }
     }
@@ -238,7 +271,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
     private static Set<String> featureNames(List<Measurement> functionMeasurements) {
         return functionMeasurements.stream()
-            .map(x -> x.attributes().get(PlanningMetricsManager.FEATURE_NAME))
+            .map(x -> x.attributes().get(PlanTelemetryManager.FEATURE_NAME))
             .map(String.class::cast)
             .collect(Collectors.toSet());
     }
@@ -268,6 +301,35 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh("idx").get();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("lookup_idx")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", nodeName)
+                        .put("index.mode", "lookup")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                )
+                .setMapping("ip", "type=ip", "host", "type=keyword")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("time_series_idx")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build())
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "id",
+                    "type=keyword",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
     }
 
     private DiscoveryNode randomDataNode() {

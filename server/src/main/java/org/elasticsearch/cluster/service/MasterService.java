@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -35,13 +36,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -54,6 +55,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -522,7 +524,12 @@ public class MasterService extends AbstractLifecycleComponent {
 
             final var previousMetadata = newClusterState.metadata();
             newClusterState = builder.build();
-            assert previousMetadata.sameIndicesLookup(newClusterState.metadata());
+            if (Assertions.ENABLED) {
+                for (ProjectMetadata previousProject : previousMetadata.projects().values()) {
+                    final var newProject = newClusterState.metadata().projects().get(previousProject.id());
+                    assert newProject == null || previousProject.sameIndicesLookup(newProject);
+                }
+            }
         }
 
         return newClusterState;
@@ -906,7 +913,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public Releasable captureResponseHeaders() {
-            final var storedContext = threadContext.newStoredContext();
+            final var storedContext = threadContextSupplier.get();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
                 if (newResponseHeaders.isEmpty()) {
@@ -1430,7 +1437,7 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      * @param name The name of the queue, which is mostly useful for debugging.
      *
-     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorites other than {@link Priority#NORMAL}
+     * @param priority The priority at which tasks submitted to the queue are executed. Avoid priorities other than {@link Priority#NORMAL}
      *                 where possible. A stream of higher-priority tasks can starve lower-priority ones from running. Higher-priority tasks
      *                 should definitely re-use the same {@link MasterServiceTaskQueue} so that they are executed in batches.
      *
@@ -1695,7 +1702,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> tasksBySource.entrySet().stream().map(entry -> {
                     var tasksDescription = executor.describeTasks(entry.getValue());
                     return tasksDescription.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasksDescription + "]";
-                }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
+                }).filter(s -> s.isEmpty() == false).iterator(), ", ", MAX_TASK_DESCRIPTION_CHARS, output);
                 if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
                     output.append(" (").append(tasks.size()).append(" tasks in total)");
                 }

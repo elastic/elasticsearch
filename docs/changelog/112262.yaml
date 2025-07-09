@@ -1,6 +1,0 @@
-pr: 112262
-summary: Check for disabling own user in Put User API
-area: Authentication
-type: bug
-issues:
- - 90205

@@ -1,6 +1,0 @@
-pr: 110021
-summary: "[ES|QL] validate `mv_sort` order"
-area: ES|QL
-type: bug
-issues:
- - 109910

@@ -21,29 +21,29 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
-        assertFalse(mapper.mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
+        assertFalse(mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP).reordersFieldValues());
     }
 
     public void testEmptyObject() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
-        }));
-        assertTrue(mapper.mappers().newSourceLoader(SourceFieldMetrics.NOOP).reordersFieldValues());
+        })).documentMapper();
+        assertTrue(mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP).reordersFieldValues());
         assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
     }
 
     public void testDotsInFieldName() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceMapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
-        );
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
+        ).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar":{"baz":"aaa"}}}"""));
     }
 
     public void testNoSubobjectsIntermediateObject() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("foo");
             {
                 b.field("type", "object").field("subobjects", false);
@@ -54,30 +54,29 @@ public class SourceLoaderTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar.baz":"aaa"}}"""));
     }
 
     public void testNoSubobjectsRootObject() throws IOException {
         XContentBuilder mappings = topMapping(b -> {
-            b.startObject("_source").field("mode", "synthetic").endObject();
             b.field("subobjects", false);
             b.startObject("properties");
             b.startObject("foo.bar.baz").field("type", "keyword").endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createDocumentMapper(mappings);
+        DocumentMapper mapper = createSytheticSourceMapperService(mappings).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo.bar.baz":"aaa"}"""));
     }
 
     public void testSorted() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
             b.startObject("bar").field("type", "keyword").endObject();
             b.startObject("baz").field("type", "keyword").endObject();
-        }));
+        })).documentMapper();
         assertThat(
             syntheticSource(mapper, b -> b.field("foo", "over the lazy dog").field("bar", "the quick").field("baz", "brown fox jumped")),
             equalTo("""
@@ -86,12 +85,12 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     }
 
     public void testArraysPushedToLeaves() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").startObject("properties");
             b.startObject("foo").field("type", "keyword").endObject();
             b.startObject("bar").field("type", "keyword").endObject();
             b.endObject().endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {
             b.startArray("o");
             b.startObject().field("foo", "a").endObject();
@@ -104,7 +103,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     }
 
     public void testHideTheCopyTo() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createSytheticSourceMapperService(mapping(b -> {
             b.startObject("foo");
             {
                 b.field("type", "keyword");

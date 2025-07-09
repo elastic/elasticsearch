@@ -19,8 +19,11 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.inference.WeightedTokensUtils;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -125,7 +128,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         return (this.tokenPruningConfig == null)
-            ? WeightedTokensUtils.queryBuilderWithAllTokens(tokens, ft, context)
+            ? WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, tokens, ft, context)
             : WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, tokens, ft, context);
     }
 

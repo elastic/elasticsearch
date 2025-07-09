@@ -105,7 +105,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiDoubleValue 
 
     @Override
     protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
-        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -114,20 +113,9 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiDoubleValue 
                     maybeGrow(bucket);
                     final double value = values.doubleValue();
                     counts.increment(bucket, 1L);
-                    // Compute the sum and sum of squires for double values with Kahan summation algorithm
-                    // which is more accurate than naive summation.
-                    compensatedSum.reset(sums.get(bucket), compensations.get(bucket));
-                    compensatedSum.add(value);
-                    sums.set(bucket, compensatedSum.value());
-                    compensations.set(bucket, compensatedSum.delta());
-
-                    compensatedSum.reset(sumOfSqrs.get(bucket), compensationOfSqrs.get(bucket));
-                    compensatedSum.add(value * value);
-                    sumOfSqrs.set(bucket, compensatedSum.value());
-                    compensationOfSqrs.set(bucket, compensatedSum.delta());
-
-                    mins.set(bucket, Math.min(mins.get(bucket), value));
-                    maxes.set(bucket, Math.max(maxes.get(bucket), value));
+                    SumAggregator.computeSum(bucket, value, sums, compensations);
+                    SumAggregator.computeSum(bucket, value * value, sumOfSqrs, compensationOfSqrs);
+                    StatsAggregator.updateMinsAndMaxes(bucket, value, mins, maxes);
                 }
             }
 
@@ -138,13 +126,14 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiDoubleValue 
         if (bucket >= counts.size()) {
             final long from = counts.size();
             final long overSize = BigArrays.overSize(bucket + 1);
-            counts = bigArrays().resize(counts, overSize);
-            sums = bigArrays().resize(sums, overSize);
-            compensations = bigArrays().resize(compensations, overSize);
-            mins = bigArrays().resize(mins, overSize);
-            maxes = bigArrays().resize(maxes, overSize);
-            sumOfSqrs = bigArrays().resize(sumOfSqrs, overSize);
-            compensationOfSqrs = bigArrays().resize(compensationOfSqrs, overSize);
+            var bigArrays = bigArrays();
+            counts = bigArrays.resize(counts, overSize);
+            sums = bigArrays.resize(sums, overSize);
+            compensations = bigArrays.resize(compensations, overSize);
+            mins = bigArrays.resize(mins, overSize);
+            maxes = bigArrays.resize(maxes, overSize);
+            sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
+            compensationOfSqrs = bigArrays.resize(compensationOfSqrs, overSize);
             mins.fill(from, overSize, Double.POSITIVE_INFINITY);
             maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
         }

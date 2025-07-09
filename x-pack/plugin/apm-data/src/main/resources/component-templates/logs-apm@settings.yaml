@@ -5,5 +5,6 @@ _meta:
   managed: true
 template:
   settings:
-    codec: best_compression
-    mode: standard
+    index:
+      codec: best_compression
+      mode: standard

@@ -211,16 +211,16 @@ public abstract class InternalMultiBucketAggregation<
         List<B> reducedBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
             List<InternalAggregation> aggs = new ArrayList<>();
-            for (Aggregation agg : bucket.getAggregations()) {
+            for (InternalAggregation agg : bucket.getAggregations()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
+                aggs.add(agg.reducePipelines(agg, reduceContext, subTree));
             }
             reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
         }
         return reducedBuckets;
     }
 
-    public abstract static class InternalBucket implements Bucket, Writeable {
+    public abstract static class InternalBucket implements Bucket {
 
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
@@ -248,4 +248,8 @@ public abstract class InternalMultiBucketAggregation<
             return aggregation.getProperty(path.subList(1, path.size()));
         }
     }
+
+    /** A {@link InternalBucket} that implements the {@link Writeable} interface. Most implementation might want
+     * to use this one except when specific logic is need to write into the stream. */
+    public abstract static class InternalBucketWritable extends InternalBucket implements Writeable {}
 }

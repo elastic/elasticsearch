@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -43,6 +43,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutIndexTemplateAction(
@@ -51,7 +52,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         IndexScopedSettings indexScopedSettings
     ) {
         super(
@@ -61,11 +62,11 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             PutIndexTemplateRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -88,6 +89,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
         indexTemplateService.putTemplate(
+            projectResolver.getProjectId(),
             new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())

@@ -13,18 +13,22 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -45,8 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.BiPredicate;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -90,18 +93,27 @@ class IndicesAndAliasesResolver {
      * be added to the <em>remote</em> index list.
      * <br>
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
+     * <br><br>
+     * <p>
+     * If the provided <code>request</code> is of a type that {@link IndicesOptions#allowSelectors() allows selectors}, then the given index
+     * names may be modified to include any {@link IndexComponentSelector selectors} that should be
+     * returned. If a wildcard selector is present on the index name then the wildcard will be resolved to
+     * {@link IndexComponentSelector#values() all applicable concrete selector names} for a given index abstraction. Selectors that are
+     * not applicable for an index abstraction (such as the <code>::failures</code> selector on non-data streams) are not returned when
+     * resolving wildcards.
+     * </p>
      */
 
     ResolvedIndices resolve(
         String action,
         TransportRequest request,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
         if (request instanceof IndicesAliasesRequest indicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
-                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, metadata, authorizedIndices);
+                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, projectMetadata, authorizedIndices);
                 resolvedIndicesBuilder.addLocal(resolved.getLocal());
                 resolvedIndicesBuilder.addRemote(resolved.getRemote());
             }
@@ -112,7 +124,7 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-        return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, authorizedIndices);
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
     }
 
     /**
@@ -151,7 +163,12 @@ class IndicesAndAliasesResolver {
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
         }
-        if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices))) {
+        // We need to parse off any potential selector suffixes to see if the index part of an expression is a match all
+        // Do so lazily to avoid extra work in case of a large number of indices
+        if (IndexNameExpressionResolver.isAllIndices(
+            Arrays.asList(indices),
+            (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
+        )) {
             throw new IllegalArgumentException(
                 "the action "
                     + action
@@ -186,11 +203,25 @@ class IndicesAndAliasesResolver {
         // shard level requests.
         final List<String> localIndices = new ArrayList<>(split.getLocal().size());
         for (String localName : split.getLocal()) {
+            // TODO: Shard level requests should already have their selectors resolved to concrete indices by their parent requests
+            // see https://github.com/elastic/elasticsearch/issues/119629
+            // Resolve them here as long as they are non-wildcard, or missing from the expression
+            Tuple<String, String> expressionTuple = IndexNameExpressionResolver.splitSelectorExpression(localName);
+            String selector = expressionTuple.v2();
+            if (selector != null && Regex.isSimpleMatchPattern(selector)) {
+                throwOnUnexpectedWildcardSelectors(action, split.getLocal());
+            }
+            String localExpression = expressionTuple.v1();
             // TODO: Shard level requests have wildcard expanded already and do not need go through this check
-            if (Regex.isSimpleMatchPattern(localName)) {
+            // see https://github.com/elastic/elasticsearch/issues/119629
+            if (Regex.isSimpleMatchPattern(localExpression)) {
                 throwOnUnexpectedWildcards(action, split.getLocal());
             }
-            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(localName));
+            String finalExpression = IndexNameExpressionResolver.resolveDateMathExpression(localExpression);
+            if (selector != null) {
+                finalExpression = IndexNameExpressionResolver.combineSelectorExpression(finalExpression, selector);
+            }
+            localIndices.add(finalExpression);
         }
 
         return new ResolvedIndices(localIndices, split.getRemote());
@@ -227,10 +258,23 @@ class IndicesAndAliasesResolver {
         );
     }
 
+    private static void throwOnUnexpectedWildcardSelectors(String action, List<String> indices) {
+        final List<String> selectorExpressions = indices.stream().filter(IndexNameExpressionResolver::hasSelectorSuffix).toList();
+        assert selectorExpressions.isEmpty() == false : "we already know that there's at least one selector in the indices";
+        throw new IllegalArgumentException(
+            "the action "
+                + action
+                + " does not support wildcard selectors;"
+                + " the provided index expression(s) ["
+                + Strings.collectionToCommaDelimitedString(selectorExpressions)
+                + "] are not allowed"
+        );
+    }
+
     ResolvedIndices resolveIndicesAndAliases(
         String action,
         IndicesRequest indicesRequest,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
@@ -244,24 +288,51 @@ class IndicesAndAliasesResolver {
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(
-                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
+                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, projectMetadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
 
             // check for all and return list of authorized indices
-            if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
+            boolean isAllIndices;
+            String allIndicesPatternSelector = null;
+            if (indicesRequest.indices() != null && indicesRequest.indices().length > 0) {
+                // Always parse selectors, but do so lazily so that we don't spend a lot of time splitting strings each resolution
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(
+                    indicesList(indicesRequest.indices()),
+                    (expr) -> IndexNameExpressionResolver.splitSelectorExpression(expr).v1()
+                );
+                if (isAllIndices) {
+                    // This parses the single all-indices expression for a second time in this conditional branch, but this is better than
+                    // parsing a potentially big list of indices on every request.
+                    allIndicesPatternSelector = IndexNameExpressionResolver.splitSelectorExpression(
+                        indicesList(indicesRequest.indices()).getFirst()
+                    ).v2();
+                }
+            } else {
+                isAllIndices = IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()));
+            }
+            if (isAllIndices) {
+                // First, if a selector is present, check to make sure that selectors are even allowed here
+                if (indicesOptions.allowSelectors() == false && allIndicesPatternSelector != null) {
+                    String originalIndexExpression = indicesRequest.indices()[0];
+                    throw new UnsupportedSelectorException(originalIndexExpression);
+                }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.all().get()) {
+                    IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
+                    for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
+                            allIndicesPatternSelector,
                             authorizedIndex,
                             indicesOptions,
-                            metadata,
+                            projectMetadata,
                             nameExpressionResolver,
                             indicesRequest.includeDataStreams()
                         )) {
-                            resolvedIndicesBuilder.addLocal(authorizedIndex);
+                            resolvedIndicesBuilder.addLocal(
+                                IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
+                            );
                         }
                     }
                 }
@@ -277,8 +348,8 @@ class IndicesAndAliasesResolver {
                 List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
-                    metadata,
-                    authorizedIndices.all(),
+                    projectMetadata,
+                    authorizedIndices::all,
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
@@ -315,7 +386,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.all(), metadata)
+                    loadAuthorizedAliases(authorizedIndices, projectMetadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -337,7 +408,7 @@ class IndicesAndAliasesResolver {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
             }
             /*
-             * If no aliases are authorized, then fill in an expression that Metadata#findAliases evaluates to an
+             * If no aliases are authorized, then fill in an expression that ProjectMetadata#findAliases evaluates to an
              * empty alias list. We can not put an empty list here because core resolves this as _all. For other
              * request types, this replacement is not needed and can trigger issues when we rewrite the request
              * on the coordinating node. For example, for a remove index request, if we did this replacement,
@@ -357,11 +428,16 @@ class IndicesAndAliasesResolver {
      * request's concrete index is not in the list of authorized indices, then we need to look to
      * see if this can be authorized against an alias
      */
-    static String getPutMappingIndexOrAlias(PutMappingRequest request, Predicate<String> isAuthorized, Metadata metadata) {
+    static String getPutMappingIndexOrAlias(
+        PutMappingRequest request,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        ProjectMetadata projectMetadata
+    ) {
         final String concreteIndexName = request.getConcreteIndex().getName();
+        assert IndexNameExpressionResolver.hasSelectorSuffix(concreteIndexName) == false : "selectors are not allowed in this context";
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(concreteIndexName);
+        final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(concreteIndexName);
         final String resolvedAliasOrIndex;
         if (indexAbstraction == null) {
             resolvedAliasOrIndex = concreteIndexName;
@@ -373,17 +449,23 @@ class IndicesAndAliasesResolver {
                     + indexAbstraction.getType().getDisplayName()
                     + "], but a concrete index is expected"
             );
-        } else if (isAuthorized.test(concreteIndexName)) {
+            // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
+        } else if (isAuthorized.test(concreteIndexName, IndexComponentSelector.DATA)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
         } else {
             // the user is not authorized to put mappings for this index, but could have been
             // authorized for a write using an alias that triggered a dynamic mapping update
-            Map<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
+            Map<String, List<AliasMetadata>> foundAliases = projectMetadata.findAllAliases(new String[] { concreteIndexName });
             List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
             if (aliasMetadata != null) {
-                Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(isAuthorized).filter(aliasName -> {
-                    IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
+                Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(aliasName -> {
+                    // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
+                    assert IndexNameExpressionResolver.hasSelectorSuffix(aliasName) == false : "selectors are not allowed in this context";
+                    if (false == isAuthorized.test(aliasName, IndexComponentSelector.DATA)) {
+                        return false;
+                    }
+                    IndexAbstraction alias = projectMetadata.getIndicesLookup().get(aliasName);
                     List<Index> indices = alias.getIndices();
                     if (indices.size() == 1) {
                         return true;
@@ -402,10 +484,13 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {
+    private static List<String> loadAuthorizedAliases(
+        AuthorizationEngine.AuthorizedIndices authorizedIndices,
+        ProjectMetadata projectMetadata
+    ) {
         List<String> authorizedAliases = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
-        for (String authorizedIndex : authorizedIndices.get()) {
+        SortedMap<String, IndexAbstraction> existingAliases = projectMetadata.getIndicesLookup();
+        for (String authorizedIndex : authorizedIndices.all(IndexComponentSelector.DATA)) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);
@@ -424,6 +509,7 @@ class IndicesAndAliasesResolver {
         }
 
         for (String aliasExpression : aliases) {
+            IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(aliasExpression);
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;

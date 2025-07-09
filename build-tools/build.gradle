@@ -9,9 +9,6 @@
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
   }
 }
@@ -53,6 +50,10 @@ gradlePlugin {
         stableEsPlugin {
           id = 'elasticsearch.stable-esplugin'
           implementationClass = 'org.elasticsearch.gradle.plugin.StablePluginBuildPlugin'
+        }
+        testBuildInfo {
+          id = 'elasticsearch.test-build-info'
+          implementationClass = 'org.elasticsearch.gradle.test.TestBuildInfoPlugin'
         }
         javaRestTest {
             id = 'elasticsearch.java-rest-test'
@@ -117,9 +118,6 @@ configurations {
 }
 
 repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
 }

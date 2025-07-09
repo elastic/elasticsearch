@@ -122,9 +122,11 @@ public abstract class BaseRestHandler implements RestHandler {
                 );
             }
 
+            usageCount.increment();
             if (request.isStreamedContent()) {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
+
                 request.contentStream().setHandler(new HttpBody.ChunkHandler() {
                     @Override
                     public void onNext(ReleasableBytesReference chunk, boolean isLast) {
@@ -136,11 +138,11 @@ public abstract class BaseRestHandler implements RestHandler {
                         chunkConsumer.streamClose();
                     }
                 });
+                action.accept(channel);
+            } else {
+                action.accept(channel);
+                request.getHttpRequest().release();
             }
-
-            usageCount.increment();
-            // execute the action
-            action.accept(channel);
         }
     }
 
@@ -152,6 +154,8 @@ public abstract class BaseRestHandler implements RestHandler {
             supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
             final var consumed = new TreeSet<>(request.consumedParams());
             consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            // Response parameters are implicitly consumed since they are made available to response renderings.
+            consumed.addAll(responseParams(request.getRestApiVersion()));
             assert supportedAndCommon.equals(consumed)
                 : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
         }
@@ -210,6 +214,15 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+
+        /**
+         * Handle one chunk of the request body. The handler <b>must</b> close the chunk once it is no longer
+         * needed to avoid leaking.
+         *
+         * @param channel The rest channel associated to the request
+         * @param chunk The chunk of request body that is ready for processing
+         * @param isLast Whether the chunk is the last one of the request
+         */
         void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
 
         /**
@@ -258,5 +271,4 @@ public abstract class BaseRestHandler implements RestHandler {
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
         return responseParams();
     }
-
 }

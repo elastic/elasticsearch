@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoField;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.Locale;
@@ -232,6 +236,8 @@ public class Cron implements ToXContentFragment {
 
     private final String expression;
 
+    private ZoneId timeZone;
+
     private transient TreeSet<Integer> seconds;
     private transient TreeSet<Integer> minutes;
     private transient TreeSet<Integer> hours;
@@ -246,7 +252,20 @@ public class Cron implements ToXContentFragment {
     private transient boolean nearestWeekday = false;
     private transient int lastdayOffset = 0;
 
-    public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 100;
+    // Restricted to 50 years as the tzdb only has correct DST transition information for countries using a lunar calendar
+    // for the next ~60 years
+    public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 50;
+
+    public Cron(String expression, ZoneId timeZone) {
+        this.timeZone = timeZone;
+        assert expression != null : "cron expression cannot be null";
+        this.expression = expression.toUpperCase(Locale.ROOT);
+        try {
+            buildExpression(this.expression);
+        } catch (Exception e) {
+            throw illegalArgument("invalid cron expression [{}]", e, expression);
+        }
+    }
 
     /**
      * Constructs a new <CODE>CronExpression</CODE> based on the specified
@@ -259,13 +278,7 @@ public class Cron implements ToXContentFragment {
      *         <CODE>CronExpression</CODE>
      */
     public Cron(String expression) {
-        assert expression != null : "cron expression cannot be null";
-        this.expression = expression.toUpperCase(Locale.ROOT);
-        try {
-            buildExpression(this.expression);
-        } catch (Exception e) {
-            throw illegalArgument("invalid cron expression [{}]", e, expression);
-        }
+        this(expression, UTC.toZoneId());
     }
 
     /**
@@ -275,7 +288,11 @@ public class Cron implements ToXContentFragment {
      * @param cron The existing cron expression to be copied
      */
     public Cron(Cron cron) {
-        this(cron.expression);
+        this(cron.expression, cron.timeZone);
+    }
+
+    public void setTimeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
     }
 
     /**
@@ -286,31 +303,25 @@ public class Cron implements ToXContentFragment {
      *             a time that is previous to the given time)
      * @return the next valid time (since the epoch)
      */
+    @SuppressForbidden(reason = "In this case, the DST ambiguity of the atZone method is desired, understood and tested")
     public long getNextValidTimeAfter(final long time) {
 
-        // Computation is based on Gregorian year only.
-        Calendar cl = new java.util.GregorianCalendar(UTC, Locale.ROOT);
-
-        // move ahead one second, since we're computing the time *after* the
-        // given time
-        final long afterTime = time + 1000;
-        // CronTrigger does not deal with milliseconds
-        cl.setTimeInMillis(afterTime);
-        cl.set(Calendar.MILLISECOND, 0);
+        LocalDateTime afterTimeLdt = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(time), timeZone).plusSeconds(1);
+        LocalDateTimeLegacyWrapper cl = new LocalDateTimeLegacyWrapper(afterTimeLdt.with(ChronoField.MILLI_OF_SECOND, 0));
 
         boolean gotOne = false;
         // loop until we've computed the next time, or we've past the endTime
         while (gotOne == false) {
 
-            if (cl.get(Calendar.YEAR) > 2999) { // prevent endless loop...
+            if (cl.getYear() > 2999) { // prevent endless loop...
                 return -1;
             }
 
             SortedSet<Integer> st = null;
             int t = 0;
 
-            int sec = cl.get(Calendar.SECOND);
-            int min = cl.get(Calendar.MINUTE);
+            int sec = cl.getSecond();
+            int min = cl.getMinute();
 
             // get second.................................................
             st = seconds.tailSet(sec);
@@ -319,12 +330,12 @@ public class Cron implements ToXContentFragment {
             } else {
                 sec = seconds.first();
                 min++;
-                cl.set(Calendar.MINUTE, min);
+                cl.setMinute(min);
             }
-            cl.set(Calendar.SECOND, sec);
+            cl.setSecond(sec);
 
-            min = cl.get(Calendar.MINUTE);
-            int hr = cl.get(Calendar.HOUR_OF_DAY);
+            min = cl.getMinute();
+            int hr = cl.getHour();
             t = -1;
 
             // get minute.................................................
@@ -337,15 +348,15 @@ public class Cron implements ToXContentFragment {
                 hr++;
             }
             if (min != t) {
-                cl.set(Calendar.SECOND, 0);
-                cl.set(Calendar.MINUTE, min);
-                setCalendarHour(cl, hr);
+                cl.setSecond(0);
+                cl.setMinute(min);
+                cl.setHour(hr);
                 continue;
             }
-            cl.set(Calendar.MINUTE, min);
+            cl.setMinute(min);
 
-            hr = cl.get(Calendar.HOUR_OF_DAY);
-            int day = cl.get(Calendar.DAY_OF_MONTH);
+            hr = cl.getHour();
+            int day = cl.getDayOfMonth();
             t = -1;
 
             // get hour...................................................
@@ -358,16 +369,16 @@ public class Cron implements ToXContentFragment {
                 day++;
             }
             if (hr != t) {
-                cl.set(Calendar.SECOND, 0);
-                cl.set(Calendar.MINUTE, 0);
-                cl.set(Calendar.DAY_OF_MONTH, day);
-                setCalendarHour(cl, hr);
+                cl.setSecond(0);
+                cl.setMinute(0);
+                cl.setDayOfMonth(day);
+                cl.setHour(hr);
                 continue;
             }
-            cl.set(Calendar.HOUR_OF_DAY, hr);
+            cl.setHour(hr);
 
-            day = cl.get(Calendar.DAY_OF_MONTH);
-            int mon = cl.get(Calendar.MONTH) + 1;
+            day = cl.getDayOfMonth();
+            int mon = cl.getMonth() + 1;
             // '+ 1' because calendar is 0-based for this field, and we are
             // 1-based
             t = -1;
@@ -381,32 +392,32 @@ public class Cron implements ToXContentFragment {
                 if (lastdayOfMonth) {
                     if (nearestWeekday == false) {
                         t = day;
-                        day = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
+                        day = getLastDayOfMonth(mon, cl.getYear());
                         day -= lastdayOffset;
                         if (t > day) {
                             mon++;
                             if (mon > 12) {
                                 mon = 1;
                                 tmon = 3333; // ensure test of mon != tmon further below fails
-                                cl.add(Calendar.YEAR, 1);
+                                cl.plusYears(1);
                             }
                             day = 1;
                         }
                     } else {
                         t = day;
-                        day = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
+                        day = getLastDayOfMonth(mon, cl.getYear());
                         day -= lastdayOffset;
 
-                        Calendar tcal = Calendar.getInstance(UTC, Locale.ROOT);
-                        tcal.set(Calendar.SECOND, 0);
-                        tcal.set(Calendar.MINUTE, 0);
-                        tcal.set(Calendar.HOUR_OF_DAY, 0);
-                        tcal.set(Calendar.DAY_OF_MONTH, day);
-                        tcal.set(Calendar.MONTH, mon - 1);
-                        tcal.set(Calendar.YEAR, cl.get(Calendar.YEAR));
+                        LocalDateTimeLegacyWrapper tcal = new LocalDateTimeLegacyWrapper(LocalDateTime.now(timeZone));
+                        tcal.setSecond(0);
+                        tcal.setMinute(0);
+                        tcal.setHour(0);
+                        tcal.setDayOfMonth(day);
+                        tcal.setMonth(mon - 1);
+                        tcal.setYear(cl.getYear());
 
-                        int ldom = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
-                        int dow = tcal.get(Calendar.DAY_OF_WEEK);
+                        int ldom = getLastDayOfMonth(mon, cl.getYear());
+                        int dow = tcal.getDayOfWeek();
 
                         if (dow == Calendar.SATURDAY && day == 1) {
                             day += 2;
@@ -418,13 +429,12 @@ public class Cron implements ToXContentFragment {
                             day += 1;
                         }
 
-                        tcal.set(Calendar.SECOND, sec);
-                        tcal.set(Calendar.MINUTE, min);
-                        tcal.set(Calendar.HOUR_OF_DAY, hr);
-                        tcal.set(Calendar.DAY_OF_MONTH, day);
-                        tcal.set(Calendar.MONTH, mon - 1);
-                        long nTime = tcal.getTimeInMillis();
-                        if (nTime < afterTime) {
+                        tcal.setSecond(sec);
+                        tcal.setMinute(min);
+                        tcal.setHour(hr);
+                        tcal.setDayOfMonth(day);
+                        tcal.setMonth(mon - 1);
+                        if (tcal.isBefore(afterTimeLdt)) {
                             day = 1;
                             mon++;
                         }
@@ -433,16 +443,16 @@ public class Cron implements ToXContentFragment {
                     t = day;
                     day = daysOfMonth.first();
 
-                    Calendar tcal = Calendar.getInstance(UTC, Locale.ROOT);
-                    tcal.set(Calendar.SECOND, 0);
-                    tcal.set(Calendar.MINUTE, 0);
-                    tcal.set(Calendar.HOUR_OF_DAY, 0);
-                    tcal.set(Calendar.DAY_OF_MONTH, day);
-                    tcal.set(Calendar.MONTH, mon - 1);
-                    tcal.set(Calendar.YEAR, cl.get(Calendar.YEAR));
+                    LocalDateTimeLegacyWrapper tcal = new LocalDateTimeLegacyWrapper(LocalDateTime.now(timeZone));
+                    tcal.setSecond(0);
+                    tcal.setMinute(0);
+                    tcal.setHour(0);
+                    tcal.setDayOfMonth(day);
+                    tcal.setMonth(mon - 1);
+                    tcal.setYear(cl.getYear());
 
-                    int ldom = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
-                    int dow = tcal.get(Calendar.DAY_OF_WEEK);
+                    int ldom = getLastDayOfMonth(mon, cl.getYear());
+                    int dow = tcal.getDayOfWeek();
 
                     if (dow == Calendar.SATURDAY && day == 1) {
                         day += 2;
@@ -454,13 +464,12 @@ public class Cron implements ToXContentFragment {
                         day += 1;
                     }
 
-                    tcal.set(Calendar.SECOND, sec);
-                    tcal.set(Calendar.MINUTE, min);
-                    tcal.set(Calendar.HOUR_OF_DAY, hr);
-                    tcal.set(Calendar.DAY_OF_MONTH, day);
-                    tcal.set(Calendar.MONTH, mon - 1);
-                    long nTime = tcal.getTimeInMillis();
-                    if (nTime < afterTime) {
+                    tcal.setSecond(sec);
+                    tcal.setMinute(min);
+                    tcal.setHour(hr);
+                    tcal.setDayOfMonth(day);
+                    tcal.setMonth(mon - 1);
+                    if (tcal.isAfter(afterTimeLdt)) {
                         day = daysOfMonth.first();
                         mon++;
                     }
@@ -468,7 +477,7 @@ public class Cron implements ToXContentFragment {
                     t = day;
                     day = st.first();
                     // make sure we don't over-run a short month, such as february
-                    int lastDay = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
+                    int lastDay = getLastDayOfMonth(mon, cl.getYear());
                     if (day > lastDay) {
                         day = daysOfMonth.first();
                         mon++;
@@ -479,11 +488,11 @@ public class Cron implements ToXContentFragment {
                 }
 
                 if (day != t || mon != tmon) {
-                    cl.set(Calendar.SECOND, 0);
-                    cl.set(Calendar.MINUTE, 0);
-                    cl.set(Calendar.HOUR_OF_DAY, 0);
-                    cl.set(Calendar.DAY_OF_MONTH, day);
-                    cl.set(Calendar.MONTH, mon - 1);
+                    cl.setSecond(0);
+                    cl.setMinute(0);
+                    cl.setHour(0);
+                    cl.setDayOfMonth(day);
+                    cl.setMonth(mon - 1);
                     // '- 1' because calendar is 0-based for this field, and we
                     // are 1-based
                     continue;
@@ -493,7 +502,7 @@ public class Cron implements ToXContentFragment {
                     // the month?
                     int dow = daysOfWeek.first(); // desired
                     // d-o-w
-                    int cDow = cl.get(Calendar.DAY_OF_WEEK); // current d-o-w
+                    int cDow = cl.getDayOfWeek(); // current d-o-w
                     int daysToAdd = 0;
                     if (cDow < dow) {
                         daysToAdd = dow - cDow;
@@ -502,15 +511,15 @@ public class Cron implements ToXContentFragment {
                         daysToAdd = dow + (7 - cDow);
                     }
 
-                    int lDay = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
+                    int lDay = getLastDayOfMonth(mon, cl.getYear());
 
                     if (day + daysToAdd > lDay) { // did we already miss the
                         // last one?
-                        cl.set(Calendar.SECOND, 0);
-                        cl.set(Calendar.MINUTE, 0);
-                        cl.set(Calendar.HOUR_OF_DAY, 0);
-                        cl.set(Calendar.DAY_OF_MONTH, 1);
-                        cl.set(Calendar.MONTH, mon);
+                        cl.setSecond(0);
+                        cl.setMinute(0);
+                        cl.setHour(0);
+                        cl.setDayOfMonth(1);
+                        cl.setMonth(mon);
                         // no '- 1' here because we are promoting the month
                         continue;
                     }
@@ -523,11 +532,11 @@ public class Cron implements ToXContentFragment {
                     day += daysToAdd;
 
                     if (daysToAdd > 0) {
-                        cl.set(Calendar.SECOND, 0);
-                        cl.set(Calendar.MINUTE, 0);
-                        cl.set(Calendar.HOUR_OF_DAY, 0);
-                        cl.set(Calendar.DAY_OF_MONTH, day);
-                        cl.set(Calendar.MONTH, mon - 1);
+                        cl.setSecond(0);
+                        cl.setMinute(0);
+                        cl.setHour(0);
+                        cl.setDayOfMonth(day);
+                        cl.setMonth(mon - 1);
                         // '- 1' here because we are not promoting the month
                         continue;
                     }
@@ -536,7 +545,7 @@ public class Cron implements ToXContentFragment {
                     // are we looking for the Nth XXX day in the month?
                     int dow = daysOfWeek.first(); // desired
                     // d-o-w
-                    int cDow = cl.get(Calendar.DAY_OF_WEEK); // current d-o-w
+                    int cDow = cl.getDayOfWeek(); // current d-o-w
                     int daysToAdd = 0;
                     if (cDow < dow) {
                         daysToAdd = dow - cDow;
@@ -557,25 +566,25 @@ public class Cron implements ToXContentFragment {
 
                     daysToAdd = (nthdayOfWeek - weekOfMonth) * 7;
                     day += daysToAdd;
-                    if (daysToAdd < 0 || day > getLastDayOfMonth(mon, cl.get(Calendar.YEAR))) {
-                        cl.set(Calendar.SECOND, 0);
-                        cl.set(Calendar.MINUTE, 0);
-                        cl.set(Calendar.HOUR_OF_DAY, 0);
-                        cl.set(Calendar.DAY_OF_MONTH, 1);
-                        cl.set(Calendar.MONTH, mon);
+                    if (daysToAdd < 0 || day > getLastDayOfMonth(mon, cl.getYear())) {
+                        cl.setSecond(0);
+                        cl.setMinute(0);
+                        cl.setHour(0);
+                        cl.setDayOfMonth(1);
+                        cl.setMonth(mon);
                         // no '- 1' here because we are promoting the month
                         continue;
                     } else if (daysToAdd > 0 || dayShifted) {
-                        cl.set(Calendar.SECOND, 0);
-                        cl.set(Calendar.MINUTE, 0);
-                        cl.set(Calendar.HOUR_OF_DAY, 0);
-                        cl.set(Calendar.DAY_OF_MONTH, day);
-                        cl.set(Calendar.MONTH, mon - 1);
+                        cl.setSecond(0);
+                        cl.setMinute(0);
+                        cl.setHour(0);
+                        cl.setDayOfMonth(day);
+                        cl.setMonth(mon - 1);
                         // '- 1' here because we are NOT promoting the month
                         continue;
                     }
                 } else {
-                    int cDow = cl.get(Calendar.DAY_OF_WEEK); // current d-o-w
+                    int cDow = cl.getDayOfWeek(); // current d-o-w
                     int dow = daysOfWeek.first(); // desired
                     // d-o-w
                     st = daysOfWeek.tailSet(cDow);
@@ -591,23 +600,23 @@ public class Cron implements ToXContentFragment {
                         daysToAdd = dow + (7 - cDow);
                     }
 
-                    int lDay = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
+                    int lDay = getLastDayOfMonth(mon, cl.getYear());
 
                     if (day + daysToAdd > lDay) { // will we pass the end of
                         // the month?
-                        cl.set(Calendar.SECOND, 0);
-                        cl.set(Calendar.MINUTE, 0);
-                        cl.set(Calendar.HOUR_OF_DAY, 0);
-                        cl.set(Calendar.DAY_OF_MONTH, 1);
-                        cl.set(Calendar.MONTH, mon);
+                        cl.setSecond(0);
+                        cl.setMinute(0);
+                        cl.setHour(0);
+                        cl.setDayOfMonth(1);
+                        cl.setMonth(mon);
                         // no '- 1' here because we are promoting the month
                         continue;
                     } else if (daysToAdd > 0) { // are we swithing days?
-                        cl.set(Calendar.SECOND, 0);
-                        cl.set(Calendar.MINUTE, 0);
-                        cl.set(Calendar.HOUR_OF_DAY, 0);
-                        cl.set(Calendar.DAY_OF_MONTH, day + daysToAdd);
-                        cl.set(Calendar.MONTH, mon - 1);
+                        cl.setSecond(0);
+                        cl.setMinute(0);
+                        cl.setHour(0);
+                        cl.setDayOfMonth(day + daysToAdd);
+                        cl.setMonth(mon - 1);
                         // '- 1' because calendar is 0-based for this field,
                         // and we are 1-based
                         continue;
@@ -618,12 +627,12 @@ public class Cron implements ToXContentFragment {
                 // throw new UnsupportedOperationException(
                 // "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
             }
-            cl.set(Calendar.DAY_OF_MONTH, day);
+            cl.setDayOfMonth(day);
 
-            mon = cl.get(Calendar.MONTH) + 1;
+            mon = cl.getMonth() + 1;
             // '+ 1' because calendar is 0-based for this field, and we are
             // 1-based
-            int year = cl.get(Calendar.YEAR);
+            int year = cl.getYear();
             t = -1;
 
             // test for expressions that never generate a valid fire date,
@@ -643,21 +652,21 @@ public class Cron implements ToXContentFragment {
                 year++;
             }
             if (mon != t) {
-                cl.set(Calendar.SECOND, 0);
-                cl.set(Calendar.MINUTE, 0);
-                cl.set(Calendar.HOUR_OF_DAY, 0);
-                cl.set(Calendar.DAY_OF_MONTH, 1);
-                cl.set(Calendar.MONTH, mon - 1);
+                cl.setSecond(0);
+                cl.setMinute(0);
+                cl.setHour(0);
+                cl.setDayOfMonth(1);
+                cl.setMonth(mon - 1);
                 // '- 1' because calendar is 0-based for this field, and we are
                 // 1-based
-                cl.set(Calendar.YEAR, year);
+                cl.setYear(year);
                 continue;
             }
-            cl.set(Calendar.MONTH, mon - 1);
+            cl.setMonth(mon - 1);
             // '- 1' because calendar is 0-based for this field, and we are
             // 1-based
 
-            year = cl.get(Calendar.YEAR);
+            year = cl.getYear();
             t = -1;
 
             // get year...................................................
@@ -671,22 +680,24 @@ public class Cron implements ToXContentFragment {
             }
 
             if (year != t) {
-                cl.set(Calendar.SECOND, 0);
-                cl.set(Calendar.MINUTE, 0);
-                cl.set(Calendar.HOUR_OF_DAY, 0);
-                cl.set(Calendar.DAY_OF_MONTH, 1);
-                cl.set(Calendar.MONTH, 0);
+                cl.setSecond(0);
+                cl.setMinute(0);
+                cl.setHour(0);
+                cl.setDayOfMonth(1);
+                cl.setMonth(0);
                 // '- 1' because calendar is 0-based for this field, and we are
                 // 1-based
-                cl.set(Calendar.YEAR, year);
+                cl.setYear(year);
                 continue;
             }
-            cl.set(Calendar.YEAR, year);
+            cl.setYear(year);
 
             gotOne = true;
         } // while( done == false )
 
-        return cl.getTimeInMillis();
+        LocalDateTime nextRuntime = cl.getLocalDateTime();
+
+        return nextRuntime.atZone(timeZone).toInstant().toEpochMilli();
     }
 
     public String expression() {
@@ -735,7 +746,7 @@ public class Cron implements ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(expression);
+        return Objects.hash(expression, timeZone);
     }
 
     @Override
@@ -747,7 +758,7 @@ public class Cron implements ToXContentFragment {
             return false;
         }
         final Cron other = (Cron) obj;
-        return Objects.equals(this.expression, other.expression);
+        return Objects.equals(this.expression, other.expression) && Objects.equals(this.timeZone, other.timeZone);
     }
 
     /**
@@ -757,7 +768,7 @@ public class Cron implements ToXContentFragment {
      */
     @Override
     public String toString() {
-        return expression;
+        return "Cron{" + "timeZone=" + timeZone + ", expression='" + expression + '\'' + '}';
     }
 
     /**
@@ -1430,7 +1441,7 @@ public class Cron implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(toString());
+        return builder.value(expression);
     }
 
     private static class ValueSet {

@@ -20,6 +20,7 @@ import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
@@ -37,7 +38,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
@@ -53,6 +53,7 @@ import javax.inject.Inject;
  * Exec task implementation.
  */
 @SuppressWarnings("unchecked")
+@CacheableTask
 public abstract class LoggedExec extends DefaultTask implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
@@ -87,6 +88,14 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     abstract public Property<Boolean> getCaptureOutput();
 
     @Input
+    public Provider<String> getWorkingDirPath() {
+        return getWorkingDir().map(file -> {
+            String relativeWorkingDir = projectLayout.getProjectDirectory().getAsFile().toPath().relativize(file.toPath()).toString();
+            return relativeWorkingDir;
+        });
+    }
+
+    @Internal
     abstract public Property<File> getWorkingDir();
 
     @Internal
@@ -117,9 +126,10 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
      * can be reused across different build invocations.
      * */
     private void setupDefaultEnvironment(ProviderFactory providerFactory) {
-        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("BUILDKITE"));
         getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("GRADLE_BUILD_CACHE"));
-        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("VAULT"));
+
+        getNonTrackedEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("BUILDKITE"));
+        getNonTrackedEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("VAULT"));
         Provider<String> javaToolchainHome = providerFactory.environmentVariable("JAVA_TOOLCHAIN_HOME");
         if (javaToolchainHome.isPresent()) {
             getEnvironment().put("JAVA_TOOLCHAIN_HOME", javaToolchainHome);
@@ -182,11 +192,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 execSpec.setWorkingDir(getWorkingDir().get());
             }
             if (getStandardInput().isPresent()) {
-                try {
-                    execSpec.setStandardInput(new ByteArrayInputStream(getStandardInput().get().getBytes("UTF-8")));
-                } catch (UnsupportedEncodingException e) {
-                    throw new GradleException("Cannot set standard input", e);
-                }
+                execSpec.setStandardInput(new ByteArrayInputStream(getStandardInput().get().getBytes(StandardCharsets.UTF_8)));
             }
         });
         int exitValue = execResult.getExitValue();

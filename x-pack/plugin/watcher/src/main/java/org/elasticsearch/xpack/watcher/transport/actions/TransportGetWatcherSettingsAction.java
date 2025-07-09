@@ -9,18 +9,21 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.GetWatcherSettingsAction;
 
@@ -30,38 +33,54 @@ import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateW
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_NAME;
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_REQUEST;
 
-public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction<
+public class TransportGetWatcherSettingsAction extends TransportLocalProjectMetadataAction<
     GetWatcherSettingsAction.Request,
     GetWatcherSettingsAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportGetWatcherSettingsAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             GetWatcherSettingsAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
+        );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
             GetWatcherSettingsAction.Request::readFrom,
-            indexNameExpressionResolver,
-            GetWatcherSettingsAction.Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetWatcherSettingsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
+        ((CancellableTask) task).ensureNotCancelled();
         IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
         if (metadata == null) {
             listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
@@ -87,15 +106,16 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetWatcherSettingsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetWatcherSettingsAction.Request request, ProjectState state) {
         ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         if (globalBlock != null) {
             return globalBlock;
         }
         return state.blocks()
             .indicesBlockedException(
+                state.projectId(),
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, WATCHER_INDEX_REQUEST)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state.metadata(), WATCHER_INDEX_REQUEST)
             );
     }
 }

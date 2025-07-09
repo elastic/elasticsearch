@@ -10,11 +10,12 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -23,16 +24,19 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -65,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -74,6 +79,7 @@ import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIt
 import static org.elasticsearch.core.Types.forciblyCast;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -130,9 +136,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         };
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2,
@@ -143,7 +149,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
 
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+        CanMatchPreFilterSearchPhase.execute(
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
@@ -155,14 +161,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER,
-            ActionTestUtils.assertNoFailureListener(iter -> {
-                result.set(iter);
-                latch.countDown();
-            })
-        );
-
-        canMatchPhase.start();
+            EMPTY_CONTEXT_PROVIDER
+        ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+            result.set(iter);
+            latch.countDown();
+        }));
         latch.await();
 
         assertThat(numRequests.get(), replicaNode == null ? equalTo(1) : lessThanOrEqualTo(2));
@@ -227,9 +230,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         };
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2,
@@ -241,7 +244,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
 
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+        CanMatchPreFilterSearchPhase.execute(
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
@@ -253,14 +256,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             null,
             true,
-            EMPTY_CONTEXT_PROVIDER,
-            ActionTestUtils.assertNoFailureListener(iter -> {
-                result.set(iter);
-                latch.countDown();
-            })
-        );
+            EMPTY_CONTEXT_PROVIDER
+        ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+            result.set(iter);
+            latch.countDown();
+        }));
 
-        canMatchPhase.start();
         latch.await();
 
         assertEquals(0, result.get().get(0).shardId().id());
@@ -320,9 +321,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
-            GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            List<SearchShardIterator> shardsIter = getShardsIter(
                 "logs",
                 new OriginalIndices(new String[] { "logs" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 randomIntBetween(2, 20),
@@ -334,7 +335,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
             searchRequest.allowPartialSearchResults(true);
 
-            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            CanMatchPreFilterSearchPhase.execute(
                 logger,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
@@ -346,14 +347,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 true,
-                EMPTY_CONTEXT_PROVIDER,
-                ActionTestUtils.assertNoFailureListener(iter -> {
-                    result.set(iter);
-                    latch.countDown();
-                })
-            );
-
-            canMatchPhase.start();
+                EMPTY_CONTEXT_PROVIDER
+            ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            }));
             latch.await();
             ShardId[] expected = IntStream.range(0, shardIds.size())
                 .boxed()
@@ -422,9 +420,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
-            GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            List<SearchShardIterator> shardsIter = getShardsIter(
                 "logs",
                 new OriginalIndices(new String[] { "logs" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 numShards,
@@ -436,7 +434,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
             searchRequest.allowPartialSearchResults(true);
 
-            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            CanMatchPreFilterSearchPhase.execute(
                 logger,
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
@@ -448,14 +446,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 null,
                 shardsIter.size() > shardToSkip.size(),
-                EMPTY_CONTEXT_PROVIDER,
-                ActionTestUtils.assertNoFailureListener(iter -> {
-                    result.set(iter);
-                    latch.countDown();
-                })
-            );
+                EMPTY_CONTEXT_PROVIDER
+            ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            }));
 
-            canMatchPhase.start();
             latch.await();
             int shardId = 0;
             for (SearchShardIterator i : result.get()) {
@@ -474,6 +470,98 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     // test using event.ingested
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedUsingEventIngested() throws Exception {
         doCanMatchFilteringOnCoordinatorThatCanBeSkipped(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+    }
+
+    public void testCanMatchFilteringOnCoordinatorSkipsBasedOnTier() throws Exception {
+        // we'll test that we're executing _tier coordinator rewrite for indices (data stream backing or regular) without any @timestamp
+        // or event.ingested fields
+        // for both data stream backing and regular indices we'll have one index in hot and one in warm. the warm indices will be skipped as
+        // our queries will filter based on _tier: hot
+
+        Map<Index, Settings.Builder> indexNameToSettings = new HashMap<>();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        String dataStreamName = randomAlphaOfLengthBetween(10, 20);
+        Index warmDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
+        indexNameToSettings.put(
+            warmDataStreamIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmDataStreamIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
+        );
+        Index hotDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
+        indexNameToSettings.put(
+            hotDataStreamIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotDataStreamIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
+        );
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, List.of(warmDataStreamIndex, hotDataStreamIndex));
+
+        Index warmRegularIndex = new Index("warm-index", UUIDs.base64UUID());
+        indexNameToSettings.put(
+            warmRegularIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmRegularIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
+        );
+        Index hotRegularIndex = new Index("hot-index", UUIDs.base64UUID());
+        indexNameToSettings.put(
+            hotRegularIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotRegularIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
+        );
+
+        List<Index> allIndices = new ArrayList<>(4);
+        allIndices.addAll(dataStream.getIndices());
+        allIndices.add(warmRegularIndex);
+        allIndices.add(hotRegularIndex);
+
+        List<Index> hotIndices = List.of(hotRegularIndex, hotDataStreamIndex);
+        List<Index> warmIndices = List.of(warmRegularIndex, warmDataStreamIndex);
+
+        for (Index index : allIndices) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+                .settings(indexNameToSettings.get(index))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
+            state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        }
+
+        ClusterState finalState = state;
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider = new CoordinatorRewriteContextProvider(
+            parserConfig(),
+            mock(Client.class),
+            System::currentTimeMillis,
+            () -> finalState.projectState(),
+            (index) -> null
+        );
+
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(CoordinatorRewriteContext.TIER_FIELD_NAME, "data_hot"));
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(dataStream),
+            List.of(hotRegularIndex, warmRegularIndex),
+            coordinatorRewriteContextProvider,
+            boolQueryBuilder,
+            List.of(),
+            null,
+            (updatedSearchShardIterators, requests) -> {
+                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                var nonSkippedShards = updatedSearchShardIterators.stream()
+                    .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                    .toList();
+
+                boolean allSkippedShardAreFromWarmIndices = skippedShards.stream()
+                    .allMatch(shardIterator -> warmIndices.contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromWarmIndices, equalTo(true));
+                boolean allNonSkippedShardAreHotIndices = nonSkippedShards.stream()
+                    .allMatch(shardIterator -> hotIndices.contains(shardIterator.shardId().getIndex()));
+                assertThat(allNonSkippedShardAreHotIndices, equalTo(true));
+                boolean allRequestMadeToHotIndices = requests.stream()
+                    .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
+                assertThat(allRequestMadeToHotIndices, equalTo(true));
+            }
+        );
     }
 
     public void doCanMatchFilteringOnCoordinatorThatCanBeSkipped(String timestampField) throws Exception {
@@ -992,6 +1080,137 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
     }
 
+    public void testCanMatchFilteringOnCoordinatorWithMissingShards() throws Exception {
+        // we'll test that we're executing _tier coordinator rewrite for indices (data stream backing or regular) without any @timestamp
+        // or event.ingested fields
+        // for both data stream backing and regular indices we'll have one index in hot and one UNASSIGNED (targeting warm though).
+        // the warm indices will be skipped as our queries will filter based on _tier: hot and the can match phase will not report error the
+        // missing index even if allow_partial_search_results is false (because the warm index would've not been part of the search anyway)
+
+        Map<Index, Settings.Builder> indexNameToSettings = new HashMap<>();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        String dataStreamName = randomAlphaOfLengthBetween(10, 20);
+        Index warmDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
+        indexNameToSettings.put(
+            warmDataStreamIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmDataStreamIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
+        );
+        Index hotDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
+        indexNameToSettings.put(
+            hotDataStreamIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotDataStreamIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
+        );
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, List.of(warmDataStreamIndex, hotDataStreamIndex));
+
+        Index warmRegularIndex = new Index("warm-index", UUIDs.base64UUID());
+        indexNameToSettings.put(
+            warmRegularIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmRegularIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
+        );
+        Index hotRegularIndex = new Index("hot-index", UUIDs.base64UUID());
+        indexNameToSettings.put(
+            hotRegularIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotRegularIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
+        );
+
+        List<Index> allIndices = new ArrayList<>(4);
+        allIndices.addAll(dataStream.getIndices());
+        allIndices.add(warmRegularIndex);
+        allIndices.add(hotRegularIndex);
+
+        List<Index> hotIndices = List.of(hotRegularIndex, hotDataStreamIndex);
+        List<Index> warmIndices = List.of(warmRegularIndex, warmDataStreamIndex);
+
+        for (Index index : allIndices) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+                .settings(indexNameToSettings.get(index))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
+            state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        }
+
+        ClusterState finalState = state;
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider = new CoordinatorRewriteContextProvider(
+            parserConfig(),
+            mock(Client.class),
+            System::currentTimeMillis,
+            () -> finalState.projectState(),
+            (index) -> null
+        );
+
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(CoordinatorRewriteContext.TIER_FIELD_NAME, "data_hot"));
+
+        {
+            // test that a search doesn't fail if the query filters out the unassigned shards
+            // via _tier (coordinator rewrite will eliminate the shards that don't match)
+            assignShardsAndExecuteCanMatchPhase(
+                List.of(dataStream),
+                List.of(hotRegularIndex, warmRegularIndex),
+                coordinatorRewriteContextProvider,
+                boolQueryBuilder,
+                List.of(),
+                null,
+                warmIndices,
+                false,
+                (updatedSearchShardIterators, requests) -> {
+                    var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                    var nonSkippedShards = updatedSearchShardIterators.stream()
+                        .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                        .toList();
+
+                    boolean allSkippedShardAreFromWarmIndices = skippedShards.stream()
+                        .allMatch(shardIterator -> warmIndices.contains(shardIterator.shardId().getIndex()));
+                    assertThat(allSkippedShardAreFromWarmIndices, equalTo(true));
+                    boolean allNonSkippedShardAreHotIndices = nonSkippedShards.stream()
+                        .allMatch(shardIterator -> hotIndices.contains(shardIterator.shardId().getIndex()));
+                    assertThat(allNonSkippedShardAreHotIndices, equalTo(true));
+                    boolean allRequestMadeToHotIndices = requests.stream()
+                        .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
+                    assertThat(allRequestMadeToHotIndices, equalTo(true));
+                }
+            );
+        }
+
+        {
+            // test that a search does fail if the query does NOT filter ALL the
+            // unassigned shards
+            CountDownLatch latch = new CountDownLatch(1);
+            Tuple<SubscribableListener<List<SearchShardIterator>>, List<ShardSearchRequest>> canMatchPhaseAndRequests =
+                getCanMatchPhaseAndRequests(
+                    List.of(dataStream),
+                    List.of(hotRegularIndex, warmRegularIndex),
+                    coordinatorRewriteContextProvider,
+                    boolQueryBuilder,
+                    List.of(),
+                    null,
+                    List.of(hotRegularIndex, warmRegularIndex, warmDataStreamIndex),
+                    false
+                );
+
+            canMatchPhaseAndRequests.v1().addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(List<SearchShardIterator> searchShardIterators) {
+                    fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", searchShardIterators);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(SearchPhaseExecutionException.class));
+                    latch.countDown();
+                }
+            });
+            latch.await(10, TimeUnit.SECONDS);
+        }
+    }
+
     private void assertAllShardsAreQueried(List<SearchShardIterator> updatedSearchShardIterators, List<ShardSearchRequest> requests) {
         int skippedShards = (int) updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).count();
 
@@ -1016,6 +1235,68 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SuggestBuilder suggest,
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
+        assignShardsAndExecuteCanMatchPhase(
+            dataStreams,
+            regularIndices,
+            contextProvider,
+            query,
+            aggregations,
+            suggest,
+            List.of(),
+            true,
+            canMatchResultsConsumer
+        );
+    }
+
+    private void assignShardsAndExecuteCanMatchPhase(
+        List<DataStream> dataStreams,
+        List<Index> regularIndices,
+        CoordinatorRewriteContextProvider contextProvider,
+        QueryBuilder query,
+        List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
+        List<Index> unassignedIndices,
+        boolean allowPartialResults,
+        BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
+    ) throws Exception {
+        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        Tuple<SubscribableListener<List<SearchShardIterator>>, List<ShardSearchRequest>> canMatchAndShardRequests =
+            getCanMatchPhaseAndRequests(
+                dataStreams,
+                regularIndices,
+                contextProvider,
+                query,
+                aggregations,
+                suggest,
+                unassignedIndices,
+                allowPartialResults
+            );
+
+        canMatchAndShardRequests.v1().addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+            result.set(iter);
+            latch.countDown();
+        }));
+        latch.await();
+
+        List<SearchShardIterator> updatedSearchShardIterators = new ArrayList<>();
+        for (SearchShardIterator updatedSearchShardIterator : result.get()) {
+            updatedSearchShardIterators.add(updatedSearchShardIterator);
+        }
+
+        canMatchResultsConsumer.accept(updatedSearchShardIterators, canMatchAndShardRequests.v2());
+    }
+
+    private Tuple<SubscribableListener<List<SearchShardIterator>>, List<ShardSearchRequest>> getCanMatchPhaseAndRequests(
+        List<DataStream> dataStreams,
+        List<Index> regularIndices,
+        CoordinatorRewriteContextProvider contextProvider,
+        QueryBuilder query,
+        List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
+        List<Index> unassignedIndices,
+        boolean allowPartialResults
+    ) {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
@@ -1033,7 +1314,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         String[] indices = indicesToSearch.toArray(new String[0]);
         OriginalIndices originalIndices = new OriginalIndices(indices, SearchRequest.DEFAULT_INDICES_OPTIONS);
 
-        final List<SearchShardIterator> originalShardIters = new ArrayList<>();
+        final List<SearchShardIterator> shardIters = new ArrayList<>();
         for (var dataStream : dataStreams) {
             boolean atLeastOnePrimaryAssigned = false;
             for (var dataStreamIndex : dataStream.getIndices()) {
@@ -1041,23 +1322,31 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 // and none is assigned, the phase is considered as failed meaning that the next phase won't be executed
                 boolean withAssignedPrimaries = randomBoolean() || atLeastOnePrimaryAssigned == false;
                 int numShards = randomIntBetween(1, 6);
-                originalShardIters.addAll(
-                    getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
-                );
-                atLeastOnePrimaryAssigned |= withAssignedPrimaries;
+                if (unassignedIndices.contains(dataStreamIndex)) {
+                    shardIters.addAll(getShardsIter(dataStreamIndex, originalIndices, numShards, false, null, null));
+                } else {
+                    shardIters.addAll(
+                        getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
+                    );
+                    atLeastOnePrimaryAssigned |= withAssignedPrimaries;
+                }
             }
         }
 
         for (Index regularIndex : regularIndices) {
-            originalShardIters.addAll(
-                getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), randomBoolean(), primaryNode, replicaNode)
-            );
+            if (unassignedIndices.contains(regularIndex)) {
+                shardIters.addAll(getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), false, null, null));
+            } else {
+                shardIters.addAll(
+                    getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), randomBoolean(), primaryNode, replicaNode)
+                );
+            }
         }
-        GroupShardsIterator<SearchShardIterator> shardsIter = GroupShardsIterator.sortAndCreate(originalShardIters);
+        CollectionUtil.timSort(shardIters);
 
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(indices);
-        searchRequest.allowPartialSearchResults(true);
+        searchRequest.allowPartialSearchResults(allowPartialResults);
 
         final AliasFilter aliasFilter;
         if (aggregations.isEmpty() == false || randomBoolean()) {
@@ -1116,36 +1405,23 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            aliasFilters,
-            Collections.emptyMap(),
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            searchRequest,
-            shardsIter,
-            timeProvider,
-            null,
-            true,
-            contextProvider,
-            ActionTestUtils.assertNoFailureListener(iter -> {
-                result.set(iter);
-                latch.countDown();
-            })
+        return new Tuple<>(
+            CanMatchPreFilterSearchPhase.execute(
+                logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                aliasFilters,
+                Collections.emptyMap(),
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                searchRequest,
+                shardIters,
+                timeProvider,
+                null,
+                true,
+                contextProvider
+            ),
+            requests
         );
-
-        canMatchPhase.start();
-        latch.await();
-
-        List<SearchShardIterator> updatedSearchShardIterators = new ArrayList<>();
-        for (SearchShardIterator updatedSearchShardIterator : result.get()) {
-            updatedSearchShardIterators.add(updatedSearchShardIterator);
-        }
-
-        canMatchResultsConsumer.accept(updatedSearchShardIterators, requests);
     }
 
     static class StaticCoordinatorRewriteContextProviderBuilder {
@@ -1153,7 +1429,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         private final Map<Index, DateFieldRangeInfo> fields = new HashMap<>();
 
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1173,7 +1449,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 indexMetadataBuilder.timestampRange(timestampRange);
                 fields.put(index, new DateFieldRangeInfo(new DateFieldMapper.DateFieldType(fieldName), null, null, null));
             } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-                indexMetadataBuilder.eventIngestedRange(timestampRange, TransportVersion.current());
+                indexMetadataBuilder.eventIngestedRange(timestampRange);
                 fields.put(index, new DateFieldRangeInfo(null, null, new DateFieldMapper.DateFieldType(fieldName), null));
             }
 
@@ -1191,7 +1467,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             long minTimestampForEventIngested,
             long maxTimestampForEventIngested
         ) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1213,7 +1489,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .timestampRange(tsTimestampRange)
-                .eventIngestedRange(eventIngestedTimestampRange, TransportVersion.current());
+                .eventIngestedRange(eventIngestedTimestampRange);
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -1229,7 +1505,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         private void addIndex(Index index) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1249,7 +1525,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 XContentParserConfiguration.EMPTY,
                 mock(Client.class),
                 System::currentTimeMillis,
-                () -> clusterState,
+                () -> clusterState.projectState(),
                 fields::get
             );
         }

@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -30,7 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.function.BiFunction;
 
 /**
  * We handle two main scenarios here:
@@ -58,9 +60,10 @@ import java.util.function.Predicate;
  * </ol>
  */
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
+
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
-        Pushable pushable = evaluatePushable(topNExec, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats()));
+        Pushable pushable = evaluatePushable(ctx.foldCtx(), topNExec, LucenePushdownPredicates.from(ctx.searchStats()));
         return pushable.rewrite(topNExec);
     }
 
@@ -94,18 +97,18 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             return new EsQueryExec.GeoDistanceSort(fieldAttribute.exactAttribute(), order.direction(), point.getLat(), point.getLon());
         }
 
-        private static PushableGeoDistance from(StDistance distance, Order order) {
+        private static PushableGeoDistance from(FoldContext ctx, StDistance distance, Order order) {
             if (distance.left() instanceof Attribute attr && distance.right().foldable()) {
-                return from(attr, distance.right(), order);
+                return from(ctx, attr, distance.right(), order);
             } else if (distance.right() instanceof Attribute attr && distance.left().foldable()) {
-                return from(attr, distance.left(), order);
+                return from(ctx, attr, distance.left(), order);
             }
             return null;
         }
 
-        private static PushableGeoDistance from(Attribute attr, Expression foldable, Order order) {
+        private static PushableGeoDistance from(FoldContext ctx, Attribute attr, Expression foldable, Order order) {
             if (attr instanceof FieldAttribute fieldAttribute) {
-                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(foldable);
+                Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(ctx, foldable);
                 if (geometry instanceof Point point) {
                     return new PushableGeoDistance(fieldAttribute, order, point);
                 }
@@ -121,11 +124,11 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
-    private static Pushable evaluatePushable(TopNExec topNExec, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static Pushable evaluatePushable(FoldContext ctx, TopNExec topNExec, LucenePushdownPredicates lucenePushdownPredicates) {
         PhysicalPlan child = topNExec.child();
         if (child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
-            && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
+            && canPushDownOrders(topNExec.order(), lucenePushdownPredicates)) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
         }
@@ -148,7 +151,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
-                if (LucenePushDownUtils.isPushableFieldAttribute(order.child(), hasIdenticalDelegate)) {
+                if (lucenePushdownPredicates.isPushableFieldAttribute(order.child())) {
                     pushableSorts.add(
                         new EsQueryExec.FieldSort(
                             ((FieldAttribute) order.child()).exactAttribute(),
@@ -156,12 +159,14 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             order.nullsPosition()
                         )
                     );
+                } else if (LucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
+                    pushableSorts.add(new EsQueryExec.ScoreSort(order.direction()));
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
                     Attribute resolvedAttribute = aliasReplacedBy.resolve(referenceAttribute, referenceAttribute);
                     if (distances.containsKey(resolvedAttribute.id())) {
                         StDistance distance = distances.get(resolvedAttribute.id());
                         StDistance d = (StDistance) distance.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
-                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(d, order);
+                        PushableGeoDistance pushableGeoDistance = PushableGeoDistance.from(ctx, d, order);
                         if (pushableGeoDistance != null) {
                             pushableSorts.add(pushableGeoDistance.sort());
                         } else {
@@ -169,7 +174,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             break;
                         }
                     } else if (aliasReplacedBy.resolve(referenceAttribute, referenceAttribute) instanceof FieldAttribute fieldAttribute
-                        && LucenePushDownUtils.isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate)) {
+                        && lucenePushdownPredicates.isPushableFieldAttribute(fieldAttribute)) {
                             // If the SORT refers to a reference to a pushable field, we can push it down
                             pushableSorts.add(
                                 new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
@@ -184,23 +189,31 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                     break;
                 }
             }
-            // TODO: We can push down partial sorts where `pushableSorts.size() < orders.size()`, but that should involve benchmarks
-            if (pushableSorts.size() > 0 && pushableSorts.size() == orders.size()) {
+            if (pushableSorts.isEmpty() == false) {
                 return new PushableCompoundExec(evalExec, queryExec, pushableSorts);
             }
         }
         return NO_OP;
     }
 
-    private static boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> LucenePushDownUtils.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+        BiFunction<Expression, LucenePushdownPredicates, Boolean> isSortableAttribute = (exp, lpp) -> lpp.isPushableFieldAttribute(exp)
+            // TODO: https://github.com/elastic/elasticsearch/issues/120219
+            || MetadataAttribute.isScoreAttribute(exp);
+        return orders.stream().allMatch(o -> isSortableAttribute.apply(o.child(), lucenePushdownPredicates));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {
         List<EsQueryExec.Sort> sorts = new ArrayList<>(orders.size());
         for (Order o : orders) {
-            sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
+            if (o.child() instanceof FieldAttribute fa) {
+                sorts.add(new EsQueryExec.FieldSort(fa.exactAttribute(), o.direction(), o.nullsPosition()));
+            } else if (MetadataAttribute.isScoreAttribute(o.child())) {
+                sorts.add(new EsQueryExec.ScoreSort(o.direction()));
+            } else {
+                assert false : "unexpected ordering on expression type " + o.child().getClass();
+            }
         }
         return sorts;
     }

@@ -21,14 +21,16 @@ public class MetadataIndexStateServiceUtils {
     private MetadataIndexStateServiceUtils() {}
 
     /**
-     * Allows to call {@link MetadataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
+     * Allows to call {@link MetadataIndexStateService#addIndexClosedBlocks(ProjectId, Index[], Map, ClusterState)}
+     * which is a protected method.
      */
     public static ClusterState addIndexClosedBlocks(
+        final ProjectId projectId,
         final Index[] indices,
         final Map<Index, ClusterBlock> blockedIndices,
         final ClusterState state
     ) {
-        return MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+        return MetadataIndexStateService.addIndexClosedBlocks(projectId, indices, blockedIndices, state);
     }
 
     /**
@@ -36,10 +38,16 @@ public class MetadataIndexStateServiceUtils {
      */
     public static ClusterState closeRoutingTable(
         final ClusterState state,
+        final ProjectId projectId,
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, CloseIndexResponse.IndexResult> results
     ) {
-        return MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .v1();
+        return MetadataIndexStateService.closeRoutingTable(
+            state,
+            projectId,
+            blockedIndices,
+            results,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        ).v1();
     }
 }

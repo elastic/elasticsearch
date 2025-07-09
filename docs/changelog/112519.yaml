@@ -1,5 +1,0 @@
-pr: 112519
-summary: Lower the memory footprint when creating `DelayedBucket`
-area: Aggregations
-type: enhancement
-issues: []

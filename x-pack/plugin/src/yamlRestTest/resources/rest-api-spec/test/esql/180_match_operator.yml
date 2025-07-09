@@ -5,8 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ match_operator ]
-      cluster_features: [ "gte_v8.16.0" ]
+          capabilities: [ match_operator_colon ]
       reason: "Match operator added in 8.16.0"
       test_runner_features: [capabilities, allowed_warnings_regex]
   - do:
@@ -44,7 +43,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE content MATCH "fox" | KEEP id | SORT id'
+          query: 'FROM test | WHERE content:"fox" | KEEP id | SORT id'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "integer" }
@@ -59,7 +58,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE content MATCH "fox" AND id > 5 | KEEP id | SORT id'
+          query: 'FROM test | WHERE content:"fox" AND id > 5 | KEEP id | SORT id'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "integer" }
@@ -73,16 +72,13 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE content MATCH "fox" OR content MATCH "brown" | KEEP id | SORT id'
+          query: 'FROM test | WHERE content:"fox" AND content:"brown" | KEEP id | SORT id'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "integer" }
-  - length: { values: 5 }
+  - length: { values: 2 }
   - match: { values.0.0: 1 }
-  - match: { values.1.0: 2 }
-  - match: { values.2.0: 3 }
-  - match: { values.3.0: 4 }
-  - match: { values.4.0: 6 }
+  - match: { values.1.0: 6 }
 
 ---
 "not where match":
@@ -91,12 +87,31 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE NOT content MATCH "brown fox" | KEEP id | SORT id'
+          query: 'FROM test | WHERE NOT content:"brown fox" | KEEP id | SORT id'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "integer" }
   - length: { values: 1 }
   - match: { values.0.0: 5 }
+
+---
+"match with integer field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ match_additional_types ]
+      reason: "Additional types support for match"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE id:3 | KEEP id'
+
+  - length: { values: 1 }
+  - match: { values.0.0: 3 }
 
 ---
 "match on non existing column":
@@ -106,11 +121,11 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE something match "fox"'
+          query: 'FROM test | WHERE something:"fox"'
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:19: Unknown column [something]" }
+  - match: { error.reason: "/Unknown.column.\\[something\\]/" }
 
 ---
 "match on eval column":
@@ -120,11 +135,11 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | EVAL upper_content = to_upper(content) | WHERE upper_content MATCH "FOX" | KEEP id'
+          query: 'FROM test | EVAL upper_content = to_upper(content) | WHERE upper_content:"FOX" | KEEP id'
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:60: MATCH requires a mapped index field, found [upper_content]" }
+  - match: { error.reason: "/operator.cannot.operate.on.\\[upper_content\\],.which.is.not.a.field.from.an.index.mapping/" }
 
 ---
 "match on overwritten column":
@@ -134,11 +149,11 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | DROP content | EVAL content = CONCAT("ID: ", to_str(id)) | WHERE content match "fox"'
+          query: 'FROM test | DROP content | EVAL content = CONCAT("ID: ", to_str(id)) | WHERE content:"fox"'
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:78: MATCH requires a mapped index field, found [content]" }
+  - match: { error.reason: "/operator.cannot.operate.on.\\[content\\],.which.is.not.a.field.from.an.index.mapping/" }
 
 ---
 "match after stats":
@@ -148,25 +163,29 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | STATS count(*) | WHERE content match "fox"'
+          query: 'FROM test | STATS count(*) | WHERE content:"fox"'
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:36: Unknown column [content], did you mean [count(*)]?" }
+  - match: { error.reason: "/Unknown.column.\\[content\\]/" }
 
 ---
-"match with functions":
+"match with disjunctions":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ full_text_functions_disjunctions_compute_engine ]
+      reason: "Full text functions disjunctions support"
   - do:
-      catch: bad_request
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE content MATCH "fox" OR to_upper(content) == "FOX"'
+          query: 'FROM test | WHERE content:"fox" OR length(content) < 20'
 
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:19: Invalid condition using MATCH" }
+  - length: { values: 3 }
 
 ---
 "match within eval":
@@ -176,22 +195,8 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | EVAL matches_query = content MATCH "fox"'
+          query: 'FROM test | EVAL matches_query = content:"fox"'
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:34: EVAL does not support MATCH expressions" }
-
----
-"match with non text field":
-  - do:
-      catch: bad_request
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM test | WHERE id MATCH "fox"'
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:19: MATCH requires a text or keyword field, but [id] has type [integer]" }
+  - match: { error.reason: "/.*operator.is.only.supported.in.WHERE.*/" }

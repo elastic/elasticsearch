@@ -13,10 +13,10 @@ import com.avast.gradle.dockercompose.ServiceInfo;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
@@ -59,7 +59,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private final ProviderFactory providerFactory;
     private DockerAvailability dockerAvailability;
-    private Map<String, ServiceInfo> serviceInfos;
     private Map<String, Map<Integer, Integer>> tcpPorts;
     private Map<String, Map<Integer, Integer>> udpPorts;
 
@@ -228,7 +227,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // We don't attempt to check the current flavor and version of Linux unless we're
         // running in CI, because we don't want to stop people running the Docker tests in
         // their own environments if they really want to.
-        if (BuildParams.isCi() == false) {
+        if (getParameters().getIsCI().get().booleanValue() == false) {
             return false;
         }
 
@@ -356,10 +355,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return udpPorts;
     }
 
-    public void setServiceInfos(Map<String, ServiceInfo> serviceInfos) {
-        this.serviceInfos = serviceInfos;
-    }
-
     /**
      * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
      */
@@ -402,5 +397,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         File getExclusionsFile();
 
         void setExclusionsFile(File exclusionsFile);
+
+        Property<Boolean> getIsCI();
     }
 }

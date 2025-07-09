@@ -90,7 +90,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
     }
 
     @Override

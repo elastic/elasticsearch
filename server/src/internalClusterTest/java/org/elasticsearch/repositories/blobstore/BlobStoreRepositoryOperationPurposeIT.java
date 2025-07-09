@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -36,7 +37,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -101,13 +101,22 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
-                metadata -> new AssertingRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new AssertingRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }
 
     private static class AssertingRepository extends FsRepository {
         AssertingRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
@@ -115,7 +124,7 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
         @Override
@@ -134,11 +143,6 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             return new AssertingBlobContainer(delegateBlobStore.blobContainer(path));
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-            delegateBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
         }
 
         @Override

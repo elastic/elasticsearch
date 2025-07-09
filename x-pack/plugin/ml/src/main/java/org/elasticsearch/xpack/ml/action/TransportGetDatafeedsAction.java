@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -30,6 +30,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     private static final Logger logger = LogManager.getLogger(TransportGetDatafeedsAction.class);
 
     private final DatafeedManager datafeedManager;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetDatafeedsAction(
@@ -38,7 +39,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DatafeedManager datafeedManager,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetDatafeedsAction.NAME,
@@ -47,12 +48,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
             threadPool,
             actionFilters,
             GetDatafeedsAction.Request::new,
-            indexNameExpressionResolver,
             GetDatafeedsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         this.datafeedManager = datafeedManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -74,6 +75,6 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
 
     @Override
     protected ClusterBlockException checkBlock(GetDatafeedsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

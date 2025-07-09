@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -47,6 +48,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     );
 
     @FunctionInfo(
+        operator = "!=",
         returnType = { "boolean" },
         description = "Check if two fields are unequal. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
@@ -94,11 +96,28 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
             description = "An expression."
         ) Expression right
     ) {
-        super(source, left, right, BinaryComparisonOperation.NEQ, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.NEQ,
+            evaluatorMap,
+            NotEqualsNanosMillisEvaluator.Factory::new,
+            NotEqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.NEQ, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.NEQ,
+            zoneId,
+            evaluatorMap,
+            NotEqualsNanosMillisEvaluator.Factory::new,
+            NotEqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -114,6 +133,16 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @Evaluator(extraName = "Longs")
     static boolean processLongs(long lhs, long rhs) {
         return lhs != rhs;
+    }
+
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(rhs, lhs) != 0;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(lhs, rhs) != 0;
     }
 
     @Evaluator(extraName = "Doubles")

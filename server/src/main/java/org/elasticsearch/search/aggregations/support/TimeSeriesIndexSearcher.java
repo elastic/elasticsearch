@@ -263,11 +263,7 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            if (tsidOrd != tsids.ordValue()) {
-                return true;
-            } else {
-                return false;
-            }
+            return tsidOrd != tsids.ordValue();
         }
     }
 }

@@ -15,12 +15,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -31,20 +33,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -61,6 +64,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
@@ -78,12 +82,15 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -100,6 +107,9 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -158,15 +168,33 @@ public class SecurityTests extends ESTestCase {
     private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension implements SecurityExtension {
-        private String realmType;
+        private final String realmType;
+        private final ServiceAccountTokenStore serviceAccountTokenStore;
+        private final String extensionName;
 
         DummyExtension(String realmType) {
+            this(realmType, "DummyExtension", null);
+        }
+
+        DummyExtension(String realmType, String extensionName, @Nullable ServiceAccountTokenStore serviceAccountTokenStore) {
             this.realmType = realmType;
+            this.extensionName = extensionName;
+            this.serviceAccountTokenStore = serviceAccountTokenStore;
+        }
+
+        @Override
+        public String extensionName() {
+            return extensionName;
         }
 
         @Override
         public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
             return Collections.singletonMap(realmType, config -> null);
+        }
+
+        @Override
+        public ServiceAccountTokenStore getServiceAccountTokenStore(SecurityComponents components) {
+            return serviceAccountTokenStore;
         }
     }
 
@@ -203,7 +231,6 @@ public class SecurityTests extends ESTestCase {
 
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), BuildVersion.current(), IndexVersion.current());
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
@@ -227,10 +254,10 @@ public class SecurityTests extends ESTestCase {
             mock(ScriptService.class),
             xContentRegistry(),
             env,
-            nodeMetadata,
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
-            mock(PersistentTasksService.class)
+            mock(PersistentTasksService.class),
+            TestProjectResolvers.alwaysThrow()
         );
     }
 
@@ -268,12 +295,70 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(realms.realmFactory("myrealm"));
     }
 
-    public void testCustomRealmExtensionConflict() throws Exception {
+    public void testCustomRealmExtensionConflict() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createComponents(Settings.EMPTY, new DummyExtension(FileRealmSettings.TYPE))
         );
         assertEquals("Realm type [" + FileRealmSettings.TYPE + "] is already registered", e.getMessage());
+    }
+
+    public void testServiceAccountTokenStoreExtensionSuccess() throws Exception {
+        Collection<Object> components = createComponents(
+            Settings.EMPTY,
+            new DummyExtension(
+                "test_realm",
+                "DummyExtension",
+                (token, listener) -> listener.onResponse(
+                    ServiceAccountTokenStore.StoreAuthenticationResult.successful(TokenInfo.TokenSource.FILE)
+                )
+            )
+        );
+        ServiceAccountService serviceAccountService = findComponent(ServiceAccountService.class, components);
+        assertNotNull(serviceAccountService);
+        FileServiceAccountTokenStore fileServiceAccountTokenStore = findComponent(FileServiceAccountTokenStore.class, components);
+        assertNull(fileServiceAccountTokenStore);
+        IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
+        assertNull(indexServiceAccountTokenStore);
+        var account = randomFrom(ServiceAccountService.getServiceAccounts().values());
+        assertThrows(IllegalStateException.class, () -> serviceAccountService.createIndexToken(null, null, null));
+        var future = new PlainActionFuture<Authentication>();
+        serviceAccountService.authenticateToken(ServiceAccountToken.newToken(account.id(), "test"), "test", future);
+        assertTrue(future.get().isServiceAccount());
+    }
+
+    public void testSeveralServiceAccountTokenStoreExtensionFail() {
+        IllegalStateException exception = assertThrows(
+            IllegalStateException.class,
+            () -> createComponents(
+                Settings.EMPTY,
+                new DummyExtension(
+                    "test_realm_1",
+                    "DummyExtension1",
+                    (token, listener) -> listener.onResponse(
+                        ServiceAccountTokenStore.StoreAuthenticationResult.successful(TokenInfo.TokenSource.FILE)
+                    )
+                ),
+                new DummyExtension(
+                    "test_realm_2",
+                    "DummyExtension2",
+                    (token, listener) -> listener.onResponse(
+                        ServiceAccountTokenStore.StoreAuthenticationResult.successful(TokenInfo.TokenSource.FILE)
+                    )
+                )
+            )
+        );
+        assertThat(exception.getMessage(), containsString("More than one extension provided a ServiceAccountTokenStore override: "));
+    }
+
+    public void testNoServiceAccountTokenStoreExtension() throws Exception {
+        Collection<Object> components = createComponents(Settings.EMPTY);
+        ServiceAccountService serviceAccountService = findComponent(ServiceAccountService.class, components);
+        assertNotNull(serviceAccountService);
+        FileServiceAccountTokenStore fileServiceAccountTokenStore = findComponent(FileServiceAccountTokenStore.class, components);
+        assertNotNull(fileServiceAccountTokenStore);
+        IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
+        assertNotNull(indexServiceAccountTokenStore);
     }
 
     public void testAuditEnabled() throws Exception {
@@ -377,7 +462,11 @@ public class SecurityTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            List.of(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -547,7 +636,7 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash()
+                    Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
                         .filter(alg -> alg.startsWith("pbkdf2") == false)
                         .collect(Collectors.toList())
@@ -566,7 +655,10 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .build();
@@ -580,7 +672,7 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash()
+                    Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
                         .filter(alg -> alg.startsWith("pbkdf2") == false)
                         .collect(Collectors.toList())
@@ -625,7 +717,7 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash()
+                    Hasher.getAvailableAlgoStoredPasswordHash()
                         .stream()
                         .filter(alg -> alg.startsWith("pbkdf2") == false)
                         .collect(Collectors.toList())
@@ -645,19 +737,28 @@ public class SecurityTests extends ESTestCase {
             .put(
                 XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .put(
                 XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .put(
-                ApiKeyService.PASSWORD_HASHING_ALGORITHM.getKey(),
+                ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(),
                 randomFrom(
-                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                    Hasher.getAvailableAlgoStoredPasswordHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2"))
+                        .collect(Collectors.toList())
                 )
             )
             .put(
@@ -682,13 +783,37 @@ public class SecurityTests extends ESTestCase {
         assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantCacheHash(key));
     }
 
-    public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() throws IllegalAccessException {
-        String key = randomFrom(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).getKey();
+    public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() {
+        String key = XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey();
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
-            .put(key, randomNonFipsCompliantStoredHash())
+            .put(key, randomNonFipsCompliantStoredPasswordHash())
             .build();
-        assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantStoredHash(key));
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantStoredPasswordHash(key));
+    }
+
+    public void testValidateForFipsNonFipsCompliantApiKeyStoredHashAlgoWarningLog() {
+        var nonCompliant = randomFrom(
+            Hasher.getAvailableAlgoStoredPasswordHash()
+                .stream()
+                .filter(alg -> alg.startsWith("pbkdf2") == false && alg.startsWith("ssha256") == false)
+                .collect(Collectors.toList())
+        );
+        String key = ApiKeyService.STORED_HASH_ALGO_SETTING.getKey();
+        final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).put(key, nonCompliant).build();
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantStoredApiKeyHash(key));
+    }
+
+    public void testValidateForFipsFipsCompliantApiKeyStoredHashAlgoWarningLog() {
+        var compliant = randomFrom(
+            Hasher.getAvailableAlgoStoredPasswordHash()
+                .stream()
+                .filter(alg -> alg.startsWith("pbkdf2") || alg.startsWith("ssha256"))
+                .collect(Collectors.toList())
+        );
+        String key = ApiKeyService.STORED_HASH_ALGO_SETTING.getKey();
+        final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).put(key, compliant).build();
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class);
     }
 
     public void testValidateForMultipleNonFipsCompliantCacheHashAlgoWarningLogs() throws IllegalAccessException {
@@ -823,8 +948,10 @@ public class SecurityTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
+                List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
 
@@ -1108,9 +1235,9 @@ public class SecurityTests extends ESTestCase {
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), hasSize(expectedValues.length));
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), hasSize(expectedValues.length));
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
     }
 
     private String randomCacheHashSetting() {
@@ -1134,9 +1261,12 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private String randomNonFipsCompliantStoredHash() {
+    private String randomNonFipsCompliantStoredPasswordHash() {
         return randomFrom(
-            Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())
+            Hasher.getAvailableAlgoStoredPasswordHash()
+                .stream()
+                .filter(alg -> alg.startsWith("pbkdf2") == false)
+                .collect(Collectors.toList())
         );
     }
 
@@ -1152,7 +1282,19 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLog.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+    private MockLog.SeenEventExpectation logEventForNonCompliantStoredApiKeyHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
+            "cache hash not fips compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "[*] is not recommended for stored API key hashing in a FIPS 140 JVM. "
+                + "The recommended hasher for ["
+                + settingKey
+                + "] is SSHA256."
+        );
+    }
+
+    private MockLog.SeenEventExpectation logEventForNonCompliantStoredPasswordHash(String settingKey) {
         return new MockLog.SeenEventExpectation(
             "stored hash not fips compliant",
             Security.class.getName(),

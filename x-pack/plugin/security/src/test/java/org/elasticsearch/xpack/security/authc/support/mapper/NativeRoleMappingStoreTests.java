@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +27,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -261,19 +263,20 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         assertThat(store.getLastLoad(), contains(mapping));
         verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
 
+        SecurityIndexManager.IndexState projectIndex = securityIndex.forCurrentProject();
         final boolean indexAvailable = randomBoolean();
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(indexAvailable);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(indexAvailable);
         final boolean indexClosed = indexAvailable || randomBoolean();
-        when(securityIndex.indexIsClosed()).thenReturn(indexClosed);
+        when(projectIndex.indexIsClosed()).thenReturn(indexClosed);
         assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder(mapping.getRoles().toArray()));
         assertThat(store.getLastLoad(), contains(mapping));
         // index was unavailable, so we returned result from cache; no new search
         verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
 
         // new search result from index overwrites previous
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexIsClosed()).thenReturn(false);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexIsClosed()).thenReturn(false);
         final ExpressionRoleMapping mapping2 = new ExpressionRoleMapping(
             "mapping2",
             new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
@@ -323,18 +326,21 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         assertThat(store.getLastLoad(), contains(mapping));
         verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
 
-        when(securityIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(false);
         assertThat(resolveRoles(store, user), is(empty()));
         assertThat(store.getLastLoad(), contains(mapping));
     }
 
     private SecurityIndexManager mockHealthySecurityIndex() {
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
         return securityIndex;
     }
 
@@ -352,21 +358,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
-                    SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat()),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    0,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
+                SearchResponseUtils.successfulResponse(
+                    SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat())
                 )
             );
             return null;
@@ -400,26 +393,14 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         };
     }
 
-    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+    private SecurityIndexManager.IndexState dummyState(ClusterHealthStatus indexStatus) {
         return indexState(true, indexStatus);
     }
 
-    private SecurityIndexManager.State indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
-        return new SecurityIndexManager.State(
-            Instant.now(),
-            isUpToDate,
-            true,
-            true,
-            true,
-            true,
-            null,
-            null,
-            null,
-            concreteSecurityIndexName,
-            healthStatus,
-            IndexMetadata.State.OPEN,
-            "my_uuid",
-            Set.of()
+    private SecurityIndexManager.IndexState indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
+        return this.securityIndex.new IndexState(
+            Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isUpToDate, true, true, true,
+            true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 
@@ -430,30 +411,30 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         int expectedInvalidation = 0;
         // existing to no longer present
-        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        SecurityIndexManager.State currentState = dummyState(null);
-        store.onSecurityIndexStateChange(previousState, currentState);
+        SecurityIndexManager.IndexState previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.IndexState currentState = dummyState(null);
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numLocalInvalidation.get());
         assertEquals(0, numGlobalInvalidation.get());
 
         // doesn't exist to exists
         previousState = dummyState(null);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        store.onSecurityIndexStateChange(previousState, currentState);
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numLocalInvalidation.get());
         assertEquals(0, numGlobalInvalidation.get());
 
         // green or yellow to red
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(ClusterHealthStatus.RED);
-        store.onSecurityIndexStateChange(previousState, currentState);
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, numLocalInvalidation.get());
         assertEquals(0, numGlobalInvalidation.get());
 
         // red to non red
         previousState = dummyState(ClusterHealthStatus.RED);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        store.onSecurityIndexStateChange(previousState, currentState);
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numLocalInvalidation.get());
         assertEquals(0, numGlobalInvalidation.get());
 
@@ -462,7 +443,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         currentState = dummyState(
             previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
         );
-        store.onSecurityIndexStateChange(previousState, currentState);
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, numLocalInvalidation.get());
         assertEquals(0, numGlobalInvalidation.get());
     }
@@ -472,11 +453,11 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final AtomicInteger numLocalInvalidation = new AtomicInteger(0);
         final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numGlobalInvalidation, numLocalInvalidation, true);
 
-        store.onSecurityIndexStateChange(indexState(false, null), indexState(true, null));
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, indexState(false, null), indexState(true, null));
         assertEquals(0, numGlobalInvalidation.get());
         assertEquals(1, numLocalInvalidation.get());
 
-        store.onSecurityIndexStateChange(indexState(true, null), indexState(false, null));
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, indexState(true, null), indexState(false, null));
         assertEquals(0, numGlobalInvalidation.get());
         assertEquals(2, numLocalInvalidation.get());
     }
@@ -490,9 +471,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             false
         );
 
-        final SecurityIndexManager.State noIndexState = dummyState(null);
-        final SecurityIndexManager.State greenIndexState = dummyState(ClusterHealthStatus.GREEN);
-        store.onSecurityIndexStateChange(noIndexState, greenIndexState);
+        final SecurityIndexManager.IndexState noIndexState = dummyState(null);
+        final SecurityIndexManager.IndexState greenIndexState = dummyState(ClusterHealthStatus.GREEN);
+        store.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, noIndexState, greenIndexState);
         assertEquals(0, numGlobalInvalidation.get());
         assertEquals(0, numLocalInvalidation.get());
     }

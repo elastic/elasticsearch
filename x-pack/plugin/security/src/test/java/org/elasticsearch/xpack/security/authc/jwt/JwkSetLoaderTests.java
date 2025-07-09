@@ -41,7 +41,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         final RealmConfig realmConfig = mock(RealmConfig.class);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn("jwkset.json");
         final Environment env = mock(Environment.class);
-        when(env.configFile()).thenReturn(tempDir);
+        when(env.configDir()).thenReturn(tempDir);
         when(realmConfig.env()).thenReturn(env);
 
         final JwkSetLoader jwkSetLoader = spy(new JwkSetLoader(realmConfig, List.of(), null));

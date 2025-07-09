@@ -135,7 +135,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override

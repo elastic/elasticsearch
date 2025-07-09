@@ -230,6 +230,11 @@ public class RestNodesAction extends AbstractCatAction {
             "indexing.index_failed",
             "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
         );
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
+        );
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell(
@@ -367,7 +372,7 @@ public class RestNodesAction extends AbstractCatAction {
                 table.addCell("-");
             }
 
-            table.addCell(node.getVersion().toString());
+            table.addCell(node.getBuildVersion().toString());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
@@ -466,6 +471,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedDueToVersionConflictCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());

@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -25,6 +26,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -182,26 +184,61 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
     }
 
     public void testPreconfiguredFilter() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        // Before 7.3 we don't adjust offsets
+        {
+            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+            Settings indexSettings = Settings.builder()
+                .put(
+                    IndexMetadata.SETTING_VERSION_CREATED,
+                    IndexVersionUtils.randomVersionBetween(
+                        random(),
+                        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
+                    )
+                )
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
+                .build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-        try (
-            IndexAnalyzers indexAnalyzers = new AnalysisModule(
-                TestEnvironment.newEnvironment(settings),
-                Collections.singletonList(new CommonAnalysisPlugin()),
-                new StablePluginsRegistry()
-            ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings)
-        ) {
+            try (
+                IndexAnalyzers indexAnalyzers = new AnalysisModule(
+                    TestEnvironment.newEnvironment(settings),
+                    Collections.singletonList(new CommonAnalysisPlugin()),
+                    new StablePluginsRegistry()
+                ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings)
+            ) {
 
-            NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-            assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 1 }, new int[] { 1, 4 });
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 0 }, new int[] { 4, 4 });
 
+            }
+        }
+
+        // Afger 7.3 we do adjust offsets
+        {
+            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+            Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
+                .build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+            try (
+                IndexAnalyzers indexAnalyzers = new AnalysisModule(
+                    TestEnvironment.newEnvironment(settings),
+                    Collections.singletonList(new CommonAnalysisPlugin()),
+                    new StablePluginsRegistry()
+                ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings)
+            ) {
+
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertAnalyzesTo(analyzer, "h100", new String[] { "h", "100" }, new int[] { 0, 1 }, new int[] { 1, 4 });
+
+            }
         }
     }
 }

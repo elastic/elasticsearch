@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +24,10 @@ public class TextSimilarityRankDoc extends RankDoc {
     public final String inferenceId;
     public final String field;
 
+    public TextSimilarityRankDoc(int doc, float score, int shardIndex) {
+        this(doc, score, shardIndex, null, null);
+    }
+
     public TextSimilarityRankDoc(int doc, float score, int shardIndex, String inferenceId, String field) {
         super(doc, score, shardIndex);
         this.inferenceId = inferenceId;
@@ -33,12 +36,18 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     public TextSimilarityRankDoc(StreamInput in) throws IOException {
         super(in);
-        inferenceId = in.readString();
-        field = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            inferenceId = in.readOptionalString();
+            field = in.readOptionalString();
+        } else {
+            inferenceId = in.readString();
+            field = in.readString();
+        }
     }
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
+        assert inferenceId != null && field != null;
         final String queryAlias = queryNames[0] == null ? "" : "[" + queryNames[0] + "]";
         return Explanation.match(
             score,
@@ -54,8 +63,13 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(inferenceId);
-        out.writeString(field);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            out.writeOptionalString(inferenceId);
+            out.writeOptionalString(field);
+        } else {
+            out.writeString(inferenceId == null ? "" : inferenceId);
+            out.writeString(field == null ? "" : field);
+        }
     }
 
     @Override
@@ -92,12 +106,11 @@ public class TextSimilarityRankDoc extends RankDoc {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("inferenceId", inferenceId);
-        builder.field("field", field);
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TEXT_SIMILARITY_RERANKER_QUERY_REWRITE;
+        if (inferenceId != null) {
+            builder.field("inferenceId", inferenceId);
+        }
+        if (field != null) {
+            builder.field("field", field);
+        }
     }
 }

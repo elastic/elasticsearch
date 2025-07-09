@@ -57,10 +57,9 @@ public final class MultiValuesSourceParseHelper {
      * @param timezoneAware - allows specifying timezone
      * @param filterable - allows specifying filters on the values
      * @param heterogeneous - allows specifying value-source specific format and user value type hint
-     * @param <VS> - values source type
      * @param <T> - parser context
      */
-    public static <VS extends ValuesSource, T> void declareField(
+    public static <T> void declareField(
         String fieldName,
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable,

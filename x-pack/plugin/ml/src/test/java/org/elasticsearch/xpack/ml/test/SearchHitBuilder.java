@@ -30,7 +30,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {
-        hit.setDocumentField(name, new DocumentField(name, values));
+        hit.setDocumentField(new DocumentField(name, values));
         return this;
     }
 

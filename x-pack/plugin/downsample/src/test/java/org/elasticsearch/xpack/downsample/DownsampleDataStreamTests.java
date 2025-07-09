@@ -86,7 +86,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
         // (about) two hours in the future. As a result, we need to have documents whose @timestamp is in the future to avoid documents
         // being indexed in the old data stream backing index.
-        final String newIndexStartTime = indicesAdmin().prepareGetSettings(rolloverResponse.getNewIndex())
+        final String newIndexStartTime = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, rolloverResponse.getNewIndex())
             .get()
             .getSetting(rolloverResponse.getNewIndex(), IndexSettings.TIME_SERIES_START_TIME.getKey());
         indexDocs(dataStreamName, 10, Instant.parse(newIndexStartTime).toEpochMilli());

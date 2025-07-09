@@ -1,6 +1,0 @@
-pr: 113623
-summary: "Adding chunking settings to `MistralService,` `GoogleAiStudioService,` and\
-  \ `HuggingFaceService`"
-area: Machine Learning
-type: enhancement
-issues: []

@@ -26,7 +26,7 @@ public class NoriPartOfSpeechStopFilterFactory extends AbstractTokenFilterFactor
     private final Set<POS.Tag> stopTags;
 
     public NoriPartOfSpeechStopFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         List<String> tagList = Analysis.getWordList(env, settings, "stoptags");
         this.stopTags = tagList != null ? resolvePOSList(tagList) : KoreanPartOfSpeechStopFilter.DEFAULT_STOP_TAGS;
     }

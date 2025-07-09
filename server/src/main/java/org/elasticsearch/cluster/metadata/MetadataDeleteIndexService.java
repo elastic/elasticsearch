@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -141,18 +142,32 @@ public class MetadataDeleteIndexService {
         }
     }
 
+    public static ClusterState deleteIndices(ClusterState clusterState, Set<Index> indices, Settings settings) {
+        final Map<ProjectId, Set<Index>> byProject = new HashMap<>();
+        for (Index index : indices) {
+            final ProjectMetadata project = clusterState.metadata().projectFor(index);
+            byProject.computeIfAbsent(project.id(), ignore -> new HashSet<>()).add(index);
+        }
+
+        for (final Map.Entry<ProjectId, Set<Index>> entry : byProject.entrySet()) {
+            // TODO Avoid creating the state multiple times if there are batched updates for multiple projects
+            clusterState = deleteIndices(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
+        }
+        return clusterState;
+    }
+
     /**
      * Delete some indices from the cluster state.
      */
-    public static ClusterState deleteIndices(ClusterState currentState, Set<Index> indices, Settings settings) {
-        final Metadata meta = currentState.metadata();
+    public static ClusterState deleteIndices(ProjectState projectState, Set<Index> indices, Settings settings) {
+        var project = projectState.metadata();
         final Set<Index> indicesToDelete = new HashSet<>();
         final Map<Index, DataStream> dataStreamIndices = new HashMap<>();
         for (Index index : indices) {
-            IndexMetadata im = meta.getIndexSafe(index);
-            DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
+            IndexMetadata im = project.getIndexSafe(index);
+            DataStream parent = project.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
-                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getFailureStoreWriteIndex());
+                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getWriteFailureIndex());
                 if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {
                     throw new IllegalArgumentException(
                         "index ["
@@ -171,7 +186,7 @@ public class MetadataDeleteIndexService {
         }
 
         // Check if index deletion conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(projectState, indicesToDelete);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete indices that are being snapshotted: "
@@ -180,30 +195,30 @@ public class MetadataDeleteIndexService {
             );
         }
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-        Metadata.Builder metadataBuilder = Metadata.builder(meta);
-        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(projectState.routingTable());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
+        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(projectState.cluster().blocks());
 
-        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metadataBuilder.indexGraveyard());
+        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(projectBuilder.indexGraveyard());
         final int previousGraveyardSize = graveyardBuilder.tombstones().size();
         for (final Index index : indices) {
             String indexName = index.getName();
             logger.info("{} deleting index", index);
             routingTableBuilder.remove(indexName);
-            clusterBlocksBuilder.removeIndexBlocks(indexName);
-            metadataBuilder.remove(indexName);
+            clusterBlocksBuilder.removeIndexBlocks(projectState.projectId(), indexName);
+            projectBuilder.remove(indexName);
             if (dataStreamIndices.containsKey(index)) {
-                DataStream parent = metadataBuilder.dataStream(dataStreamIndices.get(index).getName());
+                DataStream parent = projectBuilder.dataStream(dataStreamIndices.get(index).getName());
                 if (parent.isFailureStoreIndex(index.getName())) {
-                    metadataBuilder.put(parent.removeFailureStoreIndex(index));
+                    projectBuilder.put(parent.removeFailureStoreIndex(index));
                 } else {
-                    metadataBuilder.put(parent.removeBackingIndex(index));
+                    projectBuilder.put(parent.removeBackingIndex(index));
                 }
             }
         }
         // add tombstones to the cluster state for each deleted index
         final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
-        metadataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+        projectBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
         logger.trace(
             "{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
             graveyardBuilder.getNumPurged(),
@@ -211,12 +226,9 @@ public class MetadataDeleteIndexService {
             currentGraveyard.getTombstones().size()
         );
 
-        Metadata newMetadata = metadataBuilder.build();
-        ClusterBlocks blocks = clusterBlocksBuilder.build();
-
         // update snapshot restore entries
-        Map<String, ClusterState.Custom> customs = currentState.getCustoms();
-        final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState);
+        Map<String, ClusterState.Custom> customs = projectState.cluster().getCustoms();
+        final RestoreInProgress restoreInProgress = RestoreInProgress.get(projectState.cluster());
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {
             ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
@@ -224,10 +236,10 @@ public class MetadataDeleteIndexService {
             customs = builder.build();
         }
 
-        return ClusterState.builder(currentState)
-            .routingTable(routingTableBuilder.build())
-            .metadata(newMetadata)
-            .blocks(blocks)
+        return ClusterState.builder(projectState.cluster())
+            .putRoutingTable(project.id(), routingTableBuilder.build())
+            .putProjectMetadata(projectBuilder.build())
+            .blocks(clusterBlocksBuilder.build())
             .customs(customs)
             .build();
     }

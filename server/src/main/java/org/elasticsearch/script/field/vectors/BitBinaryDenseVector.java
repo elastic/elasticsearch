@@ -13,6 +13,10 @@ import org.apache.lucene.util.BytesRef;
 
 import java.util.List;
 
+import static org.elasticsearch.simdvec.ESVectorUtil.andBitCount;
+import static org.elasticsearch.simdvec.ESVectorUtil.ipByteBit;
+import static org.elasticsearch.simdvec.ESVectorUtil.ipFloatBit;
+
 public class BitBinaryDenseVector extends ByteBinaryDenseVector {
 
     public BitBinaryDenseVector(byte[] vectorValue, BytesRef docVector, int dims) {
@@ -54,7 +58,11 @@ public class BitBinaryDenseVector extends ByteBinaryDenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
+        if (queryVector.length == vectorValue.length) {
+            // assume that the query vector is a bit vector and do a bitwise AND
+            return andBitCount(vectorValue, queryVector);
+        }
+        return ipByteBit(queryVector, vectorValue);
     }
 
     @Override
@@ -79,7 +87,7 @@ public class BitBinaryDenseVector extends ByteBinaryDenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
+        return ipFloatBit(queryVector, vectorValue);
     }
 
     @Override

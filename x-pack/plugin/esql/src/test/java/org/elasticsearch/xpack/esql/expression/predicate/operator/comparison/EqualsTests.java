@@ -145,6 +145,34 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         );
 
         suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "EqualsMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                Object::equals,
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
             TestCaseSupplier.stringCases(
                 Object::equals,
                 (lhsType, rhsType) -> "EqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
@@ -208,17 +236,8 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(true, suppliers),
-                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(o, v, t, (l, p) -> typeErrorString)
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
-
-    private static String typeErrorString =
-        "boolean, cartesian_point, cartesian_shape, datetime, date_nanos, double, geo_point, geo_shape, integer, ip, keyword, long, text, "
-            + "unsigned_long or version";
 
     @Override
     protected Expression build(Source source, List<Expression> args) {

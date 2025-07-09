@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,7 +69,12 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     public InternalTopMetrics(StreamInput in) throws IOException {
         super(in);
         sortOrder = SortOrder.readFromStream(in);
-        metricNames = in.readStringCollectionAsList();
+        final List<String> metricNames = in.readStringCollectionAsList();
+        if (in instanceof DelayableWriteable.Deduplicator bo) {
+            this.metricNames = bo.deduplicate(metricNames);
+        } else {
+            this.metricNames = metricNames;
+        }
         size = in.readVInt();
         topMetrics = in.readCollectionAsList(TopMetric::new);
     }

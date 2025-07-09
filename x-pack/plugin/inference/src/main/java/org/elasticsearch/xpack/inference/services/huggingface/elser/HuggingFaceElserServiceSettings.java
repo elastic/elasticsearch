@@ -36,7 +36,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
         HuggingFaceRateLimitServiceSettings {
 
     public static final String NAME = "hugging_face_elser_service_settings";
-    static final String URL = "url";
+    public static final String URL = "url";
     private static final int ELSER_TOKEN_LIMIT = 512;
     // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value his is only a guess
     // 3000 requests per minute

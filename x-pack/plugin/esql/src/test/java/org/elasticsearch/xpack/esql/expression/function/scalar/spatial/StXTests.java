@@ -32,11 +32,11 @@ public class StXTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedEvaluator = "StXFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedEvaluator = "StXFromWKBEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, DOUBLE, StXTests::valueOf, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, DOUBLE, StXTests::valueOf, List.of());
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "geo_point or cartesian_point");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static double valueOf(BytesRef wkb) {

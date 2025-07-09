@@ -20,8 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
@@ -46,7 +44,6 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  * task according to the policy's schedule.
  */
 public class SnapshotLifecycleService implements Closeable, ClusterStateListener {
-    public static final NodeFeature INTERVAL_SCHEDULE = new NodeFeature("slm.interval_schedule");
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
 
@@ -139,14 +136,14 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * Schedule all non-scheduled snapshot jobs contained in the cluster state
      */
     public void scheduleSnapshotJobs(final ClusterState state) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             snapMeta.getSnapshotConfigurations().values().forEach(this::maybeScheduleSnapshot);
         }
     }
 
     public void cleanupDeletedPolicies(final ClusterState state) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             // Retrieve all of the expected policy job ids from the policies in the metadata
             final Set<String> policyJobIds = snapMeta.getSnapshotConfigurations()
@@ -257,18 +254,6 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     + "schedule would be too frequent, executing more than every ["
                     + minimum.getStringRep()
                     + "]"
-            );
-        }
-    }
-
-    /**
-     * Validate that interval schedule feature is not supported by all nodes
-     * @throws IllegalArgumentException if is interval expression but interval schedule not supported
-     */
-    public static void validateIntervalScheduleSupport(String schedule, FeatureService featureService, ClusterState state) {
-        if (SnapshotLifecyclePolicy.isIntervalSchedule(schedule) && featureService.clusterHasFeature(state, INTERVAL_SCHEDULE) == false) {
-            throw new IllegalArgumentException(
-                "Unable to use slm interval schedules in mixed-clusters with nodes that do not support feature " + INTERVAL_SCHEDULE.id()
             );
         }
     }

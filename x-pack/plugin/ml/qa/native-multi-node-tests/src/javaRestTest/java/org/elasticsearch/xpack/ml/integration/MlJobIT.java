@@ -58,6 +58,14 @@ public class MlJobIT extends ESRestTestCase {
             ).equals(warnings) == false
         )
         .build();
+    private static final RequestOptions FLUSH_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(
+            warnings -> Collections.singletonList(
+                "Forcing any buffered data to be processed is deprecated, "
+                    + "in a future major version it will be compulsory to use a datafeed"
+            ).equals(warnings) == false
+        )
+        .build();
 
     @Override
     protected Settings restClientSettings() {
@@ -534,9 +542,9 @@ public class MlJobIT extends ESRestTestCase {
         postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"responsetime\":100, \"time\":\"2019-07-01 00:10:00Z\" }");
         client().performRequest(postDataRequest);
 
-        Response flushResponse = client().performRequest(
-            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush")
-        );
+        Request flushRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
+        flushRequest.setOptions(FLUSH_OPTIONS);
+        Response flushResponse = client().performRequest(flushRequest);
         assertThat(entityAsMap(flushResponse), hasEntry("flushed", true));
 
         closeJob(jobId);
@@ -574,9 +582,9 @@ public class MlJobIT extends ESRestTestCase {
             { "airline":"LOT", "response_time":100, "time":"2019-07-01 02:00:00Z" }""");
         client().performRequest(postDataRequest);
 
-        Response flushResponse = client().performRequest(
-            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush")
-        );
+        Request flushRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
+        flushRequest.setOptions(FLUSH_OPTIONS);
+        Response flushResponse = client().performRequest(flushRequest);
         assertThat(entityAsMap(flushResponse), hasEntry("flushed", true));
 
         closeJob(jobId);

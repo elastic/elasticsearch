@@ -86,8 +86,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -217,10 +215,10 @@ public final class NodeEnvironment implements Closeable {
             final CheckedFunction<Path, Boolean, IOException> pathFunction,
             final Function<Path, Path> subPathMapping
         ) throws IOException {
-            dataPaths = new DataPath[environment.dataFiles().length];
+            dataPaths = new DataPath[environment.dataDirs().length];
             locks = new Lock[dataPaths.length];
             try {
-                final Path[] dataPaths = environment.dataFiles();
+                final Path[] dataPaths = environment.dataDirs();
                 for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
                     Path dataDir = dataPaths[dirIndex];
                     Path dir = subPathMapping.apply(dataDir);
@@ -269,9 +267,9 @@ public final class NodeEnvironment implements Closeable {
         boolean success = false;
 
         try {
-            sharedDataPath = environment.sharedDataFile();
+            sharedDataPath = environment.sharedDataDir();
 
-            for (Path path : environment.dataFiles()) {
+            for (Path path : environment.dataDirs()) {
                 if (Files.exists(path)) {
                     // Call to toRealPath required to resolve symlinks.
                     // We let it fall through to create directories to ensure the symlink
@@ -289,7 +287,7 @@ public final class NodeEnvironment implements Closeable {
                     Locale.ROOT,
                     "failed to obtain node locks, tried %s;"
                         + " maybe these locations are not writable or multiple nodes were started on the same data path?",
-                    Arrays.toString(environment.dataFiles())
+                    Arrays.toString(environment.dataDirs())
                 );
                 throw new IllegalStateException(message, e);
             }
@@ -312,7 +310,7 @@ public final class NodeEnvironment implements Closeable {
             }
 
             // versions 7.x and earlier put their data under ${path.data}/nodes/; leave a file at that location to prevent downgrades
-            for (Path dataPath : environment.dataFiles()) {
+            for (Path dataPath : environment.dataDirs()) {
                 final Path legacyNodesPath = dataPath.resolve("nodes");
                 if (Files.isRegularFile(legacyNodesPath) == false) {
                     final String content = "written by Elasticsearch "
@@ -351,7 +349,7 @@ public final class NodeEnvironment implements Closeable {
         boolean upgradeNeeded = false;
 
         // check if we can do an auto-upgrade
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.dataDirs()) {
             final Path nodesFolderPath = path.resolve("nodes");
             if (Files.isDirectory(nodesFolderPath)) {
                 final List<Integer> nodeLockIds = new ArrayList<>();
@@ -394,7 +392,7 @@ public final class NodeEnvironment implements Closeable {
             return false;
         }
 
-        logger.info("upgrading legacy data folders: {}", Arrays.toString(environment.dataFiles()));
+        logger.info("upgrading legacy data folders: {}", Arrays.toString(environment.dataDirs()));
 
         // acquire locks on legacy path for duration of upgrade (to ensure there is no older ES version running on this path)
         final NodeLock legacyNodeLock;
@@ -405,7 +403,7 @@ public final class NodeEnvironment implements Closeable {
                 Locale.ROOT,
                 "failed to obtain legacy node locks, tried %s;"
                     + " maybe these locations are not writable or multiple nodes were started on the same data path?",
-                Arrays.toString(environment.dataFiles())
+                Arrays.toString(environment.dataDirs())
             );
             throw new IllegalStateException(message, e);
         }
@@ -496,7 +494,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         // upgrade successfully completed, remove legacy nodes folders
-        IOUtils.rm(Stream.of(environment.dataFiles()).map(path -> path.resolve("nodes")).toArray(Path[]::new));
+        IOUtils.rm(Stream.of(environment.dataDirs()).map(path -> path.resolve("nodes")).toArray(Path[]::new));
 
         return true;
     }
@@ -524,9 +522,8 @@ public final class NodeEnvironment implements Closeable {
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
-        if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
-
-            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
+        if (metadata.oldestIndexVersion().before(IndexVersions.MINIMUM_COMPATIBLE)) {
+            BuildVersion bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion().toReleaseVersion()
@@ -1504,29 +1501,23 @@ public final class NodeEnvironment implements Closeable {
 
     /**
      * Get a useful version string to direct a user's downgrade operation
+     * <p>
+     * Assuming that the index was compatible with {@code previousNodeVersion},
+     * the user should downgrade to that {@code previousNodeVersion},
+     * unless it's prior to the minimum compatible version,
+     * in which case the user should downgrade to that instead.
+     * (If the index version is so old that the minimum compatible version is incompatible with the index,
+     * then the cluster was already borked before the node upgrade began,
+     * and we can't probably help them without more info than we have here.)
      *
-     * <p>If a user is trying to install 8.0 but has incompatible indices, the user should
-     * downgrade to 7.17.x. We return 7.17.0, unless the user is trying to upgrade from
-     * a 7.17.x release, in which case we return the last installed version.
      * @return Version to downgrade to
      */
     // visible for testing
-    static String getBestDowngradeVersion(String previousNodeVersion) {
-        // this method should only be called in the context of an upgrade to 8.x
-        assert Build.current().version().startsWith("9.") == false;
-        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+$");
-        Matcher matcher = pattern.matcher(previousNodeVersion);
-        if (matcher.matches()) {
-            try {
-                int minorVersion = Integer.parseInt(matcher.group(1));
-                if (minorVersion >= 17) {
-                    return previousNodeVersion;
-                }
-            } catch (NumberFormatException e) {
-                // continue and return default
-            }
+    static BuildVersion getBestDowngradeVersion(BuildVersion previousNodeVersion) {
+        if (previousNodeVersion.onOrAfterMinimumCompatible()) {
+            return previousNodeVersion;
         }
-        return "7.17.0";
+        return BuildVersion.current().minimumCompatibilityVersion();
     }
 
 }

@@ -1,6 +1,0 @@
-pr: 112723
-summary: Improve DateTime error handling and add some bad date tests
-area: Search
-type: bug
-issues:
- - 112190

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
@@ -29,22 +30,38 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
         var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        if (plan.indexMode() == IndexMode.TIME_SERIES) {
-            Attribute tsid = null, timestamp = null;
-            for (Attribute attr : plan.output()) {
-                String name = attr.name();
-                if (name.equals(MetadataAttribute.TSID_FIELD)) {
+        final List<Attribute> attributes = new ArrayList<>();
+        attributes.add(docId);
+
+        var outputIterator = plan.output().iterator();
+        var isTimeSeries = plan.indexMode() == IndexMode.TIME_SERIES;
+        var keepIterating = true;
+        Attribute tsid = null, timestamp = null, score = null;
+
+        while (keepIterating && outputIterator.hasNext()) {
+            Attribute attr = outputIterator.next();
+            if (attr instanceof MetadataAttribute ma) {
+                if (ma.name().equals(MetadataAttribute.SCORE)) {
+                    score = attr;
+                } else if (isTimeSeries && ma.name().equals(MetadataAttribute.TSID_FIELD)) {
                     tsid = attr;
-                } else if (name.equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                    timestamp = attr;
                 }
+            } else if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                timestamp = attr;
             }
+            keepIterating = score == null || (isTimeSeries && (tsid == null || timestamp == null));
+        }
+        if (isTimeSeries) {
             if (tsid == null || timestamp == null) {
                 throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
             }
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId, tsid, timestamp), plan.query());
-        } else {
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId), plan.query());
+            attributes.add(tsid);
+            attributes.add(timestamp);
         }
+        if (score != null) {
+            attributes.add(score);
+        }
+
+        return new EsQueryExec(plan.source(), plan.indexPattern(), plan.indexMode(), plan.indexNameWithModes(), attributes, plan.query());
     }
 }

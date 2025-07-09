@@ -8,7 +8,7 @@
  */
 
 plugins {
-  id "com.gradle.develocity" version "3.18.1"
+  id "com.gradle.develocity" version "4.0.1"
 }
 
 // Include all subdirectories as example projects
@@ -37,6 +37,10 @@ gradle.projectsEvaluated {
       configurations.all {
         resolutionStrategy.dependencySubstitution {
           // When using composite builds we need to tell Gradle to use the project names since we rename the published artifacts
+          substitute module('org.elasticsearch.plugin:elasticsearch-plugin-api') using module("org.elasticsearch.plugin:plugin-api:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.plugin:elasticsearch-plugin-analysis-api') using module("org.elasticsearch.plugin:plugin-analysis-api:${elasticsearchVersion}")
+          substitute module('org.elasticsearch:elasticsearch-plugin-scanner') using module("org.elasticsearch:plugin-scanner:${elasticsearchVersion}")
+          substitute module('org.elasticsearch:elasticsearch-core') using module("org.elasticsearch:core:${elasticsearchVersion}")
           substitute module('org.elasticsearch:elasticsearch') using module("org.elasticsearch:server:${elasticsearchVersion}")
           substitute module('org.elasticsearch.client:elasticsearch-rest-client') using module("org.elasticsearch.client:rest:${elasticsearchVersion}")
           substitute module('org.elasticsearch.plugin:x-pack-core') using module("org.elasticsearch.plugin:core:${elasticsearchVersion}")

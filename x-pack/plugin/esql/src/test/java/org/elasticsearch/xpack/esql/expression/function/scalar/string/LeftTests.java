@@ -167,11 +167,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
-            case 0 -> "string";
-            case 1 -> "integer";
-            default -> "";
-        });
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static String unicodeLeftSubstring(String str, int length) {

@@ -13,10 +13,10 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -28,16 +28,12 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * The REST handler for get index and head index APIs.
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetIndicesAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndicesAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
-        + " is deprecated. The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -52,11 +48,10 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final GetIndexRequest getIndexRequest = new GetIndexRequest();
+        final GetIndexRequest getIndexRequest = new GetIndexRequest(RestUtils.getMasterNodeTimeout(request));
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
-        getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-        getIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        RestUtils.consumeDeprecatedLocalParameter(request);
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));

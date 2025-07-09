@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.List;
@@ -40,6 +41,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> CCR = xpackUsageFeatureAction(XPackField.CCR);
     public static final ActionType<XPackUsageFeatureResponse> TRANSFORM = xpackUsageFeatureAction(XPackField.TRANSFORM);
     public static final ActionType<XPackUsageFeatureResponse> VOTING_ONLY = xpackUsageFeatureAction(XPackField.VOTING_ONLY);
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
     public static final ActionType<XPackUsageFeatureResponse> FROZEN_INDICES = xpackUsageFeatureAction(XPackField.FROZEN_INDICES);
     public static final ActionType<XPackUsageFeatureResponse> SPATIAL = xpackUsageFeatureAction(XPackField.SPATIAL);
     public static final ActionType<XPackUsageFeatureResponse> ANALYTICS = xpackUsageFeatureAction(XPackField.ANALYTICS);
@@ -58,6 +60,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> REMOTE_CLUSTERS = xpackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
     public static final ActionType<XPackUsageFeatureResponse> ENTERPRISE_SEARCH = xpackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
     public static final ActionType<XPackUsageFeatureResponse> UNIVERSAL_PROFILING = xpackUsageFeatureAction(XPackField.UNIVERSAL_PROFILING);
+    public static final ActionType<XPackUsageFeatureResponse> LOGSDB = xpackUsageFeatureAction(XPackField.LOGSDB);
 
     static final List<ActionType<XPackUsageFeatureResponse>> ALL = List.of(
         AGGREGATE_METRIC,
@@ -68,7 +71,6 @@ public final class XPackUsageFeatureAction {
         DATA_TIERS,
         EQL,
         ESQL,
-        FROZEN_INDICES,
         GRAPH,
         INDEX_LIFECYCLE,
         INFERENCE,
@@ -88,7 +90,8 @@ public final class XPackUsageFeatureAction {
         HEALTH,
         REMOTE_CLUSTERS,
         ENTERPRISE_SEARCH,
-        UNIVERSAL_PROFILING
+        UNIVERSAL_PROFILING,
+        LOGSDB
     );
 
     public static ActionType<XPackUsageFeatureResponse> xpackUsageFeatureAction(String suffix) {

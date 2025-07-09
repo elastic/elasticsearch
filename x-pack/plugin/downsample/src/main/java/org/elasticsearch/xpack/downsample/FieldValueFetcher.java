@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,6 +52,11 @@ class FieldValueFetcher {
         return fieldData.load(context).getFormattedValues(format);
     }
 
+    public SortedNumericDoubleValues getNumericLeaf(LeafReaderContext context) {
+        LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
+        return numericFieldData.getDoubleValues();
+    }
+
     public AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
@@ -65,6 +73,8 @@ class FieldValueFetcher {
             // If field is not a metric, we downsample it as a label
             if ("histogram".equals(fieldType.typeName())) {
                 return new LabelFieldProducer.HistogramLastLabelFieldProducer(name());
+            } else if ("flattened".equals(fieldType.typeName())) {
+                return new LabelFieldProducer.FlattenedLastValueFieldProducer(name());
             }
             return new LabelFieldProducer.LabelLastValueFieldProducer(name());
         }
@@ -79,7 +89,7 @@ class FieldValueFetcher {
             MappedFieldType fieldType = context.getFieldType(field);
             assert fieldType != null : "Unknown field type for field: [" + field + "]";
 
-            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+            if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
                 // If the field is an aggregate_metric_double field, we should load all its subfields
                 // This is a downsample-of-downsample case
                 for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
@@ -90,7 +100,13 @@ class FieldValueFetcher {
                 }
             } else {
                 if (context.fieldExistsInIndex(field)) {
-                    final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    final IndexFieldData<?> fieldData;
+                    if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType flattenedFieldType) {
+                        var keyedFieldType = flattenedFieldType.getKeyedFieldType();
+                        fieldData = context.getForField(keyedFieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    } else {
+                        fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    }
                     final String fieldName = context.isMultiField(field)
                         ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
                         : fieldType.name();

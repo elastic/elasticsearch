@@ -10,16 +10,14 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -52,7 +50,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class VotingOnlyNodePluginTests extends ESIntegTestCase {
@@ -109,7 +106,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         final String originalMaster = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+        awaitMasterNode();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
@@ -128,6 +125,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 equalTo(3)
             )
         );
+        awaitMasterNode();
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
@@ -145,7 +143,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 .build()
         );
         internalCluster().startNode();
-        assertBusy(() -> assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getNodes().getSize(), equalTo(2)));
+        ensureStableCluster(2);
+        awaitMasterNode();
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
@@ -165,22 +164,11 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 equalTo(3)
             )
         );
+        awaitMasterNode();
         final String oldMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
 
         internalCluster().stopCurrentMasterNode();
-
-        expectThrows(
-            MasterNotDiscoveredException.class,
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            )
-        );
+        awaitMasterNotFound();
 
         // start a fresh full master node, which will be brought into the cluster as master by the voting-only nodes
         final String newMaster = internalCluster().startNode();
@@ -277,7 +265,15 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         ) {
             return Collections.singletonMap(
                 "verifyaccess-fs",
-                (metadata) -> new AccessVerifyingRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new AccessVerifyingRepo(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
 
@@ -286,6 +282,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             private final ClusterService clusterService;
 
             private AccessVerifyingRepo(
+                ProjectId projectId,
                 RepositoryMetadata metadata,
                 Environment environment,
                 NamedXContentRegistry namedXContentRegistry,
@@ -293,7 +290,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 BigArrays bigArrays,
                 RecoverySettings recoverySettings
             ) {
-                super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+                super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
                 this.clusterService = clusterService;
             }
 

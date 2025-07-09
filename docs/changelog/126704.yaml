@@ -1,0 +1,5 @@
+pr: 126704
+summary: Add dense vector off-heap stats to Node stats and Index stats APIs
+area: "Vector Search"
+type: enhancement
+issues: []

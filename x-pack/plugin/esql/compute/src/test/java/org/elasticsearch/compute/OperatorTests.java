@@ -9,7 +9,9 @@ package org.elasticsearch.compute;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -34,43 +36,51 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,12 +94,21 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
-import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
-import static org.hamcrest.Matchers.contains;
+import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-// TODO: Move these tests to the right test classes.
+/**
+ * This venerable test builds {@link Driver}s by hand and runs them together, simulating
+ * whole runs without needing to involve ESQL-proper. It's a wonderful place to integration
+ * test new ideas, and it was the first tests the compute engine ever had. But as we plug
+ * these things into ESQL tests should leave here and just run in csv-spec tests. Or move
+ * into unit tests for the operators themselves.
+ * <p>
+ *     TODO move any of these we can to unit tests for the operator.
+ * </p>
+ */
 public class OperatorTests extends MapperServiceTestCase {
 
     public void testQueryOperator() throws IOException {
@@ -98,7 +117,11 @@ public class OperatorTests extends MapperServiceTestCase {
             final long from = randomBoolean() ? Long.MIN_VALUE : randomLongBetween(0, 10000);
             final long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 10000);
             final Query query = LongPoint.newRangeQuery("pt", from, to);
-            LuceneOperator.Factory factory = luceneOperatorFactory(reader, query, LuceneOperator.NO_LIMIT);
+            LuceneOperator.Factory factory = luceneOperatorFactory(
+                reader,
+                List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+                LuceneOperator.NO_LIMIT
+            );
             List<Driver> drivers = new ArrayList<>();
             try {
                 Set<Integer> actualDocIds = ConcurrentCollections.newConcurrentSet();
@@ -114,7 +137,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     });
                     DriverContext driverContext = driverContext();
-                    drivers.add(new Driver(driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
+                    drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
@@ -183,19 +206,19 @@ public class OperatorTests extends MapperServiceTestCase {
                 });
                 operators.add(
                     new OrdinalsGroupingOperator(
-                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
-                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(mockBlContext()),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
                         ElementType.BYTES_REF,
                         0,
                         gField,
-                        List.of(CountAggregatorFunction.supplier(List.of(1)).groupingAggregatorFactory(INITIAL)),
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(INITIAL, List.of(1))),
                         randomPageSize(),
                         driverContext
                     )
                 );
                 operators.add(
                     new HashAggregationOperator(
-                        List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(FINAL, List.of(1, 2))),
                         () -> BlockHash.build(
                             List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
                             driverContext.blockFactory(),
@@ -205,9 +228,13 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
-                Driver driver = new Driver(
+                Driver driver = TestDriverFactory.create(
                     driverContext,
-                    luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
+                    luceneOperatorFactory(
+                        reader,
+                        List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                        LuceneOperator.NO_LIMIT
+                    ).get(driverContext),
                     operators,
                     new PageConsumerOperator(page -> {
                         BytesRefBlock keys = page.getBlock(0);
@@ -218,8 +245,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
                         page.releaseBlocks();
-                    }),
-                    () -> {}
+                    })
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
@@ -230,32 +256,215 @@ public class OperatorTests extends MapperServiceTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testLimitOperator() {
-        var positions = 100;
-        var limit = randomIntBetween(90, 101);
-        var values = randomList(positions, positions, ESTestCase::randomLong);
-
-        var results = new ArrayList<Long>();
+    // TODO: Remove ordinals grouping operator or enable it GroupingAggregatorFunctionTestCase
+    public void testValuesWithOrdinalGrouping() throws Exception {
         DriverContext driverContext = driverContext();
-        try (
-            var driver = new Driver(
-                driverContext,
-                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
-                List.of((new LimitOperator.Factory(limit)).get(driverContext)),
-                new PageConsumerOperator(page -> {
-                    LongBlock block = page.getBlock(0);
-                    for (int i = 0; i < page.getPositionCount(); i++) {
-                        results.add(block.getLong(i));
-                    }
-                }),
-                () -> {}
-            )
-        ) {
-            OperatorTestCase.runDriver(driver);
-        }
+        BlockFactory blockFactory = driverContext.blockFactory();
 
-        assertThat(results, contains(values.stream().limit(limit).toArray()));
-        assertDriverContext(driverContext);
+        final int numDocs = between(100, 1000);
+        Map<BytesRef, Set<Long>> expectedValues = new HashMap<>();
+        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            String VAL_NAME = "val";
+            String KEY_NAME = "key";
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                BytesRef key = new BytesRef(Integer.toString(between(1, 100)));
+                SortedSetDocValuesField keyField = new SortedSetDocValuesField(KEY_NAME, key);
+                doc.add(keyField);
+                if (randomBoolean()) {
+                    int numValues = between(0, 2);
+                    for (int v = 0; v < numValues; v++) {
+                        long val = between(1, 1000);
+                        var valuesField = new SortedNumericDocValuesField(VAL_NAME, val);
+                        doc.add(valuesField);
+                        expectedValues.computeIfAbsent(key, k -> new HashSet<>()).add(val);
+                    }
+                }
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            try (DirectoryReader reader = writer.getReader()) {
+                List<Operator> operators = new ArrayList<>();
+                if (randomBoolean()) {
+                    operators.add(new ShuffleDocsOperator(blockFactory));
+                }
+                operators.add(
+                    new ValuesSourceReaderOperator(
+                        blockFactory,
+                        List.of(
+                            new ValuesSourceReaderOperator.FieldInfo(
+                                VAL_NAME,
+                                ElementType.LONG,
+                                unused -> new BlockDocValuesReader.LongsBlockLoader(VAL_NAME)
+                            )
+                        ),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                            throw new UnsupportedOperationException();
+                        }, 0.2)),
+                        0
+                    )
+                );
+                operators.add(
+                    new OrdinalsGroupingOperator(
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType(KEY_NAME).blockLoader(mockBlContext()),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
+                        ElementType.BYTES_REF,
+                        0,
+                        KEY_NAME,
+                        List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(INITIAL, List.of(1))),
+                        randomPageSize(),
+                        driverContext
+                    )
+                );
+                operators.add(
+                    new HashAggregationOperator(
+                        List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(FINAL, List.of(1))),
+                        () -> BlockHash.build(
+                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
+                            driverContext.blockFactory(),
+                            randomPageSize(),
+                            false
+                        ),
+                        driverContext
+                    )
+                );
+                Map<BytesRef, Set<Long>> actualValues = new HashMap<>();
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    luceneOperatorFactory(
+                        reader,
+                        List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                        LuceneOperator.NO_LIMIT
+                    ).get(driverContext),
+                    operators,
+                    new PageConsumerOperator(page -> {
+                        BytesRefBlock keyBlock = page.getBlock(0);
+                        LongBlock valueBlock = page.getBlock(1);
+                        BytesRef spare = new BytesRef();
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            var key = keyBlock.getBytesRef(p, spare);
+                            int valueCount = valueBlock.getValueCount(p);
+                            for (int i = 0; i < valueCount; i++) {
+                                long val = valueBlock.getLong(valueBlock.getFirstValueIndex(p) + i);
+                                boolean added = actualValues.computeIfAbsent(BytesRef.deepCopyOf(key), k -> new HashSet<>()).add(val);
+                                assertTrue(actualValues.toString(), added);
+                            }
+                        }
+                        page.releaseBlocks();
+                    })
+                );
+                OperatorTestCase.runDriver(driver);
+                assertDriverContext(driverContext);
+                assertThat(actualValues, equalTo(expectedValues));
+                org.elasticsearch.common.util.MockBigArrays.ensureAllArraysAreReleased();
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testPushRoundToToQuery() throws IOException {
+        long firstGroupMax = randomLong();
+        long secondGroupMax = randomLong();
+        long thirdGroupMax = randomLong();
+
+        CheckedConsumer<DirectoryReader, IOException> verifier = reader -> {
+            Query firstGroupQuery = LongPoint.newRangeQuery("g", Long.MIN_VALUE, 99);
+            Query secondGroupQuery = LongPoint.newRangeQuery("g", 100, 9999);
+            Query thirdGroupQuery = LongPoint.newRangeQuery("g", 10000, Long.MAX_VALUE);
+
+            LuceneSliceQueue.QueryAndTags firstGroupQueryAndTags = new LuceneSliceQueue.QueryAndTags(firstGroupQuery, List.of(0L));
+            LuceneSliceQueue.QueryAndTags secondGroupQueryAndTags = new LuceneSliceQueue.QueryAndTags(secondGroupQuery, List.of(100L));
+            LuceneSliceQueue.QueryAndTags thirdGroupQueryAndTags = new LuceneSliceQueue.QueryAndTags(thirdGroupQuery, List.of(10000L));
+
+            LuceneOperator.Factory factory = luceneOperatorFactory(
+                reader,
+                List.of(firstGroupQueryAndTags, secondGroupQueryAndTags, thirdGroupQueryAndTags),
+                LuceneOperator.NO_LIMIT
+            );
+            ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
+                List.of(
+                    new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, f -> new BlockDocValuesReader.LongsBlockLoader("v"))
+                ),
+                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                    throw new UnsupportedOperationException();
+                }, 0.8)),
+                0
+            );
+            List<Page> pages = new ArrayList<>();
+            DriverContext driverContext = driverContext();
+            try (
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    factory.get(driverContext),
+                    List.of(load.get(driverContext)),
+                    new TestResultPageSinkOperator(pages::add)
+                )
+            ) {
+                OperatorTestCase.runDriver(driver);
+            }
+            assertDriverContext(driverContext);
+
+            boolean sawFirstMax = false;
+            boolean sawSecondMax = false;
+            boolean sawThirdMax = false;
+            for (Page page : pages) {
+                logger.error("ADFA {}", page);
+                LongVector group = page.<LongBlock>getBlock(1).asVector();
+                LongVector value = page.<LongBlock>getBlock(2).asVector();
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    long g = group.getLong(p);
+                    long v = value.getLong(p);
+                    switch ((int) g) {
+                        case 0 -> {
+                            assertThat(v, lessThanOrEqualTo(firstGroupMax));
+                            sawFirstMax |= v == firstGroupMax;
+                        }
+                        case 100 -> {
+                            assertThat(v, lessThanOrEqualTo(secondGroupMax));
+                            sawSecondMax |= v == secondGroupMax;
+                        }
+                        case 10000 -> {
+                            assertThat(v, lessThanOrEqualTo(thirdGroupMax));
+                            sawThirdMax |= v == thirdGroupMax;
+                        }
+                        default -> throw new IllegalArgumentException("Unknown group [" + g + "]");
+                    }
+                }
+            }
+            assertTrue(sawFirstMax);
+            assertTrue(sawSecondMax);
+            assertTrue(sawThirdMax);
+        };
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            int numDocs = randomIntBetween(0, 10_000);
+            for (int i = 0; i < numDocs; i++) {
+                long g, v;
+                switch (between(0, 2)) {
+                    case 0 -> {
+                        g = randomLongBetween(Long.MIN_VALUE, 99);
+                        v = randomLongBetween(Long.MIN_VALUE, firstGroupMax);
+                    }
+                    case 1 -> {
+                        g = randomLongBetween(100, 9999);
+                        v = randomLongBetween(Long.MIN_VALUE, secondGroupMax);
+                    }
+                    case 2 -> {
+                        g = randomLongBetween(10000, Long.MAX_VALUE);
+                        v = randomLongBetween(Long.MIN_VALUE, thirdGroupMax);
+                    }
+                    default -> throw new IllegalArgumentException();
+                }
+                w.addDocument(List.of(new LongField("g", g, Field.Store.NO), new LongField("v", v, Field.Store.NO)));
+            }
+            w.addDocument(List.of(new LongField("g", 0, Field.Store.NO), new LongField("v", firstGroupMax, Field.Store.NO)));
+            w.addDocument(List.of(new LongField("g", 200, Field.Store.NO), new LongField("v", secondGroupMax, Field.Store.NO)));
+            w.addDocument(List.of(new LongField("g", 20000, Field.Store.NO), new LongField("v", thirdGroupMax, Field.Store.NO)));
+
+            try (DirectoryReader reader = w.getReader()) {
+                verifier.accept(reader);
+            }
+        }
     }
 
     private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {
@@ -325,7 +534,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var actualValues = new ArrayList<>();
             var actualPrimeOrds = new ArrayList<>();
             try (
-                var driver = new Driver(
+                var driver = TestDriverFactory.create(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
@@ -342,8 +551,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 OperatorTestCase.runDriver(driver);
@@ -355,7 +563,6 @@ public class OperatorTests extends MapperServiceTestCase {
         } finally {
             primesBlock.close();
         }
-
     }
 
     /**
@@ -378,15 +585,55 @@ public class OperatorTests extends MapperServiceTestCase {
         assertThat(driverContext.getSnapshot().releasables(), empty());
     }
 
-    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
+    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, List<LuceneSliceQueue.QueryAndTags> queryAndTags, int limit) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
-            ctx -> query,
+            ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            limit
+            limit,
+            false // no scoring
         );
+    }
+
+    private MappedFieldType.BlockLoaderContext mockBlContext() {
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

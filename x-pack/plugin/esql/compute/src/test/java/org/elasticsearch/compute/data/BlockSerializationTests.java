@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,9 +19,12 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -374,15 +379,23 @@ public class BlockSerializationTests extends SerializationTestCase {
         final Block[] blocks = new Block[numBlocks];
         for (int b = 0; b < numBlocks; b++) {
             ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
-            blocks[b] = BasicBlockTests.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2))
-                .block();
+            blocks[b] = RandomBlock.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2)).block();
         }
         try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
             assertThat(origBlock.getBlockCount(), equalTo(numBlocks));
             for (int b = 0; b < numBlocks; b++) {
                 assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
             }
-            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+            try (
+                CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK,
+                        TransportVersion.current()
+                    )
+                )
+            ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
                 for (int b = 0; b < numBlocks; b++) {
                     assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));

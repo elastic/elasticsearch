@@ -10,11 +10,11 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-  name 'custom-settings'
-  description 'An example plugin showing how to register custom settings'
-  classname 'org.elasticsearch.example.customsettings.ExampleCustomSettingsPlugin'
-  licenseFile rootProject.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'custom-settings'
+  description = 'An example plugin showing how to register custom settings'
+  classname ='org.elasticsearch.example.customsettings.ExampleCustomSettingsPlugin'
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
 
 testClusters.configureEach {

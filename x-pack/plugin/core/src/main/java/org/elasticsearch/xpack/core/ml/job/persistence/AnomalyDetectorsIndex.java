@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,6 +38,10 @@ public final class AnomalyDetectorsIndex {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
     }
 
+    public static String jobResultsIndexPattern() {
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*";
+    }
+
     /**
      * The name of the alias pointing to the indices where the job's results are stored
      * @param jobId Job Id
@@ -47,14 +52,25 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
+     * Extract the job Id from the alias name.
+     * If not an results index alias null is returned
+     * @param jobResultsAliasedName The alias
+     * @return The job Id
+     */
+    public static String jobIdFromAlias(String jobResultsAliasedName) {
+        if (jobResultsAliasedName.length() < AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()) {
+            return null;
+        }
+        return jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+    }
+
+    /**
      * The name of the alias pointing to the write index for a job
      * @param jobId Job Id
      * @return The write alias
      */
     public static String resultsWriteAlias(String jobId) {
-        // ".write" rather than simply "write" to avoid the danger of clashing
-        // with the read alias of a job whose name begins with "write-"
-        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + ".write-" + jobId;
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_WRITE_PREFIX + jobId;
     }
 
     /**
@@ -91,6 +107,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
             finalListener
         );
     }
@@ -123,6 +143,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
             stateIndexAndAliasCreated
         );
     }

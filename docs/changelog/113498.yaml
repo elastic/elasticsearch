@@ -1,5 +1,0 @@
-pr: 113498
-summary: Listing all available databases in the _ingest/geoip/database API
-area: Ingest Node
-type: enhancement
-issues: []

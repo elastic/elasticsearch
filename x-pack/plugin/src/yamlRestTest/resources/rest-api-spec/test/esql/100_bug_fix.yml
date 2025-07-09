@@ -257,9 +257,6 @@
 
 ---
 "mv_dedupe from index #104745":
-  - requires:
-      cluster_features: ["esql.mv_ordering_sorted_ascending"]
-      reason: "fixed by introducing a sorted, non-deduplicated MvOrdering"
   - do:
       indices.create:
         index: idx_with_multivalues
@@ -338,3 +335,58 @@
       esql.query:
         body:
           query: 'FROM test_grok | KEEP name | WHERE last_name == "Facello" | EVAL name = concat("1 ", last_name) | GROK name "%{NUMBER:foo} %{WORD:foo}"'
+---
+"union types with null blocks from missing fields #125850":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_doubly_released_null_blocks_in_valuesourcereader]
+      reason: "fixed handing out already closed null block references in ValueSourceReader"
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              truefalse1 :
+                type : boolean
+              truefalse2 :
+                type: boolean
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              truefalse1 :
+                type : keyword
+              truefalse2 :
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test1" } }
+          - { "truefalse1": null}
+          - { "index": { "_index": "test2" } }
+          - { "truefalse1": null }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
+      esql.query:
+        body:
+          query: 'FROM test* | eval t1 = truefalse1::boolean, t2 = truefalse2::boolean | keep t1, t2'
+  - match: { columns.0.name: t1 }
+  - match: { columns.0.type: boolean }
+  - match: { columns.1.name: t2 }
+  - match: { columns.1.type: boolean }
+  - length: { values: 2 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.1.0: null }
+  - match: { values.1.1: null }

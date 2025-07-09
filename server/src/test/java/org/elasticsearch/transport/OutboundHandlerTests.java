@@ -66,6 +66,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private InboundPipeline pipeline;
     private OutboundHandler handler;
     private FakeTcpChannel channel;
+    private PlainActionFuture<Void> closeListener;
     private DiscoveryNode node;
     private Compression.Scheme compressionScheme;
 
@@ -73,6 +74,8 @@ public class OutboundHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = DiscoveryNodeUtils.create("", transportAddress);
         StatsTracker statsTracker = new StatsTracker();
@@ -133,10 +136,12 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -204,10 +209,12 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
         boolean compress = randomBoolean();
 
         String value = "message";
@@ -216,13 +223,11 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 requestIdRef.set(requestId);
                 actionRef.set(action);
-                responseRef.set(response);
             }
         });
         if (compress) {
@@ -240,7 +245,6 @@ public class OutboundHandlerTests extends ESTestCase {
         }
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
 
         pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final Tuple<Header, BytesReference> tuple = message.get();
@@ -269,8 +273,8 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
-        String action = "handshake";
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        String action = "not-a-handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
         ElasticsearchException error = new ElasticsearchException("boom");
@@ -322,7 +326,7 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testSendErrorAfterFailToSendResponse() throws Exception {
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
@@ -334,18 +338,15 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
                 actionRef.set(action);
-                assertNull(responseRef.get());
-                responseRef.set(response);
             }
 
             @Override
@@ -370,7 +371,6 @@ public class OutboundHandlerTests extends ESTestCase {
         }
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
         assertThat(exceptionRef.get().getMessage(), equalTo("simulated cbe"));
         assertTrue(response.released.get());
         BytesReference reference = channel.getMessageCaptor().get();
@@ -381,6 +381,7 @@ public class OutboundHandlerTests extends ESTestCase {
             assertThat(rme.getCause().getMessage(), equalTo("simulated cbe"));
         }
         assertTrue(channel.isOpen());
+        assertFalse(closeListener.isDone());
     }
 
     public void testFailToSendResponseThenFailToSendError() {
@@ -391,23 +392,22 @@ public class OutboundHandlerTests extends ESTestCase {
                 throw new IllegalStateException("pipe broken");
             }
         };
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
         TransportVersion version = TransportVersionUtils.randomVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
                 actionRef.set(action);
-                assertNull(responseRef.get());
-                responseRef.set(response);
             }
 
             @Override
@@ -432,12 +432,13 @@ public class OutboundHandlerTests extends ESTestCase {
         }
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
         assertThat(exceptionRef.get().getMessage(), equalTo("simulated cbe"));
         assertTrue(response.released.get());
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
         assertFalse(channel.isOpen());
+        assertTrue(closeListener.isDone());
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     public void testFailToSendHandshakeResponse() {
@@ -453,17 +454,14 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
                 assertNull(actionRef.get());
                 actionRef.set(action);
-                assertNull(responseRef.get());
-                responseRef.set(response);
             }
 
             @Override
@@ -481,9 +479,10 @@ public class OutboundHandlerTests extends ESTestCase {
         assertNull(channel.getListenerCaptor().get());
         assertEquals(requestId, requestIdRef.get());
         assertEquals(action, actionRef.get());
-        assertEquals(response, responseRef.get());
         assertTrue(response.released.get());
         assertFalse(channel.isOpen());
+        assertTrue(closeListener.isDone());
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     public void testFailToSendErrorResponse() {
@@ -494,6 +493,8 @@ public class OutboundHandlerTests extends ESTestCase {
                 throw new IllegalStateException("pipe broken");
             }
         };
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
         TransportVersion version = TransportVersionUtils.randomVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
@@ -503,7 +504,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 throw new AssertionError("must not be called");
             }
 
@@ -526,6 +527,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertFalse(channel.isOpen());
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
+        assertTrue(closeListener.isDone());
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     /**

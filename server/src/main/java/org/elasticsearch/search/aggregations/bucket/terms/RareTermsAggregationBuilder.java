@@ -240,6 +240,6 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_3_0;
+        return TransportVersions.ZERO;
     }
 }

@@ -49,7 +49,12 @@ public abstract class ReservedStateAwareHandledTransportAction<Request extends A
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         assert reservedStateHandlerName().isPresent();
 
-        validateForReservedState(clusterService.state(), reservedStateHandlerName().get(), modifiedKeys(request), request.toString());
+        validateForReservedState(
+            clusterService.state().metadata().reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
         doExecuteProtected(task, request, listener);
     }
 }

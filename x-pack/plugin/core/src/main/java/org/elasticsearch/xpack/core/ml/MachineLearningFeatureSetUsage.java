@@ -11,14 +11,14 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
+public class MachineLearningFeatureSetUsage extends XPackFeatureUsage {
 
     public static final String ALL = "_all";
     public static final String JOBS_FIELD = "jobs";
@@ -66,7 +66,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         this.analyticsUsage = in.readGenericMap();
         this.inferenceUsage = in.readGenericMap();
         this.nodeCount = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TELEMETRY_MEMORY_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.memoryUsage = in.readGenericMap();
         } else {
             this.memoryUsage = Map.of();
@@ -75,7 +75,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -86,7 +86,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(analyticsUsage);
         out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TELEMETRY_MEMORY_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeGenericMap(memoryUsage);
         }
     }

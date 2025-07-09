@@ -29,8 +29,6 @@ public class Distribution {
             this.packaging = Packaging.TAR;
         } else if (filename.endsWith(".docker.tar")) {
             this.packaging = Packaging.DOCKER;
-        } else if (filename.endsWith(".ubi.tar")) {
-            this.packaging = Packaging.DOCKER_UBI;
         } else if (filename.endsWith(".ironbank.tar")) {
             this.packaging = Packaging.DOCKER_IRON_BANK;
         } else if (filename.endsWith(".cloud-ess.tar")) {
@@ -61,7 +59,7 @@ public class Distribution {
      */
     public boolean isDocker() {
         return switch (packaging) {
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> true;
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> true;
             default -> false;
         };
     }
@@ -73,7 +71,6 @@ public class Distribution {
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
-        DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
         DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
         DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker()),
         DOCKER_WOLFI(".wolfi.tar", Platforms.isDocker());

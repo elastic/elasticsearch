@@ -101,18 +101,12 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
-        cases = anyNullIsNull(true, cases);
-        cases = errorsForCasesWithoutExamples(cases, (v, p) -> switch (p) {
-            case 0 -> "string";
-            case 1 -> "integer";
-            default -> "";
-        });
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     @Override

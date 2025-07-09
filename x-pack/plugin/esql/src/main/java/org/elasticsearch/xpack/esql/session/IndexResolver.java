@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -19,9 +19,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -51,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
     public static final Set<String> ALL_FIELDS = Set.of("*");
-    public static final Set<String> INDEX_METADATA_FIELD = Set.of("_index");
+    public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
@@ -78,16 +79,22 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        ActionListener<IndexResolution> listener
+    ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames),
+            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
 
     // public for testing only
-    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
@@ -99,9 +106,9 @@ public class IndexResolver {
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
-        Set<String> forbiddenFields = new HashSet<>();
         Map<String, EsField> rootFields = new HashMap<>();
-        name: for (String name : names) {
+        Set<String> partiallyUnmappedFields = new HashSet<>();
+        for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
@@ -112,9 +119,6 @@ public class IndexResolver {
                     break;
                 }
                 String parent = name.substring(0, nextDot);
-                if (forbiddenFields.contains(parent)) {
-                    continue name;
-                }
                 EsField obj = fields.get(parent);
                 if (obj == null) {
                     obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
@@ -126,64 +130,48 @@ public class IndexResolver {
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
-
-            List<IndexFieldCapabilities> caps = fieldsCaps.get(fullName);
-            if (allNested(caps)) {
-                forbiddenFields.add(name);
-                continue;
-            }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
+            List<IndexFieldCapabilities> fcs = fieldsCaps.get(fullName);
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, caps, isAlias)
+                ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
-                    firstUnsupportedParent.getOriginalType(),
+                    firstUnsupportedParent.getOriginalTypes(),
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
             fields.put(name, field);
+
+            var isPartiallyUnmapped = fcs.size() < numberOfIndices;
+            if (isPartiallyUnmapped) {
+                partiallyUnmappedFields.add(fullName);
+            }
         }
 
-        boolean allEmpty = true;
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            allEmpty &= ir.get().isEmpty();
-        }
-        if (allEmpty) {
-            // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()));
+        Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlCCSUtils.determineUnavailableRemoteClusters(
+            fieldCapsResponse.getFailures()
+        );
+
+        Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
+        for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
+            if (failure.getException() instanceof NoShardAvailableActionException e) {
+                unavailableShards.add(e);
+            }
         }
 
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
-        Set<String> unavailableRemoteClusters = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemoteClusters);
-    }
 
-    // visible for testing
-    static Set<String> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
-        Set<String> unavailableRemotes = new HashSet<>();
-        for (FieldCapabilitiesFailure failure : failures) {
-            if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
-                for (String indexExpression : failure.getIndices()) {
-                    if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                        unavailableRemotes.add(RemoteClusterAware.parseClusterAlias(indexExpression));
-                    }
-                }
-            }
+        boolean allEmpty = true;
+        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+            allEmpty &= ir.get().isEmpty();
         }
-        return unavailableRemotes;
-    }
-
-    private boolean allNested(List<IndexFieldCapabilities> caps) {
-        for (IndexFieldCapabilities cap : caps) {
-            if (false == cap.type().equalsIgnoreCase("nested")) {
-                return false;
-            }
-        }
-        return true;
+        // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
@@ -205,7 +193,7 @@ public class IndexResolver {
         return fieldsCaps;
     }
 
-    private EsField createField(
+    private static EsField createField(
         FieldCapabilitiesResponse fieldCapsResponse,
         String name,
         String fullName,
@@ -253,12 +241,12 @@ public class IndexResolver {
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
     }
 
-    private UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
+    private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
         String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
-        return new UnsupportedEsField(name, originalType);
+        return new UnsupportedEsField(name, List.of(originalType));
     }
 
-    private EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
@@ -273,7 +261,7 @@ public class IndexResolver {
         return new InvalidMappedField(name, typesToIndices);
     }
 
-    private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         TreeSet<String> indices = new TreeSet<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
@@ -284,13 +272,16 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames, QueryBuilder requestFilter) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
+        req.indexFilter(requestFilter);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
+        // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
+        req.filters("-nested");
         req.setMergeResults(false);
         return req;
     }

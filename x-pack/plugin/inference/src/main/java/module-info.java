@@ -33,6 +33,10 @@ module org.elasticsearch.inference {
     requires org.slf4j;
     requires software.amazon.awssdk.retries.api;
     requires org.reactivestreams;
+    requires org.elasticsearch.logging;
+    requires org.elasticsearch.sslconfig;
+    requires org.apache.commons.text;
+    requires software.amazon.awssdk.services.sagemakerruntime;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
@@ -40,6 +44,8 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference;
     exports org.elasticsearch.xpack.inference.action.task;
+    exports org.elasticsearch.xpack.inference.chunking;
+    exports org.elasticsearch.xpack.inference.telemetry;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

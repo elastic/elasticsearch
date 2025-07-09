@@ -1,6 +1,0 @@
-pr: 111797
-summary: "ESQL: fix for missing indices error message"
-area: ES|QL
-type: bug
-issues:
- - 111712

@@ -21,15 +21,16 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  implementation project(":libs:elasticsearch-plugin-api")
-  implementation project(":libs:elasticsearch-plugin-scanner")
-  // TODO: asm is picked up from the plugin scanner, we should consolidate so it is not defined twice
-  implementation 'org.ow2.asm:asm:9.7'
-  implementation 'org.ow2.asm:asm-tree:9.7'
+  compileOnly project(":libs:cli")
+  implementation project(":libs:plugin-api")
+  implementation project(":libs:plugin-scanner")
+  implementation project(":libs:entitlement")
+  // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-tree:9.7.1'
 
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
-  api "org.bouncycastle:bc-fips:1.0.2.4"
+  api "org.bouncycastle:bc-fips:1.0.2.5"
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"

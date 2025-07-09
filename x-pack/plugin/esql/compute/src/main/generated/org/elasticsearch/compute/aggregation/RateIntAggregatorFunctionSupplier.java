@@ -12,26 +12,31 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link RateIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class RateIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  private final long unitInMillis;
-
-  public RateIntAggregatorFunctionSupplier(List<Integer> channels, long unitInMillis) {
-    this.channels = channels;
-    this.unitInMillis = unitInMillis;
+  public RateIntAggregatorFunctionSupplier() {
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
     throw new UnsupportedOperationException("non-grouping aggregator is not supported");
   }
 
   @Override
-  public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return RateIntGroupingAggregatorFunction.create(channels, driverContext, unitInMillis);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return RateIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  }
+
+  @Override
+  public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return RateIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

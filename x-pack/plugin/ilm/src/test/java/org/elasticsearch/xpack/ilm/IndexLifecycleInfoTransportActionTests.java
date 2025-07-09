@@ -12,7 +12,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -33,7 +35,6 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,27 +76,34 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         indexPolicies.put("index_3", policy1Name);
         indexPolicies.put("index_4", policy1Name);
         indexPolicies.put("index_5", policy3Name);
-        LifecyclePolicy policy1 = new LifecyclePolicy(policy1Name, Collections.emptyMap());
+        LifecyclePolicy policy1 = new LifecyclePolicy(policy1Name, Map.of());
         policies.add(policy1);
-        PolicyStats policy1Stats = new PolicyStats(Collections.emptyMap(), 4);
+        PolicyStats policy1Stats = new PolicyStats(Map.of(), 4);
 
         Map<String, Phase> phases1 = new HashMap<>();
         LifecyclePolicy policy2 = new LifecyclePolicy(policy2Name, phases1);
         policies.add(policy2);
-        PolicyStats policy2Stats = new PolicyStats(Collections.emptyMap(), 0);
+        PolicyStats policy2Stats = new PolicyStats(Map.of(), 0);
 
-        LifecyclePolicy policy3 = new LifecyclePolicy(policy3Name, Collections.emptyMap());
+        LifecyclePolicy policy3 = new LifecyclePolicy(policy3Name, Map.of());
         policies.add(policy3);
-        PolicyStats policy3Stats = new PolicyStats(Collections.emptyMap(), 1);
+        PolicyStats policy3Stats = new PolicyStats(Map.of(), 1);
 
-        ClusterState clusterState = buildClusterState(policies, indexPolicies);
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = buildClusterState(projectId, policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        var usageAction = new IndexLifecycleUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class), null);
+        var usageAction = new IndexLifecycleUsageTransportAction(
+            transportService,
+            null,
+            threadPool,
+            mock(ActionFilters.class),
+            TestProjectResolvers.singleProject(projectId)
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();
         assertThat(ilmUsage.enabled(), equalTo(true));
         assertThat(ilmUsage.available(), equalTo(true));
@@ -108,19 +116,23 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     }
 
-    private ClusterState buildClusterState(List<LifecyclePolicy> lifecyclePolicies, Map<String, String> indexPolicies) {
+    private ClusterState buildClusterState(
+        ProjectId projectId,
+        List<LifecyclePolicy> lifecyclePolicies,
+        Map<String, String> indexPolicies
+    ) {
         Map<String, LifecyclePolicyMetadata> lifecyclePolicyMetadatasMap = lifecyclePolicies.stream()
-            .map(p -> new LifecyclePolicyMetadata(p, Collections.emptyMap(), 1, 0L))
+            .map(p -> new LifecyclePolicyMetadata(p, Map.of(), 1, 0L))
             .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 
-        Metadata.Builder metadata = Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
+        ProjectMetadata.Builder project = ProjectMetadata.builder(projectId).putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
         indexPolicies.forEach((indexName, policyName) -> {
             Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings);
-            metadata.put(indexMetadata);
+            project.put(indexMetadata);
         });
 
-        return ClusterState.builder(new ClusterName("my_cluster")).metadata(metadata).build();
+        return ClusterState.builder(new ClusterName("my_cluster")).putProjectMetadata(project).build();
     }
 }

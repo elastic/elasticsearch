@@ -19,6 +19,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -210,7 +211,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
         return ShardSearchRequest.parseAliasFilter(bytes -> {
             try (
-                InputStream inputStream = bytes.streamInput();
+                InputStream inputStream = CompressorFactory.COMPRESSOR.uncompress(bytes).streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)

@@ -20,7 +20,6 @@ public class GetBasicStatusResponse extends ActionResponse implements ToXContent
     private final boolean eligibleToStartBasic;
 
     GetBasicStatusResponse(StreamInput in) throws IOException {
-        super(in);
         eligibleToStartBasic = in.readBoolean();
     }
 

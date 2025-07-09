@@ -36,8 +36,8 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
     public void testFieldHasValueWithEmptyFieldInfos() {}
 
     public void testSyntheticSourceLoadLatency() throws IOException {
-        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
-        var mapper = createDocumentMapper(mapping);
+        var mapping = mapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
+        var mapper = createSytheticSourceMapperService(mapping).documentMapper();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -45,10 +45,7 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(
-                    mapper.mapping(),
-                    createTestMapperMetrics().sourceFieldMetrics()
-                );
+                SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), null, createTestMapperMetrics().sourceFieldMetrics());
                 Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
                 assertEquals(synthetic.source().get("kwd"), "foo");
             }

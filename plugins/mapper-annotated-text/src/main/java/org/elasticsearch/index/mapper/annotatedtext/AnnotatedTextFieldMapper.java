@@ -22,7 +22,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -63,8 +62,6 @@ import java.util.regex.Pattern;
  * my attempts to subclass TextFieldMapper failed but we can revisit this.
  **/
 public class AnnotatedTextFieldMapper extends FieldMapper {
-
-    public static final NodeFeature SYNTHETIC_SOURCE_SUPPORT = new NodeFeature("mapper.annotated_text.synthetic_source");
 
     public static final String CONTENT_TYPE = "annotated_text";
 
@@ -167,7 +164,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings()))
     );
 
@@ -563,19 +560,17 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType.stored()) {
-            var loader = new StringStoredFieldFieldLoader(fullPath(), leafName()) {
+            return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return new SyntheticSourceSupport.Native(kwd.syntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();

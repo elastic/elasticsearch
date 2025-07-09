@@ -9,13 +9,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Optional;
 
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.INDEX_TEMPLATE;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public final class ObjectMapperMergeTests extends ESTestCase {
 
@@ -316,6 +322,35 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper parentMapper = (ObjectMapper) merged.getMapper("parent");
         assertNotNull(parentMapper);
         assertNotNull(parentMapper.getMapper("child.grandchild"));
+    }
+
+    public void testConflictingDynamicUpdate() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new KeywordFieldMapper.Builder("http.status_code", IndexVersion.current())
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new NumberFieldMapper.Builder(
+                "http.status_code",
+                NumberFieldMapper.NumberType.LONG,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                IndexVersion.current(),
+                null,
+                null
+            )
+        ).build(MapperBuilderContext.root(false, false));
+
+        MapperService.MergeReason autoUpdateMergeReason = randomFrom(MAPPING_AUTO_UPDATE, MAPPING_AUTO_UPDATE_PREFLIGHT);
+        ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, autoUpdateMergeReason, Long.MAX_VALUE));
+        FieldMapper httpStatusCode = (FieldMapper) merged.getMapper("http.status_code");
+        assertThat(httpStatusCode, is(instanceOf(KeywordFieldMapper.class)));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+        );
+        assertThat(e.getMessage(), equalTo("mapper [http.status_code] cannot be changed from type [keyword] to [long]"));
     }
 
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {

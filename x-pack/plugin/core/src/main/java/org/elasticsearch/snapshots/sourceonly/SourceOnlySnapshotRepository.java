@@ -20,6 +20,8 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
@@ -97,9 +100,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         // required engine, that the index is read-only and the mapping to a default mapping
         super.finalizeSnapshot(
             new FinalizeSnapshotContext(
+                finalizeSnapshotContext.serializeProjectMetadata(),
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
-                metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
+                metadataToSnapshot(
+                    finalizeSnapshotContext.updatedShardGenerations().liveIndices().indices(),
+                    finalizeSnapshotContext.clusterMetadata()
+                ),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
                 finalizeSnapshotContext,
@@ -109,9 +116,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
-        Metadata.Builder builder = Metadata.builder(metadata);
+        return Metadata.builder(metadata).put(projectMetadataToSnapshot(indices, metadata.getProject())).build();
+    }
+
+    private static ProjectMetadata projectMetadataToSnapshot(Collection<IndexId> indices, ProjectMetadata projectMetadata) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectMetadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata index = projectMetadata.index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
@@ -134,8 +145,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(SnapshotShardContext context) {
         final MapperService mapperService = context.mapperService();
-        if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+        if ((mapperService.documentMapper() != null // if there is no mapping this is null
+            && mapperService.documentMapper().sourceMapper().isComplete() == false)
+            || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {
             context.onFailure(
                 new IllegalStateException(
                     "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
@@ -246,19 +258,20 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return new Repository.Factory() {
 
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
+                throws Exception {
                 String delegateType = DELEGATE_TYPE.get(metadata.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 return new SourceOnlySnapshotRepository(
-                    factory.create(new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
+                    factory.create(projectId, new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
                 );
             }
         };

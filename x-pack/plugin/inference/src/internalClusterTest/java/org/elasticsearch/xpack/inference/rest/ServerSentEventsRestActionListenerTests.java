@@ -17,6 +17,7 @@ import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -32,7 +33,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -42,16 +43,19 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -64,7 +68,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -77,14 +80,19 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String REQUEST_COUNT = "request_count";
     private static final String WITH_ERROR = "with_error";
     private static final String ERROR_ROUTE = "/_inference_error";
+    private static final String FORMATTED_ERROR_ROUTE = "/_formatted_inference_error";
     private static final String NO_STREAM_ROUTE = "/_inference_no_stream";
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
         {\
-        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there",\
-        "caused_by":{"type":"illegal_state_exception","reason":"hello there"}}],\
+        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there"}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
         }""";
+
+    private static final Exception expectedFormattedException = new XContentFormattedException(
+        expectedException,
+        RestStatus.INTERNAL_SERVER_ERROR
+    );
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -97,6 +105,14 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     public static class StreamingPlugin extends Plugin implements ActionPlugin {
+        private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            threadPool.set(services.threadPool());
+            return Collections.emptyList();
+        }
+
         @Override
         public Collection<RestHandler> getRestHandlers(
             Settings settings,
@@ -123,7 +139,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
                     var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
                 @Override
@@ -133,7 +149,17 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    new ServerSentEventsRestActionListener(channel).onFailure(expectedException);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedException);
+                }
+            }, new RestHandler() {
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(RestRequest.Method.POST, FORMATTED_ERROR_ROUTE));
+                }
+
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedFormattedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -144,31 +170,26 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             });
         }
     }
 
     private static class StreamingInferenceServiceResults implements InferenceServiceResults {
-        private final Flow.Publisher<ChunkedToXContent> publisher;
+        private final Flow.Publisher<InferenceServiceResults.Result> publisher;
 
-        private StreamingInferenceServiceResults(Flow.Publisher<ChunkedToXContent> publisher) {
+        private StreamingInferenceServiceResults(Flow.Publisher<InferenceServiceResults.Result> publisher) {
             this.publisher = publisher;
         }
 
         @Override
-        public Flow.Publisher<ChunkedToXContent> publisher() {
+        public Flow.Publisher<InferenceServiceResults.Result> publisher() {
             return publisher;
         }
 
         @Override
         public List<? extends InferenceResults> transformToCoordinationFormat() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
             return List.of();
         }
 
@@ -196,7 +217,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
     }
 
-    private static class RandomPublisher implements Flow.Publisher<ChunkedToXContent> {
+    private static class RandomPublisher implements Flow.Publisher<InferenceServiceResults.Result> {
         private final int requestCount;
         private final boolean withError;
 
@@ -206,7 +227,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
 
         @Override
-        public void subscribe(Flow.Subscriber<? super ChunkedToXContent> subscriber) {
+        public void subscribe(Flow.Subscriber<? super InferenceServiceResults.Result> subscriber) {
             var resultCount = new AtomicInteger(requestCount);
             subscriber.onSubscribe(new Flow.Subscription() {
                 @Override
@@ -228,11 +249,24 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
     }
 
-    private static class RandomString implements ChunkedToXContent {
+    private record RandomString(String randomString) implements InferenceServiceResults.Result {
+        RandomString() {
+            this(randomUnicodeOfLengthBetween(2, 20));
+        }
+
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return ChunkedToXContent.builder(params).object(b -> b.field("delta", randomString));
+            return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field("delta", randomString).endObject());
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test_RandomString";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(randomString);
         }
     }
 
@@ -240,11 +274,6 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public List<? extends InferenceResults> transformToCoordinationFormat() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
             return List.of();
         }
 
@@ -265,7 +294,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContent.builder(params).field("result", randomUnicodeOfLengthBetween(2, 20));
+            return ChunkedToXContentHelper.chunk((b, p) -> b.field("result", randomUnicodeOfLengthBetween(2, 20)));
         }
     }
 
@@ -323,9 +352,8 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         private void collect(String str) throws IOException {
             sseParser.parse(str.getBytes(StandardCharsets.UTF_8))
                 .stream()
-                .filter(event -> event.name() == ServerSentEventField.DATA)
-                .filter(ServerSentEvent::hasValue)
-                .map(ServerSentEvent::value)
+                .filter(ServerSentEvent::hasData)
+                .map(ServerSentEvent::data)
                 .forEach(stringsVerified::offer);
         }
     }
@@ -414,17 +442,34 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         assertThat(collector.stringsVerified.getLast(), equalTo(expectedExceptionAsServerSentEvent));
     }
 
-    public void testNoStream() throws IOException {
-        var pattern = Pattern.compile("^\uFEFFevent: message\ndata: \\{\"result\":\".*\"}\n\n\uFEFFevent: message\ndata: \\[DONE]\n\n$");
-        var request = new Request(RestRequest.Method.POST.name(), NO_STREAM_ROUTE);
-        var response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
-        var responseString = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+    public void testFormattedError() throws IOException {
+        var request = new Request(RestRequest.Method.POST.name(), FORMATTED_ERROR_ROUTE);
 
-        assertThat(
-            "Expected " + responseString + " to match pattern " + pattern.pattern(),
-            pattern.matcher(responseString).matches(),
-            is(true)
+        try {
+            getRestClient().performRequest(request);
+            fail("Expected an exception to be thrown from the error route");
+        } catch (ResponseException e) {
+            var response = e.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_INTERNAL_SERVER_ERROR));
+            assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("""
+                \uFEFFevent: error
+                data:\s""" + expectedExceptionAsServerSentEvent + "\n\n"));
+        }
+    }
+
+    public void testNoStream() {
+        var collector = new RandomStringCollector();
+        var expectedTestCount = randomIntBetween(2, 30);
+        var request = new Request(RestRequest.Method.POST.name(), NO_STREAM_ROUTE);
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setHttpAsyncResponseConsumerFactory(() -> new AsyncResponseConsumer(collector))
+                .addParameter(REQUEST_COUNT, String.valueOf(expectedTestCount))
+                .build()
         );
+        var response = callAsync(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
+        assertThat(collector.stringsVerified.size(), equalTo(2)); // single payload count + done byte
+        assertThat(collector.stringsVerified.peekLast(), equalTo("[DONE]"));
     }
 }

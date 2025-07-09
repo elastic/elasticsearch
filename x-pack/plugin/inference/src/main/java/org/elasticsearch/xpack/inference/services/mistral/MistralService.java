@@ -11,45 +11,78 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionCreator;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
+import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
 
+/**
+ * MistralService is an implementation of the SenderService that handles inference tasks
+ * using Mistral models. It supports text embedding, completion, and chat completion tasks.
+ * The service uses MistralActionCreator to create actions for executing inference requests.
+ */
 public class MistralService extends SenderService {
     public static final String NAME = "mistral";
+
+    private static final String SERVICE_NAME = "Mistral";
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
+    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
+        "mistral chat completions",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
 
     public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -60,56 +93,91 @@ public class MistralService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
+        switch (model) {
+            case MistralEmbeddingsModel mistralEmbeddingsModel:
+                mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
+                break;
+            case MistralChatCompletionModel mistralChatCompletionModel:
+                mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+                break;
+            default:
+                listener.onFailure(createInvalidModelException(model));
+                break;
+        }
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof MistralChatCompletionModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        MistralChatCompletionModel mistralChatCompletionModel = (MistralChatCompletionModel) model;
+        var overriddenModel = MistralChatCompletionModel.of(mistralChatCompletionModel, inputs.getRequest());
+        var manager = new GenericRequestManager<>(
+            getServiceComponents().threadPool(),
+            overriddenModel,
+            UNIFIED_CHAT_COMPLETION_HANDLER,
+            unifiedChatInput -> new MistralChatCompletionRequest(unifiedChatInput, overriddenModel),
+            UnifiedChatInput.class
+        );
+        var errorMessage = MistralActionCreator.buildErrorMessage(TaskType.CHAT_COMPLETION, model.getInferenceEntityId());
+        var action = new SenderExecutableAction(getSender(), manager, errorMessage);
+
+        action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    protected void doChunkedInfer(
+        Model model,
+        EmbeddingsInput inputs,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        TimeValue timeout,
+        ActionListener<List<ChunkedInference>> listener
+    ) {
+        var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
+
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(inputs, timeout, listener);
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                inputs.getInputs(),
+                MistralConstants.MAX_BATCH_SIZE,
+                mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
+
+            for (var request : batchedRequests) {
+                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            }
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
     }
 
     @Override
-    protected void doChunkedInfer(
-        Model model,
-        DocumentsOnlyInput inputs,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        ChunkingOptions chunkingOptions,
-        TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
-    ) {
-        var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
+    }
 
-        if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-            if (ChunkingSettingsFeatureFlag.isEnabled()) {
-                batchedRequests = new EmbeddingRequestChunker(
-                    inputs.getInputs(),
-                    MistralConstants.MAX_BATCH_SIZE,
-                    EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                    mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
-                ).batchRequestsWithListeners(listener);
-            } else {
-                batchedRequests = new EmbeddingRequestChunker(
-                    inputs.getInputs(),
-                    MistralConstants.MAX_BATCH_SIZE,
-                    EmbeddingRequestChunker.EmbeddingType.FLOAT
-                ).batchRequestsWithListeners(listener);
-            }
-
-            for (var request : batchedRequests) {
-                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
-            }
-        } else {
-            listener.onFailure(createInvalidModelException(model));
-        }
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return supportedTaskTypes;
     }
 
     @Override
@@ -129,13 +197,13 @@ public class MistralService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
             }
 
-            MistralEmbeddingsModel model = createModel(
+            MistralModel model = createModel(
                 modelId,
                 taskType,
                 serviceSettingsMap,
@@ -157,7 +225,7 @@ public class MistralService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(
+    public MistralModel parsePersistedConfigWithSecrets(
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
@@ -168,8 +236,8 @@ public class MistralService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelFromPersistent(
@@ -184,13 +252,13 @@ public class MistralService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public MistralModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelFromPersistent(
@@ -209,7 +277,12 @@ public class MistralService extends SenderService {
         return TransportVersions.V_8_15_0;
     }
 
-    private static MistralEmbeddingsModel createModel(
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    private static MistralModel createModel(
         String modelId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -219,23 +292,26 @@ public class MistralService extends SenderService {
         String failureMessage,
         ConfigurationParseContext context
     ) {
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            return new MistralEmbeddingsModel(
-                modelId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
+        switch (taskType) {
+            case TEXT_EMBEDDING:
+                return new MistralEmbeddingsModel(
+                    modelId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    chunkingSettings,
+                    secretSettings,
+                    context
+                );
+            case CHAT_COMPLETION, COMPLETION:
+                return new MistralChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
+            default:
+                throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
-
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
     }
 
-    private MistralEmbeddingsModel createModelFromPersistent(
+    private MistralModel createModelFromPersistent(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -257,13 +333,7 @@ public class MistralService extends SenderService {
     }
 
     @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
-    }
-
-    @Override
-    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+    public MistralEmbeddingsModel updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof MistralEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
 
@@ -281,5 +351,56 @@ public class MistralService extends SenderService {
         } else {
             throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
+    }
+
+    /**
+     * Configuration class for the Mistral inference service.
+     * It provides the settings and configurations required for the service.
+     */
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    MODEL_FIELD,
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "Refer to the Mistral models documentation for the list of available text embedding models."
+                    )
+                        .setLabel("Model")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    MAX_INPUT_TOKENS,
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "Allows you to specify the maximum number of tokens per input."
+                    )
+                        .setLabel("Maximum Input Tokens")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
+            }
+        );
     }
 }

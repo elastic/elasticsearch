@@ -1,0 +1,5 @@
+pr: 129161
+summary: Add Telemetry for models without adaptive allocations
+area: Machine Learning
+type: enhancement
+issues: []

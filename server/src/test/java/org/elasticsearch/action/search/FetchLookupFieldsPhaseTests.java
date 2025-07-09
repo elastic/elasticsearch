@@ -46,18 +46,22 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             for (int i = 0; i < searchHits.length; i++) {
                 searchHits[i] = SearchHitTests.createTestItem(randomBoolean(), randomBoolean());
             }
-            SearchHits hits = new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f);
-            var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
-            try {
+            try (
+                var sections = new SearchResponseSections(
+                    new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                )
+            ) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
                 phase.run();
-            } finally {
-                sections.decRef();
-                hits.decRef();
             }
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());
-            searchPhaseContext.execute(() -> {});
         } finally {
             var resp = searchPhaseContext.searchResponse.get();
             if (resp != null) {
@@ -104,7 +108,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         final SearchHits searchHits;
                         if (fields != null) {
                             final SearchHit hit = new SearchHit(randomInt(1000));
-                            fields.forEach((f, values) -> hit.setDocumentField(f, new DocumentField(f, values, List.of())));
+                            fields.forEach((f, values) -> hit.setDocumentField(new DocumentField(f, values, List.of())));
                             searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
                         } else {
                             searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
@@ -139,7 +143,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             final List<FieldAndFormat> fetchFields = List.of(new FieldAndFormat(randomAlphaOfLength(10), null));
             {
                 leftHit0.setDocumentField(
-                    "lookup_field_1",
                     new DocumentField(
                         "lookup_field_1",
                         List.of(),
@@ -151,7 +154,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     )
                 );
                 leftHit0.setDocumentField(
-                    "lookup_field_2",
                     new DocumentField(
                         "lookup_field_2",
                         List.of(),
@@ -164,7 +166,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             SearchHit leftHit1 = new SearchHit(randomInt(100));
             {
                 leftHit1.setDocumentField(
-                    "lookup_field_2",
                     new DocumentField(
                         "lookup_field_2",
                         List.of(),
@@ -176,7 +177,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     )
                 );
                 leftHit1.setDocumentField(
-                    "lookup_field_3",
                     new DocumentField(
                         "lookup_field_3",
                         List.of(),
@@ -185,18 +185,19 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     )
                 );
             }
-            SearchHits searchHits = new SearchHits(
-                new SearchHit[] { leftHit0, leftHit1 },
-                new TotalHits(2, TotalHits.Relation.EQUAL_TO),
-                1.0f
-            );
-            var sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1);
-            try {
+            try (
+                var sections = new SearchResponseSections(
+                    new SearchHits(new SearchHit[] { leftHit0, leftHit1 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1.0f),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                )
+            ) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
                 phase.run();
-            } finally {
-                sections.decRef();
-                searchHits.decRef();
             }
             assertTrue(requestSent.get());
             searchPhaseContext.assertNoFailure();
@@ -225,8 +226,8 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 leftHit1.field("lookup_field_3").getValues(),
                 contains(Map.of("field_a", List.of("a2"), "field_b", List.of("b1", "b2")))
             );
-            searchPhaseContext.execute(() -> {});
         } finally {
+            searchPhaseContext.results.close();
             var resp = searchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();

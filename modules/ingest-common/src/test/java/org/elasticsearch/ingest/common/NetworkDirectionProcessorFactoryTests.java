@@ -50,7 +50,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config);
+        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(networkProcessor.getTag(), equalTo(processorTag));
         assertThat(networkProcessor.getSourceIpField(), equalTo(sourceIpField));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(destIpField));
@@ -75,7 +75,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config);
+        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(networkProcessor.getTag(), equalTo(processorTag));
         assertThat(networkProcessor.getSourceIpField(), equalTo(sourceIpField));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(destIpField));
@@ -88,7 +88,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         HashMap<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
         try {
-            factory.create(null, processorTag, null, config);
+            factory.create(null, processorTag, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[internal_networks] or [internal_networks_field] must be specified"));
@@ -102,7 +102,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         internalNetworks.add("10.0.0.0/8");
         config.put("internal_networks", internalNetworks);
 
-        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config);
+        NetworkDirectionProcessor networkProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(networkProcessor.getTag(), equalTo(processorTag));
         assertThat(networkProcessor.getSourceIpField(), equalTo(DEFAULT_SOURCE_IP));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(DEFAULT_DEST_IP));

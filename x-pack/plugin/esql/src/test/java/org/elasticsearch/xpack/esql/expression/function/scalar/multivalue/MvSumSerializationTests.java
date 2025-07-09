@@ -21,9 +21,4 @@ public class MvSumSerializationTests extends AbstractExpressionSerializationTest
     protected MvSum mutateInstance(MvSum instance) throws IOException {
         return new MvSum(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

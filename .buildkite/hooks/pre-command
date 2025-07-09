@@ -44,8 +44,13 @@ export GRADLE_BUILD_CACHE_USERNAME
 GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
 
+DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)"
+export DEVELOCITY_ACCESS_KEY
+
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
+
+export GH_TOKEN="$VAULT_GITHUB_TOKEN"
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
@@ -57,6 +62,14 @@ if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   export AWS_SECRET_ACCESS_KEY
 
   unset data
+fi
+
+if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
+  vault_path="kv/ci-shared/release-eng/team-release-secrets/es-delivery/gpg"
+  ORG_GRADLE_PROJECT_signingKey=$(vault kv get --field="private_key" $vault_path)
+  ORG_GRADLE_PROJECT_signingPassword=$(vault kv get --field="passphase" $vault_path)
+  export ORG_GRADLE_PROJECT_signingKey
+  export ORG_GRADLE_PROJECT_signingPassword
 fi
 
 if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
@@ -89,6 +102,24 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
   fi
 fi
 
+if [[ "${USE_PERF_CREDENTIALS:-}" == "true" ]]; then
+  PERF_METRICS_HOST=$(vault read -field=es_host /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_USERNAME=$(vault read -field=es_user /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_PASSWORD=$(vault read -field=es_password /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+
+  export PERF_METRICS_HOST
+  export PERF_METRICS_USERNAME
+  export PERF_METRICS_PASSWORD
+fi
+
+# Authenticate to the Docker Hub public read-only registry
+if which docker > /dev/null 2>&1; then
+  DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+
+  echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
+fi
+
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
@@ -117,3 +148,5 @@ if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
   echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
   sudo systemctl restart dnsmasq.service
 fi
+
+.buildkite/scripts/get-latest-test-mutes.sh

@@ -18,6 +18,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -41,8 +42,10 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest(request.param("name"));
-        simulateIndexTemplateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest(
+            getMasterNodeTimeout(request),
+            request.param("name")
+        );
         simulateIndexTemplateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         if (request.hasContent()) {
             TransportPutComposableIndexTemplateAction.Request indexTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(
@@ -57,7 +60,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
             simulateIndexTemplateRequest.indexTemplateRequest(indexTemplateRequest);
         }
 
-        return channel -> client.execute(
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             SimulateIndexTemplateAction.INSTANCE,
             simulateIndexTemplateRequest,
             new RestToXContentListener<>(channel)

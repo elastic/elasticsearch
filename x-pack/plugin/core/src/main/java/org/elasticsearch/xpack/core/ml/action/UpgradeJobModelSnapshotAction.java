@@ -171,7 +171,6 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.completed = in.readBoolean();
             this.node = in.readOptionalString();
         }

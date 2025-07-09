@@ -18,11 +18,22 @@ public class KnnFloatVectorQueryBuilderTests extends AbstractKnnVectorQueryBuild
     }
 
     @Override
-    KnnVectorQueryBuilder createKnnVectorQueryBuilder(String fieldName, Integer k, int numCands, Float similarity) {
-        float[] vector = new float[VECTOR_DIMENSION];
+    KnnVectorQueryBuilder createKnnVectorQueryBuilder(
+        String fieldName,
+        int k,
+        int numCands,
+        RescoreVectorBuilder rescoreVectorBuilder,
+        Float similarity
+    ) {
+        float[] vector = new float[vectorDimensions];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
         }
-        return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, similarity);
+        return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, rescoreVectorBuilder, similarity);
+    }
+
+    @Override
+    protected String randomIndexType() {
+        return randomFrom(ALL_INDEX_TYPES);
     }
 }

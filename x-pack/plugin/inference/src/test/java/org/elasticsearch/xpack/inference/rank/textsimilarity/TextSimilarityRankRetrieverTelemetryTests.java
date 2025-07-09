@@ -24,8 +24,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -35,7 +34,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test_index";
@@ -47,7 +45,7 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(InferencePlugin.class, XPackPlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Override
@@ -102,7 +100,9 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
-            performSearch(new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null)));
+            performSearch(
+                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, null, null))
+            );
         }
 
         // search#2 - this will record 1 entry for "retriever" in `sections`, 1 for "standard" under `retrievers`, and 1 for "range" under
@@ -116,7 +116,7 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().retriever(
-                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null))
+                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null, null))
                 )
             );
         }
@@ -138,7 +138,8 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
                         "some_inference_id",
                         "some_inference_text",
                         "some_field",
-                        10
+                        10,
+                        false
                     )
                 )
             );
@@ -146,7 +147,9 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
 
         // search#6 - this will record 1 entry for "knn" in `sections`
         {
-            performSearch(new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null))));
+            performSearch(
+                new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, null, null)))
+            );
         }
 
         // search#7 - this will record 1 entry for "query" in `sections`, and 1 for "match_all" under `queries`

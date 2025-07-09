@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -81,7 +82,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         );
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
         // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
-        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeValue.of(256, ByteSizeUnit.MB);
         public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
             "max_single_part_upload_size",
             DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
@@ -110,6 +111,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final RepositoriesMetrics repositoriesMetrics;
 
     public AzureRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,
@@ -119,6 +121,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final RepositoriesMetrics repositoriesMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,

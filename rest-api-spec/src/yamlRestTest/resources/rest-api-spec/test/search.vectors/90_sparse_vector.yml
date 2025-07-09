@@ -387,16 +387,17 @@
 "sparse_vector synthetic source":
 
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ml.tokens:
                 type: sparse_vector
@@ -471,3 +472,120 @@
 
   - match:
       _source.ml.tokens: {}
+
+---
+"stored sparse_vector":
+
+  - requires:
+      cluster_features: [ "mapper.sparse_vector.store_support" ]
+      reason: "sparse_vector supports store parameter"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+                store: true
+
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2
+              good: 3
+              run: 5
+              race: 7
+              for: 9
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "ml.tokens" ]
+
+  - length: { hits.hits.0.fields.ml\\.tokens: 1 }
+  - length: { hits.hits.0.fields.ml\\.tokens.0: 5 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.running: 2.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.good: 3.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.run: 5.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.race: 7.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.for: 9.0 }
+
+---
+"stored sparse_vector synthetic source":
+
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting", "mapper.sparse_vector.store_support" ]
+      reason: "sparse_vector supports store parameter"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+                store: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          ml:
+            tokens:
+              running: 2
+              good: 3
+              run: 5
+              race: 7
+              for: 9
+
+  - match: { result: "created" }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "ml.tokens" ]
+
+  - match:
+      hits.hits.0._source: {
+        ml: {
+          tokens: {
+            running: 2.0,
+            good: 3.0,
+            run: 5.0,
+            race: 7.0,
+            for: 9.0
+          }
+        }
+      }
+
+  - length: { hits.hits.0.fields.ml\\.tokens: 1 }
+  - length: { hits.hits.0.fields.ml\\.tokens.0: 5 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.running: 2.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.good: 3.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.run: 5.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.race: 7.0 }
+  - match:  { hits.hits.0.fields.ml\\.tokens.0.for: 9.0 }

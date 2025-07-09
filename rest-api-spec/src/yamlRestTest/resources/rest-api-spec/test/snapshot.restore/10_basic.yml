@@ -46,8 +46,6 @@ setup:
   - do:
       indices.close:
         index : test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       snapshot.restore:
@@ -92,8 +90,6 @@ setup:
   - do:
       indices.close:
         index : test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       snapshot.restore:

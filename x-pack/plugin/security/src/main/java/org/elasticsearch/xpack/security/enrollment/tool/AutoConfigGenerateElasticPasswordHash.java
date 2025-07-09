@@ -48,10 +48,10 @@ class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
         try (
             SecureString elasticPassword = new SecureString(generatePassword(20));
-            KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))
+            KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configDir(), () -> new SecureString(new char[0]))
         ) {
             nodeKeystore.setString(AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey(), hasher.hash(elasticPassword));
-            nodeKeystore.save(env.configFile(), new char[0]);
+            nodeKeystore.save(env.configDir(), new char[0]);
             terminal.print(Terminal.Verbosity.NORMAL, elasticPassword.toString());
         } catch (Exception e) {
             throw new UserException(ExitCodes.CANT_CREATE, "Failed to generate a password for the elastic user", e);

@@ -8,14 +8,29 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import static java.util.Collections.emptyList;
+public class DisabledSearchStats implements SearchStats {
 
-public class DisabledSearchStats extends SearchStats {
+    @Override
+    public boolean exists(FieldName field) {
+        return true;
+    }
 
-    public DisabledSearchStats() {
-        super(emptyList());
+    @Override
+    public boolean isIndexed(FieldName field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasDocValues(FieldName field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasExactSubfield(FieldName field) {
+        return true;
     }
 
     @Override
@@ -24,32 +39,32 @@ public class DisabledSearchStats extends SearchStats {
     }
 
     @Override
-    public long count(String field) {
+    public long count(FieldName field) {
         return -1;
     }
 
     @Override
-    public long count(String field, BytesRef value) {
+    public long count(FieldName field, BytesRef value) {
         return -1;
     }
 
     @Override
-    public boolean exists(String field) {
-        return true;
-    }
-
-    @Override
-    public byte[] min(String field, DataType dataType) {
+    public byte[] min(FieldName field, DataType dataType) {
         return null;
     }
 
     @Override
-    public byte[] max(String field, DataType dataType) {
+    public byte[] max(FieldName field, DataType dataType) {
         return null;
     }
 
     @Override
-    public boolean isSingleValue(String field) {
+    public boolean isSingleValue(FieldName field) {
+        return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
         return false;
     }
 }

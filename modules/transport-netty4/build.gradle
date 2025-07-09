@@ -7,13 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.publish'
 
@@ -23,8 +24,8 @@ apply plugin: 'elasticsearch.publish'
    * fix the hack in the build framework that copies transport-netty4 into the integ test cluster
  */
 esplugin {
-  description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+  description = 'Netty 4 based transport implementation'
+  classname = 'org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
@@ -35,7 +36,7 @@ configurations {
 }
 
 dependencies {
-  api project(":libs:elasticsearch-ssl-config")
+  api project(":libs:ssl-config")
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
@@ -48,6 +49,8 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
   testImplementation project(':modules:rest-root')
+
+  clusterModules project(':modules:rest-root')
 }
 
 restResources {
@@ -77,28 +80,12 @@ TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClu
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
 }
 
-TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaRestTest", RestIntegTestTask) {
-    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet javaRestTestSourceSet = sourceSets.getByName(LegacyJavaRestTestPlugin.SOURCE_SET_NAME)
-    setTestClassesDirs(javaRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(javaRestTestSourceSet.getRuntimeClasspath())
-
-
-  testClusters.pooledJavaRestTest {
-    systemProperty 'es.use_unpooled_allocator', 'false'
-  }
-}
-
 tasks.named("internalClusterTest").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
-testClusters.configureEach {
-  module ':modules:rest-root'
-}
-
 tasks.named("check").configure {
-  dependsOn(pooledTest, pooledJavaRestTest, pooledInternalClusterTest)
+  dependsOn(pooledTest, pooledInternalClusterTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -177,9 +164,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.github.luben.zstd.Zstd',
-    'com.github.luben.zstd.BaseZstdBufferDecompressingStreamNoFinalizer',
-    'com.github.luben.zstd.ZstdBufferDecompressingStreamNoFinalizer',
-    'com.github.luben.zstd.ZstdDirectBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
+    'com.github.luben.zstd.util.Native',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -231,8 +217,14 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',

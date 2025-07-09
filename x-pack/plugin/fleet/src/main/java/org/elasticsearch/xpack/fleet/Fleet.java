@@ -11,8 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -22,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -77,14 +76,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public static final String FLEET_SECRETS_INDEX_NAME = ".fleet-secrets";
 
     private static final int CURRENT_INDEX_VERSION = 7;
-    private static final String VERSION_KEY = "version";
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
-    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 1;
+    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
@@ -140,7 +138,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-actions-" + CURRENT_INDEX_VERSION)
@@ -158,7 +155,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-agents-" + CURRENT_INDEX_VERSION)
@@ -179,7 +175,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-enrollment-api-keys-" + CURRENT_INDEX_VERSION)
@@ -195,7 +190,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return SystemIndexDescriptor.builder()
             .setType(Type.INTERNAL_MANAGED)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(FLEET_SECRETS_INDEX_NAME + "-" + CURRENT_INDEX_VERSION)
@@ -213,7 +207,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-" + CURRENT_INDEX_VERSION)
@@ -231,7 +224,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-leader-" + CURRENT_INDEX_VERSION)
@@ -249,7 +241,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-servers-" + CURRENT_INDEX_VERSION)
@@ -267,7 +258,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-artifacts-" + CURRENT_INDEX_VERSION)
@@ -288,6 +278,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 ALLOWED_PRODUCTS,
+                FLEET_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {
@@ -296,7 +287,12 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Client client,
+        ActionListener<ResetFeatureStateStatus> listener
+    ) {
         Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
         if (dataStreamDescriptors.isEmpty() == false) {
             try {
@@ -313,25 +309,28 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,
                     request,
-                    ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
-                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                        if (unwrapped instanceof ResourceNotFoundException) {
-                            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
-                        } else {
-                            listener.onFailure(e);
+                    ActionListener.wrap(
+                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        e -> {
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                            if (unwrapped instanceof ResourceNotFoundException) {
+                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                            } else {
+                                listener.onFailure(e);
+                            }
                         }
-                    })
+                    )
                 );
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
                 } else {
                     listener.onFailure(e);
                 }
             }
         } else {
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
         }
     }
 
@@ -345,13 +344,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.LocalAction.class),
-            new ActionHandler<>(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class),
-            new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
-            new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class),
-            new ActionHandler<>(DeleteSecretAction.INSTANCE, TransportDeleteSecretAction.class)
+            new ActionHandler(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.LocalAction.class),
+            new ActionHandler(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class),
+            new ActionHandler(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
+            new ActionHandler(PostSecretAction.INSTANCE, TransportPostSecretAction.class),
+            new ActionHandler(DeleteSecretAction.INSTANCE, TransportDeleteSecretAction.class)
         );
     }
 

@@ -106,10 +106,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .clear()
             .setMetadata(true)
             .get();
-        assertThat(clusterStateResponseUnfiltered.getState().metadata().indices().size(), is(3));
+        assertThat(clusterStateResponseUnfiltered.getState().metadata().getProject().indices().size(), is(3));
 
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(0));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(0));
     }
 
     public void testMetadataVersion() {
@@ -181,9 +181,10 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .get();
 
         ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(clusterStateResponseUnfiltered.getState().metadata().templates().size(), is(greaterThanOrEqualTo(2)));
+        assertThat(clusterStateResponseUnfiltered.getState().metadata().getProject().templates().size(), is(greaterThanOrEqualTo(2)));
 
-        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates("foo_template").get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "foo_template")
+            .get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 
@@ -215,7 +216,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setIndices(indices)
             .get();
 
-        Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
+        Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().getProject().indices();
         assertThat(metadata.size(), is(expected.length));
 
         RoutingTable routingTable = clusterState.getState().getRoutingTable();
@@ -257,12 +258,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTimeout(TimeValue.timeValueMinutes(1))
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetadata masterMappingMetadata = indicesAdmin().prepareGetMappings("test").get().getMappings().get("test");
+        MappingMetadata masterMappingMetadata = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+            .get()
+            .getMappings()
+            .get("test");
         for (Client client : clients()) {
             MappingMetadata mappingMetadata = client.admin()
                 .indices()
-                .prepareGetMappings("test")
-                .setLocal(true)
+                .prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
                 .get()
                 .getMappings()
                 .get("test");
@@ -277,14 +280,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setMetadata(true)
             .setIndices("f*")
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(2));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(2));
         ensureGreen("fuu");
 
         // close one index
         assertAcked(indicesAdmin().close(new CloseIndexRequest("fuu")).get());
         clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).setIndices("f*").get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(1));
+        assertThat(clusterStateResponse.getState().metadata().getProject().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
@@ -294,8 +297,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setIndices("f*")
             .setIndicesOptions(expandCloseOptions)
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metadata().index("fuu").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(1));
+        assertThat(clusterStateResponse.getState().metadata().getProject().index("fuu").getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
@@ -305,7 +308,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setIndices("fzzbzz")
             .setIndicesOptions(ignoreUnavailabe)
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().isEmpty(), is(true));
 
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
@@ -316,7 +319,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setIndices("a*")
             .setIndicesOptions(allowNoIndices)
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().isEmpty(), is(true));
     }
 
     public void testIndicesOptionsOnAllowNoIndicesFalse() throws Exception {

@@ -1,7 +1,7 @@
 # "version" holds the version of the templates and ingest pipelines installed
 # by xpack-plugin otel-data. This must be increased whenever an existing template is
 # changed, in order for it to be updated on Elasticsearch upgrade.
-version: 6
+version: 9
 
 component-templates:
   - otel@mappings

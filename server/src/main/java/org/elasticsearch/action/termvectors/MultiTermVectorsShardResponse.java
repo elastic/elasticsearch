@@ -30,7 +30,6 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
     }
 
     MultiTermVectorsShardResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readVInt();
         locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);

@@ -61,6 +61,11 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         return canRebalance(allocation);
     }
 
+    /**
+     * We allow a limited number of concurrent shard relocations, per the cluster setting
+     * {@link #CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING}.
+     * Returns a {@link Decision#THROTTLE} decision if the limit is exceeded, otherwise returns {@link Decision#YES}.
+     */
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         int relocatingShards = allocation.routingNodes().getRelocatingShardCount();

@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleFeatures;
 import org.junit.After;
 import org.junit.Before;
 
@@ -102,14 +101,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new SnapshotLifecycleTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            new FeatureService(List.of(new SnapshotLifecycleFeatures())),
-            threadPool,
-            client,
-            xContentRegistry
-        );
+        registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     @After
@@ -124,7 +116,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
-            new FeatureService(List.of(new SnapshotLifecycleFeatures())),
             threadPool,
             client,
             xContentRegistry
@@ -346,7 +337,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -89,13 +90,14 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         // load the source.
 
         String mappings = """
-            { "_source" : { "mode" : "synthetic" },
+            {
               "properties" : {
                 "message" : { "type" : "match_only_text" }
               }
             }
             """;
-        assertAcked(prepareCreate("test").setMapping(mappings));
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.mapping.source.mode", "synthetic");
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(mappings));
         BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 2000; i++) {
             bulk.add(

@@ -46,7 +46,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private final RemoteClusterPermissions remoteClusterPermissions;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         cluster = in.readCollectionAsImmutableSet(StreamInput::readString);
         configurableClusterPrivileges = in.readCollectionAsImmutableSet(ConfigurableClusterPrivileges.READER);
         index = in.readCollectionAsImmutableSet(Indices::new);
@@ -115,7 +114,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     }
 
     public boolean hasRemoteClusterPrivileges() {
-        return remoteClusterPermissions.hasPrivileges();
+        return remoteClusterPermissions.hasAnyPrivileges();
     }
 
     @Override

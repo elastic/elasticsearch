@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -449,14 +449,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final Index resolveLeaderIndex(String index) {
-        GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     protected final Index resolveFollowerIndex(String index) {
-        GetIndexResponse getIndexResponse = followerClient().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = followerClient().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(index)
+            .get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
@@ -503,7 +507,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
                 .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
@@ -861,8 +865,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 AutoFollowMetadata empty = new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metadata(
-                    Metadata.builder(currentState.getMetadata())
+                newState.putProjectMetadata(
+                    ProjectMetadata.builder(currentState.metadata().getProject())
                         .putCustom(AutoFollowMetadata.TYPE, empty)
                         .removeCustom(PersistentTasksCustomMetadata.TYPE)
                         .build()

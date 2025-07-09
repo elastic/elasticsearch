@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -56,10 +58,12 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
  */
 final class ModelLoaderUtils {
 
+    private static final Logger logger = LogManager.getLogger(ModelLoaderUtils.class);
+
     public static String METADATA_FILE_EXTENSION = ".metadata.json";
     public static String MODEL_FILE_EXTENSION = ".pt";
 
-    private static ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(20, ByteSizeUnit.MB);
+    private static final ByteSizeValue VOCABULARY_SIZE_LIMIT = ByteSizeValue.of(20, ByteSizeUnit.MB);
     private static final String VOCABULARY = "vocabulary";
     private static final String MERGES = "merges";
     private static final String SCORES = "scores";
@@ -83,6 +87,7 @@ final class ModelLoaderUtils {
         private final AtomicInteger currentPart;
         private final int lastPartNumber;
         private final byte[] buf;
+        private final RequestRange range;  // TODO debug only
 
         HttpStreamChunker(URI uri, RequestRange range, int chunkSize) {
             var inputStream = getHttpOrHttpsInputStream(uri, range);
@@ -91,6 +96,7 @@ final class ModelLoaderUtils {
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
             this.buf = new byte[chunkSize];
+            this.range = range;
         }
 
         // This ctor exists for testing purposes only.
@@ -100,6 +106,7 @@ final class ModelLoaderUtils {
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
             this.buf = new byte[chunkSize];
+            this.range = range;
         }
 
         public boolean hasNext() {
@@ -113,6 +120,7 @@ final class ModelLoaderUtils {
                 int read = inputStream.read(buf, bytesRead, chunkSize - bytesRead);
                 // EOF??
                 if (read == -1) {
+                    logger.debug("end of stream, " + bytesRead + " bytes read");
                     break;
                 }
                 bytesRead += read;
@@ -122,6 +130,7 @@ final class ModelLoaderUtils {
                 totalBytesRead.addAndGet(bytesRead);
                 return new BytesAndPartIndex(new BytesArray(buf, 0, bytesRead), currentPart.getAndIncrement());
             } else {
+                logger.warn("Empty part in range " + range + ", current part=" + currentPart.get() + ", last part=" + lastPartNumber);
                 return new BytesAndPartIndex(BytesArray.EMPTY, currentPart.get());
             }
         }
@@ -327,47 +336,44 @@ final class ModelLoaderUtils {
      * Split a stream of size {@code sizeInBytes} into {@code numberOfStreams} +1
      * ranges aligned on {@code chunkSizeBytes} boundaries. Each range contains a
      * whole number of chunks.
-     * The first {@code numberOfStreams} ranges will be split evenly (in terms of
-     * number of chunks not the byte size), the final range split
+     * All ranges except the final range will be split approximately evenly
+     * (in terms of number of chunks not the byte size), the final range split
      * is for the single final chunk and will be no more than {@code chunkSizeBytes}
      * in size. The separate range for the final chunk is because when streaming and
      * uploading a large model definition, writing the last part has to handled
      * as a special case.
+     * Fewer ranges may be returned in case the stream size is too small.
      * @param sizeInBytes The total size of the stream
      * @param numberOfStreams Divide the bulk of the size into this many streams.
      * @param chunkSizeBytes The size of each chunk
-     * @return List of {@code numberOfStreams} + 1 ranges.
+     * @return List of {@code numberOfStreams} + 1  or fewer ranges.
      */
     static List<RequestRange> split(long sizeInBytes, int numberOfStreams, long chunkSizeBytes) {
         int numberOfChunks = (int) ((sizeInBytes + chunkSizeBytes - 1) / chunkSizeBytes);
 
+        int numberOfRanges = numberOfStreams + 1;
+        if (numberOfStreams > numberOfChunks) {
+            numberOfRanges = numberOfChunks;
+        }
         var ranges = new ArrayList<RequestRange>();
 
-        int baseChunksPerStream = numberOfChunks / numberOfStreams;
-        int remainder = numberOfChunks % numberOfStreams;
+        int baseChunksPerRange = (numberOfChunks - 1) / (numberOfRanges - 1);
+        int remainder = (numberOfChunks - 1) % (numberOfRanges - 1);
         long startOffset = 0;
         int startChunkIndex = 0;
 
-        for (int i = 0; i < numberOfStreams - 1; i++) {
-            int numChunksInStream = (i < remainder) ? baseChunksPerStream + 1 : baseChunksPerStream;
-            long rangeEnd = startOffset + (numChunksInStream * chunkSizeBytes) - 1; // range index is 0 based
-            ranges.add(new RequestRange(startOffset, rangeEnd, startChunkIndex, numChunksInStream));
+        for (int i = 0; i < numberOfRanges - 1; i++) {
+            int numChunksInRange = (i < remainder) ? baseChunksPerRange + 1 : baseChunksPerRange;
+
+            long rangeEnd = startOffset + (((long) numChunksInRange) * chunkSizeBytes) - 1; // range index is 0 based
+
+            ranges.add(new RequestRange(startOffset, rangeEnd, startChunkIndex, numChunksInRange));
             startOffset = rangeEnd + 1; // range is inclusive start and end
-            startChunkIndex += numChunksInStream;
-        }
-
-        // Want the final range request to be a single chunk
-        if (baseChunksPerStream > 1) {
-            int numChunksExcludingFinal = baseChunksPerStream - 1;
-            long rangeEnd = startOffset + (numChunksExcludingFinal * chunkSizeBytes) - 1;
-            ranges.add(new RequestRange(startOffset, rangeEnd, startChunkIndex, numChunksExcludingFinal));
-
-            startOffset = rangeEnd + 1;
-            startChunkIndex += numChunksExcludingFinal;
+            startChunkIndex += numChunksInRange;
         }
 
         // The final range is a single chunk the end of which should not exceed sizeInBytes
-        long rangeEnd = Math.min(sizeInBytes, startOffset + (baseChunksPerStream * chunkSizeBytes)) - 1;
+        long rangeEnd = Math.min(sizeInBytes, startOffset + (baseChunksPerRange * chunkSizeBytes)) - 1;
         ranges.add(new RequestRange(startOffset, rangeEnd, startChunkIndex, 1));
 
         return ranges;

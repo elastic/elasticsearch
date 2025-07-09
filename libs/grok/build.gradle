@@ -14,7 +14,7 @@ dependencies {
   api 'org.jruby.jcodings:jcodings:1.0.44'
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
+    exclude group: 'org.elasticsearch', module: 'grok'
   }
 }
 

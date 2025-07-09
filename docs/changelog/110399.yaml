@@ -1,6 +1,0 @@
-pr: 110399
-summary: "[Inference API] Prevent inference endpoints from being deleted if they are\
-  \ referenced by semantic text"
-area: Machine Learning
-type: enhancement
-issues: []

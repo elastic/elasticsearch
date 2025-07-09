@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
@@ -45,7 +46,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         // some tests rely on the translog not being flushed
         .setting("indices.memory.shard_inactive_time", "60m")
@@ -61,7 +62,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

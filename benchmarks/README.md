@@ -82,19 +82,21 @@ To get realistic results, you should exercise care when running benchmarks. Here
 NOTE: Linux only. Sorry Mac and Windows.
 
 Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and the JDK's `hsdis`.
-`perf` is generally available via `apg-get install perf` or `pacman -S perf`. `hsdis` you'll want to compile from source. is a little more involved. This worked
+`perf` is generally available via `apg-get install perf` or `pacman -S perf linux-tools`. `hsdis` you'll want to compile from source. is a little more involved. This worked
 on 2020-08-01:
 
 ```
 git clone git@github.com:openjdk/jdk.git
 cd jdk
-git checkout jdk-17-ga
-cd src/utils/hsdis
+git checkout jdk-24-ga
 # Get a known good binutils
 wget https://ftp.gnu.org/gnu/binutils/binutils-2.35.tar.gz
 tar xf binutils-2.35.tar.gz
-make BINUTILS=binutils-2.35 ARCH=amd64
-sudo cp build/linux-amd64/hsdis-amd64.so /usr/lib/jvm/java-17-openjdk/lib/server/
+bash configure --with-hsdis=binutils --with-binutils-src=binutils-2.35 \
+    --with-boot-jdk=~/.gradle/jdks/oracle_corporation-24-amd64-linux.2
+make build-hsdis
+cp ./build/linux-x86_64-server-release/jdk/lib/hsdis-amd64.so \
+    ~/.gradle/jdks/oracle_corporation-24-amd64-linux.2/lib/hsdis.so
 ```
 
 If you want to disassemble a single method do something like this:
@@ -104,6 +106,30 @@ gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDia
 ```
 
 If you want `perf` to find the hot methods for you, then do add `-prof perfasm`.
+
+NOTE: `perfasm` will need more access:
+```
+sudo bash
+echo -1 > /proc/sys/kernel/perf_event_paranoid
+exit
+```
+
+If you get warnings like:
+```
+The perf event count is suspiciously low (0).
+```
+then check if you are bumping into [this](https://man.archlinux.org/man/perf-stat.1.en#INTEL_HYBRID_SUPPORT)
+by running:
+```
+perf stat -B dd if=/dev/zero of=/dev/null count=1000000
+```
+
+If you see lines like:
+```
+         765019980      cpu_atom/cycles/                 #    1.728 GHz                         (0.60%)
+        2258845959      cpu_core/cycles/                 #    5.103 GHz                         (99.18%)
+```
+then `perf` is just not going to work for you.
 
 ## Async Profiler
 
@@ -126,8 +152,11 @@ exit
 Grab the async profiler from https://github.com/jvm-profiling-tools/async-profiler
 and run `prof async` like so:
 ```
-gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/tmp/async-profiler-1.8.3-linux-x64/build/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
+gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/async-profiler-3.0-29ee888-linux-x64/lib/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
 ```
+
+Note: As of January 2025 the latest release of async profiler doesn't work
+      with our JDK but the nightly is fine.
 
 If you are on Mac, this'll warn you that you downloaded the shared library from
 the internet. You'll need to go to settings and allow it to run.

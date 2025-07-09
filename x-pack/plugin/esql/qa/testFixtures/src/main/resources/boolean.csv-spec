@@ -63,7 +63,6 @@ avg(salary):double | always_false:boolean
 
 
 in
-required_capability: mv_warn
 
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 ignoreOrder:true
@@ -286,6 +285,26 @@ emp_no:integer | is_rehired:boolean       | a1:boolean
 10003          | null                     | null
 10004          | true                     | true
 10005          | [false,false,false,true] | false
+;
+
+mvSliceWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    start = CASE(first_name == "Alejandro", 1, 0),
+    end = CASE(first_name == "Alejandro", 0, 1),
+    result = MV_SLICE(is_rehired, start, end)
+| KEEP first_name, result
+| LIMIT 1
+;
+
+warning:Line 6:10: evaluation of [MV_SLICE(is_rehired, start, end)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 6:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start offset is greater than end offset
+
+first_name:keyword | result:boolean
+Alejandro          | null
 ;
 
 values

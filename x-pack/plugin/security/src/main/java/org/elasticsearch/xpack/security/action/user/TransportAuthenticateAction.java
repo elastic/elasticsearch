@@ -19,10 +19,10 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.operator.OperatorPrivilegesUtil;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
@@ -61,7 +61,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
             listener.onResponse(
                 new AuthenticateResponse(
                     authentication.maybeAddAnonymousRoles(anonymousUser),
-                    OperatorPrivileges.isOperator(securityContext.getThreadContext())
+                    OperatorPrivilegesUtil.isOperator(securityContext.getThreadContext())
                 )
             );
         }

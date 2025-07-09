@@ -828,7 +828,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(response);
         assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, false, null, new String[] { "foo", "bar" });
 
-        // create API key as the remote user which does remote_cluster limited_by permissions
+        // create API key as the remote user which has all remote_cluster permissions via limited_by
         response = sendRequestAsRemoteUser(createApiKeyRequest);
         apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
@@ -922,7 +922,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertNotNull(limitedByRole);
 
             List<Map<String, List<String>>> remoteCluster = (List<Map<String, List<String>>>) limitedByRole.get("remote_cluster");
-            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_enrich"));
+            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_stats", "monitor_enrich"));
             assertThat(remoteCluster.get(0).get("clusters"), containsInAnyOrder("remote"));
         } else {
             // no limited by permissions
@@ -2209,9 +2209,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(authenticateResponse);
         final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
 
-        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key", "managed_by", "elasticsearch"}.
+        // No encoded, api_key, or metadata.
         // If authentication type is other, authentication.api_key not present.
-        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName)));
+        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")));
     }
 
     private static Map<String, Object> getRandomUpdateApiKeyRequestBody(

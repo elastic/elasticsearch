@@ -22,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -47,10 +48,11 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
         void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException;
     }
 
-    @ParametersFactory
+    @ParametersFactory(argumentFormatting = "%s")
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (String fieldType : new String[] { "long", "integer", "short", "byte", "double", "float", "keyword" }) {
+            params.add(new Object[] { new SneakyTwo(fieldType) });
             for (boolean multivaluedField : new boolean[] { true, false }) {
                 for (boolean allowEmpty : new boolean[] { true, false }) {
                     params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, allowEmpty, 100) });
@@ -74,7 +76,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test")
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
                 setup.assertRewrite(ctx.searcher(), query);
@@ -89,7 +92,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test")
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    "single-value function encountered multi-value"
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
@@ -126,13 +130,13 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
 
         @Override
         public List<List<Object>> build(RandomIndexWriter iw) throws IOException {
-            List<List<Object>> fieldValues = new ArrayList<>(100);
+            List<List<Object>> docs = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 List<Object> values = values(i);
-                fieldValues.add(values);
+                docs.add(values);
                 iw.addDocument(docFor(values));
             }
-            return fieldValues;
+            return docs;
         }
 
         @Override
@@ -151,7 +155,7 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 int count = between(2, 10);
                 Set<Object> set = new HashSet<>(count);
                 while (set.size() < count) {
-                    set.add(randomValue());
+                    set.add(randomValue(fieldType));
                 }
                 return List.copyOf(set);
             }
@@ -159,45 +163,66 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
             if (empty && (i == 0 || randomBoolean())) {
                 return List.of();
             }
-            return List.of(randomValue());
+            return List.of(randomValue(fieldType));
+        }
+    }
+
+    /**
+     * Tests a scenario where we were incorrectly rewriting {@code keyword} fields to
+     * {@link MatchAllDocsQuery} when:
+     * <ul>
+     *     <li>Is defined on every field</li>
+     *     <li>Contains the same number of distinct values as documents</li>
+     * </ul>
+     */
+    private record SneakyTwo(String fieldType) implements Setup {
+        @Override
+        public XContentBuilder mapping(XContentBuilder builder) throws IOException {
+            return builder.startObject("foo").field("type", fieldType).endObject();
         }
 
-        private Object randomValue() {
-            return switch (fieldType) {
-                case "long" -> randomLong();
-                case "integer" -> randomInt();
-                case "short" -> randomShort();
-                case "byte" -> randomByte();
-                case "double" -> randomDouble();
-                case "float" -> randomFloat();
-                case "keyword" -> randomAlphaOfLength(5);
-                default -> throw new UnsupportedOperationException();
-            };
+        @Override
+        public List<List<Object>> build(RandomIndexWriter iw) throws IOException {
+            Object first = randomValue(fieldType);
+            Object second = randomValue(fieldType);
+            List<Object> justFirst = List.of(first);
+            List<Object> both = List.of(first, second);
+            iw.addDocument(docFor(justFirst));
+            iw.addDocument(docFor(both));
+            return List.of(justFirst, both);
         }
 
-        private List<IndexableField> docFor(Iterable<Object> values) {
-            List<IndexableField> fields = new ArrayList<>();
-            switch (fieldType) {
-                case "long", "integer", "short", "byte" -> {
-                    for (Object v : values) {
-                        long l = ((Number) v).longValue();
-                        fields.add(new LongField("foo", l, Field.Store.NO));
-                    }
-                }
-                case "double", "float" -> {
-                    for (Object v : values) {
-                        double d = ((Number) v).doubleValue();
-                        fields.add(new DoubleField("foo", d, Field.Store.NO));
-                    }
-                }
-                case "keyword" -> {
-                    for (Object v : values) {
-                        fields.add(new KeywordField("foo", v.toString(), Field.Store.NO));
-                    }
-                }
-                default -> throw new UnsupportedOperationException();
-            }
-            return fields;
+        @Override
+        public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
+            // There are multivalued fields
+            assertThat(query.rewrite(indexSearcher), sameInstance(query));
         }
+    }
+
+    private static Object randomValue(String fieldType) {
+        return switch (fieldType) {
+            case "long" -> randomLong();
+            case "integer" -> randomInt();
+            case "short" -> randomShort();
+            case "byte" -> randomByte();
+            case "double" -> randomDouble();
+            case "float" -> randomFloat();
+            case "keyword" -> randomAlphaOfLength(5);
+            default -> throw new UnsupportedOperationException();
+        };
+    }
+
+    private static List<IndexableField> docFor(Iterable<Object> values) {
+        List<IndexableField> fields = new ArrayList<>();
+        for (Object v : values) {
+            fields.add(switch (v) {
+                case Double n -> new DoubleField("foo", n, Field.Store.NO);
+                case Float n -> new DoubleField("foo", n, Field.Store.NO);
+                case Number n -> new LongField("foo", n.longValue(), Field.Store.NO);
+                case String s -> new KeywordField("foo", s, Field.Store.NO);
+                default -> throw new UnsupportedOperationException();
+            });
+        }
+        return fields;
     }
 }

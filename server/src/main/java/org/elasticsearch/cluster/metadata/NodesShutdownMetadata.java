@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,9 +41,8 @@ import java.util.stream.Collectors;
  *
  * Stored in the cluster state as custom metadata.
  */
-public class NodesShutdownMetadata implements Metadata.Custom {
+public class NodesShutdownMetadata implements Metadata.ClusterCustom {
     public static final String TYPE = "node_shutdown";
-    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersions.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -65,7 +64,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return PARSER.apply(parser, null);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput in) throws IOException {
         return new NodeShutdownMetadataDiff(in);
     }
 
@@ -157,7 +156,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ClusterCustom> diff(Metadata.ClusterCustom previousState) {
         return new NodeShutdownMetadataDiff((NodesShutdownMetadata) previousState, this);
     }
 
@@ -173,7 +172,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return NODE_SHUTDOWN_VERSION;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -191,13 +190,13 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).xContentObjectFields(NODES_FIELD.getPreferredName(), nodes);
+        return ChunkedToXContentHelper.xContentObjectFields(NODES_FIELD.getPreferredName(), nodes);
     }
 
     /**
      * Handles diffing and appling diffs for {@link NodesShutdownMetadata} as necessary for the cluster state infrastructure.
      */
-    public static class NodeShutdownMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class NodeShutdownMetadataDiff implements NamedDiff<Metadata.ClusterCustom> {
 
         private final Diff<Map<String, SingleNodeShutdownMetadata>> nodesDiff;
 
@@ -215,7 +214,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ClusterCustom apply(Metadata.ClusterCustom part) {
             TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodesShutdownMetadata) part).nodes));
             return new NodesShutdownMetadata(newNodes);
         }
@@ -236,7 +235,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return NODE_SHUTDOWN_VERSION;
+            return TransportVersions.ZERO;
         }
 
     }

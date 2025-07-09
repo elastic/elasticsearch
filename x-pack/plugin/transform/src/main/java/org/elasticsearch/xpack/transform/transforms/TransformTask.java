@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -415,6 +416,16 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         }
     }
 
+    public void checkAndResetDestinationIndexBlock(TransformConfig config) {
+        if (context.isWaitingForIndexToUnblock()) {
+            var currentIndex = getIndexer() == null ? null : getIndexer().getConfig().getDestination().getIndex();
+            var updatedIndex = config.getDestination().getIndex();
+            if (updatedIndex.equals(currentIndex) == false) {
+                context.setIsWaitingForIndexToUnblock(false);
+            }
+        }
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,
@@ -648,7 +659,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        final var project = clusterState.metadata().getDefaultProject();
+        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.get(project);
         if (pTasksMeta == null) {
             return Collections.emptyList();
         }

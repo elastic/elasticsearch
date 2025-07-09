@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -20,14 +21,14 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Function that emits Euler's number.
+ * Function that emits Euler’s number.
  */
 public class E extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "E", E::new);
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns {wikipedia}/E_(mathematical_constant)[Euler's number].",
+        description = "Returns {wikipedia}/E_(mathematical_constant)[Euler’s number].",
         examples = @Example(file = "math", tag = "e")
     )
     public E(Source source) {
@@ -49,7 +50,7 @@ public class E extends DoubleConstantFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         return Math.E;
     }
 

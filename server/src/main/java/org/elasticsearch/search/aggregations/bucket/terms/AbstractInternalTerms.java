@@ -63,9 +63,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
         protected abstract void setDocCountError(long docCountError);
 
-        protected abstract boolean getShowDocCountError();
-
         protected abstract long getDocCountError();
+
+        protected abstract void bucketToXContent(XContentBuilder builder, Params params, boolean showDocCountError) throws IOException;
     }
 
     /**
@@ -89,6 +89,8 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     protected abstract int getRequiredSize();
 
+    protected abstract boolean getShowDocCountError();
+
     protected abstract B createBucket(long docCount, InternalAggregations aggs, long docCountError, B prototype);
 
     private B reduceBucket(List<B> buckets, AggregationReduceContext context) {
@@ -102,7 +104,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         for (B bucket : buckets) {
             docCount += bucket.getDocCount();
             if (docCountError != -1) {
-                if (bucket.getShowDocCountError() == false || bucket.getDocCountError() == -1) {
+                if (getShowDocCountError() == false || bucket.getDocCountError() == -1) {
                     docCountError = -1;
                 } else {
                     docCountError += bucket.getDocCountError();
@@ -218,7 +220,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         private final int size;
 
         private long sumDocCountError = 0;
-        private final long[] otherDocCount = new long[] { 0 };
+        private long otherDocCount = 0;
         private A referenceTerms = null;
         /*
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
@@ -253,8 +255,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             } else if (thisReduceOrder != getOrder() && thisReduceOrder.equals(terms.getReduceOrder()) == false) {
                 thisReduceOrder = getOrder();
             }
-            otherDocCount[0] += terms.getSumOfOtherDocCounts();
+            otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError = getDocCountError(terms);
+            setDocCountError(thisAggDocCountError);
             if (sumDocCountError != -1) {
                 if (thisAggDocCountError == -1) {
                     sumDocCountError = -1;
@@ -262,16 +265,17 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                     sumDocCountError += thisAggDocCountError;
                 }
             }
-            setDocCountError(thisAggDocCountError);
-            for (B bucket : terms.getBuckets()) {
-                // If there is already a doc count error for this bucket
-                // subtract this aggs doc count error from it to make the
-                // new value for the bucket. This then means that when the
-                // final error for the bucket is calculated below we account
-                // for the existing error calculated in a previous reduce.
-                // Note that if the error is unbounded (-1) this will be fixed
-                // later in this method.
-                bucket.updateDocCountError(-thisAggDocCountError);
+            if (getShowDocCountError()) {
+                for (B bucket : terms.getBuckets()) {
+                    // If there is already a doc count error for this bucket
+                    // subtract this aggs doc count error from it to make the
+                    // new value for the bucket. This then means that when the
+                    // final error for the bucket is calculated below we account
+                    // for the existing error calculated in a previous reduce.
+                    // Note that if the error is unbounded (-1) this will be fixed
+                    // later in this method.
+                    bucket.updateDocCountError(-thisAggDocCountError);
+                }
             }
             if (terms.getBuckets().isEmpty() == false) {
                 bucketsList.add(terms.getBuckets());
@@ -293,14 +297,14 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                         reduceContext.consumeBucketsAndMaybeBreak(1);
                         result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                     } else {
-                        otherDocCount[0] += bucket.getDocCount();
+                        otherDocCount += bucket.getDocCount();
                     }
                 });
             } else if (reduceContext.isFinalReduce()) {
                 TopBucketBuilder<B> top = TopBucketBuilder.build(
                     getRequiredSize(),
                     getOrder(),
-                    removed -> otherDocCount[0] += removed.getDocCount(),
+                    removed -> otherDocCount += removed.getDocCount(),
                     AbstractInternalTerms.this::reduceBucket,
                     reduceContext
                 );
@@ -317,20 +321,20 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                     result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                 });
             }
-            for (B r : result) {
-                if (sumDocCountError == -1) {
-                    r.setDocCountError(-1);
-                } else {
-                    r.updateDocCountError(sumDocCountError);
+            if (getShowDocCountError()) {
+                for (B r : result) {
+                    if (sumDocCountError == -1) {
+                        r.setDocCountError(-1);
+                    } else {
+                        r.updateDocCountError(sumDocCountError);
+                    }
                 }
             }
-            long docCountError;
-            if (sumDocCountError == -1) {
-                docCountError = -1;
-            } else {
+            long docCountError = -1;
+            if (sumDocCountError != -1) {
                 docCountError = size == 1 ? 0 : sumDocCountError;
             }
-            return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount[0]);
+            return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount);
         }
 
         private BucketOrder getThisReduceOrder() {
@@ -340,18 +344,21 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        final List<B> originalBuckets = getBuckets();
+        final List<B> buckets = new ArrayList<>(originalBuckets.size());
+        for (B bucket : originalBuckets) {
+            buckets.add(
+                createBucket(
+                    samplingContext.scaleUp(bucket.getDocCount()),
+                    InternalAggregations.finalizeSampling(bucket.getAggregations(), samplingContext),
+                    getShowDocCountError() ? samplingContext.scaleUp(bucket.getDocCountError()) : 0,
+                    bucket
+                )
+            );
+        }
         return create(
             name,
-            getBuckets().stream()
-                .map(
-                    b -> createBucket(
-                        samplingContext.scaleUp(b.getDocCount()),
-                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
-                        b.getShowDocCountError() ? samplingContext.scaleUp(b.getDocCountError()) : 0,
-                        b
-                    )
-                )
-                .toList(),
+            buckets,
             getOrder(),
             samplingContext.scaleUp(getDocCountError()),
             samplingContext.scaleUp(getSumOfOtherDocCounts())
@@ -361,6 +368,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     protected static XContentBuilder doXContentCommon(
         XContentBuilder builder,
         Params params,
+        boolean showDocCountError,
         Long docCountError,
         long otherDocCount,
         List<? extends AbstractTermsBucket<?>> buckets
@@ -369,7 +377,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (AbstractTermsBucket<?> bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params, showDocCountError);
         }
         builder.endArray();
         return builder;

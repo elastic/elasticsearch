@@ -32,13 +32,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -461,7 +461,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             handleIncomingRequest(httpRequest, trackingChannel, httpRequest.getInboundException());
         } finally {
             final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-            networkService.getHandlingTimeTracker().addHandlingTime(took);
+            networkService.getHandlingTimeTracker().addObservation(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn(
@@ -484,21 +484,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
-                populatePerRequestThreadContext0(restRequest, channel, threadContext);
+                try {
+                    populatePerRequestThreadContext(restRequest, threadContext);
+                } catch (Exception e) {
+                    try {
+                        dispatcher.dispatchBadRequest(channel, threadContext, e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+                    }
+                    return;
+                }
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
-            }
-        }
-    }
-
-    private void populatePerRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
-        try {
-            populatePerRequestThreadContext(restRequest, threadContext);
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new RestResponse(channel, e));
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
             }
         }
     }
@@ -619,13 +616,27 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     /**
-     * A {@link HttpChannel} that tracks number of requests via a {@link RefCounted}.
+     * A {@link HttpChannel} that tracks the number of in-flight requests via a {@link RefCounted}, allowing the channel to be put into a
+     * state where it will close when idle.
      */
     private static class RequestTrackingHttpChannel implements HttpChannel {
+
+        /**
+         * Action which closes the inner channel exactly once, to avoid a double-close due to a natural {@link #close()} happening
+         * concurrently with the release of the last reference.
+         */
+        private final Runnable closeOnce = new RunOnce(this::closeInner);
+
+        /**
+         * Whether the channel will close when it becomes idle (i.e. the node is shutting down).
+         */
+        private volatile boolean closeWhenIdle;
+
         /**
          * Only counts down to zero via {@link #setCloseWhenIdle()}.
          */
-        final RefCounted refCounted = AbstractRefCounted.of(this::closeInner);
+        final RefCounted refCounted = AbstractRefCounted.of(closeOnce);
+
         final HttpChannel inner;
 
         RequestTrackingHttpChannel(HttpChannel inner) {
@@ -640,24 +651,21 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
          * Close the channel when there are no more requests in flight.
          */
         public void setCloseWhenIdle() {
+            assert closeWhenIdle == false : "setCloseWhenIdle() already called";
+            closeWhenIdle = true;
             refCounted.decRef();
         }
 
         @Override
         public void close() {
-            closeInner();
+            closeOnce.run();
         }
 
-        /**
-         * Synchronized to avoid double close due to a natural close and a close via {@link #setCloseWhenIdle()}
-         */
         private void closeInner() {
-            synchronized (inner) {
-                if (inner.isOpen()) {
-                    inner.close();
-                } else {
-                    logger.info("channel [{}] already closed", inner);
-                }
+            if (inner.isOpen()) {
+                inner.close();
+            } else {
+                logger.info("channel [{}] already closed", inner);
             }
         }
 
@@ -673,6 +681,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         @Override
         public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+            assert response.containsHeader(DefaultRestChannel.CONNECTION) == false;
+            if (closeWhenIdle) {
+                // We are shutting down, but will keep the connection open while there are still in-flight requests, and this could be an
+                // arbitrarily long wait if the client is pipelining, so tell the client it should stop using this connection:
+                response.addHeader(DefaultRestChannel.CONNECTION, DefaultRestChannel.CLOSE);
+            }
             inner.sendResponse(
                 response,
                 listener != null ? ActionListener.runAfter(listener, refCounted::decRef) : ActionListener.running(refCounted::decRef)

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -111,7 +112,7 @@ public class Concat extends EsqlScalarFunction {
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {

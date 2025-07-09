@@ -20,7 +20,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +33,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -44,6 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class DateFieldMapperTests extends MapperTestCase {
 
@@ -149,7 +151,8 @@ public class DateFieldMapperTests extends MapperTestCase {
         return List.of(
             exampleMalformedValue("2016-03-99").mapping(mappingWithFormat("strict_date_optional_time||epoch_millis"))
                 .errorMatches("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"),
-            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow"),
+            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("too far in the past"),
+            exampleMalformedValue("522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("too far in the future"),
             exampleMalformedValue("2020").mapping(mappingWithFormat("strict_date"))
                 .errorMatches("failed to parse date field [2020] with format [strict_date]"),
             exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
@@ -245,6 +248,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                     + "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"
             )
         );
+
+        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
+
+        assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
 
     public void testNullConfigValuesFail() {
@@ -564,7 +571,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
         return syntheticSourceSupportInternal(ignoreMalformed, false);
     }
@@ -587,15 +594,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 if (randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
 
-                    return new SyntheticSourceExample(
-                        v.input,
-                        v.output,
-                        resolution.convert(Instant.from(formatter.parse(v.output))),
-                        this::mapping
-                    );
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
 
                 List<Value> values = randomList(1, maxValues, this::generateValue);
@@ -617,11 +619,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outputFromDocValues.stream()
-                    .map(v -> resolution.convert(Instant.from(formatter.parse(v))))
-                    .toList();
-                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
             private record Value(Object input, String output, Object malformedOutput) {}
@@ -719,22 +717,6 @@ public class DateFieldMapperTests extends MapperTestCase {
         };
     }
 
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> asJacksonNumberOutput(((Number) v).longValue());
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // If a long value fits in int, Jackson will write it as int in NumberOutput.outputLong()
-        // and we hit this during serialization of expected values.
-        // Code below mimics that behaviour in order for matching to work.
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
-        }
-    }
-
     public void testLegacyField() throws Exception {
         // check that unknown date formats are treated leniently on old indices
         MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
@@ -757,4 +739,51 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 
+    public void testLegacyDateFormatName() {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
+            "format",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            mock(ScriptService.class),
+            true,
+            // BWC compatible index, e.g 7.x
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+            )
+        );
+
+        // Check that we allow the use of camel case date formats on 7.x indices
+        @SuppressWarnings("unchecked")
+        FieldMapper.Parameter<String> formatParam = (FieldMapper.Parameter<String>) builder.getParameters()[3];
+        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
+        builder.buildFormatter(); // shouldn't throw exception
+
+        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime||strictDateOptionalTimeNanos");
+        builder.buildFormatter(); // shouldn't throw exception
+
+        DateFieldMapper.Builder newFieldBuilder = new DateFieldMapper.Builder(
+            "format",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            mock(ScriptService.class),
+            true,
+            IndexVersion.current()
+        );
+
+        @SuppressWarnings("unchecked")
+        final FieldMapper.Parameter<String> newFormatParam = (FieldMapper.Parameter<String>) newFieldBuilder.getParameters()[3];
+
+        // Check that we don't allow the use of camel case date formats on 8.x indices
+        assertEquals(
+            "Error parsing [format] on field [format]: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
+            expectThrows(IllegalArgumentException.class, () -> {
+                newFormatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
+                assertEquals("strictDateOptionalTime", newFormatParam.getValue());
+                newFieldBuilder.buildFormatter();
+            }).getMessage()
+        );
+
+    }
 }

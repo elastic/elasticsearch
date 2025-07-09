@@ -100,6 +100,12 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
         assertThat(proxyNodes, containsInAnyOrder("node-2"));
+
+        assertWarnings(
+            "The remote cluster connection to [remote-cluster] is using the certificate-based security model. "
+                + "The certificate-based security model is deprecated and will be removed in a future major version. "
+                + "Migrate the remote cluster from the certificate-based to the API key-based security model."
+        );
     }
 
     public void testDisconnectedException() {
@@ -124,7 +130,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertTrue(future.isDone());
 
         Transport.Connection remoteConnection = remoteConnectionManager.getConnection(remoteNode1);
-        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(remoteConnection).get(), equalTo("remote-cluster"));
+        final String remoteClusterAlias = "remote-cluster";
+        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(remoteConnection).get(), equalTo(remoteClusterAlias));
 
         Transport.Connection localConnection = mock(Transport.Connection.class);
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(localConnection).isPresent(), equalTo(false));
@@ -132,11 +139,19 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         DiscoveryNode remoteNode2 = DiscoveryNodeUtils.create("remote-node-2", address);
         Transport.Connection proxyConnection = remoteConnectionManager.getConnection(remoteNode2);
         assertThat(proxyConnection, instanceOf(ProxyConnection.class));
-        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(proxyConnection).get(), equalTo("remote-cluster"));
+        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(proxyConnection).get(), equalTo(remoteClusterAlias));
 
         PlainActionFuture<Transport.Connection> future2 = new PlainActionFuture<>();
         remoteConnectionManager.openConnection(remoteNode1, null, future2);
-        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(future2.get()).get(), equalTo("remote-cluster"));
+        assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(future2.get()).get(), equalTo(remoteClusterAlias));
+
+        assertWarnings(
+            "The remote cluster connection to ["
+                + remoteClusterAlias
+                + "] is using the certificate-based security model. "
+                + "The certificate-based security model is deprecated and will be removed in a future major version. "
+                + "Migrate the remote cluster from the certificate-based to the API key-based security model."
+        );
     }
 
     public void testRewriteHandshakeAction() throws IOException {

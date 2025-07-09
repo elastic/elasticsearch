@@ -20,7 +20,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores values in a {@link IntBigArrayVector}. Does not take ownership of the given
  * {@link IntArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayBlock.java.st} instead.
  */
 public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlock {
 

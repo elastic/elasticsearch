@@ -12,10 +12,13 @@ import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
+import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
+
+// Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
+def taskNames = gradle.startParameter.taskNames.join(' ')
 
 develocity {
 
@@ -29,17 +32,22 @@ develocity {
     // Automatically publish scans from Elasticsearch CI
     if (onCI) {
       publishing.onlyIf { true }
-      server = 'https://gradle-enterprise.elastic.co'
+      if(server.isPresent() == false) {
+        server = 'https://gradle-enterprise.elastic.co'
+      }
     } else if( server.isPresent() == false) {
       publishing.onlyIf { false }
     }
+
+    def fips = buildParams.inFipsJvm
+    def gitRevision = buildParams.gitRevision
 
     background {
       tag OS.current().name()
       tag Architecture.current().name()
 
       // Tag if this build is run in FIPS mode
-      if (BuildParams.inFipsJvm) {
+      if (fips) {
         tag 'FIPS'
       }
 
@@ -92,8 +100,8 @@ develocity {
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
         } else {
-          value 'Git Commit ID', BuildParams.gitRevision
-          link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
+          value 'Git Commit ID', gitRevision.get()
+          link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
 
         buildFinished { result ->
@@ -108,7 +116,7 @@ develocity {
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
             def process = [
               'buildkite-agent',
               'annotate',
@@ -125,11 +133,10 @@ develocity {
         }
       } else {
         tag 'LOCAL'
+        if (System.getProperty('idea.active') == 'true') {
+          tag 'IDEA'
+        }
       }
     }
   }
-}
-
-static def safeName(String string) {
-  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

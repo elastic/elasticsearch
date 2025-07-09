@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -38,13 +37,13 @@ public abstract class AbstractDataStreamIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         // Disable apm-data so the index templates it installs do not impact
         // tests such as testIgnoreDynamicBeyondLimit.
         .setting("xpack.apm_data.enabled", "false")
         .setting("xpack.otel_data.registry.enabled", "false")
+        .setting("cluster.logsdb.enabled", "false")
         .build();
     protected RestClient client;
 

@@ -51,8 +51,8 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
                 "SpaceEvaluator[number=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 nullValue()
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
@@ -64,14 +64,14 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
                 "SpaceEvaluator[number=Attribute[channel=0]]",
                 DataType.KEYWORD,
                 nullValue()
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning(
-                    "Line -1:-1: java.lang.IllegalArgumentException: Creating strings longer than [" + max + "] bytes is not supported"
+                    "Line 1:1: java.lang.IllegalArgumentException: Creating strings longer than [" + max + "] bytes is not supported"
                 )
                 .withFoldingException(IllegalArgumentException.class, "Creating strings longer than [" + max + "] bytes is not supported");
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "integer");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     @Override

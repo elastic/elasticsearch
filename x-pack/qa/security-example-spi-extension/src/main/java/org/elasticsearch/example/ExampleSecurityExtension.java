@@ -11,6 +11,7 @@ import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.realm.CustomRoleMappingRealm;
 import org.elasticsearch.example.role.CustomInMemoryRolesProvider;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -35,11 +36,14 @@ import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
 public class ExampleSecurityExtension implements SecurityExtension {
 
     static {
-        // check that the extension's policy works.
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkPropertyAccess("myproperty");
-            return null;
-        });
+        final boolean useEntitlements = true;
+        if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            // check that the extension's policy works.
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                System.getSecurityManager().checkPropertyAccess("myproperty");
+                return null;
+            });
+        }
     }
 
     @Override

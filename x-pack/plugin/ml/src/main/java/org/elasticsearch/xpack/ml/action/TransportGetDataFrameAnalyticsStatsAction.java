@@ -363,7 +363,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         AnalysisStats analysisStats
     ) {
         ClusterState clusterState = clusterService.state();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(concreteAnalyticsId, tasks);
         String failureReason = null;

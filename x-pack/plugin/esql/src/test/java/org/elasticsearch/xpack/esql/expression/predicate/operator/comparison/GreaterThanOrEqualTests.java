@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -106,14 +107,28 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
         // Datetime
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting("GreaterThanOrEqualLongsEvaluator", "lhs", "rhs", (lhs, rhs) -> {
+            if (lhs instanceof Instant l && rhs instanceof Instant r) {
+                return l.isAfter(r) || l.equals(r);
+            }
+            throw new UnsupportedOperationException("Got some weird types");
+        }, DataType.BOOLEAN, TestCaseSupplier.dateCases(), TestCaseSupplier.dateCases(), List.of(), false));
+
+        suppliers.addAll(TestCaseSupplier.forBinaryNotCasting("GreaterThanOrEqualLongsEvaluator", "lhs", "rhs", (lhs, rhs) -> {
+            if (lhs instanceof Instant l && rhs instanceof Instant r) {
+                return l.isAfter(r) || l.equals(r);
+            }
+            throw new UnsupportedOperationException("Got some weird types");
+        }, DataType.BOOLEAN, TestCaseSupplier.dateNanosCases(), TestCaseSupplier.dateNanosCases(), List.of(), false));
+
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "GreaterThanOrEqualLongsEvaluator",
+                "GreaterThanOrEqualNanosMillisEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() >= ((Number) r).longValue(),
+                (lhs, rhs) -> (((Instant) lhs).isAfter((Instant) rhs) || lhs.equals(rhs)),
                 DataType.BOOLEAN,
-                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
                 TestCaseSupplier.dateCases(),
                 List.of(),
                 false
@@ -122,12 +137,12 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "GreaterThanOrEqualLongsEvaluator",
+                "GreaterThanOrEqualMillisNanosEvaluator",
                 "lhs",
                 "rhs",
-                (l, r) -> ((Number) l).longValue() >= ((Number) r).longValue(),
+                (lhs, rhs) -> (((Instant) lhs).isAfter((Instant) rhs) || lhs.equals(rhs)),
                 DataType.BOOLEAN,
-                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
@@ -143,17 +158,7 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(true, suppliers),
-                (o, v, t) -> AbstractScalarFunctionTestCase.errorMessageStringForBinaryOperators(
-                    o,
-                    v,
-                    t,
-                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
-                )
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

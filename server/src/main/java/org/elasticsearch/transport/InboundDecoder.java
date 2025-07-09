@@ -18,12 +18,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
-import java.util.function.Consumer;
 
 public class InboundDecoder implements Releasable {
 
@@ -40,11 +40,11 @@ public class InboundDecoder implements Releasable {
     private final ChannelType channelType;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), ChannelType.MIX);
+        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), ChannelType.MIX);
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ChannelType channelType) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), channelType);
+        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), channelType);
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {
@@ -53,7 +53,7 @@ public class InboundDecoder implements Releasable {
         this.channelType = channelType;
     }
 
-    public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int decode(ReleasableBytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
         ensureOpen();
         try {
             return internalDecode(reference, fragmentConsumer);
@@ -63,7 +63,8 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    public int internalDecode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int internalDecode(ReleasableBytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer)
+        throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
@@ -104,25 +105,26 @@ public class InboundDecoder implements Releasable {
             }
             int remainingToConsume = totalNetworkSize - bytesConsumed;
             int maxBytesToConsume = Math.min(reference.length(), remainingToConsume);
-            ReleasableBytesReference retainedContent;
-            if (maxBytesToConsume == remainingToConsume) {
-                retainedContent = reference.retainedSlice(0, maxBytesToConsume);
-            } else {
-                retainedContent = reference.retain();
-            }
-
             int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
-                bytesConsumedThisDecode += decompress(retainedContent);
+                bytesConsumedThisDecode += decompressor.decompress(
+                    maxBytesToConsume == remainingToConsume ? reference.slice(0, maxBytesToConsume) : reference
+                );
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
-                    fragmentConsumer.accept(decompressed);
+                    try (var buf = decompressed) {
+                        fragmentConsumer.accept(buf);
+                    }
                 }
             } else {
                 bytesConsumedThisDecode += maxBytesToConsume;
                 bytesConsumed += maxBytesToConsume;
-                fragmentConsumer.accept(retainedContent);
+                if (maxBytesToConsume == remainingToConsume) {
+                    fragmentConsumer.accept(reference.slice(0, maxBytesToConsume));
+                } else {
+                    fragmentConsumer.accept(reference);
+                }
             }
             if (isDone()) {
                 finishMessage(fragmentConsumer);
@@ -138,7 +140,7 @@ public class InboundDecoder implements Releasable {
         cleanDecodeState();
     }
 
-    private void finishMessage(Consumer<Object> fragmentConsumer) {
+    private void finishMessage(CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
         cleanDecodeState();
         fragmentConsumer.accept(END_CONTENT);
     }
@@ -154,12 +156,6 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    private int decompress(ReleasableBytesReference content) throws IOException {
-        try (content) {
-            return decompressor.decompress(content);
-        }
-    }
-
     private boolean isDone() {
         return bytesConsumed == totalNetworkSize;
     }
@@ -169,23 +165,17 @@ public class InboundDecoder implements Releasable {
             return 0;
         }
 
-        TransportVersion remoteVersion = TransportVersion.fromId(reference.getInt(TcpHeader.VERSION_POSITION));
-        int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
-        if (fixedHeaderSize > reference.length()) {
+        if (reference.length() <= TcpHeader.HEADER_SIZE) {
             return 0;
-        } else if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            return fixedHeaderSize;
         } else {
             int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             if (variableHeaderSize < 0) {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
-            if (variableHeaderSize > maxHeaderSize.getBytes() - fixedHeaderSize) {
-                throw new StreamCorruptedException(
-                    "header size [" + (fixedHeaderSize + variableHeaderSize) + "] exceeds limit of [" + maxHeaderSize + "]"
-                );
+            int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
+            if (totalHeaderSize > maxHeaderSize.getBytes()) {
+                throw new StreamCorruptedException("header size [" + totalHeaderSize + "] exceeds limit of [" + maxHeaderSize + "]");
             }
-            int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
             if (totalHeaderSize > reference.length()) {
                 return 0;
             } else {
@@ -213,11 +203,9 @@ public class InboundDecoder implements Releasable {
                 checkVersionCompatibility(header.getVersion());
             }
 
-            if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                // Skip since we already have ensured enough data available
-                streamInput.readInt();
-                header.finishParsingHeader(streamInput);
-            }
+            // Skip since we already have ensured enough data available
+            streamInput.readInt();
+            header.finishParsingHeader(streamInput);
             return header;
         }
     }

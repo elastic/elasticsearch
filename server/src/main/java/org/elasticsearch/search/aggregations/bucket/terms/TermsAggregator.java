@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -190,7 +189,6 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final DocValueFormat format;
     protected final BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
-    protected final Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator;
     protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
@@ -209,7 +207,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         super(name, factories, context, parent, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order;
-        partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
+        if (order != null) {
+            order.validate(this);
+        }
         this.format = format;
         if ((subAggsNeedScore() && descendsFromNestedAggregator(parent)) || context.isInSortOrderExecutionRequired()) {
             /**

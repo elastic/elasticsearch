@@ -1,8 +1,5 @@
 ---
 ignore_above mapping level setting:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index:  test
@@ -42,9 +39,6 @@ ignore_above mapping level setting:
 
 ---
 ignore_above mapping level setting on arrays:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index:  test
@@ -84,9 +78,6 @@ ignore_above mapping level setting on arrays:
 
 ---
 ignore_above mapping overrides setting:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index:  test
@@ -128,9 +119,6 @@ ignore_above mapping overrides setting:
 
 ---
 ignore_above mapping overrides setting on arrays:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index: test
@@ -172,9 +160,6 @@ ignore_above mapping overrides setting on arrays:
 
 ---
 date ignore_above index level setting:
-  - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
   - do:
       indices.create:
         index:  test

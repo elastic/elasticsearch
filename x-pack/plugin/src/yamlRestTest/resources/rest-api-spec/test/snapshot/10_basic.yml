@@ -54,8 +54,6 @@ setup:
   - do:
       indices.close:
         index : test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       snapshot.restore:
@@ -95,17 +93,19 @@ setup:
 "Failed to snapshot indices with synthetic source":
   - skip:
       features: ["allowed_warnings"]
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_synthetic
         body:
-          mappings:
-            _source:
-              mode: synthetic
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+            index:
+              mapping.source.mode: synthetic
 
   - do:
       snapshot.create:
@@ -113,7 +113,10 @@ setup:
         snapshot: test_snapshot_2
         wait_for_completion: true
         body: |
-          { "indices": "test_synthetic" }
+          { 
+            "indices": "test_synthetic",
+            "include_global_state": false
+          }
 
   - match: { snapshot.snapshot: test_snapshot_2 }
   - match: { snapshot.state : PARTIAL }
@@ -130,7 +133,10 @@ setup:
         snapshot: test_snapshot_3
         wait_for_completion: true
         body: |
-          { "indices": "test_*" }
+          { 
+            "indices": "test_*",
+            "include_global_state": false
+          }
 
   - match: { snapshot.snapshot: test_snapshot_3 }
   - match: { snapshot.state : PARTIAL }

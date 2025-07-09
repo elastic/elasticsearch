@@ -366,7 +366,7 @@ public abstract class CoreTestTranslater {
                     bos.write(JsonXContent.jsonXContent.bulkSeparator());
                 }
                 List<IndexRequest> indexRequests = new ArrayList<>();
-                new BulkRequestParser(false, RestApiVersion.current()).parse(
+                new BulkRequestParser(false, true, RestApiVersion.current()).parse(
                     bos.bytes(),
                     defaultIndex,
                     defaultRouting,

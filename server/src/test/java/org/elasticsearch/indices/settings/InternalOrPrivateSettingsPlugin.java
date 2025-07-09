@@ -10,7 +10,6 @@
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -104,9 +103,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         static class Response extends ActionResponse {
             Response() {}
 
-            Response(StreamInput in) throws IOException {
-                super(in);
-            }
+            Response(StreamInput in) {}
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {}
@@ -133,7 +130,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 threadPool,
                 actionFilters,
                 UpdateInternalOrPrivateAction.Request::new,
-                indexNameExpressionResolver,
                 UpdateInternalOrPrivateAction.Response::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -150,9 +146,11 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
-                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(currentState.metadata().index(request.index));
+                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(
+                        currentState.metadata().getProject().index(request.index)
+                    );
                     final Settings.Builder settingsBuilder = Settings.builder()
-                        .put(currentState.metadata().index(request.index).getSettings())
+                        .put(currentState.metadata().getProject().index(request.index).getSettings())
                         .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
                     imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());
@@ -181,9 +179,9 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Collections.singletonList(
-            new ActionHandler<>(UpdateInternalOrPrivateAction.INSTANCE, TransportUpdateInternalOrPrivateAction.class)
+            new ActionHandler(UpdateInternalOrPrivateAction.INSTANCE, TransportUpdateInternalOrPrivateAction.class)
         );
     }
 

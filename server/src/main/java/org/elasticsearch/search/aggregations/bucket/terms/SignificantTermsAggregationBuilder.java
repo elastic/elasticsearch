@@ -370,6 +370,6 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_3_0;
+        return TransportVersions.ZERO;
     }
 }

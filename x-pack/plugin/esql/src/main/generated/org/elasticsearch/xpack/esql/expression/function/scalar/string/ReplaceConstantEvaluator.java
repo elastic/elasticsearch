@@ -8,7 +8,6 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
@@ -92,7 +91,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
         }
         try {
           result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), this.regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
-        } catch (PatternSyntaxException e) {
+        } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
         }
@@ -109,7 +108,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), this.regex, newStrVector.getBytesRef(p, newStrScratch)));
-        } catch (PatternSyntaxException e) {
+        } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
         }

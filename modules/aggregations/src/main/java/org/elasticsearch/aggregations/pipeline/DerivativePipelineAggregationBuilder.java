@@ -259,6 +259,6 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 }

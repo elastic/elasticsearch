@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  description = 'The module adds support for the wired streams functionality including logs ingest'
+  classname = 'org.elasticsearch.rest.streams.StreamsPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common', 'streams'
+  }
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+}

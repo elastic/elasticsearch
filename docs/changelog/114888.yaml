@@ -1,6 +1,0 @@
-pr: 114888
-summary: Fix ST_CENTROID_AGG when no records are aggregated
-area: ES|QL
-type: bug
-issues:
- - 106025

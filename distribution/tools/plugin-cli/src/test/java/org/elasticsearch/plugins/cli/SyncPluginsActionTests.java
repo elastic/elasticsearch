@@ -55,10 +55,10 @@ public class SyncPluginsActionTests extends ESTestCase {
         Path home = createTempDir();
         Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);
-        Files.createDirectories(env.binFile());
-        Files.createFile(env.binFile().resolve("elasticsearch"));
-        Files.createDirectories(env.configFile());
-        Files.createDirectories(env.pluginsFile());
+        Files.createDirectories(env.binDir());
+        Files.createFile(env.binDir().resolve("elasticsearch"));
+        Files.createDirectories(env.configDir());
+        Files.createDirectories(env.pluginsDir());
 
         terminal = MockTerminal.create();
         action = new SyncPluginsAction(terminal, env);
@@ -78,7 +78,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * then an exception is thrown.
      */
     public void test_ensureNoConfigFile_withConfig_throwsException() throws Exception {
-        Files.createFile(env.configFile().resolve("elasticsearch-plugins.yml"));
+        Files.createFile(env.configDir().resolve("elasticsearch-plugins.yml"));
         final UserException e = expectThrows(UserException.class, () -> SyncPluginsAction.ensureNoConfigFile(env));
 
         assertThat(e.getMessage(), Matchers.matchesPattern("^Plugins config \\[.*] exists.*$"));
@@ -155,6 +155,22 @@ public class SyncPluginsActionTests extends ESTestCase {
         assertThat(pluginChanges.remove, empty());
         assertThat(pluginChanges.upgrade, hasSize(1));
         assertThat(pluginChanges.upgrade.get(0).getId(), equalTo("analysis-icu"));
+    }
+
+    /**
+     * Check that when there is an official plugin in the config file and in the cached config, then we
+     * calculate that the plugin does not need to be upgraded.
+     */
+    public void test_getPluginChanges_withOfficialPluginCachedConfigAndNoChanges_returnsNoChanges() throws Exception {
+        createPlugin("analysis-icu");
+        config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginsConfig cachedConfig = new PluginsConfig();
+        cachedConfig.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
+
+        assertThat(pluginChanges.isEmpty(), is(true));
     }
 
     /**
@@ -338,7 +354,7 @@ public class SyncPluginsActionTests extends ESTestCase {
 
     private void createPlugin(String name, String version) throws IOException {
         PluginTestUtil.writePluginProperties(
-            env.pluginsFile().resolve(name),
+            env.pluginsDir().resolve(name),
             "description",
             "dummy",
             "name",

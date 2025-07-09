@@ -8,22 +8,30 @@
 package org.elasticsearch.xpack.logsdb.qa;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.Template;
+import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.Mapping;
-import org.elasticsearch.logsdb.datageneration.MappingGenerator;
-import org.elasticsearch.logsdb.datageneration.Template;
-import org.elasticsearch.logsdb.datageneration.TemplateGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.PredefinedField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.spatial.datageneration.GeoShapeDataSourceHandler;
+import org.elasticsearch.xpack.spatial.datageneration.ShapeDataSourceHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class DataGenerationHelper {
     private final boolean keepArraySource;
@@ -49,14 +57,14 @@ public class DataGenerationHelper {
                         "host.name",
                         FieldType.KEYWORD,
                         Map.of("type", "keyword"),
-                        () -> ESTestCase.randomAlphaOfLength(5)
+                        (ignored) -> ESTestCase.randomAlphaOfLength(5)
                     ),
                     // Needed for terms query
                     new PredefinedField.WithGenerator(
                         "method",
                         FieldType.KEYWORD,
                         Map.of("type", "keyword"),
-                        () -> ESTestCase.randomFrom("put", "post", "get")
+                        (ignored) -> ESTestCase.randomFrom("put", "post", "get")
                     ),
 
                     // Needed for histogram aggregation
@@ -64,10 +72,39 @@ public class DataGenerationHelper {
                         "memory_usage_bytes",
                         FieldType.LONG,
                         Map.of("type", "long"),
-                        () -> ESTestCase.randomLongBetween(1000, 2000)
+                        (ignored) -> ESTestCase.randomLongBetween(1000, 2000)
                     )
                 )
-            );
+            )
+            .withDataSourceHandlers(List.of(new GeoShapeDataSourceHandler(), new ShapeDataSourceHandler()))
+            .withDataSourceHandlers(List.of(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                    return new DataSourceResponse.FieldTypeGenerator(new Supplier<>() {
+                        // geo_shape and shape tends to produce really big values so let's limit how many we generate
+                        private int shapesGenerated = 0;
+
+                        @Override
+                        public DataSourceResponse.FieldTypeGenerator.FieldTypeInfo get() {
+                            // Base set of field types
+                            var options = Arrays.stream(FieldType.values()).map(FieldType::toString).collect(Collectors.toSet());
+                            // Custom types coming from specific functionality modules
+
+                            if (shapesGenerated < 5) {
+                                options.add("geo_shape");
+                                options.add("shape");
+                            }
+
+                            var randomChoice = ESTestCase.randomFrom(options);
+                            if (randomChoice.equals("geo_shape") || randomChoice.equals("shape")) {
+                                shapesGenerated += 1;
+                            }
+
+                            return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
+                        }
+                    });
+                }
+            }));
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);
@@ -80,15 +117,20 @@ public class DataGenerationHelper {
         this.mapping = new MappingGenerator(specification).generate(template);
     }
 
-    void logsDbMapping(XContentBuilder builder) throws IOException {
+    Mapping mapping() {
+        return this.mapping;
+    }
+
+    void writeLogsDbMapping(XContentBuilder builder) throws IOException {
         builder.map(mapping.raw());
     }
 
-    void standardMapping(XContentBuilder builder) throws IOException {
+    void writeStandardMapping(XContentBuilder builder) throws IOException {
         builder.map(mapping.raw());
     }
 
     void logsDbSettings(Settings.Builder builder) {
+        builder.put("index.mode", "logsdb");
         if (keepArraySource) {
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }

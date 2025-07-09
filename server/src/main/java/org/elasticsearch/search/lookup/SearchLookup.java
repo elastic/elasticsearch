@@ -144,4 +144,5 @@ public class SearchLookup implements SourceProvider {
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         return sourceProvider.getSource(ctx, doc);
     }
+
 }

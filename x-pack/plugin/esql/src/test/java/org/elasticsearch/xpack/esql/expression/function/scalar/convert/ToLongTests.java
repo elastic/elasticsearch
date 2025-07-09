@@ -23,7 +23,6 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class ToLongTests extends AbstractScalarFunctionTestCase {
@@ -35,25 +34,38 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        Function<String, String> evaluatorName = s -> "ToLongFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryLong(suppliers, read, DataType.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.LONG, b -> b ? 1L : 0L, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName("Boolean", "bool"), DataType.LONG, b -> b ? 1L : 0L, List.of());
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
-        TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.LONG, DateUtils::toLong, List.of());
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateCases(),
+            DataType.LONG,
+            v -> DateUtils.toLongMillis((Instant) v),
+            List.of()
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateNanosCases(),
+            DataType.LONG,
+            v -> DateUtils.toLong((Instant) v),
+            List.of()
+        );
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + bytesRef.utf8ToString()
                     + "]"
             )
@@ -61,7 +73,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from doubles within long's range
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName("Double", "dbl"),
             DataType.LONG,
             Math::round,
             Long.MIN_VALUE,
@@ -71,34 +83,34 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from doubles outside long's range, negative
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName("Double", "dbl"),
             DataType.LONG,
             d -> null,
             Double.NEGATIVE_INFINITY,
             Long.MIN_VALUE - 1d,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         // from doubles outside long's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName("Double", "dbl"),
             DataType.LONG,
             d -> null,
             Long.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
 
         // from unsigned_long within long's range
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong"),
+            evaluatorName("UnsignedLong", "ul"),
             DataType.LONG,
             BigInteger::longValue,
             BigInteger.ZERO,
@@ -107,14 +119,14 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong"),
+            evaluatorName("UnsignedLong", "ul"),
             DataType.LONG,
             ul -> null,
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
             ul -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [long] range"
 
             )
         );
@@ -122,7 +134,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from integer
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName("Int", "i"),
             DataType.LONG,
             l -> (long) l,
             Integer.MIN_VALUE,
@@ -133,7 +145,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random longs
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
                 .stream()
                 .map(
@@ -151,7 +163,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles within long's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
                 .stream()
                 .map(
@@ -169,7 +181,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside integer's range, negative
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Long.MIN_VALUE - 1d, true)
                 .stream()
                 .map(
@@ -183,8 +195,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -192,7 +204,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside integer's range, positive
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.doubleCases(Long.MAX_VALUE + 1d, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
@@ -206,8 +218,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -223,17 +235,18 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Integer"),
+            evaluatorName("Int", "i"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
             DataType.LONG,
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            suppliers,
-            (v, p) -> "boolean or counter_integer or counter_long or date_nanos or datetime or numeric or string"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String next, String inner) {
+        String read = "Attribute[channel=0]";
+        return "ToLongFrom" + next + "Evaluator[" + inner + "=" + read + "]";
     }
 
     @Override

@@ -22,11 +22,11 @@ import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class JdbcCsvSpecIT extends CsvSpecTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     @Override
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadDatasetIntoEs(client, false);
+        DataLoader.loadDatasetIntoEs(client);
     }
 
     @Override

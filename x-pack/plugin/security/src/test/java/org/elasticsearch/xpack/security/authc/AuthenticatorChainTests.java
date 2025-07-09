@@ -28,12 +28,12 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
 
@@ -67,6 +67,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     private ServiceAccountAuthenticator serviceAccountAuthenticator;
     private OAuth2TokenAuthenticator oAuth2TokenAuthenticator;
     private ApiKeyAuthenticator apiKeyAuthenticator;
+    private PluggableApiKeyAuthenticator pluggableApiKeyAuthenticator;
     private RealmsAuthenticator realmsAuthenticator;
     private Authentication authentication;
     private User fallbackUser;
@@ -91,6 +92,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
+        pluggableApiKeyAuthenticator = mock(PluggableApiKeyAuthenticator.class);
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
@@ -103,6 +105,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             authenticationContextSerializer,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
+            pluggableApiKeyAuthenticator,
             apiKeyAuthenticator,
             realmsAuthenticator
         );
@@ -217,6 +220,13 @@ public class AuthenticatorChainTests extends ESTestCase {
                 new ApiKeyCredentials(randomAlphaOfLength(20), apiKeySecret, randomFrom(ApiKey.Type.values()))
             );
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                    AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+                listener.onResponse(AuthenticationResult.notHandled());
+                return null;
+            }).when(pluggableApiKeyAuthenticator).authenticate(eq(context), any());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         }
         doAnswer(invocationOnMock -> {
@@ -259,6 +269,13 @@ public class AuthenticatorChainTests extends ESTestCase {
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                    AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+                listener.onResponse(AuthenticationResult.notHandled());
+                return null;
+            }).when(pluggableApiKeyAuthenticator).authenticate(eq(context), any());
         }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -321,6 +338,14 @@ public class AuthenticatorChainTests extends ESTestCase {
         doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            listener.onResponse(AuthenticationResult.notHandled());
+            return null;
+        }).when(pluggableApiKeyAuthenticator).authenticate(eq(context), any());
+
         // 1. realms do not consume the token
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

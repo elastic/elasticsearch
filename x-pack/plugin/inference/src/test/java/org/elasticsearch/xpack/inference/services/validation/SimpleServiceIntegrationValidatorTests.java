@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.Before;
 import org.mockito.Mock;
 
@@ -35,6 +35,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
 
     private static final List<String> TEST_INPUT = List.of("how big");
     private static final String TEST_QUERY = "test query";
+    private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
 
     @Mock
     private InferenceService mockInferenceService;
@@ -63,16 +64,20 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             .infer(
                 eq(mockModel),
                 eq(null),
+                eq(null),
+                eq(null),
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
-                eq(InputType.INGEST),
-                eq(InferenceAction.Request.DEFAULT_TIMEOUT),
+                eq(InputType.INTERNAL_INGEST),
+                eq(TIMEOUT),
                 any()
             );
 
-        assertThrows(ElasticsearchStatusException.class, () -> {
-            underTest.validate(mockInferenceService, mockModel, mockActionListener);});
+        assertThrows(
+            ElasticsearchStatusException.class,
+            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
+        );
 
         verifyCallToService(false);
     }
@@ -95,22 +100,24 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
 
     private void mockSuccessfulCallToService(String query, InferenceServiceResults result) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(7);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(9);
             responseListener.onResponse(result);
             return null;
         }).when(mockInferenceService)
             .infer(
                 eq(mockModel),
                 eq(query),
+                eq(null),
+                eq(null),
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
-                eq(InputType.INGEST),
-                eq(InferenceAction.Request.DEFAULT_TIMEOUT),
+                eq(InputType.INTERNAL_INGEST),
+                eq(TIMEOUT),
                 any()
             );
 
-        underTest.validate(mockInferenceService, mockModel, mockActionListener);
+        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
 
     private void verifyCallToService(boolean withQuery) {
@@ -118,11 +125,13 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
         verify(mockInferenceService).infer(
             eq(mockModel),
             eq(withQuery ? TEST_QUERY : null),
+            eq(null),
+            eq(null),
             eq(TEST_INPUT),
             eq(false),
             eq(Map.of()),
-            eq(InputType.INGEST),
-            eq(InferenceAction.Request.DEFAULT_TIMEOUT),
+            eq(InputType.INTERNAL_INGEST),
+            eq(TIMEOUT),
             any()
         );
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);

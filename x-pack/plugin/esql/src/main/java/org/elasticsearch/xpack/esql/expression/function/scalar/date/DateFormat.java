@@ -14,8 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -33,10 +35,11 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 
 public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -55,10 +58,14 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text", "date", "date_nanos" }, description = """
             Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
             If `null`, the function returns `null`.""") Expression format,
-        @Param(name = "date", type = { "date" }, description = "Date expression. If `null`, the function returns `null`.") Expression date,
+        @Param(
+            name = "date",
+            type = { "date", "date_nanos" },
+            description = "Date expression. If `null`, the function returns `null`."
+        ) Expression date,
         Configuration configuration
     ) {
         super(source, date != null ? List.of(format, date) : List.of(format), configuration);
@@ -114,7 +121,9 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             }
         }
 
-        resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
+        String operationName = sourceText();
+        TypeResolutions.ParamOrdinal paramOrd = format == null ? FIRST : SECOND;
+        resolution = TypeResolutions.isType(field, DataType::isDate, operationName, paramOrd, "datetime or date_nanos");
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -127,31 +136,63 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         return field.foldable() && (format == null || format.foldable());
     }
 
-    @Evaluator(extraName = "Constant")
-    static BytesRef process(long val, @Fixed DateFormatter formatter) {
+    @Evaluator(extraName = "MillisConstant")
+    static BytesRef processMillis(long val, @Fixed DateFormatter formatter) {
         return new BytesRef(dateTimeToString(val, formatter));
     }
 
-    @Evaluator
-    static BytesRef process(long val, BytesRef formatter, @Fixed Locale locale) {
+    @Evaluator(extraName = "Millis")
+    static BytesRef processMillis(long val, BytesRef formatter, @Fixed Locale locale) {
         return new BytesRef(dateTimeToString(val, toFormatter(formatter, locale)));
+    }
+
+    @Evaluator(extraName = "NanosConstant")
+    static BytesRef processNanos(long val, @Fixed DateFormatter formatter) {
+        return new BytesRef(nanoTimeToString(val, formatter));
+    }
+
+    @Evaluator(extraName = "Nanos")
+    static BytesRef processNanos(long val, BytesRef formatter, @Fixed Locale locale) {
+        return new BytesRef(nanoTimeToString(val, toFormatter(formatter, locale)));
+    }
+
+    private ExpressionEvaluator.Factory getConstantEvaluator(
+        DataType dateType,
+        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
+        DateFormatter formatter
+    ) {
+        if (dateType == DATE_NANOS) {
+            return new DateFormatNanosConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
+        }
+        return new DateFormatMillisConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
+    }
+
+    private ExpressionEvaluator.Factory getEvaluator(
+        DataType dateType,
+        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
+        EvalOperator.ExpressionEvaluator.Factory formatEvaluator
+    ) {
+        if (dateType == DATE_NANOS) {
+            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
+        }
+        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
+            return getConstantEvaluator(field().dataType(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(), configuration().locale());
-            return new DateFormatConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), configuration().locale());
+            return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);
-        return new DateFormatEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
+        return getEvaluator(field().dataType(), fieldEvaluator, formatEvaluator);
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {

@@ -37,18 +37,6 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterNotQuery(KqlBaseParser.NotQueryContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitNotQuery(KqlBaseParser.NotQueryContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
     @Override public void enterBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) { }
     /**
      * {@inheritDoc}
@@ -85,6 +73,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
+    @Override public void enterNotQuery(KqlBaseParser.NotQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitNotQuery(KqlBaseParser.NotQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
     @Override public void enterNestedQuery(KqlBaseParser.NestedQueryContext ctx) { }
     /**
      * {@inheritDoc}
@@ -92,6 +92,54 @@ class KqlBaseBaseListener implements KqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override public void exitNestedQuery(KqlBaseParser.NestedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterBooleanNestedQuery(KqlBaseParser.BooleanNestedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitBooleanNestedQuery(KqlBaseParser.BooleanNestedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterDefaultNestedQuery(KqlBaseParser.DefaultNestedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitDefaultNestedQuery(KqlBaseParser.DefaultNestedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterNestedSimpleSubQuery(KqlBaseParser.NestedSimpleSubQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitNestedSimpleSubQuery(KqlBaseParser.NestedSimpleSubQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterNestedParenthesizedQuery(KqlBaseParser.NestedParenthesizedQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitNestedParenthesizedQuery(KqlBaseParser.NestedParenthesizedQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *

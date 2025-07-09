@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -102,10 +104,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public ShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "shape_multifields",
-                    "Adding multifields to [shape] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [shape] mappers has no effect"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(
@@ -120,13 +126,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
+                context.isSourceSynthetic(),
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(
             n,
             c.indexVersionCreated(),
@@ -136,6 +143,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     );
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements ShapeQueryable {
+        private final boolean isSyntheticSource;
 
         public ShapeFieldType(
             String name,
@@ -143,9 +151,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             boolean hasDocValues,
             Orientation orientation,
             Parser<Geometry> parser,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -183,6 +193,36 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, Function.identity());
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new CartesianBoundsBlockLoader(name());
+            }
+
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
+        }
+
+        static class CartesianBoundsBlockLoader extends BoundsBlockLoader {
+            protected CartesianBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
+
+            protected void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
+                // For cartesian_shape we store 4 values as a multi-valued field, in the same order as the fields in the Rectangle class
+                builder.beginPositionEntry();
+                builder.appendInt(Math.min(extent.negLeft, extent.posLeft));
+                builder.appendInt(Math.max(extent.negRight, extent.posRight));
+                builder.appendInt(extent.top);
+                builder.appendInt(extent.bottom);
+                builder.endPositionEntry();
+            }
         }
     }
 

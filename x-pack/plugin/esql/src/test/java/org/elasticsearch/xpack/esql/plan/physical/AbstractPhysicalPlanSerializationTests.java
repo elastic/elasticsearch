@@ -9,16 +9,13 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.PlanWritables;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,15 +47,12 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(PhysicalPlan.getNamedWriteables());
-        entries.addAll(LogicalPlan.getNamedWriteables());
-        entries.addAll(AggregateFunction.getNamedWriteables());
-        entries.addAll(Expression.getNamedWriteables());
-        entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(Block.getNamedWriteables());
-        entries.addAll(NamedExpression.getNamedWriteables());
+        entries.addAll(PlanWritables.getNamedWriteables());
+        entries.addAll(ExpressionWritables.aggregates());
+        entries.addAll(ExpressionWritables.allExpressions());
         entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()); // Query builders
         entries.add(Add.ENTRY); // Used by the eval tests
+        entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

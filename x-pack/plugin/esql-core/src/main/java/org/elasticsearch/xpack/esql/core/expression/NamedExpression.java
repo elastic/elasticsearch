@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,14 +18,6 @@ import java.util.Objects;
  * (by converting to an attribute).
  */
 public abstract class NamedExpression extends Expression implements NamedWriteable {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        for (NamedWriteableRegistry.Entry e : Attribute.getNamedWriteables()) {
-            entries.add(new NamedWriteableRegistry.Entry(NamedExpression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
-        }
-        entries.add(Alias.ENTRY);
-        return entries;
-    }
 
     private final String name;
     private final NameId id;
@@ -71,17 +61,26 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return Objects.hash(super.hashCode(), name, synthetic);
     }
 
+    /**
+     * Polymorphic equality is a pain and are likely slower than a regular ones.
+     * This equals shortcuts `this == o` and type checks (important when we expect only a few non-equal objects).
+     * Here equals is final to ensure we are not duplicating those checks.
+     * For actual equality check override `innerEquals` instead.
+     */
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
+    public final boolean equals(Object o) {
+        if (this == o) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
+        return innerEquals(o);
+    }
 
-        NamedExpression other = (NamedExpression) obj;
-        return Objects.equals(synthetic, other.synthetic)
+    protected boolean innerEquals(Object o) {
+        var other = (NamedExpression) o;
+        return synthetic == other.synthetic
             /*
              * It is important that the line below be `name`
              * and not `name()` because subclasses might override

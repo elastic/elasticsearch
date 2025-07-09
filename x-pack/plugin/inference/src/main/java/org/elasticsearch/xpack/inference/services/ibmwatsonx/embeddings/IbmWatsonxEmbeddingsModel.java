@@ -9,26 +9,26 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.EMBEDDINGS;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.ML;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.EMBEDDINGS;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.TEXT;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.V1;
 
 public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
 
@@ -40,6 +40,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -49,6 +50,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
             service,
             IbmWatsonxEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -64,10 +66,11 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         String service,
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
+        ChunkingSettings chunkingsettings,
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingsettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -115,7 +118,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
     }
 
     @Override
-    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

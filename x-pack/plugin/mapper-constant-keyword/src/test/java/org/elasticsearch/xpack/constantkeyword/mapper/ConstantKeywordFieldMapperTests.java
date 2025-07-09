@@ -12,7 +12,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +39,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -230,7 +228,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
      * contain the field.
      */
     public void testNullValueBlockLoader() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
@@ -319,17 +317,23 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> ((BytesRef) v).utf8ToString();
-    }
-
     public void testNullValueSyntheticSource() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
-        }));
+        })).documentMapper();
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+    }
+
+    public void testNoValueInDocumentSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.field("value", randomAlphaOfLength(5));
+            b.endObject();
+        })).documentMapper();
+
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 

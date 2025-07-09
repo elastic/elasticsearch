@@ -18,12 +18,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -34,7 +36,7 @@ import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTok
 
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
-    private static IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {
+    private IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
@@ -49,10 +51,55 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
     }
 
     public void testPreConfiguredTokenizer() throws IOException {
-        try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
-            NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
-            assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
+        // Before 7.3 we return ngrams of length 1 only
+        {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
+            );
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
+            }
+        }
+
+        // Check deprecated name as well
+        {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
+            );
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
+            }
+        }
+
+        // Afterwards, we return ngrams of length 1 and 2, to match the default factory settings
+        {
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(IndexVersion.current(), "edge_ngram")) {
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
+            }
+        }
+
+        // Check deprecated name as well, needs version before 8.0 because throws IAE after that
+        {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_3_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+            );
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
+            }
         }
     }
 

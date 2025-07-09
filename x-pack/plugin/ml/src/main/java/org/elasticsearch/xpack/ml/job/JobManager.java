@@ -536,13 +536,13 @@ public class JobManager {
     }
 
     private static boolean isJobOpen(ClusterState clusterState, String jobId) {
-        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
     private static Set<String> openJobIds(ClusterState clusterState) {
-        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
 
@@ -605,7 +605,12 @@ public class JobManager {
 
     private static void appendCommaSeparatedSet(Set<String> items, StringBuilder sb) {
         sb.append("[");
-        Strings.collectionToDelimitedString(items, ", ", "'", "'", sb);
+        if (items.isEmpty() == false) {
+            // surround each item with single-quotes
+            sb.append('\'');
+            Strings.collectionToDelimitedString(items, "', '", sb);
+            sb.append('\'');
+        }
         sb.append("]");
     }
 

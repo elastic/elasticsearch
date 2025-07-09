@@ -125,7 +125,9 @@ import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -305,11 +307,15 @@ public class JobResultsProvider {
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
+        // Find all indices starting with this name and pick the latest one
+        String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
+        if (concreteIndices.length > 0) {
+            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
+        }
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetadata().hasAlias(tempIndexName)) {
-            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
+        if (state.getMetadata().getProject().hasAlias(tempIndexName)) {
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
             // if it is closed, we bailout and return an error
@@ -323,14 +329,17 @@ public class JobResultsProvider {
                 );
                 return;
             }
-            tempIndexName = concreteIndices[0];
         }
+
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+                )
                 .addAliasAction(
                     IndicesAliasesRequest.AliasActions.add()
                         .index(indexName)
@@ -351,7 +360,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (state.getMetadata().hasIndex(indexName) == false) {
+        if (state.getMetadata().getProject().hasIndex(indexName) == false) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(
@@ -377,7 +386,7 @@ public class JobResultsProvider {
                 client.admin().indices()::create
             );
         } else {
-            MappingMetadata indexMappings = state.metadata().index(indexName).mapping();
+            MappingMetadata indexMappings = state.metadata().getProject().index(indexName).mapping();
             addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }
@@ -392,7 +401,10 @@ public class JobResultsProvider {
             addTermsMapping(indexMappings, indexName, termFields, listener);
         }, listener::onFailure);
 
-        GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(indexName).request();
+        GetMappingsRequest getMappingsRequest = client.admin()
+            .indices()
+            .prepareGetMappings(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT, indexName)
+            .request();
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

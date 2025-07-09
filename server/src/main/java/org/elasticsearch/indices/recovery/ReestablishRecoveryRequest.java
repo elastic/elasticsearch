@@ -12,14 +12,14 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * Represents a request for starting a peer recovery.
  */
-public class ReestablishRecoveryRequest extends TransportRequest {
+public class ReestablishRecoveryRequest extends AbstractTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;

@@ -10,88 +10,52 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
+import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+import static org.elasticsearch.TransportVersions.REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+import static org.elasticsearch.TransportVersions.V_9_0_0;
+import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
+import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
+import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
+     * leading to a runtime failure (see {@code LogConfigurator.checkErrorListener()} ). The premature construction would come from any
      * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
     }
 
-    public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue ZERO = new ByteSizeValue(0, BYTES);
+    public static final ByteSizeValue ONE = new ByteSizeValue(1, BYTES);
+    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, BYTES);
 
-    public static ByteSizeValue ofBytes(long size) {
-        if (size == 0) {
-            return ZERO;
-        }
-        if (size == 1) {
-            return ONE;
-        }
-        if (size == -1) {
-            return MINUS_ONE;
-        }
-        return new ByteSizeValue(size, ByteSizeUnit.BYTES);
-    }
-
-    public static ByteSizeValue ofKb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.KB);
-    }
-
-    public static ByteSizeValue ofMb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.MB);
-    }
-
-    public static ByteSizeValue ofGb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.GB);
-    }
-
-    public static ByteSizeValue ofTb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.TB);
-    }
-
-    public static ByteSizeValue ofPb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.PB);
-    }
-
-    private final long size;
-    private final ByteSizeUnit unit;
-
-    public static ByteSizeValue readFrom(StreamInput in) throws IOException {
-        long size = in.readZLong();
-        ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
-        if (unit == ByteSizeUnit.BYTES) {
-            return ofBytes(size);
-        }
-        return new ByteSizeValue(size, unit);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeZLong(size);
-        unit.writeTo(out);
-    }
-
-    public ByteSizeValue(long size, ByteSizeUnit unit) {
-        if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
+    /**
+     * @param size the number of {@code unit}s
+     */
+    public static ByteSizeValue of(long size, ByteSizeUnit unit) {
+        if (size < -1 || (size == -1 && unit != BYTES)) {
             throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
@@ -99,18 +63,94 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 "Values greater than " + Long.MAX_VALUE + " bytes are not supported: " + size + unit.getSuffix()
             );
         }
-        this.size = size;
-        this.unit = unit;
+        return newByteSizeValue(size * unit.toBytes(1), unit);
+    }
+
+    public static ByteSizeValue ofBytes(long size) {
+        return of(size, BYTES);
+    }
+
+    public static ByteSizeValue ofKb(long size) {
+        return of(size, KB);
+    }
+
+    public static ByteSizeValue ofMb(long size) {
+        return of(size, MB);
+    }
+
+    public static ByteSizeValue ofGb(long size) {
+        return of(size, GB);
+    }
+
+    public static ByteSizeValue ofTb(long size) {
+        return of(size, TB);
+    }
+
+    public static ByteSizeValue ofPb(long size) {
+        return of(size, PB);
+    }
+
+    static ByteSizeValue newByteSizeValue(long sizeInBytes, ByteSizeUnit desiredUnit) {
+        // Peel off some common cases to avoid allocations
+        if (desiredUnit == BYTES) {
+            if (sizeInBytes == 0) {
+                return ZERO;
+            }
+            if (sizeInBytes == 1) {
+                return ONE;
+            }
+            if (sizeInBytes == -1) {
+                return MINUS_ONE;
+            }
+        }
+        if (sizeInBytes < 0) {
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + sizeInBytes);
+        }
+        return new ByteSizeValue(sizeInBytes, desiredUnit);
+    }
+
+    private final long sizeInBytes;
+    private final ByteSizeUnit desiredUnit;
+
+    public static ByteSizeValue readFrom(StreamInput in) throws IOException {
+        long size = in.readZLong();
+        ByteSizeUnit unit = ByteSizeUnit.readFrom(in);
+        if (alwaysUseBytes(in.getTransportVersion())) {
+            return newByteSizeValue(size, unit);
+        } else {
+            return of(size, unit);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (alwaysUseBytes(out.getTransportVersion())) {
+            out.writeZLong(sizeInBytes);
+        } else {
+            out.writeZLong(Math.divideExact(sizeInBytes, desiredUnit.toBytes(1)));
+        }
+        desiredUnit.writeTo(out);
+    }
+
+    private static boolean alwaysUseBytes(TransportVersion tv) {
+        return tv.onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)
+            || tv.isPatchFrom(V_9_0_0)
+            || tv.between(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1, REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1);
+    }
+
+    ByteSizeValue(long sizeInBytes, ByteSizeUnit desiredUnit) {
+        this.sizeInBytes = sizeInBytes;
+        this.desiredUnit = desiredUnit;
     }
 
     // For testing
-    long getSize() {
-        return size;
+    long getSizeInBytes() {
+        return sizeInBytes;
     }
 
     // For testing
-    ByteSizeUnit getUnit() {
-        return unit;
+    ByteSizeUnit getDesiredUnit() {
+        return desiredUnit;
     }
 
     @Deprecated
@@ -123,27 +163,27 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     public long getBytes() {
-        return unit.toBytes(size);
+        return sizeInBytes;
     }
 
     public long getKb() {
-        return unit.toKB(size);
+        return getBytes() / KB.toBytes(1);
     }
 
     public long getMb() {
-        return unit.toMB(size);
+        return getBytes() / MB.toBytes(1);
     }
 
     public long getGb() {
-        return unit.toGB(size);
+        return getBytes() / GB.toBytes(1);
     }
 
     public long getTb() {
-        return unit.toTB(size);
+        return getBytes() / TB.toBytes(1);
     }
 
     public long getPb() {
-        return unit.toPB(size);
+        return getBytes() / PB.toBytes(1);
     }
 
     public double getKbFrac() {
@@ -175,32 +215,41 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
      *         serialising the value to JSON.
      */
     public String getStringRep() {
-        if (size <= 0) {
-            return String.valueOf(size);
+        if (sizeInBytes <= 0) {
+            return String.valueOf(sizeInBytes);
         }
-        return size + unit.getSuffix();
+        long numUnits = sizeInBytes / desiredUnit.toBytes(1);
+        long residue = sizeInBytes % desiredUnit.toBytes(1);
+        if (residue == 0) {
+            return numUnits + desiredUnit.getSuffix();
+        } else {
+            return sizeInBytes + BYTES.getSuffix();
+        }
     }
 
+    /**
+     * @return a string with at most one decimal point whose magnitude is close to {@code this}.
+     */
     @Override
     public String toString() {
         long bytes = getBytes();
         double value = bytes;
-        String suffix = ByteSizeUnit.BYTES.getSuffix();
+        String suffix = BYTES.getSuffix();
         if (bytes >= ByteSizeUnit.C5) {
             value = getPbFrac();
-            suffix = ByteSizeUnit.PB.getSuffix();
+            suffix = PB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C4) {
             value = getTbFrac();
-            suffix = ByteSizeUnit.TB.getSuffix();
+            suffix = TB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C3) {
             value = getGbFrac();
-            suffix = ByteSizeUnit.GB.getSuffix();
+            suffix = GB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C2) {
             value = getMbFrac();
-            suffix = ByteSizeUnit.MB.getSuffix();
+            suffix = MB.getSuffix();
         } else if (bytes >= ByteSizeUnit.C1) {
             value = getKbFrac();
-            suffix = ByteSizeUnit.KB.getSuffix();
+            suffix = KB.getSuffix();
         }
         return Strings.format1Decimals(value, suffix);
     }
@@ -231,25 +280,25 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         }
         String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
         if (lowerSValue.endsWith("k")) {
-            return parse(sValue, lowerSValue, "k", ByteSizeUnit.KB, settingName);
+            return parse(sValue, lowerSValue, "k", KB, settingName);
         } else if (lowerSValue.endsWith("kb")) {
-            return parse(sValue, lowerSValue, "kb", ByteSizeUnit.KB, settingName);
+            return parse(sValue, lowerSValue, "kb", KB, settingName);
         } else if (lowerSValue.endsWith("m")) {
-            return parse(sValue, lowerSValue, "m", ByteSizeUnit.MB, settingName);
+            return parse(sValue, lowerSValue, "m", MB, settingName);
         } else if (lowerSValue.endsWith("mb")) {
-            return parse(sValue, lowerSValue, "mb", ByteSizeUnit.MB, settingName);
+            return parse(sValue, lowerSValue, "mb", MB, settingName);
         } else if (lowerSValue.endsWith("g")) {
-            return parse(sValue, lowerSValue, "g", ByteSizeUnit.GB, settingName);
+            return parse(sValue, lowerSValue, "g", GB, settingName);
         } else if (lowerSValue.endsWith("gb")) {
-            return parse(sValue, lowerSValue, "gb", ByteSizeUnit.GB, settingName);
+            return parse(sValue, lowerSValue, "gb", GB, settingName);
         } else if (lowerSValue.endsWith("t")) {
-            return parse(sValue, lowerSValue, "t", ByteSizeUnit.TB, settingName);
+            return parse(sValue, lowerSValue, "t", TB, settingName);
         } else if (lowerSValue.endsWith("tb")) {
-            return parse(sValue, lowerSValue, "tb", ByteSizeUnit.TB, settingName);
+            return parse(sValue, lowerSValue, "tb", TB, settingName);
         } else if (lowerSValue.endsWith("p")) {
-            return parse(sValue, lowerSValue, "p", ByteSizeUnit.PB, settingName);
+            return parse(sValue, lowerSValue, "p", PB, settingName);
         } else if (lowerSValue.endsWith("pb")) {
-            return parse(sValue, lowerSValue, "pb", ByteSizeUnit.PB, settingName);
+            return parse(sValue, lowerSValue, "pb", PB, settingName);
         } else if (lowerSValue.endsWith("b")) {
             return parseBytes(lowerSValue, settingName, sValue);
         } else {
@@ -285,24 +334,16 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         ByteSizeUnit unit,
         final String settingName
     ) {
+        assert unit != BYTES : "Use parseBytes";
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             try {
-                return new ByteSizeValue(Long.parseLong(s), unit);
+                return of(Long.parseLong(s), unit);
             } catch (final NumberFormatException e) {
-                try {
-                    final double doubleValue = Double.parseDouble(s);
-                    DeprecationLoggerHolder.deprecationLogger.warn(
-                        DeprecationCategory.PARSING,
-                        "fractional_byte_values",
-                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
-                        initialInput,
-                        settingName
-                    );
-                    return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
-                } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
-                }
+                // If it's not an integer, it could be a valid number with a decimal
+                BigDecimal decimalValue = parseDecimal(s, settingName, initialInput, e);
+                long sizeInBytes = convertToBytes(decimalValue, unit, settingName, initialInput, e);
+                return new ByteSizeValue(sizeInBytes, unit);
             }
         } catch (IllegalArgumentException e) {
             throw new ElasticsearchParseException(
@@ -311,6 +352,82 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 settingName,
                 initialInput
             );
+        }
+    }
+
+    /**
+     * @param numericPortion the number to parse
+     * @param settingName for error reporting - the name of the setting we're parsing
+     * @param settingValue for error reporting - the whole string value of the setting
+     * @param originalException for error reporting - the exception that occurred when we tried to parse the setting as an integer
+     */
+    private static BigDecimal parseDecimal(
+        String numericPortion,
+        String settingName,
+        String settingValue,
+        NumberFormatException originalException
+    ) {
+        BigDecimal decimalValue;
+        try {
+            decimalValue = new BigDecimal(numericPortion);
+        } catch (NumberFormatException e) {
+            // Here, we choose to use originalException as the cause, because a NumberFormatException here
+            // indicates the string wasn't actually a valid BigDecimal after all, so there's no reason
+            // to confuse matters by reporting BigDecimal in the stack trace.
+            ElasticsearchParseException toThrow = new ElasticsearchParseException(
+                "failed to parse setting [{}] with value [{}]",
+                originalException,
+                settingName,
+                settingValue
+            );
+            toThrow.addSuppressed(e);
+            throw toThrow;
+        }
+        if (decimalValue.signum() < 0) {
+            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", settingName, settingValue);
+        } else if (decimalValue.scale() > 2) {
+            throw new ElasticsearchParseException(
+                "failed to parse setting [{}] with more than two decimals in value [{}]",
+                settingName,
+                settingValue
+            );
+        }
+        return decimalValue;
+    }
+
+    /**
+     * @param decimalValue the number of {@code unit}s
+     * @param unit the specified {@link ByteSizeUnit}
+     * @param settingName for error reporting - the name of the setting we're parsing
+     * @param settingValue for error reporting - the whole string value of the setting
+     * @param originalException for error reporting - the exception that occurred when we tried to parse the setting as an integer
+     */
+    private static long convertToBytes(
+        BigDecimal decimalValue,
+        ByteSizeUnit unit,
+        String settingName,
+        String settingValue,
+        NumberFormatException originalException
+    ) {
+        BigDecimal sizeInBytes = decimalValue.multiply(new BigDecimal(unit.toBytes(1)));
+        try {
+            // Note we always round up here for two reasons:
+            // 1. Practically: toString truncates, so if we ever round down, we'll lose a tenth
+            // 2. In principle: if the user asks for 1.1kb, which is 1126.4 bytes, and we only give then 1126, then
+            // we have not given them what they asked for.
+            return sizeInBytes.setScale(0, RoundingMode.UP).longValueExact();
+        } catch (ArithmeticException e) {
+            // Here, we choose to use the ArithmeticException as the cause, because we already know the
+            // number is a valid BigDecimal, so it makes sense to supply that context in the stack trace.
+            ElasticsearchParseException toThrow = new ElasticsearchParseException(
+                "failed to parse setting [{}] with value beyond {}: [{}]",
+                e,
+                settingName,
+                Long.MAX_VALUE,
+                settingValue
+            );
+            toThrow.addSuppressed(originalException);
+            throw toThrow;
         }
     }
 
@@ -328,7 +445,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     @Override
     public int hashCode() {
-        return Long.hashCode(size * unit.toBytes(1));
+        return Long.hashCode(getBytes());
     }
 
     @Override

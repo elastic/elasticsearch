@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -74,7 +75,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(super.indexSettings())
             .put(
                 IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB)
+                ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB)
             )
             .build();
     }
@@ -164,7 +165,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
+        assertThat(clusterState.metadata().getProject().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
         assertBusy(() -> closeIndices(indicesAdmin().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
@@ -244,7 +245,10 @@ public class CloseIndexIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().size(), equalTo(indices.length));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().indices().size(),
+            equalTo(indices.length)
+        );
 
         startInParallel(indices.length * 2, i -> {
             final String index = indices[i % indices.length];
@@ -287,7 +291,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         indexer.stopAndAwaitStopped();
 
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        if (clusterState.metadata().indices().get(indexName).getState() == IndexMetadata.State.CLOSE) {
+        if (clusterState.metadata().getProject().indices().get(indexName).getState() == IndexMetadata.State.CLOSE) {
             assertIndexIsClosed(indexName);
             assertAcked(indicesAdmin().prepareOpen(indexName));
         }
@@ -438,7 +442,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .getName();
         internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
         ensureGreen(indexName);
-        long primaryTerm = clusterService().state().metadata().index(indexName).primaryTerm(0);
+        long primaryTerm = clusterService().state().metadata().getProject().index(indexName).primaryTerm(0);
         for (String nodeName : internalCluster().nodesInclude(indexName)) {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName))
@@ -535,17 +539,20 @@ public class CloseIndexIT extends ESIntegTestCase {
     static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().indices().get(index);
             assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
             final Settings indexSettings = indexMetadata.getSettings();
             assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
             assertThat(indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
             assertThat(clusterState.routingTable().index(index), notNullValue());
-            assertThat(clusterState.blocks().hasIndexBlock(index, MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+            assertThat(
+                clusterState.blocks().hasIndexBlock(Metadata.DEFAULT_PROJECT_ID, index, MetadataIndexStateService.INDEX_CLOSED_BLOCK),
+                is(true)
+            );
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(Metadata.DEFAULT_PROJECT_ID)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
@@ -558,7 +565,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     static void assertIndexIsOpened(final String... indices) {
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().indices().get(index);
             assertThat(indexMetadata.getState(), is(IndexMetadata.State.OPEN));
             assertThat(indexMetadata.getSettings().hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
             assertThat(clusterState.routingTable().index(index), notNullValue());

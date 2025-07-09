@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -178,6 +180,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
             PlainActionFuture<ResetFeatureStateStatus> stateStatusPlainActionFuture = new PlainActionFuture<>();
             new TestSystemDataStreamPlugin().cleanUpFeature(
                 internalCluster().clusterService(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 internalCluster().client(),
                 stateStatusPlainActionFuture
             );
@@ -204,12 +207,13 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                                 Template.builder()
                                     .settings(Settings.EMPTY)
                                     .mappings(mappings)
-                                    .lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build())
+                                    .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()))
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );
@@ -229,7 +233,12 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
         }
 
         @Override
-        public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
+        public void cleanUpFeature(
+            ClusterService clusterService,
+            ProjectResolver projectResolver,
+            Client client,
+            ActionListener<ResetFeatureStateStatus> listener
+        ) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
             final DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -244,19 +253,22 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,
                     request,
-                    ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
-                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                        if (unwrapped instanceof ResourceNotFoundException) {
-                            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
-                        } else {
-                            listener.onFailure(e);
+                    ActionListener.wrap(
+                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        e -> {
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                            if (unwrapped instanceof ResourceNotFoundException) {
+                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                            } else {
+                                listener.onFailure(e);
+                            }
                         }
-                    })
+                    )
                 );
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
                 } else {
                     listener.onFailure(e);
                 }

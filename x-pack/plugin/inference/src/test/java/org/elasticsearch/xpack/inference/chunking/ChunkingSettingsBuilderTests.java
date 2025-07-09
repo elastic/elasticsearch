@@ -19,10 +19,20 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
 
     public static final SentenceBoundaryChunkingSettings DEFAULT_SETTINGS = new SentenceBoundaryChunkingSettings(250, 1);
 
+    public void testNullChunkingSettingsMap() {
+        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(null);
+        assertEquals(ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS, chunkingSettings);
+
+        ChunkingSettings chunkingSettingsOrNull = ChunkingSettingsBuilder.fromMap(null, false);
+        assertNull(chunkingSettingsOrNull);
+    }
+
     public void testEmptyChunkingSettingsMap() {
         ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(Collections.emptyMap());
-
         assertEquals(DEFAULT_SETTINGS, chunkingSettings);
+
+        ChunkingSettings chunkingSettingsOrNull = ChunkingSettingsBuilder.fromMap(Map.of(), false);
+        assertNull(chunkingSettingsOrNull);
     }
 
     public void testChunkingStrategyNotProvided() {

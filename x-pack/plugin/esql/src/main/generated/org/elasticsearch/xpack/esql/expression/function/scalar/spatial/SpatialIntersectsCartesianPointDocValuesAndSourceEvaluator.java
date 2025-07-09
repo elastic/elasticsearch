@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;

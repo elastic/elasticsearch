@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -69,9 +68,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MoreLikeThisQueryBuilder.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [more_like_this] "
-        + "queries. The type should no longer be specified in the [like] and [unlike] sections.";
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -105,7 +101,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
 
     private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     public static final ParseField DOC = new ParseField("doc");
     private static final ParseField PER_FIELD_ANALYZER = new ParseField("per_field_analyzer");
@@ -273,10 +268,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             return this;
         }
 
-        public Map<String, String> perFieldAnalyzer() {
-            return perFieldAnalyzer;
-        }
-
         /**
          * Sets the analyzer(s) to use at any given field.
          */
@@ -310,10 +301,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         public Item versionType(VersionType versionType) {
             this.versionType = versionType;
             return this;
-        }
-
-        XContentType xContentType() {
-            return xContentType;
         }
 
         /**
@@ -541,20 +528,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
-    public String[] unlikeTexts() {
-        return unlikeTexts;
-    }
-
     /**
      * Sets the documents from which the terms should not be selected from.
      */
     public MoreLikeThisQueryBuilder unlike(Item[] unlikeItems) {
         this.unlikeItems = Optional.ofNullable(unlikeItems).orElse(new Item[0]);
         return this;
-    }
-
-    public Item[] unlikeItems() {
-        return unlikeItems;
     }
 
     /**
@@ -569,10 +548,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
-    public int maxQueryTerms() {
-        return maxQueryTerms;
-    }
-
     /**
      * The frequency below which terms will be ignored in the source doc. The default
      * frequency is {@code 2}.
@@ -580,10 +555,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder minTermFreq(int minTermFreq) {
         this.minTermFreq = minTermFreq;
         return this;
-    }
-
-    public int minTermFreq() {
-        return minTermFreq;
     }
 
     /**
@@ -608,10 +579,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
-    public int maxDocFreq() {
-        return maxDocFreq;
-    }
-
     /**
      * Sets the minimum word length below which words will be ignored. Defaults
      * to {@code 0}.
@@ -632,10 +599,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
         this.maxWordLength = maxWordLength;
         return this;
-    }
-
-    public int maxWordLength() {
-        return maxWordLength;
     }
 
     /**
@@ -700,10 +663,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
-    public float boostTerms() {
-        return boostTerms;
-    }
-
     /**
      * Whether to include the input documents. Defaults to {@code false}
      */
@@ -722,10 +681,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
         this.failOnUnsupportedField = fail;
         return this;
-    }
-
-    public boolean failOnUnsupportedField() {
-        return failOnUnsupportedField;
     }
 
     @Override
@@ -956,9 +911,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // set analyzer
         Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.getIndexAnalyzer(
-                f -> { throw new UnsupportedOperationException("No analyzer configured for field " + f); }
-            );
+            analyzerObj = context.getIndexAnalyzer(f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); });
         }
         mltQuery.setAnalyzer(analyzer, analyzerObj);
 

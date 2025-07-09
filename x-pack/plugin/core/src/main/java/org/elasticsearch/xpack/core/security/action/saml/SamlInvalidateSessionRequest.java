@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request to invalidate a SAML session using a {@code LogoutRequest}.
  */
-public final class SamlInvalidateSessionRequest extends ActionRequest {
+public final class SamlInvalidateSessionRequest extends LegacyActionRequest {
 
     @Nullable
     private String realmName;

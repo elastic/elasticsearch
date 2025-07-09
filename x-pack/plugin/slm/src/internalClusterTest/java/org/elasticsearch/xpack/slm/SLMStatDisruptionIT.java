@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -137,16 +138,25 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestDelayedRepo.TYPE,
-                metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
-                    // Only delay the first request
-                    if (doDelay.getAndSet(false)) {
-                        try {
-                            assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
+                (projectId, metadata) -> new TestDelayedRepo(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    () -> {
+                        // Only delay the first request
+                        if (doDelay.getAndSet(false)) {
+                            try {
+                                assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
-                })
+                )
             );
         }
     }
@@ -156,6 +166,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         private final Runnable delayFn;
 
         protected TestDelayedRepo(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment env,
             NamedXContentRegistry namedXContentRegistry,
@@ -164,7 +175,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             Runnable delayFn
         ) {
-            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.delayFn = delayFn;
         }
 
@@ -199,7 +210,8 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestRestartBeforeListenersRepo.TYPE,
-                metadata -> new TestRestartBeforeListenersRepo(
+                (projectId, metadata) -> new TestRestartBeforeListenersRepo(
+                    projectId,
                     metadata,
                     env,
                     namedXContentRegistry,
@@ -223,6 +235,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         private final Runnable beforeResponseRunnable;
 
         protected TestRestartBeforeListenersRepo(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment env,
             NamedXContentRegistry namedXContentRegistry,
@@ -231,24 +244,25 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             Runnable beforeResponseRunnable
         ) {
-            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.beforeResponseRunnable = beforeResponseRunnable;
         }
 
         @Override
         public void finalizeSnapshot(FinalizeSnapshotContext fsc) {
             var newFinalizeContext = new FinalizeSnapshotContext(
+                false,
                 fsc.updatedShardGenerations(),
                 fsc.repositoryStateId(),
                 fsc.clusterMetadata(),
                 fsc.snapshotInfo(),
                 fsc.repositoryMetaVersion(),
                 fsc,
-                snapshotInfo -> {
+                () -> {
                     // run the passed lambda before calling the usual callback
                     // this is where the cluster can be restarted before SLM is called back with the snapshotInfo
                     beforeResponseRunnable.run();
-                    fsc.onDone(snapshotInfo);
+                    fsc.onDone();
                 }
             );
             super.finalizeSnapshot(newFinalizeContext);
@@ -583,7 +597,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
             .actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        return state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
     }
 
     private RegisteredPolicySnapshots getRegisteredSnapshots() {
@@ -592,7 +606,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
             .actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+        return state.metadata().getProject().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {

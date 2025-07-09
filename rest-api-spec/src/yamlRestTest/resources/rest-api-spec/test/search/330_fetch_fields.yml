@@ -1128,10 +1128,6 @@ fetch geo_point:
 
 ---
 "Test with subobjects: auto":
-  - requires:
-      cluster_features: "mapper.subobjects_auto"
-      reason: requires support for subobjects auto setting
-
   - do:
       indices.create:
         index: test
@@ -1177,3 +1173,121 @@ fetch geo_point:
   - is_false: hits.hits.0.fields.message
   - match: { hits.hits.0._source.message.foo: 10 }
   - match: { hits.hits.0._source.message.foo\.bar: 20 }
+
+---
+root with subobjects false and dynamic false:
+  - requires:
+      cluster_features: mapper.fix_parsing_subobjects_false_dynamic_false
+      reason: bug fix
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: false
+            dynamic: false
+            properties:
+              id:
+                type: integer
+              my.keyword.field:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 1, "my": { "keyword.field": "abc" } }'
+  - match: { errors: false }
+
+  # indexing a dynamically-mapped field still fails (silently)
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 2, "my": { "random.field": "abc" } }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: id
+          fields: [ "*" ]
+
+  - match: { hits.hits.0.fields: { my.keyword.field: [ abc ], id: [ 1 ] } }
+  - match: { hits.hits.1.fields: { id: [ 2 ] } }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              my.keyword.field: abc
+
+  - match: { hits.total.value: 1 }
+
+---
+object with subobjects false and dynamic false:
+  - requires:
+      cluster_features: mapper.fix_parsing_subobjects_false_dynamic_false
+      reason: bug fix
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              my:
+                subobjects: false
+                dynamic: false
+                properties:
+                  id:
+                    type: integer
+                  nested.keyword.field:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 1, "my": { "nested": { "keyword.field": "abc" } } }'
+  - match: { errors: false }
+
+  # indexing a dynamically-mapped field still fails (silently)
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 2, "my": { "nested": { "random.field": "abc" } } }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: id
+          fields: [ "*" ]
+
+  - match: { hits.hits.0.fields: { my.nested.keyword.field: [ abc ], id: [ 1 ] } }
+  - match: { hits.hits.1.fields: { id: [ 2 ] } }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              my.nested.keyword.field: abc
+
+  - match: { hits.total.value: 1 }

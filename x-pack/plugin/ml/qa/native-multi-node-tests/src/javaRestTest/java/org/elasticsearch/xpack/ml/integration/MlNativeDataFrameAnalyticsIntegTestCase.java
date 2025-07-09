@@ -124,7 +124,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id) throws Exception {
-        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(60));
+        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(180));
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
@@ -282,7 +282,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
         ClusterState masterClusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState();
-        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         return persistentTasks != null
             ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
             : Collections.emptyList();
@@ -365,7 +367,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // Make sure we wrote to the audit
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
-        assertBusy(() -> assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX)));
+        awaitIndexExists(NotificationsIndex.NOTIFICATIONS_INDEX);
 
         @SuppressWarnings("unchecked")
         Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
@@ -404,7 +406,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
-        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(index))
+        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
             .actionGet()
             .mappings()
             .get(index)

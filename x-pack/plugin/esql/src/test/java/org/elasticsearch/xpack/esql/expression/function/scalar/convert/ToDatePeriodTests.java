@@ -50,7 +50,7 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
                 matchesPattern("LiteralsEvaluator.*"),
                 DATE_PERIOD,
                 equalTo(field)
-            );
+            ).withoutEvaluator();
         }));
 
         for (EsqlDataTypeConverter.INTERVALS interval : DATE_PERIODS) {
@@ -67,13 +67,11 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
                         matchesPattern("LiteralsEvaluator.*"),
                         DATE_PERIOD,
                         equalTo(result)
-                    );
+                    ).withoutEvaluator();
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> "date_period or string")
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override
@@ -84,5 +82,11 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
     @Override
     public void testSerializationOfSimple() {
         assertTrue("Serialization test does not apply", true);
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // Can't be serialized
+        return expression;
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -40,8 +39,10 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -51,6 +52,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws Exception {
@@ -83,7 +86,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(primaryNode);
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
             @Override
             public void sendExecuteQuery(
                 Transport.Connection connection,
@@ -150,7 +155,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+        List<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -201,13 +206,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
                 SearchResponse.Clusters.EMPTY,
-                null
+                null,
+                false
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             latch.countDown();
                         }
                     };
@@ -219,13 +225,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             if (withScroll) {
                 assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
-            } else {
-                assertTrue(canReturnNullResponse.get());
-                if (withCollapse) {
-                    assertThat(numWithTopDocs.get(), equalTo(0));
-                } else {
-                    assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
-                }
+            } else if (withCollapse) {
+                assertThat(numWithTopDocs.get(), equalTo(0));
             }
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));

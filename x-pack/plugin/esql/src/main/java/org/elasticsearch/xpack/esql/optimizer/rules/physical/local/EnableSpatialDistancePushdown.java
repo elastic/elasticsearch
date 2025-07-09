@@ -12,21 +12,23 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -41,9 +43,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushSpatialFunctionToSource;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 
 /**
@@ -76,26 +77,38 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewrite(filterExec, esQueryExec);
+            plan = rewrite(ctx.foldCtx(), filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats()));
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec);
+            plan = rewriteBySplittingFilter(
+                ctx.foldCtx(),
+                filterExec,
+                evalExec,
+                esQueryExec,
+                LucenePushdownPredicates.from(ctx.searchStats())
+            );
         }
 
         return plan;
     }
 
-    private FilterExec rewrite(FilterExec filterExec, EsQueryExec esQueryExec) {
+    private FilterExec rewrite(
+        FoldContext ctx,
+        FilterExec filterExec,
+        EsQueryExec esQueryExec,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         // Find and rewrite any binary comparisons that involve a distance function and a literal
         var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
             ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
             if (comparison.left() instanceof StDistance dist && comparison.right().foldable()) {
-                return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
+                return rewriteComparison(ctx, comparison, dist, comparison.right(), comparisonType);
             } else if (comparison.right() instanceof StDistance dist && comparison.left().foldable()) {
-                return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
+                return rewriteComparison(ctx, comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
             }
             return comparison;
         });
-        if (rewritten.equals(filterExec.condition()) == false && canPushToSource(rewritten, x -> false)) {
+        if (rewritten.equals(filterExec.condition()) == false
+            && translatable(rewritten, lucenePushdownPredicates).finish() == TranslationAware.FinishedTranslatable.YES) {
             return new FilterExec(filterExec.source(), esQueryExec, rewritten);
         }
         return filterExec;
@@ -119,9 +132,15 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
      *     | WHERE other &gt; 10
      * </pre>
      */
-    private PhysicalPlan rewriteBySplittingFilter(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
+    private PhysicalPlan rewriteBySplittingFilter(
+        FoldContext ctx,
+        FilterExec filterExec,
+        EvalExec evalExec,
+        EsQueryExec esQueryExec,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         // Find all pushable distance functions in the EVAL
-        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields());
+        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields(), lucenePushdownPredicates);
 
         // Don't do anything if there are no distances to push down
         if (distances.isEmpty()) {
@@ -137,9 +156,10 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         for (Expression exp : splitAnd(filterExec.condition())) {
             Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             // Find and rewrite any binary comparisons that involve a distance function and a literal
-            var rewritten = rewriteDistanceFilters(resExp, distances);
+            var rewritten = rewriteDistanceFilters(ctx, resExp, distances);
             // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, x -> false)) {
+            if (rewritten.equals(resExp) == false
+                && translatable(rewritten, lucenePushdownPredicates).finish() == TranslationAware.FinishedTranslatable.YES) {
                 pushable.add(rewritten);
             } else {
                 nonPushable.add(exp);
@@ -163,10 +183,11 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
     }
 
-    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases) {
+    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, LucenePushdownPredicates lucenePushdownPredicates) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
         aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance)) {
+            if (alias.child() instanceof StDistance distance
+                && distance.translatable(lucenePushdownPredicates).finish() == TranslationAware.FinishedTranslatable.YES) {
                 distances.put(alias.id(), distance);
             } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
                 StDistance distance = distances.get(ref.id());
@@ -176,40 +197,42 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         return distances;
     }
 
-    private Expression rewriteDistanceFilters(Expression expr, Map<NameId, StDistance> distances) {
+    private Expression rewriteDistanceFilters(FoldContext ctx, Expression expr, Map<NameId, StDistance> distances) {
         return expr.transformDown(EsqlBinaryComparison.class, comparison -> {
             ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
             if (comparison.left() instanceof ReferenceAttribute r && distances.containsKey(r.id()) && comparison.right().foldable()) {
                 StDistance dist = distances.get(r.id());
-                return rewriteComparison(comparison, dist, comparison.right(), comparisonType);
+                return rewriteComparison(ctx, comparison, dist, comparison.right(), comparisonType);
             } else if (comparison.right() instanceof ReferenceAttribute r
                 && distances.containsKey(r.id())
                 && comparison.left().foldable()) {
                     StDistance dist = distances.get(r.id());
-                    return rewriteComparison(comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
+                    return rewriteComparison(ctx, comparison, dist, comparison.left(), ComparisonType.invert(comparisonType));
                 }
             return comparison;
         });
     }
 
     private Expression rewriteComparison(
+        FoldContext ctx,
         EsqlBinaryComparison comparison,
         StDistance dist,
         Expression literal,
         ComparisonType comparisonType
     ) {
-        Object value = literal.fold();
+        Object value = literal.fold(ctx);
         if (value instanceof Number number) {
             if (dist.right().foldable()) {
-                return rewriteDistanceFilter(comparison, dist.left(), dist.right(), number, comparisonType);
+                return rewriteDistanceFilter(ctx, comparison, dist.left(), dist.right(), number, comparisonType);
             } else if (dist.left().foldable()) {
-                return rewriteDistanceFilter(comparison, dist.right(), dist.left(), number, comparisonType);
+                return rewriteDistanceFilter(ctx, comparison, dist.right(), dist.left(), number, comparisonType);
             }
         }
         return comparison;
     }
 
     private Expression rewriteDistanceFilter(
+        FoldContext ctx,
         EsqlBinaryComparison comparison,
         Expression spatialExp,
         Expression literalExp,
@@ -217,7 +240,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         ComparisonType comparisonType
     ) {
         DataType shapeDataType = getShapeDataType(spatialExp);
-        Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(literalExp);
+        Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(ctx, literalExp);
         if (geometry instanceof Point point) {
             double distance = number.doubleValue();
             Source source = comparison.source();

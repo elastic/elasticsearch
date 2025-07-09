@@ -172,6 +172,8 @@ public class AsyncTaskManagementService<
         this.threadPool = threadPool;
     }
 
+    public static String ASYNC_ACTION_SUFFIX = "[a]";
+
     public void asyncExecute(
         Request request,
         TimeValue waitForCompletionTimeout,
@@ -182,7 +184,7 @@ public class AsyncTaskManagementService<
         String nodeId = clusterService.localNode().getId();
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
             @SuppressWarnings("unchecked")
-            T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId));
+            T searchTask = (T) taskManager.register("transport", action + ASYNC_ACTION_SUFFIX, new AsyncRequestWrapper(request, nodeId));
             boolean operationStarted = false;
             try {
                 operation.execute(
@@ -208,7 +210,7 @@ public class AsyncTaskManagementService<
         ActionListener<Response> listener
     ) {
         AtomicReference<ActionListener<Response>> exclusiveListener = new AtomicReference<>(listener);
-        // This is will performed in case of timeout
+        // This will be performed in case of timeout
         Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(() -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
             if (acquiredListener != null) {

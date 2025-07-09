@@ -12,16 +12,24 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -52,6 +60,64 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
 
         assertThat(decider.canRebalance(primary, allocation), equalTo(YES_ALL_REPLICAS_ACTIVE));
         assertThat(decider.canRebalance(replica, allocation), equalTo(YES_ALL_REPLICAS_ACTIVE));
+    }
+
+    public void testAllowRebalanceForMultipleIndicesAcrossMultipleProjects() {
+        final List<ShardRouting> shards = new ArrayList<>();
+
+        final List<String> nodeIds = randomList(3, 10, () -> randomAlphaOfLengthBetween(3, 8));
+        final GlobalRoutingTable.Builder routingTable = GlobalRoutingTable.builder();
+        final Metadata.Builder metadata = Metadata.builder();
+
+        final int numberOfProjects = randomIntBetween(2, 5);
+        final Iterator<String> nodeItr = Iterators.cycling(nodeIds);
+        for (int p = 1; p <= numberOfProjects; p++) {
+            final int numberOfIndices = randomIntBetween(1, 3);
+            var project = ProjectMetadata.builder(randomUniqueProjectId());
+            var rt = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            for (int i = 1; i <= numberOfIndices; i++) {
+                final int numberOfShards = randomIntBetween(1, 5);
+                final int numberOfReplicas = randomIntBetween(0, 2);
+                var index = new Index("index-" + i, randomUUID());
+                var irt = IndexRoutingTable.builder(index);
+                for (int s = 0; s < numberOfShards; s++) {
+                    final ShardId shard = new ShardId(index, s);
+                    var primary = newShardRouting(shard, nodeItr.next(), true, STARTED);
+                    irt.addShard(primary);
+                    shards.add(primary);
+                    for (int r = 0; r < numberOfReplicas; r++) {
+                        var replica = newShardRouting(shard, nodeItr.next(), false, STARTED);
+                        irt.addShard(replica);
+                        shards.add(replica);
+                    }
+                }
+                project.put(
+                    IndexMetadata.builder(index.getName())
+                        .settings(
+                            indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas).put(
+                                IndexMetadata.SETTING_INDEX_UUID,
+                                index.getUUID()
+                            )
+                        )
+                );
+                rt.add(irt);
+            }
+            metadata.put(project);
+            routingTable.put(project.getId(), rt);
+        }
+
+        assertThat(shards.size(), Matchers.greaterThanOrEqualTo(numberOfProjects));
+
+        var nodes = DiscoveryNodes.builder();
+        nodeIds.forEach(id -> nodes.add(newNode(id)));
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(nodes).routingTable(routingTable.build()).build();
+
+        var allocation = createRoutingAllocation(state);
+        var decider = new RebalanceOnlyWhenActiveAllocationDecider();
+
+        for (var shard : shards) {
+            assertThat(decider.canRebalance(shard, allocation), equalTo(YES_ALL_REPLICAS_ACTIVE));
+        }
     }
 
     public void testDoNotAllowRebalanceWhenSomeShardsAreNotActive() {

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -114,6 +115,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(
@@ -127,7 +129,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         PersistentTasksService persistentTasksService,
         DataFrameAnalyticsConfigProvider configProvider,
         MlMemoryTracker memoryTracker,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDataFrameAnalyticsAction.NAME,
@@ -136,7 +139,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             StartDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -155,6 +157,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -162,7 +165,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -223,7 +226,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
 
         // Get start context
-        getStartContext(request.getId(), task, startContextListener);
+        getStartContext(request.getId(), task, startContextListener, request.masterNodeTimeout());
     }
 
     private void estimateMemoryUsageAndUpdateMemoryTracker(StartContext startContext, ActionListener<StartContext> listener) {
@@ -264,7 +267,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
 
     }
 
-    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {
+    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener, TimeValue masterTimeout) {
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
@@ -320,6 +323,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             .<StartContext>andThen(
                 (l, startContext) -> MappingsMerger.mergeMappings(
                     parentTaskClient,
+                    masterTimeout,
                     startContext.config.getHeaders(),
                     startContext.config.getSource(),
                     l.map(ignored -> startContext)

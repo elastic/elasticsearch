@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -66,7 +67,7 @@ public class RestPluginsActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Build.current().version(),
-                    TransportVersion.current(),
+                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
                     IndexVersion.current(),
                     Map.of(),
                     null,

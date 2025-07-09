@@ -1,6 +1,0 @@
-pr: 112066
-summary: Do not treat replica as unassigned if primary recently created and unassigned
-  time is below a threshold
-area: Health
-type: enhancement
-issues: []

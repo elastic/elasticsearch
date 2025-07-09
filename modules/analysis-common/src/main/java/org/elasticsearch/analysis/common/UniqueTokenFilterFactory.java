@@ -23,7 +23,7 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean correctPositionIncrement;
 
     UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.onlyOnSamePosition = settings.getAsBoolean(ONLY_ON_SAME_POSITION, false);
         this.correctPositionIncrement = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX);
     }

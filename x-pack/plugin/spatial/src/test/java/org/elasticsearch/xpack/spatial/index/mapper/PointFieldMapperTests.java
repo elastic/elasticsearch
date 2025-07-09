@@ -7,16 +7,11 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYDocValuesField;
-import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -33,8 +28,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -55,7 +48,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected void assertXYPointField(IndexableField field, float x, float y) {
         // Unfortunately XYPointField and parent classes like IndexableField do not define equals, so we use toString
-        assertThat(field.toString(), is(new XYPointField(FIELD_NAME, 2000.1f, 305.6f).toString()));
+        assertThat(field.toString(), is(new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 2000.1f, 305.6f).toString()));
     }
 
     /** The GeoJSON parser used by 'point' and 'geo_point' mimic the required fields of the GeoJSON parser */
@@ -182,7 +175,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value(1.3).value(1.2).endArray());
         ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(3));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(2));
     }
 
     public void testArrayArrayStored() throws Exception {
@@ -369,7 +362,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [point] mappers has no effect");
     }
 
     @Override
@@ -449,37 +442,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Value v = generateValue();
-
-                    if (v.point == null) {
-                        return new SyntheticSourceExample(v.representation(), v.representation(), null, this::mapping);
-                    } else if (columnReader) {
-                        return new SyntheticSourceExample(v.representation(), v.representation(), encode(v.point()), this::mapping);
-                    }
-                    return new SyntheticSourceExample(v.representation(), v.representation(), v.point().toWKT(), this::mapping);
+                    return new SyntheticSourceExample(v.representation(), v.representation(), this::mapping);
                 }
                 List<Value> values = randomList(1, maxVals, this::generateValue);
                 var representations = values.stream().map(Value::representation).toList();
 
-                if (columnReader) {
-                    // When reading doc-values, the block is a list of encoded longs
-                    List<Long> outBlockList = values.stream()
-                        .map(Value::point)
-                        .filter(Objects::nonNull)
-                        .map(this::encode)
-                        .sorted()
-                        .toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(representations, representations, outBlock, this::mapping);
-                } else {
-                    // When reading row-stride, the block is a list of WKT encoded BytesRefs
-                    List<String> outBlockList = values.stream()
-                        .map(Value::point)
-                        .filter(Objects::nonNull)
-                        .map(CartesianPoint::toWKT)
-                        .toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(representations, representations, outBlock, this::mapping);
-                }
+                return new SyntheticSourceExample(representations, representations, this::mapping);
             }
 
             private record Value(CartesianPoint point, Object representation) {}
@@ -567,38 +535,5 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (columnReader) {
-            // When using column reader, we expect the output to be doc-values (which means encoded longs)
-            return v -> asJacksonNumberOutput(((Number) v).longValue());
-        } else {
-            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
-            return v -> asWKT((BytesRef) v);
-        }
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
-        // that is called when deserializing expected value in SyntheticSourceExample.
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
-        }
-    }
-
-    protected static Object asWKT(BytesRef value) {
-        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
-        return WellKnownText.toWKT(geometry);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

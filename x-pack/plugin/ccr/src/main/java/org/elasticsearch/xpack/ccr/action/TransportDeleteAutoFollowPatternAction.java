@@ -14,9 +14,10 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -30,13 +31,15 @@ import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 
 public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<DeleteAutoFollowPatternAction.Request> {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportDeleteAutoFollowPatternAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteAutoFollowPatternAction.NAME,
@@ -45,9 +48,9 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -60,7 +63,7 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
         submitUnbatchedTask("delete-auto-follow-pattern-" + request.getName(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return innerDelete(request, currentState);
+                return innerDelete(request, projectResolver.getProjectState(currentState));
             }
         });
     }
@@ -70,15 +73,15 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ClusterState currentState) {
-        AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
+    static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ProjectState projectState) {
+        AutoFollowMetadata currentAutoFollowMetadata = projectState.metadata().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null || currentAutoFollowMetadata.getPatterns().get(request.getName()) == null) {
             throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
         }
 
         AutoFollowMetadata newAutoFollowMetadata = removePattern(currentAutoFollowMetadata, request.getName());
 
-        return currentState.copyAndUpdateMetadata(metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata));
+        return projectState.updatedState(metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata));
     }
 
     private static AutoFollowMetadata removePattern(AutoFollowMetadata metadata, String name) {

@@ -26,6 +26,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.packaging.test.PackagingTestCase;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class ServerUtils {
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
-    private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(25);
+    private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(60);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
         final boolean securityEnabled;
@@ -82,7 +83,7 @@ public class ServerUtils {
                 .lines()
                 .filter(each -> each.startsWith("xpack.security.enabled"))
                 .findFirst()
-                .map(line -> Boolean.parseBoolean(line.split("=")[1]))
+                .map(line -> Booleans.parseBoolean(line.split("=")[1]))
                 // security is enabled by default, the only way for it to be disabled is to be explicitly disabled
                 .orElse(true);
         }
@@ -260,9 +261,7 @@ public class ServerUtils {
                         // `elastic` , the reserved realm checks the security index first. It can happen that we check the security index
                         // too early after the security index creation in DockerTests causing an UnavailableShardsException. We retry
                         // authentication errors for a couple of seconds just to verify this is not the case.
-                        if (installation.distribution.isDocker()
-                            && timeElapsed < dockerWaitForSecurityIndex
-                            && response.getStatusLine().getStatusCode() == 401) {
+                        if (timeElapsed < dockerWaitForSecurityIndex && response.getStatusLine().getStatusCode() == 401) {
                             logger.info(
                                 "Authentication against docker failed (possibly due to UnavailableShardsException for the security index)"
                                     + ", retrying..."

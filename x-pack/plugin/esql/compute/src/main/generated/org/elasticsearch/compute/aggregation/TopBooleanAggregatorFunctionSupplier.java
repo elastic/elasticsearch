@@ -12,29 +12,37 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link TopBooleanAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class TopBooleanAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int limit;
 
   private final boolean ascending;
 
-  public TopBooleanAggregatorFunctionSupplier(List<Integer> channels, int limit,
-      boolean ascending) {
-    this.channels = channels;
+  public TopBooleanAggregatorFunctionSupplier(int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
   }
 
   @Override
-  public TopBooleanAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopBooleanAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopBooleanGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public TopBooleanAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return TopBooleanAggregatorFunction.create(driverContext, channels, limit, ascending);
   }
 
   @Override
-  public TopBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public TopBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return TopBooleanGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
   }
 

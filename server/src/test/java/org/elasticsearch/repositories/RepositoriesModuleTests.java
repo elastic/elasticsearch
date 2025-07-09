@@ -65,14 +65,26 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCanRegisterTwoRepositoriesWithDifferentTypes() {
-        when(plugin1.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
-            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
-            any(RepositoriesMetrics.class)))
-            .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
-            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
-            any(RepositoriesMetrics.class)))
-            .thenReturn(Collections.singletonMap("type2", factory));
+        when(
+            plugin1.getRepositories(
+                eq(environment),
+                eq(contentRegistry),
+                eq(clusterService),
+                eq(MockBigArrays.NON_RECYCLING_INSTANCE),
+                eq(recoverySettings),
+                any(RepositoriesMetrics.class)
+            )
+        ).thenReturn(Collections.singletonMap("type1", factory));
+        when(
+            plugin2.getRepositories(
+                eq(environment),
+                eq(contentRegistry),
+                eq(clusterService),
+                eq(MockBigArrays.NON_RECYCLING_INSTANCE),
+                eq(recoverySettings),
+                any(RepositoriesMetrics.class)
+            )
+        ).thenReturn(Collections.singletonMap("type2", factory));
 
         // Would throw
         new RepositoriesModule(
@@ -83,18 +95,32 @@ public class RepositoriesModuleTests extends ESTestCase {
             mock(ClusterService.class),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
-            recoverySettings, TelemetryProvider.NOOP);
+            recoverySettings,
+            TelemetryProvider.NOOP
+        );
     }
 
     public void testCannotRegisterTwoRepositoriesWithSameTypes() {
-        when(plugin1.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
-            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
-            any(RepositoriesMetrics.class)))
-            .thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
-            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
-            any(RepositoriesMetrics.class)))
-            .thenReturn(Collections.singletonMap("type1", factory));
+        when(
+            plugin1.getRepositories(
+                eq(environment),
+                eq(contentRegistry),
+                eq(clusterService),
+                eq(MockBigArrays.NON_RECYCLING_INSTANCE),
+                eq(recoverySettings),
+                any(RepositoriesMetrics.class)
+            )
+        ).thenReturn(Collections.singletonMap("type1", factory));
+        when(
+            plugin2.getRepositories(
+                eq(environment),
+                eq(contentRegistry),
+                eq(clusterService),
+                eq(MockBigArrays.NON_RECYCLING_INSTANCE),
+                eq(recoverySettings),
+                any(RepositoriesMetrics.class)
+            )
+        ).thenReturn(Collections.singletonMap("type1", factory));
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -106,7 +132,9 @@ public class RepositoriesModuleTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
-                recoverySettings, TelemetryProvider.NOOP)
+                recoverySettings,
+                TelemetryProvider.NOOP
+            )
         );
 
         assertEquals("Repository type [type1] is already registered", ex.getMessage());
@@ -130,17 +158,25 @@ public class RepositoriesModuleTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
-                recoverySettings, TelemetryProvider.NOOP)
+                recoverySettings,
+                TelemetryProvider.NOOP
+            )
         );
 
         assertEquals("Internal repository type [type1] is already registered", ex.getMessage());
     }
 
     public void testCannotRegisterNormalAndInternalRepositoriesWithSameTypes() {
-        when(plugin1.getRepositories(eq(environment), eq(contentRegistry), eq(clusterService),
-            eq(MockBigArrays.NON_RECYCLING_INSTANCE), eq(recoverySettings),
-            any(RepositoriesMetrics.class)))
-            .thenReturn(Collections.singletonMap("type1", factory));
+        when(
+            plugin1.getRepositories(
+                eq(environment),
+                eq(contentRegistry),
+                eq(clusterService),
+                eq(MockBigArrays.NON_RECYCLING_INSTANCE),
+                eq(recoverySettings),
+                any(RepositoriesMetrics.class)
+            )
+        ).thenReturn(Collections.singletonMap("type1", factory));
         when(plugin2.getInternalRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
             Collections.singletonMap("type1", factory)
         );
@@ -155,7 +191,9 @@ public class RepositoriesModuleTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
-                recoverySettings, TelemetryProvider.NOOP)
+                recoverySettings,
+                TelemetryProvider.NOOP
+            )
         );
 
         assertEquals("Internal repository type [type1] is already registered as a non-internal repository", ex.getMessage());

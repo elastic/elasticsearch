@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +41,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
     private final ScriptService scriptService = mock(ScriptService.class);
 
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private Map<String, Object> config;
 
     @Before
@@ -65,11 +67,12 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadStringPropertyInvalidType() {
-        try {
-            ConfigurationUtils.readStringProperty(null, null, config, "arr");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
-        }
+        ElasticsearchParseException caught = assertThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readStringProperty(null, null, config, "arr")
+        );
+        assertThat(caught.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
+
     }
 
     public void testReadBooleanProperty() {
@@ -83,11 +86,11 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadBooleanPropertyInvalidType() {
-        try {
-            ConfigurationUtils.readBooleanProperty(null, null, config, "arr", true);
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
-        }
+        ElasticsearchParseException caught = assertThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readBooleanProperty(null, null, config, "arr", true)
+        );
+        assertThat(caught.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
     }
 
     public void testReadStringOrIntProperty() {
@@ -98,11 +101,11 @@ public class ConfigurationUtilsTests extends ESTestCase {
     }
 
     public void testReadStringOrIntPropertyInvalidType() {
-        try {
-            ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null);
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
-        }
+        ElasticsearchParseException caught = assertThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readStringOrIntProperty(null, null, config, "arr", null)
+        );
+        assertThat(caught.getMessage(), equalTo("[arr] property isn't a string or int, but of type [java.util.Arrays$ArrayList]"));
     }
 
     public void testReadMediaProperty() {
@@ -147,7 +150,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry = Collections.singletonMap(
             "test_processor",
-            (factories, tag, description, config) -> processor
+            (factories, tag, description, config, projectId) -> processor
         );
 
         List<Map<String, Object>> config = new ArrayList<>();
@@ -155,7 +158,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         config.add(Collections.singletonMap("test_processor", emptyConfig));
         config.add(Collections.singletonMap("test_processor", emptyConfig));
 
-        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry);
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, projectId);
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0), sameInstance(processor));
         assertThat(result.get(1), sameInstance(processor));
@@ -168,7 +171,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry)
+            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, projectId)
         );
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
@@ -185,7 +188,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         config2.add(Collections.singletonMap("second_unknown_processor", secondUnknownTaggedConfig));
         e = expectThrows(
             ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry)
+            () -> ConfigurationUtils.readProcessorConfigs(config2, scriptService, registry, projectId)
         );
         assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
         assertThat(e.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_unknown")));
@@ -204,7 +207,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         config3.add(Collections.singletonMap("test_processor", null));
         ElasticsearchParseException e3 = expectThrows(
             ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry)
+            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry, projectId)
         );
         assertThat(e3.getMetadata("es.processor_type"), equalTo(Collections.singletonList("test_processor")));
         assertThat(e3.getMessage(), equalTo("processor config cannot be [null]"));
@@ -212,15 +215,18 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
     public void testReadProcessorNullDescription() throws Exception {
         Processor processor = new TestProcessor("tag", "type", null, (ingestDocument) -> {});
-        Map<String, Processor.Factory> registry = Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
-            assertNull(description);
-            return processor;
-        });
+        Map<String, Processor.Factory> registry = Collections.singletonMap(
+            "test_processor",
+            (factories, tag, description, config, projectId) -> {
+                assertNull(description);
+                return processor;
+            }
+        );
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> emptyConfig = Collections.emptyMap();
         config.add(Collections.singletonMap("test_processor", emptyConfig));
-        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry);
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, projectId);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0), sameInstance(processor));
     }
@@ -228,40 +234,46 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void testReadProcessorDescription() throws Exception {
         String testDescription = randomAlphaOfLengthBetween(10, 20);
         Processor processor = new TestProcessor("tag", "type", testDescription, (ingestDocument) -> {});
-        Map<String, Processor.Factory> registry = Collections.singletonMap("test_processor", (factories, tag, description, config) -> {
-            assertThat(description, equalTo(processor.getDescription()));
-            return processor;
-        });
+        Map<String, Processor.Factory> registry = Collections.singletonMap(
+            "test_processor",
+            (factories, tag, description, config, projectId) -> {
+                assertThat(description, equalTo(processor.getDescription()));
+                return processor;
+            }
+        );
 
         List<Map<String, Object>> config = new ArrayList<>();
         Map<String, Object> processorConfig = new HashMap<>();
         processorConfig.put(ConfigurationUtils.DESCRIPTION_KEY, testDescription);
         config.add(Collections.singletonMap("test_processor", processorConfig));
-        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry);
+        List<Processor> result = ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, projectId);
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0), sameInstance(processor));
     }
 
     public void testReadProcessorFromObjectOrMap() throws Exception {
         Processor processor = mock(Processor.class);
-        Map<String, Processor.Factory> registry = Collections.singletonMap("script", (processorFactories, tag, description, config) -> {
-            config.clear();
-            return processor;
-        });
+        Map<String, Processor.Factory> registry = Collections.singletonMap(
+            "script",
+            (processorFactories, tag, description, config, projectId) -> {
+                config.clear();
+                return processor;
+            }
+        );
 
         Object emptyConfig = Collections.emptyMap();
-        Processor processor1 = ConfigurationUtils.readProcessor(registry, scriptService, "script", emptyConfig);
+        Processor processor1 = ConfigurationUtils.readProcessor(registry, scriptService, "script", emptyConfig, projectId);
         assertThat(processor1, sameInstance(processor));
 
         Object inlineScript = "test_script";
-        Processor processor2 = ConfigurationUtils.readProcessor(registry, scriptService, "script", inlineScript);
+        Processor processor2 = ConfigurationUtils.readProcessor(registry, scriptService, "script", inlineScript, projectId);
         assertThat(processor2, sameInstance(processor));
 
         Object invalidConfig = 12L;
 
         ElasticsearchParseException ex = expectThrows(
             ElasticsearchParseException.class,
-            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig)
+            () -> ConfigurationUtils.readProcessor(registry, scriptService, "unknown_processor", invalidConfig, projectId)
         );
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
     }
@@ -278,6 +290,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
             propertyValue,
             scriptService
         );
+        assertThat(result, instanceOf(ConfigurationUtils.ConstantTemplateScriptFactory.class));
         assertThat(result.newInstance(null).execute(), equalTo(propertyValue));
         verify(scriptService, times(0)).compile(any(), any());
     }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.capabilities;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,20 +18,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.InfrastructureFeatures;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 public class TransportNodesCapabilitiesAction extends TransportNodesAction<
@@ -69,22 +66,6 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
     }
 
     @Override
-    protected void doExecute(Task task, NodesCapabilitiesRequest request, ActionListener<NodesCapabilitiesResponse> listener) {
-        if (featureService.clusterHasFeature(clusterService.state(), RestNodesCapabilitiesAction.CAPABILITIES_ACTION) == false) {
-            // not everything in the cluster supports capabilities.
-            // Therefore we don't support whatever it is we're being asked for
-            listener.onResponse(new NodesCapabilitiesResponse(clusterService.getClusterName(), List.of(), List.of()) {
-                @Override
-                public Optional<Boolean> isSupported() {
-                    return Optional.of(false);
-                }
-            });
-        } else {
-            super.doExecute(task, request, listener);
-        }
-    }
-
-    @Override
     protected NodesCapabilitiesResponse newResponse(
         NodesCapabilitiesRequest request,
         List<NodeCapability> responses,
@@ -95,13 +76,21 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodeCapabilitiesRequest newNodeRequest(NodesCapabilitiesRequest request) {
-        return new NodeCapabilitiesRequest(
-            request.method(),
-            request.path(),
-            request.parameters(),
-            request.capabilities(),
-            request.restApiVersion()
-        );
+        RestApiVersion restVersion;
+        if (request.restApiVersion().isPresent()) {
+            // explicit version - just use it, and see what happens
+            restVersion = request.restApiVersion().get();
+        } else if (featureService.clusterHasFeature(clusterService.state(), InfrastructureFeatures.CURRENT_VERSION)) {
+            restVersion = RestApiVersion.current(); // every node is at least this major version, so use that
+        } else {
+            // not all nodes are the current version. previous major version nodes do not understand
+            // the new REST API version, so query using the previous version.
+            // Capabilities can come and go, so it's ok for the response to change
+            // when the nodes change
+            restVersion = RestApiVersion.previous();
+        }
+
+        return new NodeCapabilitiesRequest(request.method(), request.path(), request.parameters(), request.capabilities(), restVersion);
     }
 
     @Override
@@ -121,7 +110,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         return new NodeCapability(supported, transportService.getLocalNode());
     }
 
-    public static class NodeCapabilitiesRequest extends TransportRequest {
+    public static class NodeCapabilitiesRequest extends AbstractTransportRequest {
         private final RestRequest.Method method;
         private final String path;
         private final Set<String> parameters;
@@ -152,10 +141,6 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.restApiVersion = restApiVersion;
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
-        // ./gradlew ":qa:mixed-cluster:v8.16.0#mixedClusterTest"
-        // -Dtests.class="org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
-        // -Dtests.method="test {p0=capabilities/10_basic/Capabilities API}"
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -164,9 +149,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(capabilities, StreamOutput::writeString);
-            // Fixme: lies! all lies!
-            out.writeVInt(8);
-            // out.writeVInt(restApiVersion.major);
+            out.writeVInt(restApiVersion.major);
         }
     }
 }

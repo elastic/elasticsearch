@@ -68,6 +68,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
 
     @Inject
@@ -86,10 +87,10 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             IndicesShardStoresRequest::new,
-            indexNameExpressionResolver,
             IndicesShardStoresResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
     }
 
@@ -237,7 +238,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             Iterator<ShardRequestContext> getShardRequestContexts() {
                 try (var shardListeners = new RefCountingListener(1, outerListener.acquire(ignored -> putResults()))) {
                     final var customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-                        metadata.index(indexRoutingTable.getIndex()).getSettings()
+                        metadata.indexMetadata(indexRoutingTable.getIndex()).getSettings()
                     );
                     final var shardRequestContexts = new ArrayList<ShardRequestContext>(indexRoutingTable.size());
                     for (int shardNum = 0; shardNum < indexRoutingTable.size(); shardNum++) {

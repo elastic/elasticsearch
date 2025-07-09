@@ -1,5 +1,0 @@
-pr: 112612
-summary: Set `replica_unassigned_buffer_time` in constructor
-area: Health
-type: bug
-issues: []

@@ -14,21 +14,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -37,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -77,7 +83,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static final WriteLoadForecaster TEST_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
         @Override
-        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+        public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
             throw new AssertionError("Not required for testing");
         }
 
@@ -86,6 +92,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
             return indexMetadata.getForecastedWriteLoad();
         }
+
+        @Override
+        public void refreshLicense() {}
     };
 
     public static MockAllocationService createAllocationService() {
@@ -165,7 +174,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             clusterService,
             null,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -194,7 +204,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     protected static DiscoveryNode newNode(String nodeId) {
-        return newNode(nodeId, (Version) null);
+        return DiscoveryNodeUtils.builder(nodeId).roles(MASTER_DATA_ROLES).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
@@ -432,4 +442,22 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
         }
     }
+
+    protected static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS =
+        new NodeAllocationStatsAndWeightsCalculator(
+            WriteLoadForecaster.DEFAULT,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+        ) {
+            @Override
+            public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
+                Metadata metadata,
+                RoutingNodes routingNodes,
+                ClusterInfo clusterInfo,
+                Runnable ensureNotCancelled,
+                @Nullable DesiredBalance desiredBalance
+            ) {
+                ensureNotCancelled.run();
+                return Map.of();
+            }
+        };
 }

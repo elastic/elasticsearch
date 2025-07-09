@@ -1,0 +1,5 @@
+pr: 126087
+summary: Upgrade to repository-gcs to use com.google.cloud:google-cloud-storage-bom:2.50.0
+area: Snapshot/Restore
+type: upgrade
+issues: []

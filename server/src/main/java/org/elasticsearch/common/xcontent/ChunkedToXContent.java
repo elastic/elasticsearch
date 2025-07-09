@@ -27,14 +27,6 @@ import java.util.Iterator;
 public interface ChunkedToXContent {
 
     /**
-     * Returns a new {@link ChunkedToXContentBuilder} to construct a series of XContent chunks
-     * @param params    Params to use during generation for any nested {@code ChunkedToXContent} objects.
-     */
-    static ChunkedToXContentBuilder builder(ToXContent.Params params) {
-        return new ChunkedToXContentBuilder(params);
-    }
-
-    /**
      * Create an iterator of {@link ToXContent} chunks for a REST response for the given {@link RestApiVersion}. Each chunk is serialized
      * with the same {@link XContentBuilder} and {@link ToXContent.Params}, which is also the same as the {@link ToXContent.Params} passed
      * as the {@code params} argument. For best results, all chunks should be {@code O(1)} size. The last chunk in the iterator must always
@@ -49,7 +41,6 @@ public interface ChunkedToXContent {
      */
     default Iterator<? extends ToXContent> toXContentChunked(RestApiVersion restApiVersion, ToXContent.Params params) {
         return switch (restApiVersion) {
-            case V_7 -> throw new AssertionError("v7 API not supported");
             case V_8 -> toXContentChunkedV8(params);
             case V_9 -> toXContentChunked(params);
         };

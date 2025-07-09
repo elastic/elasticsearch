@@ -39,6 +39,11 @@ setup:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -52,6 +57,9 @@ setup:
 
 ---
 "Updating non semantic_text fields does not recalculate embeddings":
+  - skip:
+      features: [ "headers" ]
+
   - do:
       index:
         index: test-index
@@ -60,14 +68,23 @@ setup:
           sparse_field: "inference test"
           dense_field: "another inference test"
           non_inference_field: "non inference test"
+        refresh: true
 
   - do:
-      get:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - set: { _source.sparse_field.inference.chunks.0.embeddings: sparse_field_embedding }
-  - set: { _source.dense_field.inference.chunks.0.embeddings: dense_field_embedding }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - set: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings: sparse_field_embedding }
+  - set: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings: dense_field_embedding }
 
   - do:
       update:
@@ -76,19 +93,23 @@ setup:
         body:
           doc:
             non_inference_field: "another non inference test"
+        refresh: true
 
   - do:
-      get:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match:  { _source.sparse_field.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.embeddings: $sparse_field_embedding }
-  - match:  { _source.dense_field.text: "another inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.embeddings: $dense_field_embedding }
-  - match:  { _source.non_inference_field: "another non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings: $sparse_field_embedding }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings: $dense_field_embedding }
 
 ---
 "Updating semantic_text fields recalculates embeddings":
@@ -100,17 +121,22 @@ setup:
           sparse_field: "inference test"
           dense_field: "another inference test"
           non_inference_field: "non inference test"
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match:  { _source.sparse_field.text: "inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match:  { _source.dense_field.text: "another inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match:  { _source.non_inference_field: "non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
   - do:
       bulk:
@@ -118,17 +144,24 @@ setup:
         body:
           - '{"update": {"_id": "doc_1"}}'
           - '{"doc":{"sparse_field": "I am a test", "dense_field": "I am a teapot"}}'
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match:  { _source.sparse_field.text: "I am a test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "I am a test" }
-  - match:  { _source.dense_field.text: "I am a teapot" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "I am a teapot" }
-  - match:  { _source.non_inference_field: "non inference test" }
+  # We can't directly check that the embeddings are different since there isn't a "does not match" assertion in the
+  # YAML test framework. Check that the start and end offsets change as expected as a proxy.
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 11 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 13 }
 
   - do:
       update:
@@ -138,17 +171,22 @@ setup:
           doc:
             sparse_field: "updated inference test"
             dense_field: "another updated inference test"
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match:  { _source.sparse_field.text: "updated inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match:  { _source.dense_field.text: "another updated inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match:  { _source.non_inference_field: "non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 22 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 30 }
 
   - do:
       bulk:
@@ -156,17 +194,22 @@ setup:
         body:
           - '{"update": {"_id": "doc_1"}}'
           - '{"doc":{"sparse_field": "bulk inference test", "dense_field": "bulk updated inference test"}}'
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match:  { _source.sparse_field.text: "bulk inference test" }
-  - match:  { _source.sparse_field.inference.chunks.0.text: "bulk inference test" }
-  - match:  { _source.dense_field.text: "bulk updated inference test" }
-  - match:  { _source.dense_field.inference.chunks.0.text: "bulk updated inference test" }
-  - match:  { _source.non_inference_field: "non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 19 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 27 }
 
 ---
 "Update logic handles source fields in object fields":
@@ -174,6 +217,11 @@ setup:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -198,18 +246,22 @@ setup:
         body:
           sparse_field: "sparse data 1"
           dense_field: "dense data 1"
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 1 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 1" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 1 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field
 
   - do:
       bulk:
@@ -217,28 +269,38 @@ setup:
         body:
           - '{"update": {"_id": "doc_1"}}'
           - >
-           {
-             "doc": {
-               "sparse_field": "sparse data 1",
-               "object_source.sparse_field": "sparse data 2",
-               "dense_field": "dense data 1",
-               "object_source.dense_field": "dense data 2"
-             }
-           }
+            {
+              "doc": {
+                "object_source.sparse_field": "sparse data two",
+                "object_source.dense_field": "dense data two"
+              }
+            }
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 2" }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 1" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field.0.end_offset: 15 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field.0.end_offset: 14 }
 
   - do:
       update:
@@ -247,25 +309,35 @@ setup:
         body:
           doc:
             {
-              "sparse_field": "sparse data 1",
-              "object_source.sparse_field": "sparse data 3",
-              "dense_field": "dense data 1",
-              "object_source.dense_field": "dense data 3"
+              "object_source.sparse_field": "sparse data three",
+              "object_source.dense_field": "dense data three"
             }
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 3" }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 1" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.object_source\\.sparse_field.0.end_offset: 17 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.object_source\\.dense_field.0.end_offset: 16 }
 
 ---
 "Updates fail when the updated value is invalid":
@@ -277,17 +349,6 @@ setup:
           sparse_field: "inference test"
           dense_field: "another inference test"
           non_inference_field: "non inference test"
-
-  - do:
-      get:
-        index: test-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "inference test" }
-  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match: { _source.dense_field.text: "another inference test" }
-  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match: { _source.non_inference_field: "non inference test" }
 
   - do:
       bulk:
@@ -306,7 +367,7 @@ setup:
         index: test-index
         id: doc_1
         body:
-          doc: { "sparse_field": [{"key": "value"}], "dense_field": [{"key": "value"}] }
+          doc: { "sparse_field": [ { "key": "value" } ], "dense_field": [ { "key": "value" } ] }
 
   - match: { error.type: "status_exception" }
   - match: { error.reason: "/Invalid\\ format\\ for\\ field\\ \\[(dense|sparse)_field\\].+/" }
@@ -317,6 +378,11 @@ setup:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -338,42 +404,68 @@ setup:
         id: doc_1
         body:
           sparse_field: "sparse data 1"
-          sparse_source_field: "sparse data 2"
+          sparse_source_field: "sparse data two"
           dense_field: "dense data 1"
-          dense_source_field: "dense data 2"
+          dense_source_field: "dense data two"
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 2" }
-  - exists: _source.sparse_field.inference.chunks.1.embeddings
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
-  - exists: _source.dense_field.inference.chunks.1.embeddings
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 15 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 14 }
 
   - do:
       update:
         index: test-copy-to-index
         id: doc_1
         body:
-          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
+          doc: { "sparse_source_field": "sparse data three", "dense_source_field": "dense data three" }
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 3" }
-  - exists: _source.sparse_field.inference.chunks.1.embeddings
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
-  - exists: _source.dense_field.inference.chunks.1.embeddings
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 17 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 2 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 16 }
 
 ---
 "Partial updates work when using the update API and the semantic_text field's original value is null":
@@ -381,6 +473,11 @@ setup:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -402,83 +499,142 @@ setup:
         index: test-copy-to-index
         id: doc_1
         body:
-          sparse_source_field: "sparse data 2"
-          dense_source_field: "dense data 2"
+          sparse_source_field: "sparse data two"
+          dense_source_field: "dense data two"
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: null }
-  - length: { _source.sparse_field.inference.chunks: 1 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 2" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.text: null }
-  - length: { _source.dense_field.inference.chunks: 1 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 2" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 15 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 14 }
 
   - do:
       update:
         index: test-copy-to-index
         id: doc_1
         body:
-          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
+          doc: { "sparse_source_field": "sparse data three", "dense_source_field": "dense data three" }
+        refresh: true
 
   - do:
-      get:
+      search:
         index: test-copy-to-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: null }
-  - length: { _source.sparse_field.inference.chunks: 1 }
-  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 3" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.text: null }
-  - length: { _source.dense_field.inference.chunks: 1 }
-  - match: { _source.dense_field.inference.chunks.0.text: "dense data 3" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 17 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 16 }
 
 ---
-"Updates with script are not allowed":
+"Updates with script via bulk API are not allowed":
   - do:
       bulk:
         index: test-index
         body:
           - '{"index": {"_id": "doc_1"}}'
           - '{"doc":{"sparse_field": "I am a test", "dense_field": "I am a teapot"}}'
+        refresh: true
+
+  - match: { errors: false }
 
   - do:
       bulk:
         index: test-index
         body:
           - '{"update": {"_id": "doc_1"}}'
-          - '{"script": "ctx._source.new_field = \"hello\"", "scripted_upsert": true}'
+          - '{"script": "ctx._source.sparse_field = \"sparse data two\"", "scripted_upsert": true}'
+        refresh: true
 
   - match: { errors: true }
   - match: { items.0.update.status: 400 }
   - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
 
+---
+"Updates with script works when using the update API":
   - do:
-      catch: bad_request
+      bulk:
+        index: test-index
+        body:
+          - '{"index": {"_id": "doc_1"}}'
+          - '{"doc":{"sparse_field": "I am a test", "dense_field": "I am a teapot"}}'
+        refresh: true
+
+  - match: { errors: false }
+
+  - do:
       update:
         index: test-index
         id: doc_1
         body:
           script:
-            source: "ctx._source.new_field = \"hello\""
+            source: "ctx._source.sparse_field = \"sparse data two\"; ctx._source.dense_field = \"dense data two\""
             lang: "painless"
+        refresh: true
 
-  - match: { error.type: "status_exception" }
-  - match: { error.reason: "Cannot apply update with a script on indices that contain inference field(s)" }
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 15 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 14 }
 
 ---
-"semantic_text copy_to needs values for every source field for bulk updates":
+"semantic_text copy_to does not need values for every source field for bulk updates":
   - do:
       indices.create:
         index: test-copy-to-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -491,7 +647,6 @@ setup:
                 type: text
                 copy_to: sparse_field
 
-  # Not every source field needed on creation
   - do:
       index:
         index: test-copy-to-index
@@ -500,15 +655,35 @@ setup:
           source_field: "a single source field provided"
           sparse_field: "inference test"
 
-  # Every source field needed on bulk updates
   - do:
       bulk:
         body:
           - '{"update": {"_index": "test-copy-to-index", "_id": "doc_1"}}'
-          - '{"doc": {"source_field": "a single source field is kept as provided via bulk", "sparse_field": "updated inference test" }}'
+          - '{"doc": {"source_field": "updated source field value"}}'
+        refresh: true
 
-  - match: { items.0.update.status: 400 }
-  - match: { items.0.update.error.reason: "Field [another_source_field] must be specified on an update request to calculate inference for field [sparse_field]" }
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-copy-to-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 2 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.source_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.source_field.0.end_offset: 26 }
 
 ---
 "Calculates embeddings for bulk operations - update":
@@ -526,22 +701,33 @@ setup:
         body:
           - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
           - '{"doc": { "sparse_field": "updated inference test", "dense_field": "another updated inference test", "non_inference_field": "updated non inference test" }}'
+        refresh: true
 
   - match: { errors: false }
   - match: { items.0.update.result: "updated" }
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "updated inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match: { _source.dense_field.text: "another updated inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match: { _source.non_inference_field: "updated non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 22 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 30 }
 
   # Script update not supported
   - do:
@@ -572,41 +758,271 @@ setup:
         body:
           - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
           - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
+        refresh: true
 
   - match: { errors: false }
   - match: { items.0.update.result: "created" }
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
-  - match: { _source.dense_field.text: "another inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match: { _source.non_inference_field: "non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
   - do:
       bulk:
         body:
           - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
           - '{"doc": { "sparse_field": "updated inference test", "dense_field": "another updated inference test", "non_inference_field": "updated non inference test" }, "doc_as_upsert": true}'
+        refresh: true
 
   - match: { errors: false }
   - match: { items.0.update.result: "updated" }
 
   - do:
-      get:
+      search:
         index: test-index
-        id: doc_1
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
 
-  - match: { _source.sparse_field.text: "updated inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match: { _source.dense_field.text: "another updated inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match: { _source.non_inference_field: "updated non inference test" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 22 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 30 }
+
+---
+"Bypass inference on bulk update operation":
+  # Update as upsert
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "created" }
+
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+          - '{"doc": { "non_inference_field": "another value" }, "doc_as_upsert": true}'
+        refresh: true
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "updated" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+
+  - match: { hits.hits.0._source.sparse_field: "inference test" }
+  - match: { hits.hits.0._source.dense_field: "another inference test" }
+  - match: { hits.hits.0._source.non_inference_field: "another value" }
+
+---
+"Explicit nulls clear inference results on bulk update operation":
+  - requires:
+      cluster_features: "semantic_text.inference_metadata_fields.explicit_null_fixes"
+      reason: Fixes explicit null handling when using the _inference_fields metafield
+
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              sparse_source_field:
+                type: text
+                copy_to: sparse_field
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              dense_source_field:
+                type: text
+                copy_to: dense_field
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          sparse_source_field: "sparse source test"
+          dense_field: "another inference test"
+          dense_source_field: "dense source test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test-copy-to-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 2 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings
+  - set: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings: sparse_source_field_embeddings }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 18 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 2 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings
+  - set: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings: dense_source_field_embeddings }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 17 }
+
+  - match: { hits.hits.0._source.sparse_field: "inference test" }
+  - match: { hits.hits.0._source.sparse_source_field: "sparse source test" }
+  - match: { hits.hits.0._source.dense_field: "another inference test" }
+  - match: { hits.hits.0._source.dense_source_field: "dense source test" }
+  - match: { hits.hits.0._source.non_inference_field: "non inference test" }
+
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-copy-to-index", "_id": "doc_1"}}'
+          - '{"doc": { "sparse_field": null, "dense_field": null, "non_inference_field": "updated value" }, "doc_as_upsert": true}'
+        refresh: true
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "updated" }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test-copy-to-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.embeddings: $sparse_source_field_embeddings }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_source_field.0.end_offset: 18 }
+
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field: 1 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.embeddings: $dense_source_field_embeddings }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_source_field.0.end_offset: 17 }
+
+  - not_exists: hits.hits.0._source.sparse_field
+  - match: { hits.hits.0._source.sparse_source_field: "sparse source test" }
+  - not_exists: hits.hits.0._source.dense_field
+  - match: { hits.hits.0._source.dense_source_field: "dense source test" }
+  - match: { hits.hits.0._source.non_inference_field: "updated value" }
+
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-copy-to-index", "_id": "doc_1"}}'
+          - '{"doc": { "sparse_source_field": null, "dense_source_field": null, "non_inference_field": "another value" }, "doc_as_upsert": true}'
+        refresh: true
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "updated" }
+
+  - do:
+      search:
+        index: test-copy-to-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+
+  - not_exists: hits.hits.0._source._inference_fields
+  - not_exists: hits.hits.0._source.sparse_field
+  - not_exists: hits.hits.0._source.sparse_source_field
+  - not_exists: hits.hits.0._source.dense_field
+  - not_exists: hits.hits.0._source.dense_source_field
+  - match: { hits.hits.0._source.non_inference_field: "another value" }

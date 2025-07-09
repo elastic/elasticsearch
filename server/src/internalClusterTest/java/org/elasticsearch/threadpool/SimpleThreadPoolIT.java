@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -31,22 +32,18 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
-import static java.util.function.Function.identity;
-import static org.elasticsearch.common.util.Maps.toUnmodifiableSortedMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.threadpool.ThreadPool.DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -165,35 +162,76 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
         tps[0].forEach(stats -> {
-            Map<String, Long> threadPoolStats = List.of(
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, (long) stats.threads()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, (long) stats.largest()),
-                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, (long) stats.queue())
-            ).stream().collect(toUnmodifiableSortedMap(e -> stats.name() + e.getKey(), Entry::getValue));
-
-            Function<String, List<Long>> measurementExtractor = name -> {
-                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + name;
-                assertThat(metricName, in(registeredMetrics));
-
-                List<Measurement> measurements = name.endsWith(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
-                    ? plugin.getLongAsyncCounterMeasurement(metricName)
-                    : plugin.getLongGaugeMeasurement(metricName);
-                return measurements.stream().map(Measurement::getLong).toList();
-            };
-
-            Map<String, List<Long>> measurements = threadPoolStats.keySet()
-                .stream()
-                .collect(toUnmodifiableSortedMap(identity(), measurementExtractor));
-
-            logger.info("Stats of `{}`: {}", stats.name(), threadPoolStats);
-            logger.info("Measurements of `{}`: {}", stats.name(), measurements);
-
-            threadPoolStats.forEach(
-                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(greaterThanOrEqualTo(value))))
+            Map<String, MetricDefinition<?>> metricDefinitions = Map.of(
+                ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
+                new MetricDefinition<>(stats.completed(), TestTelemetryPlugin::getLongAsyncCounterMeasurement, Measurement::getLong),
+                ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
+                ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
+                ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
+                new MetricDefinition<>((long) stats.largest(), TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
+                ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE,
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong)
             );
+
+            // TaskExecutionTimeTrackingEsThreadPoolExecutor also publishes a utilization metric
+            if (tp.executor(stats.name()) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor) {
+                metricDefinitions = Maps.copyMapWithAddedEntry(
+                    metricDefinitions,
+                    ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
+                    new MetricDefinition<>(0.0d, TestTelemetryPlugin::getDoubleGaugeMeasurement, Measurement::getDouble)
+                );
+            }
+
+            metricDefinitions = metricDefinitions.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> stats.name() + e.getKey(), Map.Entry::getValue));
+
+            logger.info(
+                "Measurements of `{}`: {}",
+                stats.name(),
+                metricDefinitions.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getMeasurements(plugin, e.getKey())))
+            );
+
+            // Validate all metrics
+            metricDefinitions.forEach((name, md) -> md.assertValid(plugin, name));
         });
+    }
+
+    private static class MetricDefinition<T extends Comparable<T>> {
+
+        private final T minimumValue;
+        private final BiFunction<TestTelemetryPlugin, String, List<Measurement>> metricExtractor;
+        private final Function<Measurement, T> valueExtractor;
+
+        MetricDefinition(
+            T minimumValue,
+            BiFunction<TestTelemetryPlugin, String, List<Measurement>> metricExtractor,
+            Function<Measurement, T> valueExtractor
+        ) {
+            this.minimumValue = minimumValue;
+            this.metricExtractor = metricExtractor;
+            this.valueExtractor = valueExtractor;
+        }
+
+        public List<T> getMeasurements(TestTelemetryPlugin testTelemetryPlugin, String metricSuffix) {
+            return metricExtractor.apply(testTelemetryPlugin, ThreadPool.THREAD_POOL_METRIC_PREFIX + metricSuffix)
+                .stream()
+                .map(valueExtractor)
+                .toList();
+        }
+
+        public void assertValid(TestTelemetryPlugin testTelemetryPlugin, String metricSuffix) {
+            List<T> metrics = getMeasurements(testTelemetryPlugin, metricSuffix);
+            assertThat(
+                ThreadPool.THREAD_POOL_METRIC_PREFIX + metricSuffix + " is populated",
+                metrics,
+                contains(greaterThanOrEqualTo(minimumValue))
+            );
+        }
     }
 
     public void testWriteThreadpoolEwmaAlphaSetting() {

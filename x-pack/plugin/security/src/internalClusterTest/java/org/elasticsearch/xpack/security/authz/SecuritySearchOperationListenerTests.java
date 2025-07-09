@@ -14,7 +14,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
@@ -64,7 +63,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
     public void testOnNewContextSetsAuthentication() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMinutes(between(1, 10)));
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
@@ -100,7 +99,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
     public void testValidateSearchContext() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMinutes(between(1, 10)));
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
@@ -243,7 +242,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
     public void testValidateResourceAccessCheck() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMinutes(between(1, 10)));
         final ShardSearchContextId shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(

@@ -26,13 +26,13 @@ topLevelQuery
     ;
 
 query
-    : <assoc=right> query operator=(AND | OR) query     #booleanQuery
-    | NOT subQuery=simpleQuery                          #notQuery
-    | simpleQuery                                       #defaultQuery
+    : <assoc=right> query operator=(AND|OR) query  #booleanQuery
+    | simpleQuery                                  #defaultQuery
     ;
 
 simpleQuery
-    : nestedQuery
+    : notQuery
+    | nestedQuery
     | parenthesizedQuery
     | matchAllQuery
     | existsQuery
@@ -41,9 +41,30 @@ simpleQuery
     | fieldLessQuery
     ;
 
+notQuery:
+   NOT subQuery=simpleQuery
+   ;
+
 nestedQuery
-    : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
+    : fieldName COLON LEFT_CURLY_BRACKET nestedSubQuery RIGHT_CURLY_BRACKET
     ;
+
+nestedSubQuery
+    : <assoc=right> nestedSubQuery operator=(AND|OR) nestedSubQuery #booleanNestedQuery
+    | nestedSimpleSubQuery                                          #defaultNestedQuery
+    ;
+
+nestedSimpleSubQuery
+    : notQuery
+    | nestedQuery
+    | matchAllQuery
+    | nestedParenthesizedQuery
+    | existsQuery
+    | rangeQuery
+    | fieldQuery;
+
+nestedParenthesizedQuery
+    : LEFT_PARENTHESIS nestedSubQuery RIGHT_PARENTHESIS;
 
 matchAllQuery
     : (WILDCARD COLON)? WILDCARD
@@ -77,14 +98,14 @@ fieldLessQuery
     ;
 
 fieldQueryValue
-    : (AND|OR)? (UNQUOTED_LITERAL | WILDCARD )+
-    | (UNQUOTED_LITERAL | WILDCARD )+ (AND|OR)?
-    | (NOT|AND|OR)
+    : (AND|OR|NOT)? (UNQUOTED_LITERAL|WILDCARD)+ (NOT|AND|OR)?
+    | (AND|OR) (AND|OR|NOT)?
+    | NOT (AND|OR)?
     | QUOTED_STRING
     ;
 
 fieldName
-    : value=UNQUOTED_LITERAL+
+    : value=UNQUOTED_LITERAL
     | value=QUOTED_STRING
     | value=WILDCARD
     ;

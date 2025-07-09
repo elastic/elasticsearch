@@ -48,10 +48,11 @@ public class InternalDistributionModuleCheckTaskProvider {
     /** ES jars in the lib directory that are not modularized. For now, es-log4j is the only one. */
     private static final List<String> ES_JAR_EXCLUDES = List.of("elasticsearch-log4j");
 
-    /** List of the current Elasticsearch Java Modules, by name. */
+    /** List of the current Elasticsearch Java Modules, alphabetically by name. */
     private static final List<String> EXPECTED_ES_SERVER_MODULES = List.of(
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
+        "org.elasticsearch.entitlement",
         "org.elasticsearch.geo",
         "org.elasticsearch.grok",
         "org.elasticsearch.logging",
@@ -59,7 +60,6 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.nativeaccess",
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
-        "org.elasticsearch.securesm",
         "org.elasticsearch.server",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",

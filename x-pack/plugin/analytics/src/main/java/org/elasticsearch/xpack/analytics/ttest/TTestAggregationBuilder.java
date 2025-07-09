@@ -182,6 +182,6 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_8_0;
+        return TransportVersions.ZERO;
     }
 }

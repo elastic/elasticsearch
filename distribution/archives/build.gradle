@@ -57,13 +57,13 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
           pluginsDir.getParent()
         }
       }
-      from(rootProject.projectDir) {
+      from(layout.settingsDirectory.asFile) {
         filePermissions {
           unix(0644)
         }
         include 'README.asciidoc'
       }
-      from(rootProject.file('licenses')) {
+      from(layout.settingsDirectory.file('licenses').asFile) {
         include isTestDistro ? 'AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
         filePermissions {
           unix(0644)

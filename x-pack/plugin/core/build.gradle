@@ -1,15 +1,20 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.Version
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 base {
@@ -17,11 +22,11 @@ base {
 }
 
 esplugin {
-  name 'x-pack-core'
-  description 'Elasticsearch Expanded Pack Plugin - Core'
-  classname 'org.elasticsearch.xpack.core.XPackPlugin'
-  hasNativeController false
-  requiresKeystore false
+  name = 'x-pack-core'
+  description = 'Elasticsearch Expanded Pack Plugin - Core'
+  classname ='org.elasticsearch.xpack.core.XPackPlugin'
+  hasNativeController =false
+  requiresKeystore =false
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -36,8 +41,8 @@ configurations {
 
 dependencies {
   compileOnly project(":server")
-  api project(':libs:elasticsearch-grok')
-  api project(":libs:elasticsearch-ssl-config")
+  api project(':libs:grok')
+  api project(":libs:ssl-config")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
@@ -65,7 +70,7 @@ dependencies {
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests
-  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.4')
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.5')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false
@@ -94,12 +99,12 @@ tasks.named("processResources").configure {
   String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
-  } else if (BuildParams.isSnapshotBuild()) {
+  } else if (buildParams.snapshotBuild) {
     licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
-  File licenseKeyFile = rootProject.file(licenseKey)
+  File licenseKeyFile = layout.settingsDirectory.file(licenseKey).asFile
   if (licenseKeyFile.exists() == false) {
     throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }
@@ -144,24 +149,11 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'default'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  //disabling ILM history as it disturbs testDSXpackUsage test
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.15.0")
+tasks.named("javaRestTest") {
+  usesDefaultDistribution("uses the _xpack api")
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.withType(Test).configureEach {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
-}
-
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure { enabled = false }
 }

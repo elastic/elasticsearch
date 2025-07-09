@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.internal.test.TestUtil;
@@ -49,6 +49,7 @@ import javax.inject.Inject;
 public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     private final JavaToolchainService javaToolchains;
+    private BuildParameterExtension buildParams;
 
     @Inject
     ElasticsearchJavaBasePlugin(JavaToolchainService javaToolchains) {
@@ -59,6 +60,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         project.getPluginManager().apply(JavaBasePlugin.class);
         // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
@@ -129,14 +131,14 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
-        if (BuildParams.getJavaToolChainSpec().isPresent()) {
-            java.toolchain(BuildParams.getJavaToolChainSpec().get());
+        if (buildParams.getJavaToolChainSpec().getOrNull() != null) {
+            java.toolchain(buildParams.getJavaToolChainSpec().get());
         }
-        java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
-        java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
+        java.setSourceCompatibility(buildParams.getMinimumRuntimeVersion());
+        java.setTargetCompatibility(buildParams.getMinimumRuntimeVersion());
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             compileTask.getJavaCompiler().set(javaToolchains.compilerFor(spec -> {
-                spec.getLanguageVersion().set(JavaLanguageVersion.of(BuildParams.getMinimumRuntimeVersion().getMajorVersion()));
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
             }));
 
             CompileOptions compileOptions = compileTask.getOptions();
@@ -159,7 +161,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
             compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            compileOptions.setIncremental(BuildParams.isCi() == false);
+            compileOptions.setIncremental(buildParams.getCi() == false);
         });
         // also apply release flag to groovy, which is used in build-tools
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
@@ -177,7 +179,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     }
 
     private static void configureNativeLibraryPath(Project project) {
-        String nativeProject = ":libs:elasticsearch-native:elasticsearch-native-libraries";
+        String nativeProject = ":libs:native:native-libraries";
         Configuration nativeConfig = project.getConfigurations().create("nativeLibs");
         nativeConfig.defaultDependencies(deps -> {
             deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));

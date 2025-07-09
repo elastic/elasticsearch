@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -196,10 +195,10 @@ public class SimpleRole implements Role {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
-        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
+        return indices.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);
     }
 
     @Override
@@ -210,7 +209,7 @@ public class SimpleRole implements Role {
         final RemoteIndicesPermission remoteIndicesPermission = this.remoteIndicesPermission.forCluster(remoteClusterAlias);
 
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()
-            && remoteClusterPermissions.hasPrivileges(remoteClusterAlias) == false) {
+            && remoteClusterPermissions.hasAnyPrivileges(remoteClusterAlias) == false) {
             return RoleDescriptorsIntersection.EMPTY;
         }
 
@@ -224,7 +223,7 @@ public class SimpleRole implements Role {
         return new RoleDescriptorsIntersection(
             new RoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
-                remoteClusterPermissions.privilegeNames(remoteClusterAlias, remoteClusterVersion),
+                remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges(remoteClusterAlias, remoteClusterVersion),
                 // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
                 // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
                 // equivalent role descriptors

@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -43,7 +42,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -539,8 +537,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testIndexCompatibilityChecks() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
@@ -551,7 +547,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     env.nodeId(),
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -584,7 +581,9 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
+                            + (previousNodeVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                                ? previousNodeVersion
+                                : Version.CURRENT.minimumCompatibilityVersion())
                             + "]"
                     )
                 )
@@ -638,20 +637,39 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testGetBestDowngradeVersion() {
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.0"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5"), Matchers.equalTo("7.17.5"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.1234"), Matchers.equalTo("7.17.1234"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.18.0"), Matchers.equalTo("7.18.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.x"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5-SNAPSHOT"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.6b"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.16.0"), Matchers.equalTo("7.17.0"));
-        // when we get to version 7.2147483648.0 we will have to rethink our approach, but for now we return 7.17.0 with an integer overflow
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7." + Integer.MAX_VALUE + "0.0"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("foo"), Matchers.equalTo("7.17.0"));
+        int prev = Version.CURRENT.minimumCompatibilityVersion().major;
+        int last = Version.CURRENT.minimumCompatibilityVersion().minor;
+        int old = prev - 1;
+
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
+        assertEquals(Version.CURRENT.major - 1, prev);
+
+        assertEquals(
+            "From an old major, recommend prev.last",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(old + ".0.0")),
+            BuildVersion.fromString(prev + "." + last + ".0")
+        );
+
+        if (last >= 1) {
+            assertEquals(
+                "From an old minor of the previous major, recommend prev.last",
+                NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + (last - 1) + ".0")),
+                BuildVersion.fromString(prev + "." + last + ".0")
+            );
+        }
+
+        assertEquals(
+            "From an old patch of prev.last, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + last + ".1")),
+            BuildVersion.fromString(prev + "." + last + ".1")
+        );
+
+        assertEquals(
+            "From the first version of this major, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(Version.CURRENT.major + ".0.0")),
+            BuildVersion.fromString(Version.CURRENT.major + ".0.0")
+        );
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

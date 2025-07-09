@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +49,50 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class RestoreServiceTests extends ESTestCase {
+
+    /**
+     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo)} does not warn for system
+     * datastreams.
+     */
+    public void testWarnIfIndexTemplateMissingSkipsSystemDataStreams() throws Exception {
+        String dataStreamName = ".test-system-data-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
+
+        var dataStream = DataStream.builder(dataStreamName, indices).setSystem(true).setHidden(true).build();
+        var dataStreamsToRestore = Map.of(dataStreamName, dataStream);
+        var templatePatterns = Set.of("matches_none");
+        var snapshotInfo = createSnapshotInfo(new Snapshot("repository", new SnapshotId("name", "uuid")), Boolean.FALSE);
+
+        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+
+        ensureNoWarnings();
+    }
+
+    /**
+     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo)} warns for non-system datastreams.
+     */
+    public void testWarnIfIndexTemplateMissing() throws Exception {
+        String dataStreamName = ".test-system-data-stream";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
+
+        var dataStream = DataStream.builder(dataStreamName, indices).build();
+        var dataStreamsToRestore = Map.of(dataStreamName, dataStream);
+        var templatePatterns = Set.of("matches_none");
+        var snapshotInfo = createSnapshotInfo(new Snapshot("repository", new SnapshotId("name", "uuid")), Boolean.FALSE);
+
+        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+
+        assertWarnings(
+            format(
+                "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
+                    + " rollover to fail until a matching index template is created",
+                snapshotInfo.snapshotId(),
+                dataStreamName
+            )
+        );
+    }
 
     public void testUpdateDataStream() {
         long now = System.currentTimeMillis();
@@ -76,7 +122,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(dataStreamName, updateDataStream.getName());
         assertEquals(List.of(updatedBackingIndex), updateDataStream.getIndices());
-        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices());
     }
 
     public void testUpdateDataStreamRename() {
@@ -112,7 +158,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
     }
 
     public void testPrefixNotChanged() {
@@ -147,7 +193,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
 
         request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-000001").renameReplacement("ds2-000001");
 
@@ -155,7 +201,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
     }
 
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {
@@ -214,7 +260,7 @@ public class RestoreServiceTests extends ESTestCase {
         }
 
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
-        when(repositoriesService.getRepositories()).thenReturn(repositories);
+        when(repositoriesService.getProjectRepositories(eq(ProjectId.DEFAULT))).thenReturn(repositories);
         final AtomicBoolean completed = new AtomicBoolean();
         RestoreService.refreshRepositoryUuids(
             true,
@@ -241,7 +287,7 @@ public class RestoreServiceTests extends ESTestCase {
         );
         assertThat(
             exception.getMessage(),
-            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+            equalTo("[default:name:name/uuid] cannot restore global state since the snapshot was created without global state")
         );
     }
 

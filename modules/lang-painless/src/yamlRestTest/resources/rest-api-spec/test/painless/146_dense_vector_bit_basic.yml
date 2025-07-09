@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: ["mapper.vectors.bit_vectors"]
-      reason: "support for bit vectors added in 8.15"
       test_runner_features: headers
 
   - do:
@@ -101,9 +99,15 @@ setup:
 
   - match: {hits.hits.2._id: "3"}
   - close_to: {hits.hits.2._score: {value: 3.4641016, error: 0.01}}
-
 ---
 "Dot Product is not supported":
+  - skip:
+      features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ byte_float_bit_dot_product_with_bugfix ]
+      reason: Capability required to run test
   - do:
       catch: bad_request
       headers:
@@ -131,7 +135,6 @@ setup:
                 source: "dotProduct(params.query_vector, 'vector')"
                 params:
                   query_vector: "006ff30e84"
-
 ---
 "Cosine Similarity is not supported":
   - do:
@@ -388,3 +391,119 @@ setup:
 
   - match: {hits.hits.2._id: "3"}
   - match: {hits.hits.2._score: 11.0}
+---
+"Dot product with float":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ byte_float_bit_dot_product_with_bugfix ]
+      test_runner_features: [capabilities, close_to]
+      reason: Capability required to run test
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: { match_all: { } }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0.23, 1.45, 3.67, 4.89, -0.56, 2.34, 3.21, 1.78, -2.45, 0.98, -0.12, 3.45, 4.56, 2.78, 1.23, 0.67, 3.89, 4.12, -2.34, 1.56, 0.78, 3.21, 4.12, 2.45, -1.67, 0.34, -3.45, 4.56, -2.78, 1.23, -0.67, 3.89, -4.34, 2.12, -1.56, 0.78, -3.21, 4.45, 2.12, 1.67]
+
+  - match: { hits.total: 3 }
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 33.78, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score:{value: 22.579, error: 0.01}}
+
+  - match: {hits.hits.2._id: "1"}
+  - close_to: {hits.hits.2._score: {value: 11.919, error: 0.01}}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: { match_all: { } }
+              script:
+                source: "dotProduct(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0.23, 1.45, 3.67, 4.89, -0.56, 2.34, 3.21, 1.78, -2.45, 0.98, -0.12, 3.45, 4.56, 2.78, 1.23, 0.67, 3.89, 4.12, -2.34, 1.56, 0.78, 3.21, 4.12, 2.45, -1.67, 0.34, -3.45, 4.56, -2.78, 1.23, -0.67, 3.89, -4.34, 2.12, -1.56, 0.78, -3.21, 4.45, 2.12, 1.67]
+
+  - match: { hits.total: 3 }
+
+  - match: {hits.hits.0._id: "2"}
+  - close_to: {hits.hits.0._score: {value: 33.78, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score:{value: 22.579, error: 0.01}}
+
+  - match: {hits.hits.2._id: "1"}
+  - close_to: {hits.hits.2._score: {value: 11.919, error: 0.01}}
+---
+"Dot product with byte":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ byte_float_bit_dot_product_with_bugfix ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: { match_all: { } }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [12, -34, 56, -78, 90, 12, 34, -56, 78, -90, 23, -45, 67, -89, 12, 34, 56, 78, 90, -12, 34, -56, 78, -90, 23, -45, 67, -89, 12, -34, 56, -78, 90, -12, 34, -56, 78, 90, 23, -45]
+
+  - match: { hits.total: 3 }
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 415}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 168}
+
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 126}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: { match_all: { } }
+              script:
+                source: "dotProduct(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [12, -34, 56, -78, 90, 12, 34, -56, 78, -90, 23, -45, 67, -89, 12, 34, 56, 78, 90, -12, 34, -56, 78, -90, 23, -45, 67, -89, 12, -34, 56, -78, 90, -12, 34, -56, 78, 90, 23, -45]
+
+  - match: { hits.total: 3 }
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 415}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 168}
+
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 126}

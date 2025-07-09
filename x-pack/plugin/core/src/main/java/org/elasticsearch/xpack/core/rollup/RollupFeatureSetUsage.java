@@ -11,12 +11,12 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
+public class RollupFeatureSetUsage extends XPackFeatureUsage {
 
     private final int numberOfRollupJobs;
 
@@ -50,7 +50,7 @@ public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
 }

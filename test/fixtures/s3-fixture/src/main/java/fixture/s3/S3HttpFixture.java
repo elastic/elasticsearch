@@ -13,37 +13,46 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
+
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
+import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
+import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
 
 public class S3HttpFixture extends ExternalResource {
 
-    private HttpServer server;
+    private static final Logger logger = LogManager.getLogger(S3HttpFixture.class);
 
-    private boolean enabled;
+    private HttpServer server;
+    private ExecutorService executorService;
+
+    private final boolean enabled;
     private final String bucket;
     private final String basePath;
-    protected final String accessKey;
-
-    public S3HttpFixture() {
-        this(true);
-    }
+    private final BiPredicate<String, String> authorizationPredicate;
 
     public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", "s3_test_access_key");
+        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
     }
 
-    public S3HttpFixture(boolean enabled, String bucket, String basePath, String accessKey) {
+    public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {
         this.enabled = enabled;
         this.bucket = bucket;
         this.basePath = basePath;
-        this.accessKey = accessKey;
+        this.authorizationPredicate = authorizationPredicate;
     }
 
     protected HttpHandler createHandler() {
@@ -51,12 +60,9 @@ public class S3HttpFixture extends ExternalResource {
             @Override
             public void handle(final HttpExchange exchange) throws IOException {
                 try {
-                    final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-                    if (authorization == null || authorization.contains(accessKey) == false) {
-                        sendError(exchange, RestStatus.FORBIDDEN, "AccessDenied", "Bad access key");
-                        return;
+                    if (checkAuthorization(authorizationPredicate, exchange)) {
+                        super.handle(exchange);
                     }
-                    super.handle(exchange);
                 } catch (Error e) {
                     // HttpServer catches Throwable, so we must throw errors on another thread
                     ExceptionsHelper.maybeDieOnAnotherThread(e);
@@ -76,11 +82,22 @@ public class S3HttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         if (enabled) {
-            InetSocketAddress inetSocketAddress = resolveAddress("localhost", 0);
-            this.server = HttpServer.create(inetSocketAddress, 0);
-            HttpHandler handler = createHandler();
-            this.server.createContext("/", Objects.requireNonNull(handler));
+            this.executorService = EsExecutors.newScaling(
+                "s3-http-fixture",
+                1,
+                100,
+                30,
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory("s3-http-fixture"),
+                new ThreadContext(Settings.EMPTY)
+            );
+
+            this.server = HttpServer.create(getLocalFixtureAddress(), 0);
+            this.server.createContext("/", Objects.requireNonNull(createHandler()));
+            this.server.setExecutor(executorService);
             server.start();
+            logger.info("running S3HttpFixture at " + getAddress());
         }
     }
 
@@ -88,14 +105,7 @@ public class S3HttpFixture extends ExternalResource {
     protected void after() {
         if (enabled) {
             stop(0);
-        }
-    }
-
-    private static InetSocketAddress resolveAddress(String address, int port) {
-        try {
-            return new InetSocketAddress(InetAddress.getByName(address), port);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
     }
 }

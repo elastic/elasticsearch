@@ -22,7 +22,7 @@ public class EnglishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Engli
     private final EnglishAnalyzer analyzer;
 
     EnglishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new EnglishAnalyzer(
             Analysis.parseStopWords(env, settings, EnglishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

@@ -18,9 +18,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -68,17 +67,16 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger logger = LogManager.getLogger(DiskHealthIndicatorService.class);
 
-    private static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
+    // VisibleForTesting
+    public static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
 
-    public DiskHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
+    public DiskHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.featureService = featureService;
     }
 
     @Override
@@ -91,15 +89,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         ClusterState clusterState = clusterService.state();
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
-            if (featureService.clusterHasFeature(clusterState, HealthFeatures.SUPPORTS_HEALTH) == false) {
-                return createIndicator(
-                    HealthStatus.GREEN,
-                    "No disk usage data available. The cluster currently has mixed versions (an upgrade may be in progress).",
-                    HealthIndicatorDetails.EMPTY,
-                    List.of(),
-                    List.of()
-                );
-            }
             /*
              * If there is no disk health info, that either means that a new health node was just elected, or something is seriously
              * wrong with health data collection on the health node. Either way, we immediately return UNKNOWN. If there are at least
@@ -167,14 +156,21 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final HealthStatus healthStatus;
         private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
+        @FixForMultiProject(description = "blockedIndices and indicesAtRisk should work correctly for indices across projects")
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
             this.clusterState = clusterState;
-            blockedIndices = clusterState.blocks()
-                .indices()
-                .entrySet()
+            blockedIndices = clusterState.metadata()
+                .projects()
+                .keySet()
                 .stream()
-                .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-                .map(Map.Entry::getKey)
+                .flatMap(
+                    projectId -> clusterState.blocks()
+                        .indices(projectId)
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+                        .map(Map.Entry::getKey)
+                )
                 .collect(Collectors.toSet());
             HealthStatus mostSevereStatusSoFar = blockedIndices.isEmpty() ? HealthStatus.GREEN : HealthStatus.RED;
             for (String nodeId : diskHealthByNode.keySet()) {

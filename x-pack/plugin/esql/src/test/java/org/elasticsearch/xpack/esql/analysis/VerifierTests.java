@@ -8,14 +8,21 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -33,10 +40,24 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -47,6 +68,7 @@ public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
+    private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
@@ -54,11 +76,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -67,7 +89,7 @@ public class VerifierTests extends ESTestCase {
         final String unsupported = "unsupported";
         final String multiTyped = "multi_typed";
 
-        EsField unsupportedField = new UnsupportedEsField(unsupported, "flattened");
+        EsField unsupportedField = new UnsupportedEsField(unsupported, List.of("flattened"));
         // Use linked maps/sets to fix the order in the error message.
         LinkedHashSet<String> ipIndices = new LinkedHashSet<>();
         ipIndices.add("test1");
@@ -195,13 +217,13 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.LOOKUP_V4.isEnabled()) {
             // LOOKUP with unsupported type
             assertEquals(
-                "1:41: column type mismatch, table column was [integer] and original column was [unsupported]",
-                error("from test* | lookup int_number_names on int", analyzer)
+                "1:43: column type mismatch, table column was [integer] and original column was [unsupported]",
+                error("from test* | lookup_🐔 int_number_names on int", analyzer)
             );
             // LOOKUP with multi-typed field
             assertEquals(
-                "1:44: column type mismatch, table column was [double] and original column was [unsupported]",
-                error("from test* | lookup double_number_names on double", analyzer)
+                "1:46: column type mismatch, table column was [double] and original column was [unsupported]",
+                error("from test* | lookup_🐔 double_number_names on double", analyzer)
             );
         }
 
@@ -244,6 +266,34 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | where multi_typed is not null", analyzer)
         );
+
+        for (String functionName : List.of("to_timeduration", "to_dateperiod")) {
+            String lineNumber = functionName.equalsIgnoreCase("to_timeduration") ? "47" : "45";
+            String errorType = functionName.equalsIgnoreCase("to_timeduration") ? "time_duration" : "date_period";
+            assertEquals(
+                "1:" + lineNumber + ": Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | eval x = now() + " + functionName + "(unsupported)", analyzer)
+            );
+            assertEquals(
+                "1:" + lineNumber + ": argument of [" + functionName + "(multi_typed)] must be a constant, received [multi_typed]",
+                error("from test* | eval x = now() + " + functionName + "(multi_typed)", analyzer)
+            );
+            assertThat(
+                error("from test* | eval x = unsupported, y = now() + " + functionName + "(x)", analyzer),
+                containsString("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            assertThat(
+                error("from test* | eval x = multi_typed, y = now() + " + functionName + "(x)", analyzer),
+                containsString(
+                    "1:48: argument of ["
+                        + functionName
+                        + "(x)] must be ["
+                        + errorType
+                        + " or string], "
+                        + "found value [x] type [unsupported]"
+                )
+            );
+        }
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -256,27 +306,26 @@ public class VerifierTests extends ESTestCase {
             error("row a = 1, b = \"c\" | eval x = round(b)")
         );
         assertEquals(
-            "1:31: second argument of [round(a, b)] must be [integer], found value [b] type [keyword]",
+            "1:31: second argument of [round(a, b)] must be [whole number except unsigned_long or counter types], "
+                + "found value [b] type [keyword]",
             error("row a = 1, b = \"c\" | eval x = round(a, b)")
         );
         assertEquals(
-            "1:31: second argument of [round(a, 3.5)] must be [integer], found value [3.5] type [double]",
+            "1:31: second argument of [round(a, 3.5)] must be [whole number except unsigned_long or counter types], "
+                + "found value [3.5] type [double]",
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
     }
 
     public void testImplicitCastingErrorMessages() {
-        assertEquals(
-            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
-            error("row a = round(123.45, \"c\")")
-        );
+        assertEquals("1:23: Cannot convert string [c] to [LONG], error [Cannot parse number [c]]", error("row a = round(123.45, \"c\")"));
         assertEquals(
             "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
             error("row a = 1 | eval x = acos(\"c\")")
         );
         assertEquals(
             "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
-                + "line 1:38: Cannot convert string [a] to [INTEGER], error [Cannot parse number [a]]",
+                + "line 1:38: Cannot convert string [a] to [LONG], error [Cannot parse number [a]]",
             error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
         );
         assertEquals(
@@ -310,7 +359,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -377,7 +426,12 @@ public class VerifierTests extends ESTestCase {
 
         // but fails if it's different
         assertEquals(
-            "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
+            "1:32: can only use grouping function [bucket(a, 3)] as part of the BY clause",
+            error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
+        );
+
+        assertEquals(
+            "1:40: can only use grouping function [bucket(salary, 10)] as part of the BY clause",
             error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
         );
 
@@ -394,21 +448,34 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
     }
 
+    public void testAggWithNonBooleanFilter() {
+        for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
+            String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
+            assertEquals("1:19: Condition expression needs to be boolean, found [" + type + "]", error("from test | where " + filter));
+            for (String by : List.of("", " by languages", " by bucket(salary, 10)")) {
+                assertEquals(
+                    "1:34: Condition expression needs to be boolean, found [" + type + "]",
+                    error("from test | stats count(*) where " + filter + by)
+                );
+            }
+        }
+    }
+
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
-            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats bucket(emp_no, 5.) by emp_no")
         );
         assertEquals(
-            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats bucket(emp_no, 5.)")
         );
         assertEquals(
-            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
         assertEquals(
-            "1:22: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            "1:22: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
             error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
     }
@@ -523,13 +590,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testGroupingAliasDuplicate() throws Exception {
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate "
-                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+            "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
         );
 
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
         );
 
@@ -711,7 +777,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter types],"
+            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -731,40 +797,40 @@ public class VerifierTests extends ESTestCase {
 
     public void testPeriodAndDurationInRowAssignment() {
         for (var unit : TIME_DURATIONS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
                 error("row a = 1 " + unit + "::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::date_period] directly in a row assignment",
                 error("row a = 1 " + unit + "::date_period")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_dateperiod(\"1 " + unit + "\")")
             );
         }
@@ -900,6 +966,33 @@ public class VerifierTests extends ESTestCase {
 
     public void testFilterNonBoolField() {
         assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [KEYWORD]",
+            error("from test | where concat(first_name, \"foobar\")")
+        );
+    }
+
+    public void testFilterNullField() {
+        // `where null` should return empty result set
+        query("from test | where null");
+
+        // Value null of type `BOOLEAN`
+        query("from test | where null::boolean");
+
+        // Provide `NULL` type in `EVAL`
+        query("from t | EVAL x = null | where x");
+
+        // `to_string(null)` is of `KEYWORD` type null, resulting in `to_string(null) == "abc"` being of `BOOLEAN`
+        query("from t | where to_string(null) == \"abc\"");
+
+        // Other DataTypes can contain null values
+        assertEquals("1:19: Condition expression needs to be boolean, found [KEYWORD]", error("from test | where null::string"));
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where null::integer"));
+        assertEquals(
+            "1:45: Condition expression needs to be boolean, found [DATETIME]",
+            error("from test | EVAL x = null::datetime | where x")
+        );
     }
 
     public void testFilterDateConstant() {
@@ -923,6 +1016,17 @@ public class VerifierTests extends ESTestCase {
             1:30: Unknown column [missing]
             line 1:43: Unknown column [not_found]
             line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
+    }
+
+    public void testMultipleAggsOutsideStats() {
+        assertEquals(
+            """
+                1:71: aggregate function [avg(salary)] not allowed outside STATS command
+                line 1:96: aggregate function [median(emp_no)] not allowed outside STATS command
+                line 1:22: aggregate function [sum(salary)] not allowed outside STATS command
+                line 1:39: aggregate function [avg(languages)] not allowed outside STATS command""",
+            error("from test | eval s = sum(salary), l = avg(languages) | where salary > avg(salary) and emp_no > median(emp_no)")
+        );
     }
 
     public void testSpatialSort() {
@@ -1036,45 +1140,41 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
-            equalTo("1:24: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
-        );
-        assertThat(
-            error("METRICS tests | STATS sum(rate(network.bytes_in))", tsdb),
-            equalTo("1:27: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+            equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
         );
         assertThat(
             error("FROM tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:20: the rate aggregate[rate(network.bytes_in)] can only be used within the metrics command")
+            equalTo("1:20: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
+        );
+        assertThat(
+            error("FROM tests | STATS max_over_time(network.connections)", tsdb),
+            equalTo("1:20: time_series aggregate[max_over_time(network.connections)] can only be used with the TS command")
         );
         assertThat(
             error("FROM tests | EVAL r = rate(network.bytes_in)", tsdb),
-            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside METRICS command")
+            equalTo("1:23: aggregate function [rate(network.bytes_in)] not allowed outside STATS command")
         );
     }
 
     public void testRateNotEnclosedInAggregate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(
-            error("METRICS tests rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:15: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
-            )
+            error("TS tests | STATS rate(network.bytes_in)", tsdb),
+            equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
         );
         assertThat(
-            error("METRICS tests avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:44: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command and inside another aggregate"
-            )
+            error("TS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
+            equalTo("1:47: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
         );
-        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
              and inside another aggregate"""));
-        assertThat(error("METRICS tests max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:19: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
+        assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
+            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
              [max(avg(rate(network.bytes_in)))]
-            line 1:23: the rate aggregate [rate(network.bytes_in)] can only be used within the metrics command\
+            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
              and inside another aggregate"""));
     }
 
@@ -1110,346 +1210,504 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchInsideEval() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
-
-        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
-    }
-
-    public void testMatchFilter() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
-
         assertEquals(
-            "1:63: MATCH requires a mapped index field, found [name]",
-            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
-        );
-
-        assertEquals(
-            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
-            error("from test | where salary match \"100\"")
-        );
-
-        assertEquals(
-            "1:19: Invalid condition using MATCH",
-            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
-        );
-
-        assertEquals(
-            "1:51: Invalid condition using MATCH",
-            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
-        );
-
-        assertEquals(
-            "1:45: MATCH requires a mapped index field, found [fn]",
-            error("from test | rename first_name as fn | where fn match \"Anna\"")
+            "1:36: [:] operator is only supported in WHERE and STATS commands\n"
+                + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
+            error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
     }
 
-    public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assertEquals(
-            "1:24: [MATCH] function cannot be used after LIMIT",
-            error("from test | limit 10 | where match(first_name, \"Anna\")")
-        );
+    public void testFieldBasedFullTextFunctions() throws Exception {
+        checkFieldBasedWithNonIndexedColumn("MATCH", "match(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
+
+        checkFieldBasedWithNonIndexedColumn(":", "text : \"cat\"", "operator");
+        checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"");
+
+        checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
+
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
+            checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3], 10)");
+        }
     }
 
-    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        // Source commands
-        assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
-        assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
-
-        // Processing commands
-        assertEquals(
-            "1:43: [QSTR] function cannot be used after DISSECT",
-            error("from test | dissect first_name \"%{foo}\" | where qstr(\"Connection\")")
+    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
+        assertThat(
+            error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
         );
-        assertEquals("1:27: [QSTR] function cannot be used after DROP", error("from test | drop emp_no | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:71: [QSTR] function cannot be used after ENRICH",
-            error("from test | enrich languages on languages with lang = language_name | where qstr(\"Anna\")")
+        String fieldName = "KNN".equals(functionName) ? "vector" : "title";
+        assertThat(
+            error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
-        assertEquals("1:26: [QSTR] function cannot be used after EVAL", error("from test | eval z = 2 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:44: [QSTR] function cannot be used after GROK",
-            error("from test | grok last_name \"%{WORD:foo}\" | where qstr(\"Anna\")")
-        );
-        assertEquals("1:27: [QSTR] function cannot be used after KEEP", error("from test | keep emp_no | where qstr(\"Anna\")"));
-        assertEquals("1:24: [QSTR] function cannot be used after LIMIT", error("from test | limit 10 | where qstr(\"Anna\")"));
-        assertEquals(
-            "1:35: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:45: [QSTR] function cannot be used after RENAME",
-            error("from test | rename last_name as full_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after STATS",
-            error("from test | STATS c = COUNT(emp_no) BY languages | where qstr(\"Anna\")")
-        );
-
-        // Some combination of processing commands
-        assertEquals(
-            "1:38: [QSTR] function cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:46: [QSTR] function cannot be used after MV_EXPAND",
-            error("from test | limit 10 | mv_expand last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:52: [QSTR] function cannot be used after KEEP",
-            error("from test | mv_expand last_name | keep last_name | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:77: [QSTR] function cannot be used after RENAME",
-            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where qstr(\"Anna\")")
-        );
-        assertEquals(
-            "1:54: [QSTR] function cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where qstr(\"Anna\")")
-        );
-    }
-
-    public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
-    }
-
-    public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
-    }
-
-    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
-        assertEquals(
-            "1:22: [" + functionName + "] function is only supported in WHERE commands",
-            error("from test | eval y = " + functionInvocation)
-        );
-        assertEquals(
-            "1:18: [" + functionName + "] function is only supported in WHERE commands",
-            error("from test | sort " + functionInvocation + " asc")
-        );
-        assertEquals(
-            "1:23: [" + functionName + "] function is only supported in WHERE commands",
-            error("from test | STATS c = " + functionInvocation + " BY first_name")
-        );
-    }
-
-    public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
-        assertEquals(
-            "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
-            error("from test | where qstr(first_name)")
-        );
-        assertEquals("1:19: argument of [qstr(null)] cannot be null, received [null]", error("from test | where qstr(null)"));
-        // Other value types are tested in QueryStringFunctionTests
-    }
-
-    public void testQueryStringWithDisjunctions() {
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
-    }
-
-    public void testMatchWithDisjunctions() {
-        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
-    }
-
-    private void checkWithDisjunctions(String functionName, String functionInvocation) {
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
-                functionInvocation,
-                functionName
-            ),
-            error("from test | where " + functionInvocation + " or length(first_name) > 12")
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition",
-                functionInvocation,
-                functionName
-            ),
-            error(
-                "from test | where ("
-                    + functionInvocation
-                    + " and first_name is not null) or (length(first_name) > 12 and first_name is null)"
-            )
-        );
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
-                    + "Function {} can't be used as part of an or condition",
-                functionInvocation,
-                functionName
-            ),
-            error("from test | where (" + functionInvocation + " and first_name is not null) or first_name is null")
-        );
-    }
-
-    public void testQueryStringFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
-    }
-
-    public void testMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
-    }
-
-    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
-        assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
-            error("from test | where " + functionInvocation + " is not null")
-        );
-        assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
-            error("from test | where " + functionInvocation + " is null")
-        );
-        assertEquals(
-            "1:19: Invalid condition ["
-                + functionInvocation
-                + " in (\"hello\", \"world\")]. Function "
-                + functionName
-                + " can't be used with IN",
-            error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
-        );
-    }
-
-    public void testMatchFunctionArgNotConstant() throws Exception {
-        assertEquals(
-            "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
-            error("from test | where match(first_name, first_name)")
-        );
-        assertEquals(
-            "1:59: second argument of [match(first_name, query)] must be a constant, received [query]",
-            error("from test | eval query = concat(\"first\", \" name\") | where match(first_name, query)")
-        );
-        // Other value types are tested in QueryStringFunctionTests
     }
 
     // These should pass eventually once we lift some restrictions on match function
-    public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assertEquals(
-            "1:68: Unknown column [first_name]",
-            error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
+    private void checkFieldBasedWithNonIndexedColumn(String functionName, String functionInvocation, String functionType) {
+        assertThat(
+            error("from test | eval text = substring(title, 1) | where " + functionInvocation, fullTextAnalyzer),
+            containsString(
+                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
+            )
+        );
+        assertThat(
+            error("from test | eval text=concat(title, body) | where " + functionInvocation, fullTextAnalyzer),
+            containsString(
+                "[" + functionName + "] " + functionType + " cannot operate on [text], which is not a field from an index mapping"
+            )
+        );
+        var keywordInvocation = functionInvocation.replace("text", "text::keyword");
+        String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation, fullTextAnalyzer);
+        assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
+        assertThat(keywordError, containsString("which is not a field from an index mapping"));
+    }
+
+    public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("QSTR", "qstr(\"field_name: Meditation\")");
+        checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands("KQL", "kql(\"field_name: Meditation\")");
+    }
+
+    private void checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) {
+        // Source commands
+        assertThat(
+            error("show info | where " + functionInvocation),
+            containsString("[" + functionName + "] function cannot be used after SHOW")
+        );
+        assertThat(
+            error("row a= \"Meditation\" | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after ROW")
+        );
+
+        // Processing commands
+        assertThat(
+            error("from test | dissect title \"%{foo}\" | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after DISSECT")
+        );
+        assertThat(
+            error("from test | drop body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after DROP")
+        );
+        assertThat(
+            error("from test | enrich languages on category with lang = language_name | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after ENRICH")
+        );
+        assertThat(
+            error("from test | eval z = 2 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after EVAL")
+        );
+        assertThat(
+            error("from test | grok body \"%{WORD:foo}\" | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after GROK")
+        );
+        assertThat(
+            error("from test | keep category | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after KEEP")
+        );
+        assertThat(
+            error("from test | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after LIMIT")
+        );
+        assertThat(
+            error("from test | mv_expand body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
+        );
+        assertThat(
+            error("from test | rename body as full_body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after RENAME")
+        );
+        assertThat(
+            error("from test | STATS c = COUNT(*) BY category | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after STATS")
+        );
+
+        // Some combination of processing commands
+        assertThat(
+            error("from test | keep category | limit 10 | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after LIMIT")
+        );
+        assertThat(
+            error("from test | limit 10 | mv_expand body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after MV_EXPAND")
+        );
+        assertThat(
+            error("from test | mv_expand body | keep body | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after KEEP")
+        );
+        assertThat(
+            error(
+                "from test | STATS c = COUNT(id) BY category | rename c as total_categories | where " + functionInvocation,
+                fullTextAnalyzer
+            ),
+            containsString("[" + functionName + "] function cannot be used after RENAME")
+        );
+        assertThat(
+            error("from test | rename title as name | drop category | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] function cannot be used after DROP")
         );
     }
 
-    public void testMatchFunctionNullArgs() throws Exception {
-        assertEquals(
-            "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
-            error("from test | where match(null, \"query\")")
+    public void testFullTextFunctionsOnlyAllowedInWhere() throws Exception {
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(title, \"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "title:\"Meditation\"", "operator");
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
+        checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("Term", "term(title, \"Meditation\")", "function");
+        }
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2], 10)", "function");
+        }
+    }
+
+    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
+        throws Exception {
+        assertThat(
+            error("from test | eval y = " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
         );
-        assertEquals(
-            "1:19: second argument of [match(first_name, null)] cannot be null, received [null]",
-            error("from test | where match(first_name, null)")
+        assertThat(
+            error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+        );
+        assertThat(
+            error("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+        );
+        if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
+            assertThat(
+                error("row a = " + functionInvocation, fullTextAnalyzer),
+                containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+            );
+        }
+    }
+
+    public void testFullTextFunctionsDisjunctions() {
+        checkWithFullTextFunctionsDisjunctions("match(title, \"Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("title : \"Meditation\"");
+        checkWithFullTextFunctionsDisjunctions("qstr(\"title: Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
+        checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3], 10)");
+        }
+    }
+
+    private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
+
+        // Disjunctions with non-pushable functions - scoring
+        query("from test | where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
+        query("from test | where match(title, \"Meditation\") or (" + functionInvocation + " and length(title) > 10)", fullTextAnalyzer);
+        query(
+            "from test | where (" + functionInvocation + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)",
+            fullTextAnalyzer
+        );
+
+        // Disjunctions with non-pushable functions - no scoring
+        query("from test | where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
+        query("from test | where match(title, \"Meditation\") or (" + functionInvocation + " and length(title) > 10)", fullTextAnalyzer);
+        query(
+            "from test | where (" + functionInvocation + " and length(title) > 0) or (match(title, \"Meditation\") and length(title) > 10)",
+            fullTextAnalyzer
+        );
+
+        // Disjunctions with full text functions - no scoring
+        query("from test | where " + functionInvocation + " or match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test | where " + functionInvocation + " or not match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10", fullTextAnalyzer);
+        query(
+            "from test | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")",
+            fullTextAnalyzer
+        );
+        query(
+            "from test | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))",
+            fullTextAnalyzer
+        );
+
+        // Disjunctions with full text functions - scoring
+        query("from test metadata _score | where " + functionInvocation + " or match(title, \"Meditation\")", fullTextAnalyzer);
+        query("from test metadata _score | where " + functionInvocation + " or not match(title, \"Meditation\")", fullTextAnalyzer);
+        query(
+            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and length(title) > 10",
+            fullTextAnalyzer
+        );
+        query(
+            "from test metadata _score | where (" + functionInvocation + " or match(title, \"Meditation\")) and match(body, \"Smith\")",
+            fullTextAnalyzer
+        );
+        query(
+            "from test metadata _score | where " + functionInvocation + " or (match(title, \"Meditation\") and match(body, \"Smith\"))",
+            fullTextAnalyzer
         );
     }
 
-    public void testMatchFunctionTargetsExistingField() throws Exception {
-        assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
+    public void testFullTextFunctionsWithNonBooleanFunctions() {
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(title, \"Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions(":", "title:\"Meditation\"", "operator");
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"title: Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
+        checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3], 10)", "function");
+        }
     }
 
-    public void testCoalesceWithMixedNumericTypes() {
+    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
+        if (functionType.equals("operator") == false) {
+            // The following tests are only possible for functions from a parsing perspective
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " is not null]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with ISNOTNULL",
+                error("from test | where " + functionInvocation + " is not null", fullTextAnalyzer)
+            );
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " is null]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with ISNULL",
+                error("from test | where " + functionInvocation + " is null", fullTextAnalyzer)
+            );
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " in (\"hello\", \"world\")]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with IN",
+                error("from test | where " + functionInvocation + " in (\"hello\", \"world\")", fullTextAnalyzer)
+            );
+        }
         assertEquals(
-            "1:22: second argument of [coalesce(languages, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages, height)")
+            "1:19: Invalid condition [coalesce("
+                + functionInvocation
+                + ", "
+                + functionInvocation
+                + ")]. ["
+                + functionName
+                + "] "
+                + functionType
+                + " can't be used with COALESCE",
+            error("from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")", fullTextAnalyzer)
         );
         assertEquals(
-            "1:22: second argument of [coalesce(languages.long, height)] must be [long], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages.long, height)")
+            "1:19: argument of [concat("
+                + functionInvocation
+                + ", \"a\")] must be [string], found value ["
+                + functionInvocation
+                + "] type [boolean]",
+            error("from test | where concat(" + functionInvocation + ", \"a\")", fullTextAnalyzer)
         );
-        assertEquals(
-            "1:22: second argument of [coalesce(salary, languages.long)] must be [integer], found value [languages.long] type [long]",
-            error("from test | eval x = coalesce(salary, languages.long)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages.short, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages.short, height)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages.byte, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages.byte, height)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height.float)] must be [integer], found value [height.float] type [double]",
-            error("from test | eval x = coalesce(languages, height.float)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height.scaled_float)] must be [integer], "
-                + "found value [height.scaled_float] type [double]",
-            error("from test | eval x = coalesce(languages, height.scaled_float)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height.half_float)] must be [integer], "
-                + "found value [height.half_float] type [double]",
-            error("from test | eval x = coalesce(languages, height.half_float)")
-        );
+    }
 
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages.long, height)] must be [long], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages.long, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, salary, languages.long)] must be [integer], "
-                + "found value [languages.long] type [long]",
-            error("from test | eval x = coalesce(null, salary, languages.long)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages.short, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages.short, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages.byte, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages.byte, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height.float)] must be [integer], "
-                + "found value [height.float] type [double]",
-            error("from test | eval x = coalesce(null, languages, height.float)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height.scaled_float)] must be [integer], "
-                + "found value [height.scaled_float] type [double]",
-            error("from test | eval x = coalesce(null, languages, height.scaled_float)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height.half_float)] must be [integer], "
-                + "found value [height.half_float] type [double]",
-            error("from test | eval x = coalesce(null, languages, height.half_float)")
-        );
+    public void testFullTextFunctionsTargetsExistingField() throws Exception {
+        testFullTextFunctionTargetsExistingField("match(title, \"Meditation\")");
+        testFullTextFunctionTargetsExistingField("title : \"Meditation\"");
+        testFullTextFunctionTargetsExistingField("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
+        }
+    }
 
-        // counter
-        assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, 0)", tsdb)
-        );
+    private void testFullTextFunctionTargetsExistingField(String functionInvocation) throws Exception {
+        assertThat(error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
+    }
 
-        assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, to_long(0))] must be [counter_long], "
-                + "found value [to_long(0)] type [long]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, to_long(0))", tsdb)
-        );
-        assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, 0.0)", tsdb)
-        );
+    public void testConditionalFunctionsWithMixedNumericTypes() {
+        for (String functionName : List.of("coalesce", "greatest", "least")) {
+            assertEquals(
+                "1:22: second argument of [" + functionName + "(languages, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages.long, height)] must be [long], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages.long, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(salary, languages.long)] must be [integer], found value [languages.long] type [long]",
+                error("from test | eval x = " + functionName + "(salary, languages.long)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages.short, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages.short, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages.byte, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages.byte, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages, height.float)] must be [integer], found value [height.float] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height.float)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages, height.scaled_float)] must be [integer], "
+                    + "found value [height.scaled_float] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height.scaled_float)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages, height.half_float)] must be [integer], "
+                    + "found value [height.half_float] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height.half_float)")
+            );
 
-        assertEquals(
-            "1:23: third argument of [coalesce(null, network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = coalesce(null, network.bytes_in, 0)", tsdb)
-        );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages.long, height)] must be [long], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages.long, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, salary, languages.long)] must be [integer], "
+                    + "found value [languages.long] type [long]",
+                error("from test | eval x = " + functionName + "(null, salary, languages.long)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages.short, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages.short, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages.byte, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages.byte, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height.float)] must be [integer], "
+                    + "found value [height.float] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height.float)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height.scaled_float)] must be [integer], "
+                    + "found value [height.scaled_float] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height.scaled_float)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height.half_float)] must be [integer], "
+                    + "found value [height.half_float] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height.half_float)")
+            );
 
+            // counter
+            assertEquals(
+                "1:23: second argument of ["
+                    + functionName
+                    + "(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+                error("FROM tests | eval x = " + functionName + "(network.bytes_in, 0)", tsdb)
+            );
+
+            assertEquals(
+                "1:23: second argument of ["
+                    + functionName
+                    + "(network.bytes_in, to_long(0))] must be [counter_long], "
+                    + "found value [to_long(0)] type [long]",
+                error("FROM tests | eval x = " + functionName + "(network.bytes_in, to_long(0))", tsdb)
+            );
+            assertEquals(
+                "1:23: second argument of ["
+                    + functionName
+                    + "(network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
+                error("FROM tests | eval x = " + functionName + "(network.bytes_in, 0.0)", tsdb)
+            );
+
+            assertEquals(
+                "1:23: third argument of ["
+                    + functionName
+                    + "(null, network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, 0)", tsdb)
+            );
+
+            assertEquals(
+                "1:23: third argument of ["
+                    + functionName
+                    + "(null, network.bytes_in, to_long(0))] must be [counter_long], "
+                    + "found value [to_long(0)] type [long]",
+                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, to_long(0))", tsdb)
+            );
+            assertEquals(
+                "1:23: third argument of ["
+                    + functionName
+                    + "(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
+                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, 0.0)", tsdb)
+            );
+        }
+
+        // case, a subset tests of coalesce/greatest/least
         assertEquals(
-            "1:23: third argument of [coalesce(null, network.bytes_in, to_long(0))] must be [counter_long], "
-                + "found value [to_long(0)] type [long]",
-            error("FROM tests | eval x = coalesce(null, network.bytes_in, to_long(0))", tsdb)
+            "1:22: third argument of [case(languages == 1, salary, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = case(languages == 1, salary, height)")
         );
         assertEquals(
-            "1:23: third argument of [coalesce(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
-            error("FROM tests | eval x = coalesce(null, network.bytes_in, 0.0)", tsdb)
+            "1:23: third argument of [case(name == \"a\", network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+            error("FROM tests | eval x = case(name == \"a\", network.bytes_in, 0)", tsdb)
         );
     }
 
@@ -1541,8 +1799,449 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testIntervalAsString() {
+        // DateTrunc
+        for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
+            assertThat(
+                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                containsString("1:35: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+            assertThat(
+                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                containsString("1:67: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+        }
+        for (String interval : List.of("1", "0.5", "invalid")) {
+            assertThat(
+                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                containsString(
+                    "1:24: first argument of [date_trunc(\""
+                        + interval
+                        + "\", \"1991-06-26T00:00:00.000Z\")] must be [dateperiod or timeduration], found value [\""
+                        + interval
+                        + "\"] type [keyword]"
+                )
+            );
+            assertThat(
+                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                containsString(
+                    "1:56: first argument of [date_trunc(\""
+                        + interval
+                        + "\", x::datetime)] "
+                        + "must be [dateperiod or timeduration], found value [\""
+                        + interval
+                        + "\"] type [keyword]"
+                )
+            );
+        }
+
+        // Bucket
+        assertEquals(
+            "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'yar']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
+        );
+        assertEquals(
+            "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'hur']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
+        );
+        assertEquals(
+            "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'mu']",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
+        );
+        assertEquals(
+            "1:34: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1\")")
+        );
+        assertEquals(
+            "1:40: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1\") | sort max ")
+        );
+        assertEquals(
+            "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
+        );
+    }
+
+    public void testCategorizeOnlyFirstGrouping() {
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)");
+        query("FROM test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no");
+        query("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no");
+
+        assertEquals(
+            "1:39: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:55: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:55: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:63: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:63: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(first_name)")
+        );
+    }
+
+    public void testCategorizeNestedGrouping() {
+        query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
+
+        assertEquals(
+            "1:40: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
+        );
+        assertEquals(
+            "1:31: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
+        );
+    }
+
+    public void testCategorizeWithinAggregations() {
+        query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within an aggregation",
+            error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
+            error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:30: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
+            error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within an aggregation",
+            error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
+        );
+
+        assertEquals(
+            "1:28: can only use grouping function [CATEGORIZE(last_name)] as part of the BY clause",
+            error("FROM test | STATS MV_COUNT(CATEGORIZE(last_name)) BY CATEGORIZE(first_name)")
+        );
+    }
+
+    public void testCategorizeWithFilteredAggregations() {
+        query("FROM test | STATS COUNT(*) WHERE first_name == \"John\" BY CATEGORIZE(last_name)");
+        query("FROM test | STATS COUNT(*) WHERE last_name == \"Doe\" BY CATEGORIZE(last_name)");
+
+        assertEquals(
+            "1:34: can only use grouping function [CATEGORIZE(first_name)] as part of the BY clause",
+            error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(first_name) == \"John\" BY CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:34: can only use grouping function [CATEGORIZE(last_name)] as part of the BY clause",
+            error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(last_name) == \"Doe\" BY CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:34: cannot reference CATEGORIZE grouping function [category] within an aggregation filter",
+            error("FROM test | STATS COUNT(*) WHERE category == \"Doe\" BY category = CATEGORIZE(last_name)")
+        );
+    }
+
+    public void testChangePoint() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        assertEquals("1:30: Unknown column [blahblah]", error("FROM airports | CHANGE_POINT blahblah ON scalerank", airports));
+        assertEquals("1:43: Unknown column [blahblah]", error("FROM airports | CHANGE_POINT scalerank ON blahblah", airports));
+        // TODO: nicer error message for missing default column "@timestamp"
+        assertEquals("1:17: Unknown column [@timestamp]", error("FROM airports | CHANGE_POINT scalerank", airports));
+    }
+
+    public void testChangePoint_keySortable() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
+        List<DataType> unsortableTypes = List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
+        for (DataType type : sortableTypes) {
+            query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
+        }
+        for (DataType type : unsortableTypes) {
+            assertEquals(
+                "2:4: change point key [key] must be sortable",
+                error(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type))
+            );
+        }
+    }
+
+    public void testChangePoint_valueNumeric() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
+        List<DataType> nonNumericTypes = List.of(
+            BOOLEAN,
+            CARTESIAN_POINT,
+            CARTESIAN_SHAPE,
+            DATE_NANOS,
+            DATETIME,
+            GEO_POINT,
+            GEO_SHAPE,
+            IP,
+            KEYWORD,
+            VERSION
+        );
+        for (DataType type : numericTypes) {
+            query(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type));
+        }
+        for (DataType type : nonNumericTypes) {
+            assertEquals(
+                "2:4: change point value [value] must be numeric",
+                error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
+            );
+        }
+        assertEquals("2:4: change point value [value] must be numeric", error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key"));
+    }
+
+    public void testSortByAggregate() {
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | SORT count(*)"));
+        assertEquals(
+            "1:28: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | SORT to_string(count(*))")
+        );
+        assertEquals("1:22: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("FROM test | SORT count(*)"));
+    }
+
+    public void testFilterByAggregate() {
+        assertEquals("1:19: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | WHERE count(*) > 0"));
+        assertEquals(
+            "1:29: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
+        );
+        assertEquals("1:23: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | WHERE 1 + max(a) > 0"));
+        assertEquals(
+            "1:24: aggregate function [min(languages)] not allowed outside STATS command",
+            error("FROM employees | WHERE min(languages) > 2")
+        );
+    }
+
+    public void testDissectByAggregate() {
+        assertEquals(
+            "1:21: aggregate function [min(first_name)] not allowed outside STATS command",
+            error("from test | dissect min(first_name) \"%{foo}\"")
+        );
+        assertEquals(
+            "1:21: aggregate function [avg(salary)] not allowed outside STATS command",
+            error("from test | dissect avg(salary) \"%{foo}\"")
+        );
+    }
+
+    public void testGrokByAggregate() {
+        assertEquals(
+            "1:18: aggregate function [max(last_name)] not allowed outside STATS command",
+            error("from test | grok max(last_name) \"%{WORD:foo}\"")
+        );
+        assertEquals(
+            "1:18: aggregate function [sum(salary)] not allowed outside STATS command",
+            error("from test | grok sum(salary) \"%{WORD:foo}\"")
+        );
+    }
+
+    public void testAggregateInRow() {
+        assertEquals("1:13: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 + count(*)"));
+        assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", error("ROW a = avg(2)"));
+    }
+
+    public void testLookupJoinDataTypeMismatch() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+
+        assertEquals(
+            "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
+            error("FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code")
+        );
+    }
+
+    public void testFullTextFunctionOptions() {
+        checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
+        checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
+        checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], 10, {\"%s\": %s})");
+        }
+    }
+
+    /**
+     * Check all data types for available options. When conversion is not possible, checks that it's an error
+     */
+    private void checkOptionDataTypes(Map<String, DataType> allowedOptionsMap, String queryTemplate) {
+        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
+        for (Map.Entry<String, DataType> allowedOptions : allowedOptionsMap.entrySet()) {
+            String optionName = allowedOptions.getKey();
+            DataType optionType = allowedOptions.getValue();
+
+            // Check every possible type for the option - we'll try to convert it to the expected type
+            for (DataType currentType : optionTypes) {
+                String optionValue = exampleValueForType(currentType);
+                String queryOptionValue = optionValue;
+                if (currentType == KEYWORD) {
+                    queryOptionValue = "\"" + optionValue + "\"";
+                }
+
+                String query = String.format(Locale.ROOT, queryTemplate, optionName, queryOptionValue);
+                try {
+                    // Check conversion is possible
+                    DataTypeConverter.convert(optionValue, optionType);
+                    // If no exception was thrown, conversion is possible and should be done
+                    query(query, fullTextAnalyzer);
+                } catch (InvalidArgumentException e) {
+                    // Conversion is not possible, query should fail
+                    String error = error(query, fullTextAnalyzer);
+                    assertThat(error, containsString("Invalid option [" + optionName + "]"));
+                    assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
+                }
+            }
+        }
+
+        String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
+        assertThat(error(errorQuery, fullTextAnalyzer), containsString("Invalid option [unknown_option]"));
+    }
+
+    private static String exampleValueForType(DataType currentType) {
+        return switch (currentType) {
+            case BOOLEAN -> String.valueOf(randomBoolean());
+            case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+            case LONG -> String.valueOf(randomLong());
+            case FLOAT -> String.valueOf(randomFloat());
+            case DOUBLE -> String.valueOf(randomDouble());
+            case KEYWORD -> randomAlphaOfLength(10);
+            default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+        };
+    }
+
+    // Should pass eventually once we lift some restrictions on full text search functions.
+    public void testFullTextFunctionCurrentlyUnsupportedBehaviour() throws Exception {
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(title, \"Meditation\")");
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("title : \"Meditation\"");
+        testFullTextFunctionsCurrentlyUnsupportedBehaviour("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Meditation\", title)");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            testFullTextFunctionsCurrentlyUnsupportedBehaviour("term(title, \"Meditation\")");
+        }
+    }
+
+    private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
+        assertThat(
+            error("from test | stats max_salary = max(salary) by emp_no | where " + functionInvocation, fullTextAnalyzer),
+            containsString("Unknown column")
+        );
+    }
+
+    public void testFullTextFunctionsNullArgs() throws Exception {
+        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
+        checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionNullArgs("qstr(null)", "");
+        checkFullTextFunctionNullArgs("kql(null)", "");
+        checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
+        checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
+            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
+            checkFullTextFunctionNullArgs("term(title, null)", "second");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2], 10)", "first");
+            checkFullTextFunctionNullArgs("knn(vector, null, 10)", "second");
+            checkFullTextFunctionNullArgs("knn(vector, [0, 1, 2], null)", "third");
+        }
+    }
+
+    private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation, fullTextAnalyzer),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
+        );
+    }
+
+    public void testFullTextFunctionsConstantArg() throws Exception {
+        checkFullTextFunctionsConstantArg("match(title, category)", "second");
+        checkFullTextFunctionsConstantArg("qstr(title)", "");
+        checkFullTextFunctionsConstantArg("kql(title)", "");
+        checkFullTextFunctionsConstantArg("match_phrase(title, tags)", "second");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantArg("multi_match(category, body)", "first");
+            checkFullTextFunctionsConstantArg("multi_match(concat(title, \"world\"), title)", "first");
+        }
+        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsConstantArg("term(title, tags)", "second");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsConstantArg("knn(vector, vector, 10)", "second");
+            checkFullTextFunctionsConstantArg("knn(vector, [0, 1, 2], category)", "third");
+        }
+    }
+
+    private void checkFullTextFunctionsConstantArg(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | where " + functionInvocation, fullTextAnalyzer),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
+        );
+    }
+
+    public void testInsistNotOnTopOfFrom() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        assertThat(
+            error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
+            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
+        );
+    }
+
+    public void testFullTextFunctionsInStats() {
+        checkFullTextFunctionsInStats("match(title, \"Meditation\")");
+        checkFullTextFunctionsInStats("title : \"Meditation\"");
+        checkFullTextFunctionsInStats("qstr(\"title: Meditation\")");
+        checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
+        checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
+        }
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2], 10)");
+        }
+    }
+
+    private void checkFullTextFunctionsInStats(String functionInvocation) {
+        query("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer);
+        query("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
+        query("from test metadata _score |  where " + functionInvocation + " | stats c = max(_score)", fullTextAnalyzer);
+        query(
+            "from test metadata _score |  where " + functionInvocation + " or length(title) > 10 | stats c = max(_score)",
+            fullTextAnalyzer
+        );
+
+        assertThat(
+            error("from test metadata _score | stats c = max(_score) where " + functionInvocation, fullTextAnalyzer),
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
+    }
+
     private void query(String query) {
-        defaultAnalyzer.analyze(parser.createStatement(query));
+        query(query, defaultAnalyzer);
+    }
+
+    private void query(String query, Analyzer analyzer) {
+        analyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {
@@ -1570,7 +2269,11 @@ public class VerifierTests extends ESTestCase {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
-        Throwable e = expectThrows(exception, () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters))));
+        Throwable e = expectThrows(
+            exception,
+            "Expected error for query [" + query + "] but no error was raised",
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+        );
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();

@@ -560,15 +560,6 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
             }
         }
-        {
-            // the deprecated deployment/_infer endpoint does not support multiple docs
-            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-            request.setJsonEntity(String.format(Locale.ROOT, """
-                {  "docs": [%s] }
-                """, docsBuilder));
-            Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-            assertThat(ex.getMessage(), containsString("multiple documents are not supported"));
-        }
     }
 
     public void testGetPytorchModelWithDefinition() throws IOException {
@@ -1140,6 +1131,22 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             assertThat(stat.toString(), (Integer) stat.get("num_threads"), greaterThanOrEqualTo(1));
             assertThat(stat.toString(), (Integer) stat.get("num_allocations"), greaterThanOrEqualTo(1));
         }
+    }
+
+    public void testInferEmptyInput() throws IOException {
+        String modelId = "empty_input";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
+        request.setJsonEntity("""
+            {  "docs": [] }
+            """);
+
+        var inferenceResponse = client().performRequest(request);
+        assertThat(EntityUtils.toString(inferenceResponse.getEntity()), equalTo("{\"inference_results\":[]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {

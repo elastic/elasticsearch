@@ -10,14 +10,10 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.List;
@@ -49,9 +45,6 @@ public final class RerouteProcessor extends AbstractProcessor {
     private final List<DataStreamValueSource> dataset;
     private final List<DataStreamValueSource> namespace;
     private final String destination;
-    private final ClusterService clusterService;
-    private final ProjectId projectId;
-    private final StreamsPermissionsUtils streamsPermissionsUtils;
 
     RerouteProcessor(
         String tag,
@@ -59,10 +52,7 @@ public final class RerouteProcessor extends AbstractProcessor {
         List<DataStreamValueSource> type,
         List<DataStreamValueSource> dataset,
         List<DataStreamValueSource> namespace,
-        String destination,
-        ClusterService clusterService,
-        ProjectId projectId,
-        StreamsPermissionsUtils streamsPermissionsUtils
+        String destination
     ) {
         super(tag, description);
         if (type.isEmpty()) {
@@ -81,16 +71,11 @@ public final class RerouteProcessor extends AbstractProcessor {
             this.namespace = namespace;
         }
         this.destination = destination;
-        this.clusterService = clusterService;
-        this.projectId = projectId;
-        this.streamsPermissionsUtils = streamsPermissionsUtils;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         if (destination != null) {
-            ProjectMetadata projectMetadata = clusterService.state().projectState(projectId).metadata();
-            streamsPermissionsUtils.throwIfRerouteToSubstreamNotAllowed(projectMetadata, ingestDocument.getIndexHistory(), destination);
             ingestDocument.reroute(destination);
             return ingestDocument;
         }
@@ -186,12 +171,6 @@ public final class RerouteProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final IngestService ingestService;
-
-        public Factory(IngestService ingestService) {
-            this.ingestService = ingestService;
-        }
-
         @Override
         public RerouteProcessor create(
             Map<String, Processor.Factory> processorFactories,
@@ -233,17 +212,7 @@ public final class RerouteProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, tag, "destination", "can only be set if type, dataset, and namespace are not set");
             }
 
-            return new RerouteProcessor(
-                tag,
-                description,
-                type,
-                dataset,
-                namespace,
-                destination,
-                ingestService.getClusterService(),
-                projectId,
-                StreamsPermissionsUtils.getInstance()
-            );
+            return new RerouteProcessor(tag, description, type, dataset, namespace, destination);
         }
     }
 

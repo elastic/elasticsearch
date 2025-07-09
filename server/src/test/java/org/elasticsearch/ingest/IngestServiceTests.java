@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -143,12 +144,14 @@ public class IngestServiceTests extends ESTestCase {
     };
 
     private ThreadPool threadPool;
+    private static StreamsPermissionsUtils streamsPermissionsUtils = mock(StreamsPermissionsUtils.class);
 
     @Before
     public void setup() {
         threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(streamsPermissionsUtils.streamTypeIsEnabled(any(), any())).thenReturn(false);
     }
 
     public void testIngestPlugin() {
@@ -169,7 +172,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            streamsPermissionsUtils
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -196,7 +200,8 @@ public class IngestServiceTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                }
+                },
+                streamsPermissionsUtils
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -220,7 +225,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            streamsPermissionsUtils
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -2505,7 +2511,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            streamsPermissionsUtils
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2998,7 +3005,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            streamsPermissionsUtils
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3342,7 +3350,8 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return featureTest.test(feature);
                 }
-            }
+            },
+            streamsPermissionsUtils
         );
         if (randomBoolean()) {
             /*

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.FeatureService;
@@ -54,6 +55,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -143,6 +145,10 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             )
         );
         clusterService = new ClusterService(settings, clusterSettings, tp, null);
+
+        StreamsPermissionsUtils permissionsUtils = mock(StreamsPermissionsUtils.class);
+        when(permissionsUtils.streamTypeIsEnabled(any(), any())).thenReturn(false);
+
         ingestService = new IngestService(
             clusterService,
             tp,
@@ -159,7 +165,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            permissionsUtils
         );
     }
 

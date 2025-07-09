@@ -26,6 +26,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -55,6 +56,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamType;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -75,6 +78,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -154,6 +158,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final StreamsPermissionsUtils streamsPermissionsUtils;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
         return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
@@ -241,7 +246,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
-        FeatureService featureService
+        FeatureService featureService,
+        StreamsPermissionsUtils streamsPermissionsUtils
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -265,6 +271,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = failureStoreMetrics;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        this.streamsPermissionsUtils = streamsPermissionsUtils;
     }
 
     /**
@@ -283,6 +290,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
         this.projectResolver = ingestService.projectResolver;
         this.featureService = ingestService.featureService;
+        streamsPermissionsUtils = ingestService.streamsPermissionsUtils;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -301,7 +309,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     /**
      * Resolves the potential pipelines (default and final) from the requests or templates associated to the index and then **mutates**
-     * the {@link org.elasticsearch.action.index.IndexRequest} passed object with the pipeline information.
+     * the {@link IndexRequest} passed object with the pipeline information.
      * <p>
      * Also, this method marks the request as `isPipelinesResolved = true`: Due to the request could be rerouted from a coordinating node
      * to an ingest node, we have to be able to avoid double resolving the pipelines and also able to distinguish that either the pipeline
@@ -309,7 +317,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * pipeline was set by a required pipeline **and** the request also has a pipeline request too.
      *
      * @param originalRequest Original write request received.
-     * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
+     * @param indexRequest    The {@link IndexRequest} object to update.
      * @param projectMetadata Project metadata from the cluster state from where the pipeline information is derived.
      */
     public static void resolvePipelinesAndUpdateIndexRequest(
@@ -411,7 +419,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /**
-     * Used by this class and {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+     * Used by this class and {@link ReservedPipelineAction}
      */
     public static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
@@ -672,7 +680,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /**
-     * Used in this class and externally by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+     * Used in this class and externally by the {@link ReservedPipelineAction}
      */
     public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
@@ -683,7 +691,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         /**
-         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         * Used by {@link ReservedPipelineAction}
          */
         public PutPipelineClusterStateUpdateTask(ProjectId projectId, PutPipelineRequest request) {
             this(projectId, null, request);
@@ -904,7 +912,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         final int slot = i;
                         final Releasable ref = refs.acquire();
                         final IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
+                        final Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
                         final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(
@@ -1198,6 +1206,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
+                    StreamsPermissionsUtils permissionsUtils = StreamsPermissionsUtils.getInstance();
+                    for (StreamType streamType : StreamType.values()) {
+                        if (permissionsUtils.streamTypeIsEnabled(streamType, project)) {
+                            if (newIndex.startsWith(streamType.getStreamName() + ".")
+                                && ingestDocument.getIndexHistory().stream().noneMatch(s -> s.equals(streamType.getStreamName()))) {
+                                exceptionHandler.accept(
+                                    new IngestPipelineException(
+                                        pipelineId,
+                                        new IllegalArgumentException(
+                                            format(
+                                                "Pipelines can't re-route documents to child streams, but pipeline [%s] tried to reroute "
+                                                    + "this document from index [%s] to index [%s]. Reroute history: %s",
+                                                pipelineId,
+                                                originalIndex,
+                                                newIndex,
+                                                String.join(" -> ", ingestDocument.getIndexHistory())
+                                            )
+                                        )
+                                    )
+                                );
+                                return; // document failed!
+                            }
+                        }
+                    }
+
                     // add the index to the document's index history, and check for cycles in the visited indices
                     boolean cycle = ingestDocument.updateIndexHistory(newIndex) == false;
                     if (cycle) {
@@ -1352,7 +1385,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Updates an index request based on the metadata of an ingest document.
      */
-    private static void updateIndexRequestMetadata(final IndexRequest request, final org.elasticsearch.script.Metadata metadata) {
+    private static void updateIndexRequestMetadata(final IndexRequest request, final Metadata metadata) {
         // it's fine to set all metadata fields all the time, as ingest document holds their starting values
         // before ingestion, which might also get modified during ingestion.
         request.index(metadata.getIndex());

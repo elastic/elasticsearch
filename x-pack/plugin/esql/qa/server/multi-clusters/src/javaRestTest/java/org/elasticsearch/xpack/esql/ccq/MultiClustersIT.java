@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -406,6 +405,7 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusterData, hasKey("skipped"));
         assertThat(clusterData, hasKey("took"));
     }
+
     public void testLikeIndexLegacySettingNoResults() throws Exception {
         // the feature is completely supported if both local and remote clusters support it
         assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
@@ -452,8 +452,6 @@ public class MultiClustersIT extends ESRestTestCase {
             assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
         }
     }
-
-
 
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());

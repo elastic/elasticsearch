@@ -10,35 +10,45 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.snapshots.AbortedSnapshotException;
+import org.elasticsearch.snapshots.AbstractSnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collection;
 
 /**
  * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(SnapshotShardContext)}.
  * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
  * either its {@link #onResponse(ShardSnapshotResult)} or {@link #onFailure(Exception)} callback.
  */
-public final class SnapshotShardContext extends DelegatingActionListener<ShardSnapshotResult, ShardSnapshotResult> {
+public final class SnapshotShardContext extends AbstractSnapshotShardContext {
+
+    private static final Logger logger = LogManager.getLogger(SnapshotShardContext.class);
 
     private final Store store;
     private final MapperService mapperService;
-    private final SnapshotId snapshotId;
-    private final IndexId indexId;
     private final SnapshotIndexCommit commitRef;
-    @Nullable
-    private final String shardStateIdentifier;
-    private final IndexShardSnapshotStatus snapshotStatus;
-    private final IndexVersion repositoryMetaVersion;
-    private final long snapshotStartTime;
 
     /**
      * @param store                 store to be snapshotted
@@ -67,68 +77,145 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(commitRef.closingBefore(listener));
+        super(
+            snapshotId,
+            indexId,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            snapshotStartTime,
+            commitRef.closingBefore(listener)
+        );
         this.store = store;
         this.mapperService = mapperService;
-        this.snapshotId = snapshotId;
-        this.indexId = indexId;
         this.commitRef = commitRef;
-        this.shardStateIdentifier = shardStateIdentifier;
-        this.snapshotStatus = snapshotStatus;
-        this.repositoryMetaVersion = repositoryMetaVersion;
-        this.snapshotStartTime = snapshotStartTime;
     }
 
+    @Override
+    public ShardId shardId() {
+        return store.shardId();
+    }
+
+    @Override
     public Store store() {
         return store;
     }
 
+    @Override
     public MapperService mapperService() {
         return mapperService;
     }
 
-    public SnapshotId snapshotId() {
-        return snapshotId;
-    }
-
-    public IndexId indexId() {
-        return indexId;
-    }
-
+    @Override
     public IndexCommit indexCommit() {
         return commitRef.indexCommit();
     }
 
-    @Nullable
-    public String stateIdentifier() {
-        return shardStateIdentifier;
-    }
-
-    public IndexShardSnapshotStatus status() {
-        return snapshotStatus;
-    }
-
-    public IndexVersion getRepositoryMetaVersion() {
-        return repositoryMetaVersion;
-    }
-
-    public long snapshotStartTime() {
-        return snapshotStartTime;
-    }
-
     @Override
-    public void onResponse(ShardSnapshotResult result) {
-        delegate.onResponse(result);
-    }
-
     public Releasable withCommitRef() {
-        snapshotStatus.ensureNotAborted(); // check this first to avoid acquiring a ref when aborted even if refs are available
+        status().ensureNotAborted(); // check this first to avoid acquiring a ref when aborted even if refs are available
         if (commitRef.tryIncRef()) {
             return Releasables.releaseOnce(commitRef::decRef);
         } else {
-            snapshotStatus.ensureNotAborted();
-            assert false : "commit ref closed early in state " + snapshotStatus;
-            throw new IndexShardSnapshotFailedException(store.shardId(), "Store got closed concurrently");
+            status().ensureNotAborted();
+            assert false : "commit ref closed early in state " + status();
+            throw new IndexShardSnapshotFailedException(shardId(), "Store got closed concurrently");
         }
     }
+
+    @Override
+    public boolean isSearchableSnapshot() {
+        return store.indexSettings().getIndexMetadata().isSearchableSnapshot();
+    }
+
+    @Override
+    public Store.MetadataSnapshot metadataSnapshot() {
+        final IndexCommit snapshotIndexCommit = indexCommit();
+        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId(), snapshotId(), snapshotIndexCommit);
+        try {
+            return store.getMetadata(snapshotIndexCommit);
+        } catch (IOException e) {
+            throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file metadata", e);
+        }
+    }
+
+    @Override
+    public Collection<String> fileNames() {
+        final IndexCommit snapshotIndexCommit = indexCommit();
+        try {
+            return snapshotIndexCommit.getFileNames();
+        } catch (IOException e) {
+            throw new IndexShardSnapshotFailedException(shardId(), "Failed to get store file names", e);
+        }
+    }
+
+    @Override
+    public boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+        if (store.tryIncRef()) {
+            try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
+                final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
+                indexInput.readBytes(tmp, 0, tmp.length);
+                assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            } finally {
+                store.decRef();
+            }
+        } else {
+            try {
+                status().ensureNotAborted();
+                assert false : "if the store is already closed we must have been aborted";
+            } catch (Exception e) {
+                assert e instanceof AbortedSnapshotException : e;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void failStoreIfCorrupted(Exception e) {
+        if (Lucene.isCorruptionException(e)) {
+            try {
+                store.markStoreCorrupted((IOException) e);
+            } catch (IOException inner) {
+                inner.addSuppressed(e);
+                logger.warn("store cannot be marked as corrupted", inner);
+            }
+        }
+    }
+
+    @Override
+    public AbstractSnapshotShardContext.FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException {
+        return new FileReader(file, metadata);
+    }
+
+    class FileReader implements AbstractSnapshotShardContext.FileReader {
+
+        private final String file;
+        private final Releasable commitRefReleasable;
+        private final IndexInput indexInput;
+
+        FileReader(String file, StoreFileMetadata metadata) throws IOException {
+            this.file = file;
+            this.commitRefReleasable = withCommitRef();
+            this.indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, metadata);
+        }
+
+        @Override
+        public InputStream apply(long limit) {
+            return new InputStreamIndexInput(indexInput, limit);
+        }
+
+        @Override
+        public void close() throws IOException {
+            commitRefReleasable.close();
+            indexInput.close();
+        }
+
+        @Override
+        public void verify() throws IOException {
+            Store.verify(indexInput);
+        }
+    }
+
 }

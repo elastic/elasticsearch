@@ -112,7 +112,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
             var result = IgnoredSourceFieldMapper.decodeIfMatch(value, potentialFieldsInIgnoreSource);
             if (result != null) {
                 // TODO: can't do this in case multiple entries for the same field name. (objects, arrays etc.)
-//                done = true;
+                // done = true;
                 values.add(result);
             }
         }

@@ -137,12 +137,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             if (featureDocs.length == 0) {
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
-                List<String> inferenceInputs = new ArrayList<>();
-                for (RankFeatureDoc featureDoc : featureDocs) {
-                    if (featureDoc.featureData != null) {
-                        inferenceInputs.addAll(featureDoc.featureData);
-                    }
-                }
+                List<String> inferenceInputs = Arrays.stream(featureDocs)
+                    .filter(featureDoc -> featureDoc.featureData != null)
+                    .flatMap(featureDoc -> featureDoc.featureData.stream())
+                    .toList();
                 InferenceAction.Request inferenceRequest = generateRequest(inferenceInputs);
                 try {
                     executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);

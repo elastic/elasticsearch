@@ -12,12 +12,6 @@ package org.elasticsearch.search.rank.feature;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
- * Defines custom rank input that we send in as input to rank retrievers
+ * Defines custom rank input that we send in as input to rank retrievers. Placeholder for future customizations outside snippets.
  */
-public interface CustomRankInput extends Writeable {
-
-    /**
-     * @return unique identifier for this type of input
-     */
-    String name();
-}
+public interface CustomRankInput extends Writeable {}

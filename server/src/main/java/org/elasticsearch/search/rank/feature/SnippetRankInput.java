@@ -20,8 +20,6 @@ import java.util.Objects;
  */
 public class SnippetRankInput implements CustomRankInput {
 
-    static final String NAME = "snippets";
-
     private final RerankSnippetConfig snippets;
     private final String inferenceText;
     private final int tokenSizeLimit;
@@ -70,10 +68,5 @@ public class SnippetRankInput implements CustomRankInput {
     @Override
     public int hashCode() {
         return Objects.hash(snippets, inferenceText, tokenSizeLimit);
-    }
-
-    @Override
-    public String name() {
-        return NAME;
     }
 }

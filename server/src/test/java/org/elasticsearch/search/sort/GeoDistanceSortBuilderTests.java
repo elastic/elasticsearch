@@ -18,14 +18,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
@@ -35,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -543,10 +538,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         {
             GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("double", 0.0, 180.0);
             sortBuilder.validation(GeoValidationMethod.STRICT);
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> sortBuilder.build(searchExecutionContext)
-            );
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> sortBuilder.build(searchExecutionContext));
             assertEquals("unable to apply geo distance sort to field [double] of type [double]", ex.getMessage());
         }
     }

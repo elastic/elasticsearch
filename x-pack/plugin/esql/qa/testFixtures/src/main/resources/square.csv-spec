@@ -1,0 +1,24 @@
+//
+//
+
+selectAll#[skip:-8.12.99]
+FROM apps metadata _id
+| EVAL idsqr = SQUARE(id);
+ignoreOrder:true
+
+id:integer |name:keyword   |version:version     | _id:keyword  | idsqr:double
+1          |aaaaa          |1                   | 1            | 1
+2          |bbbbb          |2.1                 | 2            | 4
+3          |ccccc          |2.3.4               | 3            | 9
+4          |ddddd          |2.12.0              | 4            | 16
+5          |eeeee          |1.11.0              | 5            | 25
+6          |fffff          |5.2.9               | 6            | 36
+7          |ggggg          |5.2.9-SNAPSHOT      | 7            | 49
+8          |hhhhh          |1.2.3.4             | 8            | 64
+9          |iiiii          |bad                 | 9            | 81
+10         |jjjjj          |5.2.9               | 10           | 100
+11         |kkkkk          |null                | 11           | 121
+12         |aaaaa          |1.2.3.4             | 12           | 144
+13         |lllll          |null                | 13           | 169
+14         |mmmmm          |5.2.9               | 14           | 196
+;

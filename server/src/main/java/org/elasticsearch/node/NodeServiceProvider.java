@@ -117,7 +117,7 @@ class NodeServiceProvider {
         Tracer tracer,
         String nodeId
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
     }
 
     HttpServerTransport newHttpTransport(PluginsService pluginsService, NetworkModule networkModule) {

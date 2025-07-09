@@ -27,6 +27,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
+
+    // Hugging Face embeddings and ELSER was added in 8.12.0
+    // but in 8.15 the endpoints were renamed. For the sake of this
+    // test can start at 8.15.0.
+    public static final String MIN_OLD_CLUSTER_VERSION = "8.15.0";
+
     private static MockWebServer embeddingsServer;
     private static MockWebServer elserServer;
 
@@ -50,6 +56,9 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     public void testUpgradeModels() throws Exception {
+        boolean oldClusterSupportsHF = oldClusterHasFeature("gte_v" + MIN_OLD_CLUSTER_VERSION);
+        assumeTrue("Test requires features added in " + MIN_OLD_CLUSTER_VERSION, oldClusterSupportsHF);
+
         if (isOldCluster()) {
             int numModels = randomIntBetween(5, 10);
             for (int i = 0; i < numModels; i++) {

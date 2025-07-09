@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
@@ -871,7 +872,7 @@ public class EsqlCapabilities {
         DOCUMENTS_FOUND_AND_VALUES_LOADED,
 
         /**
-         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * When creating constant null blocks in {@link ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
@@ -908,6 +909,13 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
          */
         DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
 
         /**
          * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
@@ -999,7 +1007,12 @@ public class EsqlCapabilities {
          *
          * https://github.com/elastic/elasticsearch/issues/129322
          */
-        NO_PLAIN_STRINGS_IN_LITERALS;
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

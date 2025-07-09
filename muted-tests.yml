@@ -411,12 +411,6 @@ tests:
   - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
     method: testRepositoryAnalysis
     issue: https://github.com/elastic/elasticsearch/issues/125668
-  - class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
-    method: testUpgradeModels {upgradedNodes=0}
-    issue: https://github.com/elastic/elasticsearch/issues/125549
-  - class: org.elasticsearch.xpack.application.ModelRegistryUpgradeIT
-    method: testUpgradeModels {upgradedNodes=3}
-    issue: https://github.com/elastic/elasticsearch/issues/125535
   - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
     method: testEnterpriseDownloaderTask
     issue: https://github.com/elastic/elasticsearch/issues/126124
@@ -438,12 +432,6 @@ tests:
   - class: org.elasticsearch.action.RejectionActionIT
     method: testSimulatedSearchRejectionLoad
     issue: https://github.com/elastic/elasticsearch/issues/125901
-  - class: org.elasticsearch.search.SearchServiceSingleNodeTests
-    method: testBeforeShardLockDuringShardCreate
-    issue: https://github.com/elastic/elasticsearch/issues/126812
-  - class: org.elasticsearch.search.SearchServiceSingleNodeTests
-    method: testLookUpSearchContext
-    issue: https://github.com/elastic/elasticsearch/issues/126813
   - class: org.elasticsearch.test.index.IndexVersionUtilsTests
     method: testIndexCompatibleVersionMatches
     issue: https://github.com/elastic/elasticsearch/issues/120760
@@ -453,6 +441,3 @@ tests:
   - class: org.elasticsearch.search.CCSDuelIT
     method: testTerminateAfter
     issue: https://github.com/elastic/elasticsearch/issues/126085
-  - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
-    method: testSchedulerCloseWaitsForRunningMerge
-    issue: https://github.com/elastic/elasticsearch/issues/125236

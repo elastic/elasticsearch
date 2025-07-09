@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -58,10 +57,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery} .
@@ -247,19 +244,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(MatchPhrase.class, mp -> {
-                if (mp.fieldAsFieldAttribute() == null) {
-                    failures.add(
-                        Failure.fail(
-                            mp.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            functionName(),
-                            functionType(),
-                            mp.field().sourceText()
-                        )
-                    );
-                }
-            });
+            FullTextFunction.fieldVerifier(plan, this, field, failures);
         };
     }
 

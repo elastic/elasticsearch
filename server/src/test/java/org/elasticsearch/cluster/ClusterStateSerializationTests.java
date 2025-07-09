@@ -12,6 +12,8 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -77,7 +79,7 @@ public class ClusterStateSerializationTests extends ESTestCase {
             nodes.localNodeId(id);
         } while (randomBoolean());
 
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(datastreams, indices);
-        return ClusterState.builder(state).nodes(nodes).build();
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(datastreams, indices);
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(project)).nodes(nodes).build();
     }
 }

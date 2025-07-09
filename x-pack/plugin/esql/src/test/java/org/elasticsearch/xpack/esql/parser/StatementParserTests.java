@@ -328,7 +328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testAggsWithGroupKeyAsAgg() {
-        var queries = new String[] { """
+        var queries = new String[]{"""
             row a = 1, b = 2
             | stats a by a
             """, """
@@ -341,7 +341,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """, """
             row a = 1, b = 2
             | stats x = a by a
-            """ };
+            """};
 
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
@@ -891,16 +891,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testIdentifierAsFieldName() {
-        String[] operators = new String[] { "==", "!=", ">", "<", ">=", "<=" };
-        Class<?>[] expectedOperators = new Class<?>[] {
+        String[] operators = new String[]{"==", "!=", ">", "<", ">=", "<="};
+        Class<?>[] expectedOperators = new Class<?>[]{
             Equals.class,
             Not.class,
             GreaterThan.class,
             LessThan.class,
             GreaterThanOrEqual.class,
-            LessThanOrEqual.class };
-        String[] identifiers = new String[] { "abc", "`abc`", "ab_c", "a.b.c", "@a", "a.@b", "`a@b.c`" };
-        String[] expectedIdentifiers = new String[] { "abc", "abc", "ab_c", "a.b.c", "@a", "a.@b", "a@b.c" };
+            LessThanOrEqual.class};
+        String[] identifiers = new String[]{"abc", "`abc`", "ab_c", "a.b.c", "@a", "a.@b", "`a@b.c`"};
+        String[] expectedIdentifiers = new String[]{"abc", "abc", "ab_c", "a.b.c", "@a", "a.@b", "a@b.c"};
         LogicalPlan where;
         for (int i = 0; i < operators.length; i++) {
             for (int j = 0; j < identifiers.length; j++) {
@@ -1033,7 +1033,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNewLines() {
-        String[] delims = new String[] { "", "\r", "\n", "\r\n" };
+        String[] delims = new String[]{"", "\r", "\n", "\r\n"};
         Function<String, String> queryFun = d -> d + "from " + d + " foo " + d + "| eval " + d + " x = concat(bar, \"baz\")" + d;
         LogicalPlan reference = statement(queryFun.apply(delims[0]));
         for (int i = 1; i < delims.length; i++) {
@@ -2941,13 +2941,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testNamedFunctionArgumentNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
-            Map.entry("eval x = {}", new String[] { "31", "35" }),
-            Map.entry("where {}", new String[] { "28", "32" }),
-            Map.entry("stats {}", new String[] { "28", "32" }),
-            Map.entry("stats agg() by {}", new String[] { "37", "41" }),
-            Map.entry("sort {}", new String[] { "27", "31" }),
-            Map.entry("dissect {} \"%{bar}\"", new String[] { "30", "34" }),
-            Map.entry("grok {} \"%{WORD:foo}\"", new String[] { "27", "31" })
+            Map.entry("eval x = {}", new String[]{"31", "35"}),
+            Map.entry("where {}", new String[]{"28", "32"}),
+            Map.entry("stats {}", new String[]{"28", "32"}),
+            Map.entry("stats agg() by {}", new String[]{"37", "41"}),
+            Map.entry("sort {}", new String[]{"27", "31"}),
+            Map.entry("dissect {} \"%{bar}\"", new String[]{"30", "34"}),
+            Map.entry("grok {} \"%{WORD:foo}\"", new String[]{"27", "31"})
         );
 
         for (Map.Entry<String, String[]> command : commands.entrySet()) {
@@ -3176,7 +3176,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFromPatterns() {
-        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
+        var sourceCommands = Build.current().isSnapshot() ? new String[]{"FROM", "TS"} : new String[]{"FROM"};
         var indexIsBlank = "Blank index specified in index pattern";
         var remoteIsEmpty = "remote part is empty";
         var invalidDoubleColonUsage = "invalid usage of :: separator";
@@ -3226,7 +3226,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var randomIndex = randomIndexPattern();
             // Select an invalid char to sneak in.
             // Note: some chars like '|' and '"' are excluded to generate a proper invalid name.
-            Character[] invalidChars = { ' ', '/', '<', '>', '?' };
+            Character[] invalidChars = {' ', '/', '<', '>', '?'};
             var randomInvalidChar = randomFrom(invalidChars);
 
             // Construct the new invalid index pattern.
@@ -3664,7 +3664,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFieldNamesAsCommands() throws Exception {
-        String[] keywords = new String[] {
+        String[] keywords = new String[]{
             "dissect",
             "drop",
             "enrich",
@@ -3677,7 +3677,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "mv_expand",
             "rename",
             "sort",
-            "stats" };
+            "stats"};
         for (String keyword : keywords) {
             var plan = statement("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
@@ -4724,32 +4724,96 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "ROW x = 1 | DROP x )",
             "ROW a = [1, 2] | RENAME a =b)",
             "ROW a = [1, 2] | MV_EXPAND a)",
-            "from test | enrich a on b)" };
+            "from test | enrich a on b)"};
         for (String q : queries) {
             expectError(q, "Invalid query");
         }
     }
 
     public void testBracketsInIndexNames() {
+
+        List<String> patterns = List.of(
+            "(",
+            ")",
+            "()",
+            "(((",
+            ")))",
+            "(test",
+            "test)",
+            "(test)",
+            "te()st",
+            "concat(foo,bar)",
+            "((((()))))",
+            "(((abc)))",
+            "*()*",
+            "*test()*");
+
+        for (String pattern : patterns) {
+            expectErrorForBracketsWithoutQuotes(pattern);
+            expectSuccessForBracketsWithinQuotes(pattern);
+        }
+
         expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
-
+        expectError("from te()st", "line 1:8: token recognition error at: '('");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
-
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
-
-        LogicalPlan plan = statement("from \"test)\"");
-        UnresolvedRelation from = as(plan, UnresolvedRelation.class);
-        assertThat(from.indexPattern().indexPattern(), is("test)"));
-
-        plan = statement("from test | enrich \"foo)\"");
-        Enrich enrich = as(plan, Enrich.class);
-        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("foo)")));
-        as(enrich.child(), UnresolvedRelation.class);
-
-        plan = statement("from test | lookup join \"foo)\" on bar");
-        LookupJoin lookup = as(plan, LookupJoin.class);
-        UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
-        assertThat(right.indexPattern().indexPattern(), is("foo)"));
     }
 
+    private void expectErrorForBracketsWithoutQuotes(String pattern) {
+        expectThrows(
+            ParsingException.class,
+            () -> processingCommand("from " + pattern)
+        );
+
+        expectThrows(
+            ParsingException.class,
+            () -> processingCommand("from *:" + pattern)
+        );
+
+        expectThrows(
+            ParsingException.class,
+            () -> processingCommand("from remote1:" + pattern + ",remote2:" + pattern)
+        );
+
+        expectThrows(
+            ParsingException.class,
+            () -> processingCommand("from test | lookup join " + pattern + " on bar")
+        );
+
+        expectThrows(
+            ParsingException.class,
+            () -> processingCommand("from test | enrich " + pattern)
+        );
+    }
+
+    private void expectSuccessForBracketsWithinQuotes(String indexName) {
+        LogicalPlan plan = statement("from \"" + indexName + "\"");
+        UnresolvedRelation from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is(indexName));
+
+        plan = statement("from \"*:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("*:" + indexName));
+
+        plan = statement("from \"remote1:" + indexName + ",remote2:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("remote1:" + indexName + ",remote2:" + indexName));
+
+        plan = statement("from test | enrich \"" + indexName + "\"");
+        Enrich enrich = as(plan, Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        as(enrich.child(), UnresolvedRelation.class);
+
+        if (indexName.contains("*")) {
+            expectThrows(
+                ParsingException.class,
+                () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar")
+            );
+        } else {
+            plan = statement("from test | lookup join \"" + indexName + "\" on bar");
+            LookupJoin lookup = as(plan, LookupJoin.class);
+            UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
+            assertThat(right.indexPattern().indexPattern(), is(indexName));
+        }
+    }
 }

@@ -4729,4 +4729,74 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(q, "Invalid query");
         }
     }
+
+    public void testBracketsInIndexNames() {
+
+        List<String> patterns = List.of(
+            "(",
+            ")",
+            "()",
+            "(((",
+            ")))",
+            "(test",
+            "test)",
+            "(test)",
+            "te()st",
+            "concat(foo,bar)",
+            "((((()))))",
+            "(((abc)))",
+            "*()*",
+            "*test()*"
+        );
+
+        for (String pattern : patterns) {
+            expectErrorForBracketsWithoutQuotes(pattern);
+            expectSuccessForBracketsWithinQuotes(pattern);
+        }
+
+        expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
+        expectError("from te()st", "line 1:8: token recognition error at: '('");
+        expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
+        expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
+    }
+
+    private void expectErrorForBracketsWithoutQuotes(String pattern) {
+        expectThrows(ParsingException.class, () -> processingCommand("from " + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from *:" + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from remote1:" + pattern + ",remote2:" + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join " + pattern + " on bar"));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from test | enrich " + pattern));
+    }
+
+    private void expectSuccessForBracketsWithinQuotes(String indexName) {
+        LogicalPlan plan = statement("from \"" + indexName + "\"");
+        UnresolvedRelation from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is(indexName));
+
+        plan = statement("from \"*:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("*:" + indexName));
+
+        plan = statement("from \"remote1:" + indexName + ",remote2:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("remote1:" + indexName + ",remote2:" + indexName));
+
+        plan = statement("from test | enrich \"" + indexName + "\"");
+        Enrich enrich = as(plan, Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        as(enrich.child(), UnresolvedRelation.class);
+
+        if (indexName.contains("*")) {
+            expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar"));
+        } else {
+            plan = statement("from test | lookup join \"" + indexName + "\" on bar");
+            LookupJoin lookup = as(plan, LookupJoin.class);
+            UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
+            assertThat(right.indexPattern().indexPattern(), is(indexName));
+        }
+    }
 }

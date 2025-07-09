@@ -27,9 +27,7 @@ public class ProjectId implements Writeable, ToXContent {
     private static final String DEFAULT_STRING = "default";
     public static final ProjectId DEFAULT = new ProjectId(DEFAULT_STRING);
     public static final Reader<ProjectId> READER = ProjectId::readFrom;
-    public static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(
-        READER
-    );
+    public static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(READER);
     private static final int MAX_LENGTH = 128;
 
     private final String id;

@@ -59,9 +59,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             projectsEntries = in.readMap(ProjectId::readFrom, Entry::readFrom);
         } else {
             Map<ProjectId, Settings> settingsMap = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
-            projectsEntries = settingsMap.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> new Entry(e.getValue())));
+            projectsEntries = settingsMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new Entry(e.getValue())));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
@@ -154,7 +152,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
             out.writeMap(projectsEntries);
         } else {
-            Map<ProjectId, Settings> settingsMap = projectsEntries.entrySet().stream()
+            Map<ProjectId, Settings> settingsMap = projectsEntries.entrySet()
+                .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().settings()));
             out.writeMap(settingsMap);
         }
@@ -211,7 +210,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     static class ProjectStatusRegistryDiff implements NamedDiff<Custom> {
         private static final DiffableUtils.DiffableValueReader<ProjectId, Entry> VALUE_READER = new DiffableUtils.DiffableValueReader<>(
-            Entry::readFrom, Entry.EntryDiff::readFrom
+            Entry::readFrom,
+            Entry.EntryDiff::readFrom
         );
 
         private final DiffableUtils.MapDiff<ProjectId, Entry, Map<ProjectId, Entry>> projectsEntriesDiff;
@@ -225,7 +225,12 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         }
 
         ProjectStatusRegistryDiff(ProjectStateRegistry previousState, ProjectStateRegistry currentState) {
-            projectsEntriesDiff = DiffableUtils.diff(previousState.projectsEntries, currentState.projectsEntries, ProjectId.PROJECT_ID_SERIALIZER, VALUE_READER);
+            projectsEntriesDiff = DiffableUtils.diff(
+                previousState.projectsEntries,
+                currentState.projectsEntries,
+                ProjectId.PROJECT_ID_SERIALIZER,
+                VALUE_READER
+            );
             projectsMarkedForDeletion = currentState.projectsMarkedForDeletion;
             projectsMarkedForDeletionGeneration = currentState.projectsMarkedForDeletionGeneration;
         }
@@ -237,8 +242,11 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
         @Override
         public Custom apply(Custom part) {
-            return new ProjectStateRegistry(projectsEntriesDiff.apply(((ProjectStateRegistry) part).projectsEntries),
-                projectsMarkedForDeletion, projectsMarkedForDeletionGeneration);
+            return new ProjectStateRegistry(
+                projectsEntriesDiff.apply(((ProjectStateRegistry) part).projectsEntries),
+                projectsMarkedForDeletion,
+                projectsMarkedForDeletionGeneration
+            );
         }
 
         @Override
@@ -306,6 +314,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     }
 
     private record Entry(Settings settings) implements Writeable, Diffable<Entry> {
+
         public static Entry readFrom(StreamInput in) throws IOException {
             return new Entry(Settings.readSettingsFromStream(in));
         }

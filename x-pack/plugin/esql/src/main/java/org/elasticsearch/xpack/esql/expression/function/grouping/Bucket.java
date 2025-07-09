@@ -239,10 +239,16 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EMIT_EMPTY_BUCKETS)
                 ? in.readOptionalNamedWriteable(Expression.class)
                 : null
-            );
+        );
     }
 
-    private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to, Expression emitEmptyBuckets) {
+    private static List<Expression> fields(
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        Expression emitEmptyBuckets
+    ) {
         List<Expression> list = new ArrayList<>(4);
         list.add(field);
         list.add(buckets);
@@ -277,7 +283,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public boolean foldable() {
-        return field.foldable() && buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable()) && (emitEmptyBuckets == null || emitEmptyBuckets.foldable());
+        return field.foldable()
+            && buckets.foldable()
+            && (from == null || from.foldable())
+            && (to == null || to.foldable())
+            && (emitEmptyBuckets == null || emitEmptyBuckets.foldable());
     }
 
     @Override
@@ -509,6 +519,17 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + ", emitEmptyBuckets=" + emitEmptyBuckets + '}';
+        return "Bucket{"
+            + "field="
+            + field
+            + ", buckets="
+            + buckets
+            + ", from="
+            + from
+            + ", to="
+            + to
+            + ", emitEmptyBuckets="
+            + emitEmptyBuckets
+            + '}';
     }
 }

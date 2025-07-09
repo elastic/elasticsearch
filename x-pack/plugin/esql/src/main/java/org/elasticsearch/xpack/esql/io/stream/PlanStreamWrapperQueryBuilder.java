@@ -57,6 +57,13 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
+            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
+            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
+    }
+
+    @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return next.toQuery(context);
     }

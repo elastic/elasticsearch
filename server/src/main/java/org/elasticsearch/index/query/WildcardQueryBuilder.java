@@ -31,6 +31,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19;
+import static org.elasticsearch.TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1;
+
 /**
  * Implements the wildcard search query. Supported wildcards are {@code *}, which
  * matches any character sequence (including the empty one), and {@code ?},
@@ -104,7 +107,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
+            || in.getTransportVersion().isPatchFrom(ESQL_FIXED_INDEX_LIKE_8_19)
+            || in.getTransportVersion().isPatchFrom(ESQL_FIXED_INDEX_LIKE_9_1)) {
             forceStringMatch = in.readBoolean();
         } else {
             forceStringMatch = false;
@@ -117,7 +122,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
+            || out.getTransportVersion().isPatchFrom(ESQL_FIXED_INDEX_LIKE_8_19)
+            || out.getTransportVersion().isPatchFrom(ESQL_FIXED_INDEX_LIKE_9_1)) {
             out.writeBoolean(forceStringMatch);
         }
     }

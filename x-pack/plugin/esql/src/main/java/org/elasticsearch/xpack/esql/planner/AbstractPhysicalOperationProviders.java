@@ -151,7 +151,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, analysisRegistry));
+                groupSpecs.add(
+                    new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, analysisRegistry)
+                );
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -349,12 +351,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }
 
-    private static Pattern pattern = Pattern.compile(
-        "BUCKET\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*" +      // field
-            "(\\d+)\\s*,\\s*" +                                        // buckets
-            "\"([^\"]+)\"\\s*,\\s*" +                                  // from
-            "\"([^\"]+)\"\\s*,\\s*" +                                  // to
-            "(true|false)\\s*\\)"                                      // emitEmptyBuckets
+    private static Pattern pattern = Pattern.compile("BUCKET\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*" +      // field
+        "(\\d+)\\s*,\\s*" +                                        // buckets
+        "\"([^\"]+)\"\\s*,\\s*" +                                  // from
+        "\"([^\"]+)\"\\s*,\\s*" +                                  // to
+        "(true|false)\\s*\\)"                                      // emitEmptyBuckets
     );
 
     /**
@@ -388,7 +389,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
                 );
                 Rounding.Prepared rounding = bucket.getDateRoundingOrNull(new FoldContext(128));
-                result = new BlockHash.GroupSpec(channel, elementType(), new BlockHash.EmptyBucketDef(emitEmptyBuckets, from.toEpochMilli(), to.toEpochMilli(), rounding));
+                result = new BlockHash.GroupSpec(
+                    channel,
+                    elementType(),
+                    new BlockHash.EmptyBucketDef(emitEmptyBuckets, from.toEpochMilli(), to.toEpochMilli(), rounding)
+                );
             } else if (unwrappedExpression instanceof Categorize) {
                 result = new BlockHash.GroupSpec(channel, elementType(), true);
             } else {

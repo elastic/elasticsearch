@@ -22,7 +22,7 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
     private final Integer seed;
 
     public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, Integer seed) {
-        super(size, from, rankWindowSize, false, null);
+        super(size, from, rankWindowSize, false);
         this.seed = seed;
     }
 

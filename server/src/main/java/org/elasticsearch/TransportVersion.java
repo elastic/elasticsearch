@@ -195,7 +195,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
                 .orElse(Collections.emptyList());
 
             if (extendedVersions.isEmpty()) {
-                ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
+                ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS; // todo there might be some trickyness
             } else {
                 ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
             }

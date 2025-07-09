@@ -207,7 +207,7 @@ public class CacheTests extends ESTestCase {
     // the first batch of cached entries expired and were removed
     public void testExpirationAfterAccess() {
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        LRUCache<Integer, String> cache = new LRUCache<>() {
             @Override
             protected long now() {
                 return now.get();
@@ -244,7 +244,7 @@ public class CacheTests extends ESTestCase {
 
     public void testSimpleExpireAfterAccess() {
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        LRUCache<Integer, String> cache = new LRUCache<>() {
             @Override
             protected long now() {
                 return now.get();
@@ -266,7 +266,7 @@ public class CacheTests extends ESTestCase {
 
     public void testExpirationAfterWrite() {
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        LRUCache<Integer, String> cache = new LRUCache<>() {
             @Override
             protected long now() {
                 return now.get();
@@ -306,7 +306,7 @@ public class CacheTests extends ESTestCase {
 
     public void testComputeIfAbsentAfterExpiration() throws ExecutionException {
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        LRUCache<Integer, String> cache = new LRUCache<>() {
             @Override
             protected long now() {
                 return now.get();
@@ -346,7 +346,7 @@ public class CacheTests extends ESTestCase {
     // non-promoted entries were removed
     public void testPromotion() {
         AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>() {
+        LRUCache<Integer, String> cache = new LRUCache<>() {
             @Override
             protected long now() {
                 return now.get();

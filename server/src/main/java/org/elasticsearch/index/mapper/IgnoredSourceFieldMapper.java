@@ -181,6 +181,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         byte[] bytes = ((BytesRef) field).bytes;
         return decode(bytes);
     }
+
     public static NameValue decode(byte[] bytes) {
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
         int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;

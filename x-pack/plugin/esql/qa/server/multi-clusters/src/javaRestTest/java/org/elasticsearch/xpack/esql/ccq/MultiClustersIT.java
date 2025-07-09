@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -156,6 +157,41 @@ public class MultiClustersIT extends ESRestTestCase {
         } else {
             return RestEsqlTestCase.runEsqlSync(requestObject);
         }
+    }
+
+    private <C, V> void assertResultMapForLike(
+        boolean includeCCSMetadata,
+        Map<String, Object> result,
+        C columns,
+        V values,
+        boolean remoteOnly,
+        boolean requireLikeListCapability
+    ) throws IOException {
+        List<String> requiredCapabilities = new ArrayList<>(List.of("like_on_index_fields"));
+        if (requireLikeListCapability) {
+            requiredCapabilities.add("like_list_on_index_fields");
+        }
+        // the feature is completely supported if both local and remote clusters support it
+        boolean isSupported = capabilitiesSupportedNewAndOld(requiredCapabilities);
+
+        if (isSupported) {
+            assertResultMap(includeCCSMetadata, result, columns, values, remoteOnly);
+        } else {
+            logger.info("-->  skipping data check for like index test, cluster does not support like index feature");
+            // just verify that we did not get a partial result
+            var clusters = result.get("_clusters");
+            var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+            assertThat(reason, result.get("is_partial"), anyOf(nullValue(), is(false)));
+        }
+    }
+
+    private boolean capabilitiesSupportedNewAndOld(List<String> requiredCapabilities) throws IOException {
+        boolean isSupported = clusterHasCapability("POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+        try (RestClient remoteClient = remoteClusterClient()) {
+            isSupported = isSupported
+                && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+        }
+        return isSupported;
     }
 
     private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
@@ -370,6 +406,54 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusterData, hasKey("skipped"));
         assertThat(clusterData, hasKey("took"));
     }
+    public void testLikeIndexLegacySettingNoResults() throws Exception {
+        // the feature is completely supported if both local and remote clusters support it
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
+        try (
+            ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
+            RestClient remoteClient = remoteClusterClient();
+            ClusterSettingToggle ignored2 = new ClusterSettingToggle(remoteClient, "esql.query.string_like_on_index", false, true)
+        ) {
+            // test code with the setting changed
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            // we expect empty result, since the setting is false
+            var values = List.of();
+            assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+        }
+    }
+
+    public void testLikeIndexLegacySettingResults() throws Exception {
+        // we require that the admin client supports the like_on_index_fields capability
+        // otherwise we will get an error when trying to toggle the setting
+        // the remote client does not have to support it
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
+        try (
+            ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
+            RestClient remoteClient = remoteClusterClient();
+            ClusterSettingToggle ignored2 = new ClusterSettingToggle(remoteClient, "esql.query.string_like_on_index", false, true)
+        ) {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*:*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            // we expect results, since the setting is false, but there is : in the LIKE query
+            var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+            assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+        }
+    }
+
+
 
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
@@ -386,5 +470,29 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean includeCCSMetadata() {
         return ccsMetadataAvailable() && randomBoolean();
+    }
+
+    public static class ClusterSettingToggle implements AutoCloseable {
+        private final RestClient client;
+        private final String settingKey;
+        private final Object originalValue;
+
+        public ClusterSettingToggle(RestClient client, String settingKey, Object newValue, Object restoreValue) throws IOException {
+            this.client = client;
+            this.settingKey = settingKey;
+            this.originalValue = restoreValue;
+            setValue(newValue);
+        }
+
+        private void setValue(Object value) throws IOException {
+            Request set = new Request("PUT", "/_cluster/settings");
+            set.setJsonEntity("{\"persistent\": {\"" + settingKey + "\": " + value + "}}");
+            ESRestTestCase.assertOK(client.performRequest(set));
+        }
+
+        @Override
+        public void close() throws IOException {
+            setValue(originalValue == null ? "null" : originalValue);
+        }
     }
 }

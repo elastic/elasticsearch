@@ -539,7 +539,7 @@ setup:
   - match: { hits.hits.2.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "1" }
   - match: { hits.hits.2.inner_hits.nested.hits.hits.0.fields.nested.0.language.0: "FR" }
 
-  # filter on both nested and parent metadata
+  # filter on both nested and parent metadata with 2 different filters
   - do:
       search:
         index: test

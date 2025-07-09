@@ -1207,6 +1207,8 @@ public class EsqlCapabilities {
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
+        LIKE_LIST_ON_INDEX_FIELDS,
+
         /**
          * Support parameters for SAMPLE command.
          */
@@ -1224,7 +1226,10 @@ public class EsqlCapabilities {
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
-
+        /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
         /**
          * Support avg with aggregate metric doubles
          */

@@ -328,6 +328,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_9_1 = def(9_112_0_01);
+    public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

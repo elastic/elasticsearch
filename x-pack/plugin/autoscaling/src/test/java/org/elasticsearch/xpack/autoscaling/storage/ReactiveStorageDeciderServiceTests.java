@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -595,7 +596,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ShardRoutingState.STARTED
         );
 
-        AllocationDecider no = new AllocationDecider() {
+        DefaultAllocationDecider no = new DefaultAllocationDecider() {
             @Override
             public Decision canRemain(
                 IndexMetadata indexMetadata,
@@ -704,19 +705,19 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ShardRoutingState.STARTED
         );
 
-        AllocationDecider noFilter = new AllocationDecider() {
+        DefaultAllocationDecider noFilter = new DefaultAllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 return Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, "test");
             }
         };
-        AllocationDecider noSameShard = new AllocationDecider() {
+        DefaultAllocationDecider noSameShard = new DefaultAllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 return Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, "test");
             }
         };
-        AllocationDecider no = new AllocationDecider() {
+        DefaultAllocationDecider no = new DefaultAllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 return Decision.single(Decision.Type.NO, AwarenessAllocationDecider.NAME, "test");
@@ -732,7 +733,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState clusterState,
         ShardRouting shardRouting,
         boolean expected,
-        AllocationDecider... deciders
+        DefaultAllocationDecider... deciders
     ) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(

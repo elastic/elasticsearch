@@ -243,7 +243,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     /**
      * Tests that when the nodes with prior copies of the given shard all return a decision of NO, but
-     * {@link AllocationDecider#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
+     * {@link AllocationDecider.ShardToNode#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
      * returns a YES decision for at least one of those NO nodes, then we force allocate to one of them
      */
     public void testForceAllocatePrimary() {
@@ -267,7 +267,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     /**
      * Tests that when the nodes with prior copies of the given shard all return a decision of NO, and
-     * {@link AllocationDecider#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
+     * {@link AllocationDecider.ShardToNode#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
      * returns a NO or THROTTLE decision for a node, then we do not force allocate to that node.
      */
     public void testDontAllocateOnNoOrThrottleForceAllocationDecision() {

@@ -23,7 +23,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 
-public class SearchableSnapshotRepositoryExistsAllocationDecider extends AllocationDecider {
+public class SearchableSnapshotRepositoryExistsAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.IndexToNode {
 
     private static final String NAME = "searchable_snapshot_repository_exists";
 
@@ -38,21 +42,6 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
         NAME,
         "the repository containing the data for this index exists"
     );
-
-    @Override
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
-    }
-
-    @Override
-    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
-    }
-
-    @Override
-    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(indexMetadata, allocation);
-    }
 
     private static Decision allowAllocation(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (indexMetadata.isSearchableSnapshot()) {
@@ -96,5 +85,20 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
         } else {
             return YES_INAPPLICABLE;
         }
+    }
+
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
+    }
+
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
+    }
+
+    @Override
+    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
+        return allowAllocation(indexMetadata, allocation);
     }
 }

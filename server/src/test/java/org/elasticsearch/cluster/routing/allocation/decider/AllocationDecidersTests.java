@@ -246,11 +246,11 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
     }
 
-    private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {
+    private static final class AnyNodeInitialShardAllocationDecider extends DefaultAllocationDecider {
 
     }
 
-    private static final class FixedNodesInitialShardAllocationDecider extends AllocationDecider {
+    private static final class FixedNodesInitialShardAllocationDecider extends DefaultAllocationDecider {
         private final Set<String> initialNodeIds;
 
         private FixedNodesInitialShardAllocationDecider(Set<String> initialNodeIds) {
@@ -263,7 +263,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class TestAllocationDecider extends AllocationDecider {
+    private static final class TestAllocationDecider extends DefaultAllocationDecider {
 
         private final Supplier<Decision> decision;
 

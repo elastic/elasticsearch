@@ -24,7 +24,12 @@ import java.util.Set;
 /**
  * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries
  */
-public class ResizeAllocationDecider extends AllocationDecider {
+public class ResizeAllocationDecider
+    implements
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ForceDuringReplace,
+        AllocationDecider.ForcedInitialShardAllocation {
 
     public static final String NAME = "resize";
 
@@ -66,7 +71,7 @@ public class ResizeAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.YES, NAME, "source primary is active");
             }
         }
-        return super.canAllocate(shardRouting, node, allocation);
+        return Decision.ALWAYS;
     }
 
     @Override
@@ -102,6 +107,6 @@ public class ResizeAllocationDecider extends AllocationDecider {
             }
             return Optional.of(Set.of(activePrimary.currentNodeId()));
         }
-        return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
+        return Optional.empty();
     }
 }

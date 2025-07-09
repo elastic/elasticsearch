@@ -19,7 +19,11 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
  * This {@link AllocationDecider} prevents shards that have failed to be
  * restored from a snapshot to be allocated.
  */
-public class RestoreInProgressAllocationDecider extends AllocationDecider {
+public class RestoreInProgressAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.ForceDuringReplace {
 
     public static final String NAME = "restore_in_progress";
 

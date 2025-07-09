@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Setting.Property;
  * setting is set to {@code -1} the number of concurrent re-balance operations
  * are unlimited.
  */
-public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
+public class ConcurrentRebalanceAllocationDecider implements AllocationDecider.ShardRebalance, AllocationDecider.ClusterRebalance {
 
     private static final Logger logger = LogManager.getLogger(ConcurrentRebalanceAllocationDecider.class);
 

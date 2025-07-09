@@ -18,7 +18,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
 
-public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
+public class DedicatedFrozenNodeAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardRemain,
+        AllocationDecider.IndexToNode,
+        AllocationDecider.AutoExpandToNode {
 
     private static final String NAME = "dedicated_frozen_node";
 

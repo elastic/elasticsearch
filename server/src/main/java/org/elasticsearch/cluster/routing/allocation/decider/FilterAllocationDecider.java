@@ -58,7 +58,13 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValu
  * filtered node</li>
  * </ol>
  */
-public class FilterAllocationDecider extends AllocationDecider {
+public class FilterAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.IndexToNode,
+        AllocationDecider.ShardRemain,
+        AllocationDecider.AutoExpandToNode,
+        AllocationDecider.ForcedInitialShardAllocation {
 
     public static final String NAME = "filter";
 
@@ -242,6 +248,6 @@ public class FilterAllocationDecider extends AllocationDecider {
                 );
             }
         }
-        return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
+        return Optional.empty();
     }
 }

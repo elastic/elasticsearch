@@ -65,7 +65,11 @@ import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shoul
  * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
  * enable or disable this decider. It defaults to true (enabled).
  */
-public class DiskThresholdDecider extends AllocationDecider {
+public class DiskThresholdDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ForceDuringReplace,
+        AllocationDecider.ShardRemain {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdDecider.class);
 
@@ -352,7 +356,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 -freeBytesAfterShard
             );
         } else {
-            return super.canForceAllocateDuringReplace(shardRouting, node, allocation);
+            return Decision.ALWAYS;
         }
     }
 

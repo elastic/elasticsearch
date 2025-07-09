@@ -49,7 +49,12 @@ import java.util.Locale;
  * @see Rebalance
  * @see Allocation
  */
-public class EnableAllocationDecider extends AllocationDecider {
+public class EnableAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.ShardRebalance,
+        AllocationDecider.ClusterRebalance {
 
     public static final String NAME = "enable";
 

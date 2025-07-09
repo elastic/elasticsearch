@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
@@ -88,13 +89,13 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static final Logger logger = LogManager.getLogger(ReactiveStorageDeciderDecisionTests.class);
 
-    private static final AllocationDecider CAN_ALLOCATE_NO_DECIDER = new AllocationDecider() {
+    private static final DefaultAllocationDecider CAN_ALLOCATE_NO_DECIDER = new DefaultAllocationDecider() {
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             return Decision.NO;
         }
     };
-    private static final AllocationDecider CAN_REMAIN_NO_DECIDER = new AllocationDecider() {
+    private static final DefaultAllocationDecider CAN_REMAIN_NO_DECIDER = new DefaultAllocationDecider() {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             return Decision.NO;
@@ -112,7 +113,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     // these are the shards that the decider tests work on
     private Set<ShardId> subjectShards;
     // say NO with disk label for subject shards
-    private final AllocationDecider mockCanAllocateDiskDecider = new AllocationDecider() {
+    private final DefaultAllocationDecider mockCanAllocateDiskDecider = new DefaultAllocationDecider() {
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) {
@@ -122,7 +123,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }
     };
     // say NO with disk label for subject shards
-    private final AllocationDecider mockCanRemainDiskDecider = new AllocationDecider() {
+    private final AllocationDecider mockCanRemainDiskDecider = new DefaultAllocationDecider() {
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) return allocation.decision(

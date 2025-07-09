@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 /**
  * Only allow rebalancing when all shards are active within the shard replication group.
  */
-public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider {
+public class RebalanceOnlyWhenActiveAllocationDecider implements AllocationDecider.ShardRebalance {
 
     public static final String NAME = "rebalance_only_when_active";
 

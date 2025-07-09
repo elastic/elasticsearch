@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
  * on the lowest level since it might have already written segments that use a new postings format or codec that is not
  * available on the target node.
  */
-public class NodeVersionAllocationDecider extends AllocationDecider {
+public class NodeVersionAllocationDecider implements AllocationDecider.ShardToNode, AllocationDecider.ForceDuringReplace {
 
     public static final String NAME = "node_version";
 

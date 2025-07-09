@@ -16,7 +16,11 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 /**
  * An allocation strategy that only allows for a replica to be allocated when the primary is active.
  */
-public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecider {
+public class ReplicaAfterPrimaryActiveAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.ForceDuringReplace {
 
     private static final String NAME = "replica_after_primary_active";
 

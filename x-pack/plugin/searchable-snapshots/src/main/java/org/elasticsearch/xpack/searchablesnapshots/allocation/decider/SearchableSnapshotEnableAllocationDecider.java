@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 
-public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
+public class SearchableSnapshotEnableAllocationDecider implements AllocationDecider.ShardToNode, AllocationDecider.ShardToCluster {
 
     static final String NAME = "searchable_snapshots_enable";
 

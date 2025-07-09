@@ -40,7 +40,7 @@ import java.util.function.BiPredicate;
  * trigger relocation and significant additional load on the clusters nodes.
  * </p>
  */
-public class ShardsLimitAllocationDecider extends AllocationDecider {
+public class ShardsLimitAllocationDecider implements AllocationDecider.ShardToNode, AllocationDecider.ShardRemain {
 
     public static final String NAME = "shards_limit";
 

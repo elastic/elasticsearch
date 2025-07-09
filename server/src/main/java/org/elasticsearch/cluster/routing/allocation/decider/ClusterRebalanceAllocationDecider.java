@@ -38,7 +38,7 @@ import java.util.Locale;
  * is active</li>
  * </ul>
  */
-public class ClusterRebalanceAllocationDecider extends AllocationDecider {
+public class ClusterRebalanceAllocationDecider implements AllocationDecider.ShardRebalance, AllocationDecider.ClusterRebalance {
 
     private static final Logger logger = LogManager.getLogger(ClusterRebalanceAllocationDecider.class);
 

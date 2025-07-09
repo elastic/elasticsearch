@@ -579,7 +579,9 @@ tests:
 - class: org.elasticsearch.cluster.ClusterStateSerializationTests
   method: testSerializationPreMultiProject
   issue: https://github.com/elastic/elasticsearch/issues/130872
-
+- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
+  method: testPreferFullMasterOverVotingOnlyNodes
+  issue: https://github.com/elastic/elasticsearch/issues/130883
 
 # Examples:
 #

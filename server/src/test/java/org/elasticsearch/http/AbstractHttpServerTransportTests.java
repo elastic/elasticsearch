@@ -211,14 +211,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -295,14 +291,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -385,7 +377,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {}
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {}
@@ -516,7 +508,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
 
             @Override
-            protected void doStart() {}
+            protected void startInternal() {}
 
             @Override
             protected void stopInternal() {}
@@ -567,9 +559,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {
@@ -710,14 +700,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {
-
-                }
+                protected void startInternal() {}
 
                 @Override
-                protected void stopInternal() {
-
-                }
+                protected void stopInternal() {}
 
                 @Override
                 public HttpStats stats() {
@@ -774,7 +760,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {}
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {}
@@ -856,7 +842,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void doStart() {}
+                protected void startInternal() {}
 
                 @Override
                 protected void stopInternal() {}
@@ -1226,7 +1212,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
 
         @Override
-        protected void doStart() {
+        protected void startInternal() {
             bindServer();
         }
 

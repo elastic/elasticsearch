@@ -30,6 +30,8 @@ import static org.elasticsearch.core.Strings.format;
  * This handler is designed to work with the unified Elastic Inference Service chat completion API.
  */
 public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends ElasticInferenceServiceResponseHandler {
+    private static final String ERROR_TYPE = "error";
+
     public ElasticInferenceServiceUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, true);
     }
@@ -59,22 +61,16 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
      */
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(
-            message,
-            request,
-            result,
-            errorResponse,
-            () -> ErrorResponse.class,
-            ElasticInferenceServiceUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
-        );
-    }
+        assert request.isStreaming() : "Only streaming requests support this format";
+        var statusCode = result.response().getStatusLine().getStatusCode();
+        var errorMessage = extractErrorMessage(message, request, errorResponse, statusCode);
+        var restStatus = toRestStatus(statusCode);
 
-    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
-        ErrorResponse response,
-        String message,
-        RestStatus restStatus
-    ) {
-        return new UnifiedChatCompletionException(restStatus, message, ERROR_TYPE, restStatus.name().toLowerCase(Locale.ROOT));
+        if (errorResponse.errorStructureFound()) {
+            return new UnifiedChatCompletionException(restStatus, errorMessage, ERROR_TYPE, restStatus.name().toLowerCase(Locale.ROOT));
+        } else {
+            return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
+        }
     }
 
     /**

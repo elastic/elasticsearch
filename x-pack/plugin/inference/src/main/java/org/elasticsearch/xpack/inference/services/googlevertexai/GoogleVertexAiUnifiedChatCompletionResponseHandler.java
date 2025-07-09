@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.MidStreamUnifiedChatCompletionExceptionConvertible;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionExceptionConvertible;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
@@ -58,8 +60,6 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
                 request.getInferenceEntityId(),
                 message,
                 exception,
-                () -> GoogleVertexAiErrorResponse.class,
-                GoogleVertexAiUnifiedChatCompletionResponseHandler::buildProviderSpecificMidStreamChatCompletionError,
                 GoogleVertexAiErrorResponse::fromString
             )
         );
@@ -71,51 +71,13 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
 
     @Override
     protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        return buildChatCompletionError(
-            message,
-            request,
-            result,
-            errorResponse,
-            () -> GoogleVertexAiErrorResponse.class,
-            GoogleVertexAiUnifiedChatCompletionResponseHandler::buildProviderSpecificChatCompletionError
-        );
+        return buildChatCompletionError(message, request, result, errorResponse);
     }
 
-    private static UnifiedChatCompletionException buildProviderSpecificChatCompletionError(
-        ErrorResponse errorResponse,
-        String errorMessage,
-        RestStatus restStatus
-    ) {
-        var vertexAIErrorResponse = (GoogleVertexAiErrorResponse) errorResponse;
-        return new UnifiedChatCompletionException(
-            restStatus,
-            errorMessage,
-            vertexAIErrorResponse.status(),
-            String.valueOf(vertexAIErrorResponse.code()),
-            null
-        );
-    }
-
-    private static UnifiedChatCompletionException buildProviderSpecificMidStreamChatCompletionError(
-        String inferenceEntityId,
-        ErrorResponse errorResponse
-    ) {
-        var vertexAIErrorResponse = (GoogleVertexAiErrorResponse) errorResponse;
-        return new UnifiedChatCompletionException(
-            RestStatus.INTERNAL_SERVER_ERROR,
-            format(
-                "%s for request from inference entity id [%s]. Error message: [%s]",
-                SERVER_ERROR_OBJECT,
-                inferenceEntityId,
-                errorResponse.getErrorMessage()
-            ),
-            vertexAIErrorResponse.status(),
-            String.valueOf(vertexAIErrorResponse.code()),
-            null
-        );
-    }
-
-    public static class GoogleVertexAiErrorResponse extends ErrorResponse {
+    public static class GoogleVertexAiErrorResponse extends ErrorResponse
+        implements
+            UnifiedChatCompletionExceptionConvertible,
+            MidStreamUnifiedChatCompletionExceptionConvertible {
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
             "google_vertex_ai_error_wrapper",
             true,
@@ -172,6 +134,28 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             super(Objects.requireNonNull(errorMessage));
             this.code = code == null ? 0 : code;
             this.status = status;
+        }
+
+        @Override
+        public UnifiedChatCompletionException toUnifiedChatCompletionException(String errorMessage, RestStatus restStatus) {
+            return new UnifiedChatCompletionException(restStatus, errorMessage, this.status(), String.valueOf(this.code()), null);
+        }
+
+        @Override
+        public UnifiedChatCompletionException toUnifiedChatCompletionException(String inferenceEntityId) {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    inferenceEntityId,
+                    this.getErrorMessage()
+                ),
+                this.status(),
+                String.valueOf(this.code()),
+                null
+            );
+
         }
 
         public int code() {

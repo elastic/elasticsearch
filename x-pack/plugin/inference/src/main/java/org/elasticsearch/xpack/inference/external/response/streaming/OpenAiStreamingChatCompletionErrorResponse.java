@@ -8,18 +8,25 @@
 package org.elasticsearch.xpack.inference.external.response.streaming;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.MidStreamUnifiedChatCompletionExceptionConvertible;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionExceptionConvertible;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler.SERVER_ERROR_OBJECT;
 
 /**
  * Represents an error response from a streaming inference service.
@@ -38,17 +45,21 @@ import java.util.Optional;
  * </code></pre>
  * TODO: {@link ErrorMessageResponseEntity} is nearly identical to this, but doesn't parse as many fields. We must remove the duplication.
  */
-public class StreamingErrorResponse extends ErrorResponse {
+public class OpenAiStreamingChatCompletionErrorResponse extends ErrorResponse
+    implements
+        UnifiedChatCompletionExceptionConvertible,
+        MidStreamUnifiedChatCompletionExceptionConvertible {
     private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
         "streaming_error",
         true,
-        args -> Optional.ofNullable((StreamingErrorResponse) args[0])
+        args -> Optional.ofNullable((OpenAiStreamingChatCompletionErrorResponse) args[0])
     );
-    private static final ConstructingObjectParser<StreamingErrorResponse, Void> ERROR_BODY_PARSER = new ConstructingObjectParser<>(
-        "streaming_error",
-        true,
-        args -> new StreamingErrorResponse((String) args[0], (String) args[1], (String) args[2], (String) args[3])
-    );
+    private static final ConstructingObjectParser<OpenAiStreamingChatCompletionErrorResponse, Void> ERROR_BODY_PARSER =
+        new ConstructingObjectParser<>(
+            "streaming_error",
+            true,
+            args -> new OpenAiStreamingChatCompletionErrorResponse((String) args[0], (String) args[1], (String) args[2], (String) args[3])
+        );
 
     static {
         ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
@@ -105,11 +116,32 @@ public class StreamingErrorResponse extends ErrorResponse {
     private final String param;
     private final String type;
 
-    StreamingErrorResponse(String errorMessage, @Nullable String code, @Nullable String param, String type) {
+    OpenAiStreamingChatCompletionErrorResponse(String errorMessage, @Nullable String code, @Nullable String param, String type) {
         super(errorMessage);
         this.code = code;
         this.param = param;
         this.type = Objects.requireNonNull(type);
+    }
+
+    @Override
+    public UnifiedChatCompletionException toUnifiedChatCompletionException(String errorMessage, RestStatus restStatus) {
+        return new UnifiedChatCompletionException(restStatus, errorMessage, this.type(), this.code(), this.param());
+    }
+
+    @Override
+    public UnifiedChatCompletionException toUnifiedChatCompletionException(String inferenceEntityId) {
+        return new UnifiedChatCompletionException(
+            RestStatus.INTERNAL_SERVER_ERROR,
+            format(
+                "%s for request from inference entity id [%s]. Error message: [%s]",
+                SERVER_ERROR_OBJECT,
+                inferenceEntityId,
+                this.getErrorMessage()
+            ),
+            this.type(),
+            this.code(),
+            this.param()
+        );
     }
 
     @Nullable

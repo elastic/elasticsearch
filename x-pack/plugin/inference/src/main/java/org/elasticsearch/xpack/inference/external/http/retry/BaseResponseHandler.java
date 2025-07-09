@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -38,7 +36,6 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String SERVER_ERROR_OBJECT = "Received an error response";
     public static final String BAD_REQUEST = "Received a bad request status code";
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
-    protected static final String ERROR_TYPE = "error";
     protected static final String STREAM_ERROR = "stream_error";
 
     protected final String requestType;
@@ -140,47 +137,22 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param request            the request that caused the error
      * @param result             the HTTP result containing the error response
      * @param errorResponse      the parsed error response from the HTTP result
-     * @param errorResponseClassSupplier the supplier that provides the class of the expected error response type
-     * @param chatCompletionErrorBuilder the builder for creating provider-specific chat completion errors
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
     protected UnifiedChatCompletionException buildChatCompletionError(
         String message,
         Request request,
         HttpResult result,
-        ErrorResponse errorResponse,
-        Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
-        ChatCompletionErrorBuilder chatCompletionErrorBuilder
+        ErrorResponse errorResponse
     ) {
         assert request.isStreaming() : "Only streaming requests support this format";
         var statusCode = result.response().getStatusLine().getStatusCode();
         var errorMessage = extractErrorMessage(message, request, errorResponse, statusCode);
         var restStatus = toRestStatus(statusCode);
 
-        return buildChatCompletionError(errorResponse, errorMessage, restStatus, errorResponseClassSupplier, chatCompletionErrorBuilder);
-    }
-
-    /**
-     * Builds a {@link UnifiedChatCompletionException} for a streaming request.
-     * This method is used when an error response is received from the external service.
-     * Only streaming requests should use this method.
-     *
-     * @param errorResponse      the error response parsed from the HTTP result
-     * @param errorMessage       the error message to include in the exception
-     * @param restStatus         the REST status code of the response
-     * @param errorResponseClassSupplier the supplier that provides the class of the expected error response type
-     * @param chatCompletionErrorBuilder the builder for creating provider-specific chat completion errors
-     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
-     */
-    protected UnifiedChatCompletionException buildChatCompletionError(
-        ErrorResponse errorResponse,
-        String errorMessage,
-        RestStatus restStatus,
-        Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
-        ChatCompletionErrorBuilder chatCompletionErrorBuilder
-    ) {
-        if (errorResponse.errorStructureFound() && errorResponseClassSupplier.get().isInstance(errorResponse)) {
-            return chatCompletionErrorBuilder.buildProviderSpecificChatCompletionError(errorResponse, errorMessage, restStatus);
+        if (errorResponse.errorStructureFound()
+            && errorResponse instanceof UnifiedChatCompletionExceptionConvertible chatCompletionExceptionConvertible) {
+            return chatCompletionExceptionConvertible.toUnifiedChatCompletionException(errorMessage, restStatus);
         } else {
             return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
         }
@@ -196,7 +168,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param restStatus    the REST status code of the response
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
-    private static UnifiedChatCompletionException buildDefaultChatCompletionError(
+    protected static UnifiedChatCompletionException buildDefaultChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
@@ -217,8 +189,6 @@ public abstract class BaseResponseHandler implements ResponseHandler {
      * @param inferenceEntityId the ID of the inference entity
      * @param message           the error message
      * @param e                the exception that caused the error, can be null
-     * @param errorResponseClassSupplier a supplier that provides the class of the expected error response type
-     * @param specificErrorBuilder a function that builds a specific error based on the inference entity ID and error response
      * @param midStreamErrorExtractor a function that extracts the mid-stream error response from the message
      * @return a {@link UnifiedChatCompletionException} representing the mid-stream error
      */
@@ -226,22 +196,20 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         String inferenceEntityId,
         String message,
         Exception e,
-        Supplier<Class<? extends ErrorResponse>> errorResponseClassSupplier,
-        BiFunction<String, ErrorResponse, UnifiedChatCompletionException> specificErrorBuilder,
         Function<String, ErrorResponse> midStreamErrorExtractor
     ) {
         // Extract the error response from the message using the provided method
-        var errorResponse = midStreamErrorExtractor.apply(message);
+        var error = midStreamErrorExtractor.apply(message);
         // Check if the error response matches the expected type
-        if (errorResponse.errorStructureFound() && errorResponseClassSupplier.get().isInstance(errorResponse)) {
+        if (error.errorStructureFound() && error instanceof MidStreamUnifiedChatCompletionExceptionConvertible midStreamError) {
             // If it matches, we can build a custom mid-stream error exception
-            return specificErrorBuilder.apply(inferenceEntityId, errorResponse);
+            return midStreamError.toUnifiedChatCompletionException(inferenceEntityId);
         } else if (e != null) {
             // If the error response does not match, we can still return an exception based on the original throwable
             return UnifiedChatCompletionException.fromThrowable(e);
         } else {
             // If no specific error response is found, we return a default mid-stream error
-            return buildDefaultMidStreamChatCompletionError(inferenceEntityId, errorResponse);
+            return buildDefaultMidStreamChatCompletionError(inferenceEntityId, error);
         }
     }
 
@@ -277,7 +245,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
     }
 
-    private static String extractErrorMessage(String message, Request request, ErrorResponse errorResponse, int statusCode) {
+    protected static String extractErrorMessage(String message, Request request, ErrorResponse errorResponse, int statusCode) {
         return (errorResponse == null
             || errorResponse.errorStructureFound() == false
             || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))
@@ -291,7 +259,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
                 );
     }
 
-    public static RestStatus toRestStatus(int statusCode) {
+    protected static RestStatus toRestStatus(int statusCode) {
         RestStatus code = null;
         if (statusCode < 500) {
             code = RestStatus.fromCode(statusCode);

@@ -466,9 +466,11 @@ GET /retrievers_example/_search
         "rrf": {
             "query": "artificial intelligence"
         }
-    }
+    },
+    "_source": false
 }
 ----
+// TEST[continued]
 
 This returns the following response based on the final rrf score for each result.
 
@@ -488,16 +490,11 @@ This returns the following response based on the final rrf score for each result
     },
     "hits": {
         "total": {
-            "value": 3,
+            "value": 5,
             "relation": "eq"
         },
         "max_score": 0.8333334,
         "hits": [
-            {
-                "_index": "retrievers_example",
-                "_id": "1",
-                "_score": 0.8333334
-            },
             {
                 "_index": "retrievers_example",
                 "_id": "2",
@@ -506,13 +503,34 @@ This returns the following response based on the final rrf score for each result
             {
                 "_index": "retrievers_example",
                 "_id": "3",
+                "_score": 0.82
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 0.48
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.40
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
                 "_score": 0.25
             }
         ]
     }
 }
 ----
-// TESTRESPONSE[skip:Requires inference]
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 0.8333334/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 0.82/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 0.48/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.40/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": 0.25/"_score": $body.hits.hits.4._score/]
 ==============
 
 We can also use the `fields` parameter to explicitly specify the fields to query.
@@ -527,9 +545,11 @@ GET /retrievers_example/_search
             "query": "artificial intelligence",
             "fields": ["text", "text_semantic"]
         }
-    }
+    },
+    "_source": false
 }
 ----
+// TEST[continued]
 
 [NOTE]
 ====
@@ -554,17 +574,11 @@ This returns the following response based on the final rrf score for each result
     },
     "hits": {
         "total": {
-            "value": 3,
+            "value": 5,
             "relation": "eq"
         },
         "max_score": 0.8333334,
         "hits": [
-            {
-                "_index": "retrievers_example",
-                "_id": "1",
-                "_score": -4
-                "_score": 0.8333334
-            },
             {
                 "_index": "retrievers_example",
                 "_id": "2",
@@ -573,13 +587,34 @@ This returns the following response based on the final rrf score for each result
             {
                 "_index": "retrievers_example",
                 "_id": "3",
+                "_score": 0.82
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 0.48
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.40
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
                 "_score": 0.25
             }
         ]
     }
 }
 ----
-// TESTRESPONSE[skip:Requires inference]
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 0.8333334/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 0.82/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 0.48/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.40/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": 0.25/"_score": $body.hits.hits.4._score/]
 ==============
 
 [discrete]
@@ -604,9 +639,11 @@ GET /retrievers_example/_search
             "fields": ["text", "text_semantic", "topic^2"],
             "normalizer": "minmax"
         }
-    }
+    },
+    "_source": false
 }
 ----
+// TEST[continued]
 
 This returns the following response based on the normalized score for each result:
 
@@ -626,7 +663,7 @@ This returns the following response based on the normalized score for each resul
     },
     "hits": {
         "total": {
-            "value": 3,
+            "value": 5,
             "relation": "eq"
         },
         "max_score": 2.0,
@@ -638,19 +675,35 @@ This returns the following response based on the normalized score for each resul
             },
             {
                 "_index": "retrievers_example",
-                "_id": "1",
+                "_id": "3",
                 "_score": 1.2
             },
             {
                 "_index": "retrievers_example",
-                "_id": "3",
+                "_id": "4",
+                "_score": 1.0
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
                 "_score": 0.1
             }
         ]
     }
 }
 ----
-// TESTRESPONSE[skip:Requires inference]
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 2.0/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 2.0/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 1.2/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 1.0/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.8/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": 0.1/"_score": $body.hits.hits.4._score/]
 ==============
 
 [discrete]

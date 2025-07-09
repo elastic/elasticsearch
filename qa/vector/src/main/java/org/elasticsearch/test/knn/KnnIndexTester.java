@@ -95,7 +95,7 @@ public class KnnIndexTester {
                 if (args.indexType() == IndexType.FLAT) {
                     format = new ES818BinaryQuantizedVectorsFormat();
                 } else {
-                    format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
+                    format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, false, null);
                 }
             } else if (args.quantizeBits() < 32) {
                 if (args.indexType() == IndexType.FLAT) {

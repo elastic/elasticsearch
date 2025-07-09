@@ -276,10 +276,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         return new Knn(source(), field(), query(), k(), options(), queryBuilder, filterExpressions());
     }
 
-    public Expression withFilter(Expression filterExpression) {
-        List<Expression> newFilterExpressions = new ArrayList<>(filterExpressions);
-        newFilterExpressions.add(filterExpression);
-        return new Knn(source(), field(), query(), k(), options(), queryBuilder(), List.copyOf(newFilterExpressions));
+    public Expression withFilters(List<Expression> filterExpressions) {
+        return new Knn(source(), field(), query(), k(), options(), queryBuilder(), filterExpressions);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {

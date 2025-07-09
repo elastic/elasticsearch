@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -7848,5 +7849,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var changePoint = as(limit.child(), ChangePoint.class);
         var topN = as(changePoint.child(), TopN.class);
         var source = as(topN.child(), EsRelation.class);
+    }
+
+    public void testPushDownConjunctionsToKnnPrefilter() {
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], 10) and integer > 10
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var knn = as(and.left(), Knn.class);
+        List<Expression> filterExpressions = knn.filterExpressions();
+        assertThat(filterExpressions.size(), equalTo(1));
+        var prefilter = as(filterExpressions.get(0), GreaterThan.class);
+        assertThat(and.right(), equalTo(prefilter));
+        var esRelation = as(filter.child(), EsRelation.class);
     }
 }

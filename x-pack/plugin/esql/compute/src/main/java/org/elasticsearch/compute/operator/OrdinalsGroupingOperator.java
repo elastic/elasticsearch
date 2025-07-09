@@ -507,12 +507,7 @@ public class OrdinalsGroupingOperator implements Operator {
             this.aggregator = new HashAggregationOperator(
                 groups,
                 aggregatorFactories,
-                () -> BlockHash.build(
-                    groups,
-                    driverContext.blockFactory(),
-                    maxPageSize,
-                    false
-                ),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
         }

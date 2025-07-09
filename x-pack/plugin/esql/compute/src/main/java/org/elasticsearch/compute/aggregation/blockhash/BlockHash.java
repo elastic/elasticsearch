@@ -134,7 +134,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * @param isCategorize Whether this group is a CATEGORIZE() or not.
      *                     May be changed in the future when more stateful grouping functions are added.
      */
-    public record GroupSpec(int channel, ElementType elementType, boolean isCategorize, @Nullable TopNDef topNDef, @Nullable EmptyBucketDef emptyBucketDef) {
+    public record GroupSpec(
+        int channel,
+        ElementType elementType,
+        boolean isCategorize,
+        @Nullable TopNDef topNDef,
+        @Nullable EmptyBucketDef emptyBucketDef
+    ) {
         public GroupSpec(int channel, ElementType elementType) {
             this(channel, elementType, false);
         }

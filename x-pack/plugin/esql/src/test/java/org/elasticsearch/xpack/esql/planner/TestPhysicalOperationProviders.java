@@ -440,12 +440,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return new TestHashAggregationOperator(
                 groups,
                 aggregators,
-                () -> BlockHash.build(
-                    groups,
-                    driverContext.blockFactory(),
-                    pageSize,
-                    false
-                ),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), pageSize, false),
                 attribute,
                 driverContext
             );

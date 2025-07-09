@@ -55,8 +55,7 @@ public class EmptyBucketTests extends AbstractScalarFunctionTestCase {
             args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
             return new TestCaseSupplier.TestCase(
                 args,
-                "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
-                    + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], " + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                 DataType.DATETIME,
                 resultsMatcher(args)
             );

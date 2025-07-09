@@ -313,10 +313,9 @@ public class HashAggregationOperator implements Operator {
     private Page createInitialPage(int blockCount) {
         Block[] blocks = new Block[blockCount];
         int maxBucketCount = getMaxBucketCount(groups);
-        Map<Integer, BlockHash.GroupSpec> channelsToAppend =
-            groups.stream()
-                .filter(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets())
-                .collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
+        Map<Integer, BlockHash.GroupSpec> channelsToAppend = groups.stream()
+            .filter(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets())
+            .collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
         for (int i = 0; i < blockCount; i++) {
             if (channelsToAppend.containsKey(i)) {
                 blocks[i] = appendValues(channelsToAppend.get(i).emptyBucketDef(), maxBucketCount);
@@ -329,7 +328,12 @@ public class HashAggregationOperator implements Operator {
 
     Block appendValues(BlockHash.EmptyBucketDef group, int maxBucketCount) {
         Rounding.Prepared rounding = group.rounding();
-        try (LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(maxBucketCount, driverContext.blockFactory())) {
+        try (
+            LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(
+                maxBucketCount,
+                driverContext.blockFactory()
+            )
+        ) {
             int i = 0;
             for (long bucket = rounding.round(group.from()); bucket < group.to(); bucket = rounding.nextRoundingValue(bucket)) {
                 newBlockBuilder.appendLong(bucket);

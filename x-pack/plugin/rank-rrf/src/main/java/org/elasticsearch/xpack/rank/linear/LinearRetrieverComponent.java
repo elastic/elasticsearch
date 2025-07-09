@@ -25,7 +25,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
     public static final ParseField NORMALIZER_FIELD = new ParseField("normalizer");
-    
+
     static final float DEFAULT_WEIGHT = 1f;
     static final ScoreNormalizer DEFAULT_NORMALIZER = IdentityScoreNormalizer.INSTANCE;
 

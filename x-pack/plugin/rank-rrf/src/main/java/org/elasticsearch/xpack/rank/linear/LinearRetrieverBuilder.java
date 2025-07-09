@@ -384,8 +384,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (normalizer != null) {
             ScoreNormalizer[] newNormalizers = new ScoreNormalizer[normalizers.length];
             for (int i = 0; i < normalizers.length; i++) {
-                newNormalizers[i] = (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER))
-                    ? normalizer : normalizers[i];
+                newNormalizers[i] = (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER)) ? normalizer : normalizers[i];
             }
             return new LinearRetrieverBuilder(innerRetrievers, fields, query, null, rankWindowSize, weights, newNormalizers);
         }

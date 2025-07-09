@@ -24,7 +24,7 @@ select(.active_release == true) |
 (.build_candidates | to_entries | sort_by(.value.completed_at))) |
 last | .value.manifest_url")"
 
-if [[ -z "$MANIFEST_URL" ]]; then
+if [[ -z "$MANIFEST_URL" ]] || [[ "$MANIFEST_URL" == "null" ]]; then
    echo "No snapshots or build candidates for branch [$BUILDKITE_BRANCH]."
    echo "Skipping BC upgrade tests."
    exit 0

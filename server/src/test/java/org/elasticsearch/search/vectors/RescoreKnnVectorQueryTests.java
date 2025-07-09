@@ -18,7 +18,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -41,6 +44,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -54,53 +59,57 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
+        var queryVector = randomVector(numDims);
+        List<Query> innerQueries = new ArrayList<>();
+        innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
+        innerQueries.add(
+            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
+                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
+                .build()
+        );
+        innerQueries.add(new MatchAllDocsQuery());
+
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
 
-                // Use a RescoreKnnVectorQuery with a match all query, to ensure we get scoring of 1 from the inner query
-                // and thus we're rescoring the top k docs.
-                float[] queryVector = randomVector(numDims);
-                Query innerQuery;
-                if (randomBoolean()) {
-                    innerQuery = new KnnFloatVectorQuery(FIELD_NAME, queryVector, (int) (k * randomFloatBetween(1.0f, 10.0f, true)));
-                } else {
-                    innerQuery = new MatchAllDocsQuery();
-                }
-                RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
-                    FIELD_NAME,
-                    queryVector,
-                    VectorSimilarityFunction.COSINE,
-                    k,
-                    innerQuery
-                );
+                for (var innerQuery : innerQueries) {
+                    RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                        FIELD_NAME,
+                        queryVector,
+                        VectorSimilarityFunction.COSINE,
+                        k,
+                        k,
+                        innerQuery
+                    );
 
-                IndexSearcher searcher = newSearcher(reader, true, false);
-                TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+                    IndexSearcher searcher = newSearcher(reader, true, false);
+                    TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
+                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
 
-                // Get real scores
-                DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(
-                    FIELD_NAME,
-                    queryVector,
-                    VectorSimilarityFunction.COSINE
-                );
-                FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), valueSource);
-                TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
+                    // Get real scores
+                    DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(
+                        FIELD_NAME,
+                        queryVector,
+                        VectorSimilarityFunction.COSINE
+                    );
+                    FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), valueSource);
+                    TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
 
-                int i = 0;
-                ScoreDoc[] realScoreDocs = realScoreTopDocs.scoreDocs;
-                for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
-                    // There are docs that won't be found in the rescored search, but every doc found must be in the same order
-                    // and have the same score
-                    while (i < realScoreDocs.length && realScoreDocs[i].doc != rescoreDoc.doc) {
-                        i++;
+                    int i = 0;
+                    ScoreDoc[] realScoreDocs = realScoreTopDocs.scoreDocs;
+                    for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
+                        // There are docs that won't be found in the rescored search, but every doc found must be in the same order
+                        // and have the same score
+                        while (i < realScoreDocs.length && realScoreDocs[i].doc != rescoreDoc.doc) {
+                            i++;
+                        }
+                        if (i >= realScoreDocs.length) {
+                            fail("Rescored doc not found in real score docs");
+                        }
+                        assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
                     }
-                    if (i >= realScoreDocs.length) {
-                        fail("Rescored doc not found in real score docs");
-                    }
-                    assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
                 }
             }
         }
@@ -124,10 +133,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     }
 
     private void checkProfiling(int k, int numDocs, float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
-        RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
+        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
             FIELD_NAME,
             queryVector,
             VectorSimilarityFunction.COSINE,
+            k,
             k,
             innerQuery
         );

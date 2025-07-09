@@ -231,7 +231,7 @@ Refer
 to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
 to learn more about semantic search using `semantic_text`.
 
-## Extracting Relevant Fragments from Semantic Text [semantic-text-highlighting]
+## Extracting relevant fragments from semantic text [semantic-text-highlighting]
 
 You can extract the most relevant fragments from a semantic text field by using
 the [highlight parameter](/reference/elasticsearch/rest-apis/highlighting.md) in
@@ -295,8 +295,7 @@ automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
 If you want to override those defaults and customize the embeddings that
-`semantic_text` indexes, you can do so by modifying <<semantic-text-params,
-parameters>>:
+`semantic_text` indexes, you can do so by modifying [parameters](#semantic-text-params):
 
 - Use `index_options` to specify alternate index options such as specific
   `dense_vector` quantization methods
@@ -398,6 +397,6 @@ PUT test-index
 * `semantic_text` fields are not currently supported as elements
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
-  of [Dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
+  of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
 * `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
   Cross-Cluster Replication (CCR).

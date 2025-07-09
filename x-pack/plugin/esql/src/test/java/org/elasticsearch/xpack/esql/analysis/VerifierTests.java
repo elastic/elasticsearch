@@ -2222,6 +2222,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testRemoteLookupJoinWithPipelineBreaker() {
+        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
         assertEquals(
             "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
@@ -2255,6 +2256,12 @@ public class VerifierTests extends ESTestCase {
                 analyzer
             )
         );
+    }
+
+    public void testRemoteLookupJoinIsSnapshot() {
+        // TODO: remove when we allow remote joins in release builds
+        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        assertTrue(Build.current().isSnapshot());
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

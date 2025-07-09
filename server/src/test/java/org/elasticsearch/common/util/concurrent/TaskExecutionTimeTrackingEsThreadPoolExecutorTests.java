@@ -111,31 +111,33 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             context,
             new TaskTrackingConfig(randomBoolean(), true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
         );
-        executor.setupMetrics(meterRegistry, threadPoolName);
-        executor.prestartAllCoreThreads();
-        logger.info("--> executor: {}", executor);
+        try {
+            executor.prestartAllCoreThreads();
+            logger.info("--> executor: {}", executor);
 
-        // Check that the max is zero initially and after a reset.
-        assertEquals("The queue latency should be initialized zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
-        executor.execute(() -> {});
-        safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
-        assertEquals("Ran one task of 1ms, should be the max", 1, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
-        assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+            // Check that the max is zero initially and after a reset.
+            assertEquals("The queue latency should be initialized zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+            executor.execute(() -> {
+            });
+            safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
+            assertEquals("Ran one task of 1ms, should be the max", 1, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+            assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
 
-        // Check that the max is kept across multiple calls, where the last is not the max.
-        adjustableTimedRunnable.setQueuedTimeTakenNanos(5000000);
-        executeTask(executor, 1);
-        safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
-        adjustableTimedRunnable.setQueuedTimeTakenNanos(1000000);
-        executeTask(executor, 1);
-        safeAwait(barrier);
-        assertEquals("Max should not be the last task", 5, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
-        assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
-
-        // Clean up.
-        assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+            // Check that the max is kept across multiple calls, where the last is not the max.
+            adjustableTimedRunnable.setQueuedTimeTakenNanos(5000000);
+            executeTask(executor, 1);
+            safeAwait(barrier); // Wait for the task to start, which means implies has finished the queuing stage.
+            adjustableTimedRunnable.setQueuedTimeTakenNanos(1000000);
+            executeTask(executor, 1);
+            safeAwait(barrier);
+            assertEquals("Max should not be the last task", 5, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+            assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+        } finally {
+            // Clean up.
+            assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
+            executor.shutdown();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
     }
 
     /** Use a runnable wrapper that simulates a task with unknown failures. */

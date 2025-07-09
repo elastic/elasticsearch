@@ -300,7 +300,7 @@ METADATA : 'metadata';
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
 fragment UNQUOTED_SOURCE_PART
-    : ~[:"=|,[\]/ \t\r\n]
+    : ~[:"=|,[\]/() \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 
@@ -400,7 +400,7 @@ ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
 fragment ENRICH_POLICY_NAME_BODY
-    : ~[\\/?"<>| ,#\t\r\n:]
+    : ~[\\/?"<>| ,#\t\r\n:()]
     ;
 
 ENRICH_POLICY_NAME
@@ -411,6 +411,8 @@ ENRICH_POLICY_NAME
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
+
+ENRICH_QUOTED_POLICY_NAME : QUOTED_STRING -> type(QUOTED_STRING);
 
 ENRICH_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -61,5 +62,43 @@ public class FunctionUtils {
             failures.add(fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
         }
     }
+    public static Expression.TypeResolution resolveTypeQuery(Expression queryField, String sourceText) {
+        if (queryField == null) {
+            return new Expression.TypeResolution(format(null, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
+        }
+        if (queryField instanceof Literal literal) {
+            if (literal.value() == null) {
+                return new Expression.TypeResolution(
+                    format(null, "Query value cannot be null in [{}], but got [{}]", sourceText, queryField)
+                );
+            }
+        }
+        return Expression.TypeResolution.TYPE_RESOLVED;
+    }
 
+    public static void postOptimizationVerificationQuery(Failures failures, Expression queryField, String sourceText) {
+        if (queryField == null) {
+            failures.add(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
+        }
+        if (queryField instanceof Literal literal) {
+            String value = BytesRefs.toString(literal.value());
+            if (value == null) {
+                failures.add(
+                    fail(queryField, "Invalid query value in [{}], found [{}]", sourceText, value)
+                );
+            }
+        } else {
+            // it is expected that the expression is a literal after folding
+            // we fail if it is not a literal
+            failures.add(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
+        }
+    }
+    public static Object queryAsObject(Expression queryField, String sourceText) {
+        if (queryField instanceof Literal literal) {
+            return BytesRefs.toString(literal.value());
+        }
+        throw new EsqlIllegalArgumentException(
+            format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
+        );
+    }
 }

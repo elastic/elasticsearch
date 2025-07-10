@@ -21,9 +21,14 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/4161",
+    value = "co.elastic.elasticsearch.serverless.multiproject.MultiProjectFileSettingsService:DEBUG"
+)
 @LuceneTestCase.SuppressFileSystems(value = { "ExtrasFS" })
 public class FsMultiProjectObjectStoreIT extends FsObjectStoreTests {
 

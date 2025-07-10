@@ -517,15 +517,15 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         ensureStableCluster(2);
         final var repoName = "backup";
         final var projectId = randomUniqueProjectId();
-        try {
-            // Create the project with reserved repository
-            putProject(
-                projectId,
-                projectSettings(projectId),
-                projectSecrets(projectId),
-                new RepositoryMetadata(repoName, repositoryType(), repositorySettings(projectId))
-            );
+        // Create the project with reserved repository
+        putProject(
+            projectId,
+            projectSettings(projectId),
+            projectSecrets(projectId),
+            new RepositoryMetadata(repoName, repositoryType(), repositorySettings(projectId))
+        );
 
+        try {
             final var projectClient = client().projectClient(projectId);
             // GET repository
             final var getRepositoriesResponse = safeGet(

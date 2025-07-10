@@ -130,9 +130,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
      * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
      */
     public static boolean expressionTransportSupported(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19)
-            || version.isPatchFrom(TransportVersions.ESQL_FIXED_INDEX_LIKE_9_1);
+        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19);
     }
 
     @Override

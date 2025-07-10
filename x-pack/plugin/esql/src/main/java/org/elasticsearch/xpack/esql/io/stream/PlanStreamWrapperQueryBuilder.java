@@ -55,12 +55,7 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ESQL_FIXED_INDEX_LIKE;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return expressionTransportSupported(version);
+        return TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19;
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
@@ -39,7 +40,7 @@ public class TestPolicyManager extends PolicyManager {
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
 
-    final Collection<URI> testOnlyClasspath;
+    final Collection<Path> testOnlyClasspath;
 
     public TestPolicyManager(
         Policy serverPolicy,
@@ -48,7 +49,7 @@ public class TestPolicyManager extends PolicyManager {
         Function<Class<?>, PolicyScope> scopeResolver,
         Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup,
-        Collection<URI> testOnlyClasspath
+        Collection<Path> testOnlyClasspath
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
         this.testOnlyClasspath = testOnlyClasspath;
@@ -118,6 +119,11 @@ public class TestPolicyManager extends PolicyManager {
         return super.isTriviallyAllowed(requestingClass);
     }
 
+    @Override
+    protected Collection<Path> getComponentPathsFromClass(Class<?> requestingClass) {
+        return testOnlyClasspath; // required to grant read access to the test resources
+    }
+
     private boolean isEntitlementClass(Class<?> requestingClass) {
         return requestingClass.getPackageName().startsWith("org.elasticsearch.entitlement")
             && (requestingClass.getName().contains("Test") == false);
@@ -177,9 +183,9 @@ public class TestPolicyManager extends PolicyManager {
             // This can happen for JDK classes
             return false;
         }
-        URI needle;
+        Path needle;
         try {
-            needle = codeSource.getLocation().toURI();
+            needle = Paths.get(codeSource.getLocation().toURI());
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

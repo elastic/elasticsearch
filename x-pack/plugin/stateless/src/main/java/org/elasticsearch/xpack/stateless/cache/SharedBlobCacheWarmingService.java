@@ -529,8 +529,8 @@ public class SharedBlobCacheWarmingService {
             final long start = position;
             final long end = position + length;
             final int regionSize = cacheService.getRegionSize();
-            final int startRegion = (int) (start / regionSize);
-            final int endRegion = (int) ((end - (end % regionSize == 0 ? 1 : 0)) / regionSize);
+            final int startRegion = cacheService.getRegion(start);
+            final int endRegion = cacheService.getEndingRegion(end);
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
@@ -771,7 +771,7 @@ public class SharedBlobCacheWarmingService {
             @Override
             public void onResponse(Releasable releasable) {
                 var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
-                int endingRegion = getEndingRegion(blobLocation.fileLength());
+                int endingRegion = cacheService.getEndingRegion(blobLocation.fileLength());
 
                 // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
                 try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
@@ -797,11 +797,6 @@ public class SharedBlobCacheWarmingService {
                         );
                     }
                 }
-            }
-
-            private int getEndingRegion(long position) {
-                int regionSize = cacheService.getRegionSize();
-                return Math.toIntExact((position - (position % regionSize == 0 ? 1 : 0)) / regionSize);
             }
 
             @Override

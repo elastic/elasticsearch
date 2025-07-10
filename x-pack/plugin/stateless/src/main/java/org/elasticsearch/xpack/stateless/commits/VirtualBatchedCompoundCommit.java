@@ -672,6 +672,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             .collect(Collectors.toSet());
     }
 
+    // visible for testing
+    public int getTotalPaddingInBytes() {
+        return pendingCompoundCommits.stream().mapToInt(pendingCompoundCommit -> pendingCompoundCommit.padding).sum();
+    }
+
     private byte[] materializeCompoundCommitHeader(
         StatelessCommitRef reference,
         Iterable<InternalFile> internalFiles,

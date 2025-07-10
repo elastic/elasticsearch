@@ -38,4 +38,26 @@ public record NewCommitNotification(
     @Nullable PrimaryTermAndGeneration latestUploadedBatchedCompoundCommitTermAndGen,
     long clusterStateVersion,
     String nodeId
-) {}
+) {
+    public boolean isBatchedCompoundCommitUploaded() {
+        return latestUploadedBatchedCompoundCommitTermAndGen != null
+            && latestUploadedBatchedCompoundCommitTermAndGen.generation() == batchedCompoundCommitGeneration();
+    }
+
+    @Override
+    public String toString() {
+        return "NewCommitNotification{"
+            + "compoundCommit="
+            + compoundCommit.toShortDescription()
+            + ", batchedCompoundCommitGeneration="
+            + batchedCompoundCommitGeneration
+            + ", latestUploadedBatchedCompoundCommitTermAndGen="
+            + latestUploadedBatchedCompoundCommitTermAndGen
+            + ", clusterStateVersion="
+            + clusterStateVersion
+            + ", nodeId='"
+            + nodeId
+            + '\''
+            + '}';
+    }
+}

@@ -60,6 +60,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProb
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.TransportPublishSearchLoads;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
@@ -350,6 +351,7 @@ public class Stateless extends Plugin
     private final SetOnce<ReshardIndexService> reshardIndexService = new SetOnce<>();
     private final SetOnce<MemoryMetricsService> memoryMetricsService = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -760,6 +762,10 @@ public class Stateless extends Plugin
         );
         components.add(splitSourceService);
 
+        if (hasSearchRole) {
+            setAndGet(this.prefetchExecutor, new SearchCommitPrefetcher.PrefetchExecutor(threadPool));
+        }
+
         return components;
     }
 
@@ -1155,7 +1161,12 @@ public class Stateless extends Plugin
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING,
             StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED,
-            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK
+            EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
+            SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+            SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+            SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+            SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+            SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING
         );
     }
 
@@ -1422,7 +1433,14 @@ public class Stateless extends Plugin
                     new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getMergeMetrics(), hollowShardMetrics.get())
                 );
             } else {
-                return new SearchEngine(config, getClosedShardService());
+                assert prefetchExecutor.get() != null : "Prefetch executor should be instantiated in search nodes";
+                return new SearchEngine(
+                    config,
+                    getClosedShardService(),
+                    sharedBlobCacheService.get(),
+                    clusterService.get().getClusterSettings(),
+                    prefetchExecutor.get()
+                );
             }
         });
     }

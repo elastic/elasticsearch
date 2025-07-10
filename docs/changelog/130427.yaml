@@ -8,11 +8,10 @@ breaking:
   title: Unquoted index patterns do not allow `(` and `)` characters
   area: ES|QL
   details: >-
-    So far, ES|QL accepted unquoted index patterns containing brackets, eg. `FROM index(1) | ENRICH policy(2)`
+    Previously, ES|QL accepted unquoted index patterns containing brackets, such as `FROM index(1) | ENRICH policy(2)`.
 
-    This can potentially conflict with subquery syntax, that uses brackets as a delimiter.
+    This query syntax is no longer valid because it could conflict with subquery syntax, where brackets are used as delimiters.
 
-    From now on, using brackets is only allowed in quoted index patterns, ie. the query above is no longer valid,
-    while the following is valid: `FROM "index(1)" | ENRICH "policy(2)"`
+    Brackets are now only allowed in quoted index patterns. For example: `FROM "index(1)" | ENRICH "policy(2)"`.
   impact: "This affects existing queries containing brackets in index or policy names, i.e. in FROM, ENRICH, and LOOKUP JOIN commands."
   notable: false

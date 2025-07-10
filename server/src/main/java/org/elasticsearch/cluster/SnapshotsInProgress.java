@@ -1930,6 +1930,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final int[] shardCounts = new int[ShardState.values().length];
             for (Entry entry : entries) {
                 snapshotCounts[entry.state().ordinal()]++;
+                if (entry.isClone()) {
+                    // Can't get shards for clone entry
+                    continue;
+                }
                 for (ShardSnapshotStatus shardSnapshotStatus : entry.shards().values()) {
                     shardCounts[shardSnapshotStatus.state().ordinal()]++;
                 }

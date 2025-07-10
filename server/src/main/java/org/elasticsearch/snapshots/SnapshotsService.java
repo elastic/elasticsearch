@@ -162,11 +162,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
-    /**
-     * We publish metrics of how many shards are in each of the following states
-     */
-    private static final List<ShardState> TRACKED_SHARD_STATES = Arrays.asList(ShardState.values());
-
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";

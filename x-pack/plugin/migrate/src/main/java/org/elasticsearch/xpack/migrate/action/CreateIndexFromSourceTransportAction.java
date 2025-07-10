@@ -109,6 +109,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         }
 
         var createIndexRequest = new CreateIndexRequest(request.destIndex()).settings(settings);
+        createIndexRequest.cause("create-index-from-source");
         if (mergeMappings.isEmpty() == false) {
             createIndexRequest.mapping(mergeMappings);
         }

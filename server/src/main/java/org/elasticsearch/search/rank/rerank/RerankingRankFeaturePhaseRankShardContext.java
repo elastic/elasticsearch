@@ -12,14 +12,20 @@ package org.elasticsearch.search.rank.rerank;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
@@ -31,7 +37,11 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
 
     public RerankingRankFeaturePhaseRankShardContext(String field) {
-        super(field);
+        this(field, null);
+    }
+
+    public RerankingRankFeaturePhaseRankShardContext(String field, CustomRankInput customRankInput) {
+        super(field, customRankInput);
     }
 
     @Override
@@ -40,9 +50,27 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                DocumentField docField = hits.getHits()[i].field(field);
-                if (docField != null) {
-                    rankFeatureDocs[i].featureData(docField.getValue().toString());
+                SearchHit hit = hits.getHits()[i];
+                DocumentField docField = hit.field(field);
+                if (customRankInput == null && docField != null) {
+                    rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+                } else {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    if (highlightFields != null
+                        && highlightFields.containsKey(field)
+                        && highlightFields.get(field).fragments().length > 0) {
+                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
+                        rankFeatureDocs[i].featureData(snippets);
+                    } else if (docField != null) {
+                        // If we did not get highlighting results, backfill with the doc field value
+                        // but pass in a warning because we are not reranking on snippets only
+                        rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+                        HeaderWarning.addWarning(
+                            "Reranking on snippets requested, but no snippets were found for field ["
+                                + field
+                                + "]. Using field value instead."
+                        );
+                    }
                 }
             }
             return new RankFeatureShardResult(rankFeatureDocs);

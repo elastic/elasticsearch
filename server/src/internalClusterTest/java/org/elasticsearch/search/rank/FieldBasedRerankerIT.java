@@ -186,14 +186,14 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-            return new RankFeaturePhaseRankShardContext(field) {
+            return new RankFeaturePhaseRankShardContext(field, null) {
                 @Override
                 public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                     try {
                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
                         for (int i = 0; i < hits.getHits().length; i++) {
                             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                            rankFeatureDocs[i].featureData(hits.getHits()[i].field(field).getValue().toString());
+                            rankFeatureDocs[i].featureData(List.of(hits.getHits()[i].field(field).getValue().toString()));
                         }
                         return new RankFeatureShardResult(rankFeatureDocs);
                     } catch (Exception ex) {
@@ -210,7 +210,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
                 protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                     float[] scores = new float[featureDocs.length];
                     for (int i = 0; i < featureDocs.length; i++) {
-                        scores[i] = Float.parseFloat(featureDocs[i].featureData);
+                        scores[i] = Float.parseFloat(featureDocs[i].featureData.get(0));
                     }
                     scoreListener.onResponse(scores);
                 }
@@ -332,7 +332,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
-                return new RankFeaturePhaseRankShardContext(field) {
+                return new RankFeaturePhaseRankShardContext(field, null) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                         throw new UnsupportedOperationException("rfs - simulated failure");

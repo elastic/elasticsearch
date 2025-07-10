@@ -275,7 +275,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                 l.onResponse(scores);
             });
 
-            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).flatMap(List::stream).toList();
             TestRerankingActionRequest request = generateRequest(featureData);
             try {
                 ActionType<TestRerankingActionResponse> action = actionType();
@@ -529,7 +529,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
-                return new RankFeaturePhaseRankShardContext(field) {
+                return new RankFeaturePhaseRankShardContext(field, null) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                         throw new UnsupportedOperationException("rfs - simulated failure");

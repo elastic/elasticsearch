@@ -55,7 +55,7 @@ public class TestObjectStoreServer {
         executorService = EsExecutors.newScaling(
             AbstractMockObjectStoreIntegTestCase.class.getName(),
             0,
-            2,
+            100,
             60,
             TimeUnit.SECONDS,
             true,

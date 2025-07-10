@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -128,7 +129,7 @@ public class OptimizerRulesTests extends ESTestCase {
         };
 
         rule.apply(
-            new EsqlParser().createStatement("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
+            new EsqlParser().createStatement("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1", EsqlTestUtils.TEST_CFG),
             new LogicalOptimizerContext(null, FoldContext.small())
         );
 

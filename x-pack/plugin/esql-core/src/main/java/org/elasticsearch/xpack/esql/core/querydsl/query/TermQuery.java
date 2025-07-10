@@ -91,4 +91,9 @@ public class TermQuery extends Query {
     public boolean scorable() {
         return scorable;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

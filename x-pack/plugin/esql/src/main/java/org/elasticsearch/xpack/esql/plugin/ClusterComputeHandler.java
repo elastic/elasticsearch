@@ -250,6 +250,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(plan, true);
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
+        final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
         final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
@@ -269,6 +270,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         localSessionId,
                         "remote_reduce",
                         clusterAlias,
+                        flags,
                         List.of(),
                         configuration,
                         configuration.newFoldContext(),
@@ -282,6 +284,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     localSessionId,
                     clusterAlias,
                     parentTask,
+                    flags,
                     configuration,
                     plan,
                     concreteIndices,

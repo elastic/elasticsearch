@@ -11,7 +11,6 @@ package org.elasticsearch.exponentialhistogram;
 
 public class ExpHistoPercentiles {
 
-
     public static double getPercentile(ExponentialHistogram histo, double percentile) {
         if (percentile < 0 || percentile > 1) {
             throw new IllegalArgumentException("percentile must be in range [0, 1]");
@@ -40,7 +39,7 @@ public class ExpHistoPercentiles {
     private static double getBucketMidpointForRank(ExponentialHistogram.BucketIterator buckets, long rank) {
         long seenCount = 0;
         while (buckets.hasNext()) {
-            seenCount+= buckets.peekCount();
+            seenCount += buckets.peekCount();
             if (rank < seenCount) {
                 return ExponentialHistogramUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
             }

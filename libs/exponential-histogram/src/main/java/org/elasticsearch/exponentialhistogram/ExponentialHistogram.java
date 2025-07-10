@@ -16,6 +16,7 @@ public interface ExponentialHistogram {
     ZeroBucket zeroBucket();
 
     BucketIterator positiveBuckets();
+
     BucketIterator negativeBuckets();
 
     /**
@@ -29,10 +30,15 @@ public interface ExponentialHistogram {
      */
     interface BucketIterator {
         boolean hasNext();
+
         long peekCount();
+
         long peekIndex();
+
         void advance();
+
         int scale();
+
         BucketIterator copy();
     }
 

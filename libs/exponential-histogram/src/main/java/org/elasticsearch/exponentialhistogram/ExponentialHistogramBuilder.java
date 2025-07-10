@@ -12,6 +12,8 @@ package org.elasticsearch.exponentialhistogram;
 public interface ExponentialHistogramBuilder {
 
     void setZeroBucket(ZeroBucket zeroBucket);
+
     boolean tryAddBucket(long index, long count, boolean isPositive);
+
     void resetBuckets(int newScale);
 }

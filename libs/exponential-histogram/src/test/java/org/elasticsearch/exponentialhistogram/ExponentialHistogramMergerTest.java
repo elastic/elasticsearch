@@ -29,7 +29,7 @@ public class ExponentialHistogramMergerTest extends ESTestCase {
         first.setZeroBucket(new ZeroBucket(2.0001, 10));
 
         FixedSizeExponentialHistogram second = new FixedSizeExponentialHistogram(100);
-        first.resetBuckets(0); //scale 0 means base 2
+        first.resetBuckets(0); // scale 0 means base 2
         first.tryAddBucket(0, 1, false); // bucket (-2, 1]
         first.tryAddBucket(1, 1, false); // bucket (-4, 2]
         first.tryAddBucket(2, 7, false); // bucket (-8, 4]
@@ -71,7 +71,7 @@ public class ExponentialHistogramMergerTest extends ESTestCase {
     public void testEmptyZeroBucketIgnored() {
         FixedSizeExponentialHistogram first = new FixedSizeExponentialHistogram(100);
         first.setZeroBucket(new ZeroBucket(2.0, 10));
-        first.resetBuckets(0); //scale 0 means base 2
+        first.resetBuckets(0); // scale 0 means base 2
         first.tryAddBucket(2, 42L, true); // bucket (4, 8]
 
         FixedSizeExponentialHistogram second = new FixedSizeExponentialHistogram(100);
@@ -89,7 +89,6 @@ public class ExponentialHistogramMergerTest extends ESTestCase {
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
-
     /**
      * Verify that the resulting histogram is independent of the order of elements and therefore merges performed.
      */
@@ -97,15 +96,15 @@ public class ExponentialHistogramMergerTest extends ESTestCase {
         Random rnd = new Random(42);
 
         List<Double> values = IntStream.range(0, 10_000)
-            .mapToDouble(i ->  i<17 ? 0 : rnd.nextDouble() * Math.pow(10, rnd.nextLong()%4))
+            .mapToDouble(i -> i < 17 ? 0 : rnd.nextDouble() * Math.pow(10, rnd.nextLong() % 4))
             .boxed()
             .collect(Collectors.toCollection(ArrayList::new));
 
         ExponentialHistogram reference = ExponentialHistogramGenerator.createFor(20, values.stream().mapToDouble(Double::doubleValue));
 
-        for (int i=0; i<100; i++) {
+        for (int i = 0; i < 100; i++) {
             Collections.shuffle(values, rnd);
-            ExponentialHistogram shuffled =  ExponentialHistogramGenerator.createFor(20, values.stream().mapToDouble(Double::doubleValue));
+            ExponentialHistogram shuffled = ExponentialHistogramGenerator.createFor(20, values.stream().mapToDouble(Double::doubleValue));
 
             assertThat("Expected same scale", shuffled.scale(), equalTo(reference.scale()));
             assertThat("Expected same zero-bucket", shuffled.zeroBucket(), equalTo(reference.zeroBucket()));
@@ -118,7 +117,7 @@ public class ExponentialHistogramMergerTest extends ESTestCase {
 
     private void assertBucketsEqual(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB) {
         assertThat("Expecting both set of buckets to be emptry or non-empty", itA.hasNext(), equalTo(itB.hasNext()));
-        while(itA.hasNext() && itB.hasNext()) {
+        while (itA.hasNext() && itB.hasNext()) {
             assertThat(itA.peekIndex(), equalTo(itB.peekIndex()));
             assertThat(itA.peekCount(), equalTo(itB.peekCount()));
             assertThat("The number of buckets is different", itA.hasNext(), equalTo(itB.hasNext()));
@@ -132,8 +131,5 @@ public class ExponentialHistogramMergerTest extends ESTestCase {
         Arrays.stream(histograms).forEach(merger::add);
         return merger.get();
     }
-
-
-
 
 }

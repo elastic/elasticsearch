@@ -31,7 +31,6 @@ public class ExponentialHistogramUtils {
 
     private static final double LOG_BASE2_E = 1D / Math.log(2);
 
-
     // Magic number, computed via log(4/3)/log(2^(2^-64)), but exact
     private static final long SCALE_UP_64_OFFSET = 7656090530189244512L;
 
@@ -41,7 +40,7 @@ public class ExponentialHistogramUtils {
         } else {
             // ((index << 64) + SCALE_UP_64_OFFSET)) >> (64-scaleAdjustment)
             // = index << scaleAdjustment + SCALE_UP_64_OFFSET >> (64-scaleAdjustment)
-            return (index << scaleAdjustment) + (SCALE_UP_64_OFFSET >> (64-scaleAdjustment));
+            return (index << scaleAdjustment) + (SCALE_UP_64_OFFSET >> (64 - scaleAdjustment));
         }
     }
 
@@ -49,26 +48,26 @@ public class ExponentialHistogramUtils {
      * Equivalent to mathematically correct comparison of the lower bucket boundaries of the given buckets
      */
     public static int compareLowerBoundaries(long idxA, int scaleA, long idxB, int scaleB) {
-       if (scaleA > scaleB) {
-           return -compareLowerBoundaries(idxB, scaleB, idxA, scaleA);
-       }
-       // scaleA <= scaleB
-       int shifts = scaleB - scaleA;
-       int maxScaleAdjustment = getMaximumScaleIncrease(idxA);
-       if (maxScaleAdjustment < shifts) {
-           // we would overflow if we adjust A to the scale of B
-           // so if A is negative, scaling would produce a number less than Long.MIN_VALUE, therefore it is definitely smaller than B
-           // if A is positive, scaling would produce a number bigger than Long.MAX_VALUE, therefore it is definitely bigger than B
-           // if A is zero => shifting and therefore scale adjustment would not have any effect
-           if (idxA == 0) {
-               return Long.compare(0, idxB);
-           } else {
-               return idxA < 0 ? -1 : +1;
-           }
-       } else {
-           long adjustedIdxA = idxA << shifts;
-           return Long.compare(adjustedIdxA, idxB);
-       }
+        if (scaleA > scaleB) {
+            return -compareLowerBoundaries(idxB, scaleB, idxA, scaleA);
+        }
+        // scaleA <= scaleB
+        int shifts = scaleB - scaleA;
+        int maxScaleAdjustment = getMaximumScaleIncrease(idxA);
+        if (maxScaleAdjustment < shifts) {
+            // we would overflow if we adjust A to the scale of B
+            // so if A is negative, scaling would produce a number less than Long.MIN_VALUE, therefore it is definitely smaller than B
+            // if A is positive, scaling would produce a number bigger than Long.MAX_VALUE, therefore it is definitely bigger than B
+            // if A is zero => shifting and therefore scale adjustment would not have any effect
+            if (idxA == 0) {
+                return Long.compare(0, idxB);
+            } else {
+                return idxA < 0 ? -1 : +1;
+            }
+        } else {
+            long adjustedIdxA = idxA << shifts;
+            return Long.compare(adjustedIdxA, idxB);
+        }
     }
 
     /**
@@ -99,7 +98,7 @@ public class ExponentialHistogramUtils {
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
         // TODO: handle numeric limits, implement exact algorithms with 128 bit precision
         double inverseFactor = Math.pow(2, -scale);
-        return Math.pow(2, inverseFactor * (bucketIndex + 1/3.0));
+        return Math.pow(2, inverseFactor * (bucketIndex + 1 / 3.0));
     }
 
     /**

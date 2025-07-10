@@ -61,7 +61,6 @@ public class ExponentialHistogramMerger {
         return merger.get();
     }
 
-
     // TODO: make this more efficient in case b is much smaller than a
     private static void merge(ExponentialHistogramBuilder output, ExponentialHistogram a, ExponentialHistogram b) {
         ExponentialHistogram.BucketIterator posBucketsA = a.positiveBuckets();
@@ -89,7 +88,7 @@ public class ExponentialHistogramMerger {
                 targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(negBucketsB.peekIndex()));
             }
             if (isNonEmpty) {
-                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease( b.maximumBucketIndex()));
+                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(b.maximumBucketIndex()));
             }
         }
 

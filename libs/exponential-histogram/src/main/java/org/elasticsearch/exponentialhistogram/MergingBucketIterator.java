@@ -27,7 +27,7 @@ public final class MergingBucketIterator implements ExponentialHistogram.BucketI
 
     @Override
     public void advance() {
-        boolean hasNextA = itA.hasNext() ;
+        boolean hasNextA = itA.hasNext();
         boolean hasNextB = itB.hasNext();
         endReached = hasNextA == false && hasNextB == false;
         if (endReached) {
@@ -67,7 +67,6 @@ public final class MergingBucketIterator implements ExponentialHistogram.BucketI
         assertEndNotReached();
         return currentCount;
     }
-
 
     @Override
     public long peekIndex() {

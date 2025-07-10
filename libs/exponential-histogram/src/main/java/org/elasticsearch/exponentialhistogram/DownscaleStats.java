@@ -15,7 +15,6 @@ public class DownscaleStats {
     // collapsed buckets when increasing the scale by (i+1) instead of (i)
     int[] collapsedCount = new int[63];
 
-
     void add(long previousBucketIndex, long currentBucketIndex) {
         if (currentBucketIndex <= previousBucketIndex) {
             throw new IllegalArgumentException("currentBucketIndex must be bigger than previousBucketIndex");
@@ -36,7 +35,7 @@ public class DownscaleStats {
             return;
         }
         int requiredScaleChange = 64 - numEqualLeadingBits;
-        collapsedCount[requiredScaleChange-1]++;
+        collapsedCount[requiredScaleChange - 1]++;
     }
 
     int getCollapsedBucketCountAfterScaleReduction(int reduction) {
@@ -55,7 +54,7 @@ public class DownscaleStats {
         for (int i = 0; i < collapsedCount.length; i++) {
             totalCollapsed += collapsedCount[i];
             if (totalCollapsed >= desiredReduction) {
-                return i+1;
+                return i + 1;
             }
         }
         throw new IllegalArgumentException("it is not possible to reduce the bucket count by " + desiredReduction);

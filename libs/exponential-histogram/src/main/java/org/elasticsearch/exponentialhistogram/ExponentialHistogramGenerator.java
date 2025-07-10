@@ -80,7 +80,7 @@ public class ExponentialHistogramGenerator {
         for (int i = negativeValuesCount - 1; i >= 0; i--) {
             long count = 1;
             long index = computeIndex(rawValueBuffer[i], scale);
-            while ((i-1) >= 0 && computeIndex(rawValueBuffer[i-1] , scale) == index) {
+            while ((i - 1) >= 0 && computeIndex(rawValueBuffer[i - 1], scale) == index) {
                 i--;
                 count++;
             }
@@ -88,14 +88,14 @@ public class ExponentialHistogramGenerator {
         }
 
         int zeroCount = 0;
-        while((negativeValuesCount + zeroCount) < valueCount && rawValueBuffer[negativeValuesCount+zeroCount] == 0) {
+        while ((negativeValuesCount + zeroCount) < valueCount && rawValueBuffer[negativeValuesCount + zeroCount] == 0) {
             zeroCount++;
         }
         valueBuffer.setZeroBucket(ZeroBucket.minimalWithCount(zeroCount));
-        for (int i= negativeValuesCount + zeroCount; i < valueCount; i++) {
+        for (int i = negativeValuesCount + zeroCount; i < valueCount; i++) {
             long count = 1;
             long index = computeIndex(rawValueBuffer[i], scale);
-            while ((i+1) < valueCount && computeIndex(rawValueBuffer[i+1] , scale) == index) {
+            while ((i + 1) < valueCount && computeIndex(rawValueBuffer[i + 1], scale) == index) {
                 i++;
                 count++;
             }
@@ -105,6 +105,5 @@ public class ExponentialHistogramGenerator {
         resultMerger.add(valueBuffer);
         valueCount = 0;
     }
-
 
 }

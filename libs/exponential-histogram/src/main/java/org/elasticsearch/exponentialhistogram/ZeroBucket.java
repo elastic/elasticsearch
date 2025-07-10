@@ -10,13 +10,13 @@
 package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.compareLowerBoundaries;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.getLowerBucketBoundary;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.computeIndex;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.getLowerBucketBoundary;
 import static org.elasticsearch.exponentialhistogram.FixedSizeExponentialHistogram.DEFAULT_BUCKET_SCALE;
 
 public record ZeroBucket(long index, int scale, long count) {
 
-    private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(Long.MIN_VALUE, Integer.MIN_VALUE/256, 0);
+    private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(Long.MIN_VALUE, Integer.MIN_VALUE / 256, 0);
 
     public ZeroBucket(double zeroThreshold, long count) {
         this(computeIndex(zeroThreshold, DEFAULT_BUCKET_SCALE) + 1, DEFAULT_BUCKET_SCALE, count);
@@ -58,7 +58,7 @@ public record ZeroBucket(long index, int scale, long count) {
         ZeroBucket previous;
         do {
             previous = current;
-            for (ExponentialHistogram.BucketIterator buckets: bucketIterators) {
+            for (ExponentialHistogram.BucketIterator buckets : bucketIterators) {
                 current = current.collapseOverlappingBuckets(buckets);
             }
         } while (previous.compareZeroThreshold(current) != 0);
@@ -91,7 +91,7 @@ public record ZeroBucket(long index, int scale, long count) {
         } else {
             long newZeroCount = count + collapsedCount;
             // +1 because we need to adjust the zero threshold to the upper boundary of the collapsed bucket
-            long collapsedUpperBoundIndex = Math.addExact(highestCollapsedIndex , 1);
+            long collapsedUpperBoundIndex = Math.addExact(highestCollapsedIndex, 1);
             if (compareLowerBoundaries(index, scale, collapsedUpperBoundIndex, buckets.scale()) >= 0) {
                 // we still have a larger zero-threshold than the largest collapsed bucket's upper boundary
                 return new ZeroBucket(index, scale, newZeroCount);

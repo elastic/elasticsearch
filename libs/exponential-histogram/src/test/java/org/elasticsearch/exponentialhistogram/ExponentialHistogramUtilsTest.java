@@ -46,7 +46,7 @@ public class ExponentialHistogramUtilsTest extends ESTestCase {
     public void testRandom() {
         Random rnd = new Random(42);
 
-        for (int i=0; i<100_000; i++) {
+        for (int i = 0; i < 100_000; i++) {
             long index = rnd.nextLong();
             int maxScale = getMaximumScaleIncrease(index);
 
@@ -56,16 +56,14 @@ public class ExponentialHistogramUtilsTest extends ESTestCase {
 
     }
 
-
     public void testRandomComparison() {
         Random rnd = new Random(42);
 
-        for (int i=0; i<100_000; i++) {
+        for (int i = 0; i < 100_000; i++) {
             long indexA = rnd.nextLong();
             long indexB = rnd.nextLong();
             int scaleA = rnd.nextInt() % 40;
             int scaleB = rnd.nextInt() % 40;
-
 
             double lowerBoundA = getLowerBucketBoundary(indexA, scaleA);
             while (Double.isInfinite(lowerBoundA)) {
@@ -79,9 +77,8 @@ public class ExponentialHistogramUtilsTest extends ESTestCase {
             }
 
             if (lowerBoundA != lowerBoundB) {
-                System.out.println("Comparing "+lowerBoundA+" to "+lowerBoundB);
-                assertThat(
-                    Double.compare(lowerBoundA, lowerBoundB), equalTo(compareLowerBoundaries(indexA, scaleA, indexB, scaleB)));
+                System.out.println("Comparing " + lowerBoundA + " to " + lowerBoundB);
+                assertThat(Double.compare(lowerBoundA, lowerBoundB), equalTo(compareLowerBoundaries(indexA, scaleA, indexB, scaleB)));
             }
         }
 
@@ -93,8 +90,8 @@ public class ExponentialHistogramUtilsTest extends ESTestCase {
         double upperBoundary = getUpperBucketBoundary(midpointIndex, 64);
 
         // due to limited double-float precision the results are actually exact
-        assertThat(lowerBoundary, equalTo(4.0/3.0));
-        assertThat(upperBoundary, equalTo(4.0/3.0));
+        assertThat(lowerBoundary, equalTo(4.0 / 3.0));
+        assertThat(upperBoundary, equalTo(4.0 / 3.0));
     }
 
     public void testSaneBucketBoundaries() {
@@ -103,7 +100,7 @@ public class ExponentialHistogramUtilsTest extends ESTestCase {
         assertThat(getLowerBucketBoundary(1, -1), equalTo(4.0));
         assertThat(getLowerBucketBoundary(1, -2), equalTo(16.0));
 
-        double limit1 = getLowerBucketBoundary(Long.MAX_VALUE-1, 56);
+        double limit1 = getLowerBucketBoundary(Long.MAX_VALUE - 1, 56);
         double limit2 = getLowerBucketBoundary(Long.MAX_VALUE, 56);
         assertThat(limit1, lessThanOrEqualTo(limit2));
     }

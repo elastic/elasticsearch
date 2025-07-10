@@ -35,77 +35,49 @@ public class PercentileAccuracyTest extends ESTestCase {
      * Test percentile accuracy with uniform distribution
      */
     public void testUniformDistribution() {
-        testDistributionPercentileAccuracy(
-            new UniformRealDistribution(new Well19937c(42), 0, 100),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new UniformRealDistribution(new Well19937c(42), 0, 100), 50000, 500);
     }
 
     /**
      * Test percentile accuracy with normal distribution
      */
     public void testNormalDistribution() {
-        testDistributionPercentileAccuracy(
-            new NormalDistribution(new Well19937c(42), 100, 15),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new NormalDistribution(new Well19937c(42), 100, 15), 50000, 500);
     }
 
     /**
      * Test percentile accuracy with exponential distribution
      */
     public void testExponentialDistribution() {
-        testDistributionPercentileAccuracy(
-            new ExponentialDistribution(new Well19937c(42), 10),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new ExponentialDistribution(new Well19937c(42), 10), 50000, 500);
     }
 
     /**
      * Test percentile accuracy with log-normal distribution
      */
     public void testLogNormalDistribution() {
-        testDistributionPercentileAccuracy(
-            new LogNormalDistribution(new Well19937c(42), 0, 1),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new LogNormalDistribution(new Well19937c(42), 0, 1), 50000, 500);
     }
 
     /**
      * Test percentile accuracy with gamma distribution
      */
     public void testGammaDistribution() {
-        testDistributionPercentileAccuracy(
-            new GammaDistribution(new Well19937c(42), 2, 5),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new GammaDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
     /**
      * Test percentile accuracy with beta distribution
      */
     public void testBetaDistribution() {
-        testDistributionPercentileAccuracy(
-            new BetaDistribution(new Well19937c(42), 2, 5),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new BetaDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
     /**
      * Test percentile accuracy with Weibull distribution
      */
     public void testWeibullDistribution() {
-        testDistributionPercentileAccuracy(
-            new WeibullDistribution(new Well19937c(42), 2, 5),
-            50000,
-            500
-        );
+        testDistributionPercentileAccuracy(new WeibullDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
     /**

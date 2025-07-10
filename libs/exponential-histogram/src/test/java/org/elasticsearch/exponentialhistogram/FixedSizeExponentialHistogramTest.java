@@ -15,7 +15,6 @@ import java.util.stream.IntStream;
 
 public class FixedSizeExponentialHistogramTest extends ESTestCase {
 
-
     public void testPrintBuckets() {
         ExponentialHistogram first = ExponentialHistogramGenerator.createFor(0.01234, 42, 56789);
         ExponentialHistogram second = ExponentialHistogramGenerator.createFor(38, 50, 250, 257, 10001.1234);
@@ -23,7 +22,6 @@ public class FixedSizeExponentialHistogramTest extends ESTestCase {
         ExponentialHistogram result = ExponentialHistogramMerger.merge(7, first, second);
         printMidpoints(result);
     }
-
 
     public void testPrintBucketsLinearScale() {
 

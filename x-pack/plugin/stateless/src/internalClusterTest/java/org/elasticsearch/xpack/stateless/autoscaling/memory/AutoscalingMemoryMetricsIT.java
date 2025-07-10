@@ -46,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
@@ -72,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -908,6 +910,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         int totalShards = noOfIndices * defaultNoOfShards;
         int totalSegmentFields = 0;
         int totalMappingFields = 0;
+        long totalPostingsInMemoryBytes = 0;
+        long id = 0;
         for (int i = 0; i < noOfIndices; i++) {
             int numFields = between(1, 10);
             int numSegments = between(1, 3);
@@ -918,11 +922,18 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                     Object[] fields = new Object[numFields * 2];
                     for (int f = 0; f < numFields; f++) {
                         fields[2 * f] = "field-" + f;
-                        fields[2 * f + 1] = randomUnicodeOfLength(10);
+                        fields[2 * f + 1] = randomAlphanumericOfLength(10);
                     }
-                    bulk.add(client().prepareIndex("index-" + i).setSource(fields));
+                    // Generate an 11-byte _id (see Uid.encodeId)
+                    String stringId = String.format(Locale.ROOT, "?id-%06d", id++);
+                    bulk.add(client().prepareIndex("index-" + i).setId(stringId).setSource(fields));
                 }
                 assertNoFailures(bulk.get());
+
+                // 10 bytes for minTerm, maxTerm per field, field.keyword. 11 bytes for minTerm, maxTerm for _id
+                final long perShardPostingsInMemoryBytes = (10L * 2L) * (numFields * 2L) + 22L;
+                totalPostingsInMemoryBytes += perShardPostingsInMemoryBytes * defaultNoOfShards;
+
                 totalSegmentFields += defaultNoOfShards * (ACTUAL_METADATA_FIELDS + numFields * 2);
                 totalSegments += defaultNoOfShards;
             }
@@ -930,10 +941,17 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         }
         var memoryMetricService = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class);
         final int finalNumSegments = totalSegments;
+        final long finalTotalPostingsInMemoryBytes = totalPostingsInMemoryBytes;
         assertBusy(() -> {
             var metrics = memoryMetricService.getShardMemoryMetrics();
             assertThat(metrics.size(), equalTo(totalShards));
             assertThat(metrics.values().stream().mapToInt(s -> s.getNumSegments()).sum(), equalTo(finalNumSegments));
+            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+                assertThat(
+                    metrics.values().stream().mapToLong(s -> s.getPostingsInMemoryBytes()).sum(),
+                    equalTo(finalTotalPostingsInMemoryBytes)
+                );
+            }
         });
         // We use a fixed estimate 1024 bytes per index mapping field
         final long mappingSizeInBytes = totalMappingFields * 1024L;
@@ -958,6 +976,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(ByteSizeValue.MINUS_ONE)));
             long adaptiveEstimate = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
                 * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalSegmentFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
+            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+                adaptiveEstimate += totalPostingsInMemoryBytes;
+            }
             long extraForAdaptive = (long) (adaptiveEstimate * adaptiveExtraOverheadRatio);
             var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(
@@ -1475,6 +1496,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                     m.getMappingSizeInBytes(),
                     m.getNumSegments(),
                     m.getTotalFields(),
+                    m.getPostingsInMemoryBytes(),
                     m.getSeqNo(),
                     m.getMetricQuality(),
                     m.getMetricShardNodeId(),

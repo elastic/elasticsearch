@@ -318,12 +318,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     new HashAggregationOperator(
                         groups,
                         List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(FINAL, List.of(1))),
-                        () -> BlockHash.build(
-                            groups,
-                            driverContext.blockFactory(),
-                            randomPageSize(),
-                            false
-                        ),
+                        () -> BlockHash.build(groups, driverContext.blockFactory(), randomPageSize(), false),
                         driverContext
                     )
                 );

@@ -11,6 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -52,7 +54,7 @@ import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -248,6 +250,112 @@ public class OperatorTests extends MapperServiceTestCase {
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
                 assertDriverContext(driverContext);
+                org.elasticsearch.common.util.MockBigArrays.ensureAllArraysAreReleased();
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    // TODO: Remove ordinals grouping operator or enable it GroupingAggregatorFunctionTestCase
+    public void testValuesWithOrdinalGrouping() throws Exception {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+
+        final int numDocs = between(100, 1000);
+        Map<BytesRef, Set<Long>> expectedValues = new HashMap<>();
+        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            String VAL_NAME = "val";
+            String KEY_NAME = "key";
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                BytesRef key = new BytesRef(Integer.toString(between(1, 100)));
+                SortedSetDocValuesField keyField = new SortedSetDocValuesField(KEY_NAME, key);
+                doc.add(keyField);
+                if (randomBoolean()) {
+                    int numValues = between(0, 2);
+                    for (int v = 0; v < numValues; v++) {
+                        long val = between(1, 1000);
+                        var valuesField = new SortedNumericDocValuesField(VAL_NAME, val);
+                        doc.add(valuesField);
+                        expectedValues.computeIfAbsent(key, k -> new HashSet<>()).add(val);
+                    }
+                }
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            try (DirectoryReader reader = writer.getReader()) {
+                List<Operator> operators = new ArrayList<>();
+                if (randomBoolean()) {
+                    operators.add(new ShuffleDocsOperator(blockFactory));
+                }
+                operators.add(
+                    new ValuesSourceReaderOperator(
+                        blockFactory,
+                        List.of(
+                            new ValuesSourceReaderOperator.FieldInfo(
+                                VAL_NAME,
+                                ElementType.LONG,
+                                unused -> new BlockDocValuesReader.LongsBlockLoader(VAL_NAME)
+                            )
+                        ),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                            throw new UnsupportedOperationException();
+                        }, 0.2)),
+                        0
+                    )
+                );
+                operators.add(
+                    new OrdinalsGroupingOperator(
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType(KEY_NAME).blockLoader(mockBlContext()),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
+                        ElementType.BYTES_REF,
+                        0,
+                        KEY_NAME,
+                        List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(INITIAL, List.of(1))),
+                        randomPageSize(),
+                        driverContext
+                    )
+                );
+                operators.add(
+                    new HashAggregationOperator(
+                        List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(FINAL, List.of(1))),
+                        () -> BlockHash.build(
+                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
+                            driverContext.blockFactory(),
+                            randomPageSize(),
+                            false
+                        ),
+                        driverContext
+                    )
+                );
+                Map<BytesRef, Set<Long>> actualValues = new HashMap<>();
+                Driver driver = TestDriverFactory.create(
+                    driverContext,
+                    luceneOperatorFactory(
+                        reader,
+                        List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                        LuceneOperator.NO_LIMIT
+                    ).get(driverContext),
+                    operators,
+                    new PageConsumerOperator(page -> {
+                        BytesRefBlock keyBlock = page.getBlock(0);
+                        LongBlock valueBlock = page.getBlock(1);
+                        BytesRef spare = new BytesRef();
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            var key = keyBlock.getBytesRef(p, spare);
+                            int valueCount = valueBlock.getValueCount(p);
+                            for (int i = 0; i < valueCount; i++) {
+                                long val = valueBlock.getLong(valueBlock.getFirstValueIndex(p) + i);
+                                boolean added = actualValues.computeIfAbsent(BytesRef.deepCopyOf(key), k -> new HashSet<>()).add(val);
+                                assertTrue(actualValues.toString(), added);
+                            }
+                        }
+                        page.releaseBlocks();
+                    })
+                );
+                OperatorTestCase.runDriver(driver);
+                assertDriverContext(driverContext);
+                assertThat(actualValues, equalTo(expectedValues));
                 org.elasticsearch.common.util.MockBigArrays.ensureAllArraysAreReleased();
             }
         }

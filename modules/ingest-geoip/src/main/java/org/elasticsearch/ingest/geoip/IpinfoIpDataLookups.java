@@ -191,7 +191,7 @@ final class IpinfoIpDataLookups {
         String domain,
         String name,
         @Nullable String type // not present in the free asn database
-    ) implements IpDatabase.Response {
+    ) implements IpDataLookup.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public AsnResult(
@@ -210,14 +210,14 @@ final class IpinfoIpDataLookups {
         @MaxMindDbParameter(name = "continent_name") String continentName,
         @MaxMindDbParameter(name = "country") String country,
         @MaxMindDbParameter(name = "country_name") String countryName
-    ) implements IpDatabase.Response {
+    ) implements IpDataLookup.Response {
         @MaxMindDbConstructor
         public CountryResult {}
     }
 
     public record GeolocationResult(String city, String country, Double lat, Double lng, String postalCode, String region, String timezone)
         implements
-            IpDatabase.Response {
+        IpDataLookup.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public GeolocationResult(
@@ -237,7 +237,7 @@ final class IpinfoIpDataLookups {
 
     public record PrivacyDetectionResult(Boolean hosting, Boolean proxy, Boolean relay, String service, Boolean tor, Boolean vpn)
         implements
-            IpDatabase.Response {
+        IpDataLookup.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public PrivacyDetectionResult(
@@ -462,7 +462,7 @@ final class IpinfoIpDataLookups {
      *
      * @param <RESPONSE> the record type that will be wrapped and returned
      */
-    private abstract static class AbstractBase<RESPONSE extends IpDatabase.Response> implements IpDataLookup {
+    private abstract static class AbstractBase<RESPONSE extends IpDataLookup.Response> implements IpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;
@@ -479,7 +479,7 @@ final class IpinfoIpDataLookups {
 
         @Override
         public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
-            final Result<RESPONSE> response = ipDatabase.getTypedResponse(ipAddress, this::lookup);
+            final Result<RESPONSE> response = databaseLookup(ipDatabase, ipAddress, this::lookup);
             return (response == null || response.result() == null) ? Map.of() : transform(response);
         }
 

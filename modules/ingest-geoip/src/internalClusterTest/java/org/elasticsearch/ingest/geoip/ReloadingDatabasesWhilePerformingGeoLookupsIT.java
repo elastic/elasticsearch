@@ -242,10 +242,12 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     private static void lazyLoadReaders(ProjectId projectId, DatabaseNodeService databaseNodeService) throws IOException {
         if (databaseNodeService.get(projectId, "GeoLite2-City.mmdb") != null) {
             databaseNodeService.get(projectId, "GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get(projectId, "GeoLite2-City.mmdb").getTypedResponse("2.125.160.216", GeoIpTestUtils::getCity);
+            IpDatabase ipDatabase = databaseNodeService.get(projectId, "GeoLite2-City.mmdb");
+            ipDatabase.getResponse("2.125.160.216", GeoIpTestUtils::getCity);
         }
         databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb").getTypedResponse("2.125.160.216", GeoIpTestUtils::getCity);
+        IpDatabase ipDatabase = databaseNodeService.get(projectId, "GeoLite2-City-Test.mmdb");
+        ipDatabase.getResponse("2.125.160.216", GeoIpTestUtils::getCity);
     }
 
 }

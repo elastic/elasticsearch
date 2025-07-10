@@ -570,6 +570,9 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
+- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
+  method: testVotingOnlyNodesCannotBeMasterWithoutFullMasterNodes
+  issue: https://github.com/elastic/elasticsearch/issues/130979
 
 # Examples:
 #

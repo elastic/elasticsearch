@@ -965,12 +965,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits for all nodes in the cluster to have a consistent view of which node is currently the master.
+     * Waits for all nodes forming the publish quorum in the cluster to have a consistent view of which node is currently the master.
      */
     public void awaitMasterNode() {
         // The cluster health API always runs on the master node, and the master only completes cluster state publication when all nodes
-        // in the cluster have accepted the new cluster state. By waiting for all events to have finished on the master node, we ensure
-        // that the whole cluster has a consistent view of which node is the master.
+        // forming the publish quorum have accepted the new cluster state. By waiting for all events to have finished on the
+        // master node, we ensure that all nodes that are part of the publish quorum have a consistent view of which node is the master.
+        // But nodes that are _not_ part of the quorum might still not have the same view yet.
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
     }
 

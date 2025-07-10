@@ -96,7 +96,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
         internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
-        internalCluster().startDataOnlyNodes(randomInt(2));
+        final int numDataNodes = randomInt(2);
+        internalCluster().startDataOnlyNodes(numDataNodes);
         assertBusy(
             () -> assertThat(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
@@ -108,6 +109,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         awaitMasterNode();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
+        ensureStableCluster(2 + numDataNodes); // wait for all nodes to join
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()

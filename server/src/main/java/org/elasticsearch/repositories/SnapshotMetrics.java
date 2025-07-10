@@ -41,11 +41,12 @@ public record SnapshotMetrics(
     public static final String SNAPSHOTS_STARTED = "es.repositories.snapshots.started.total";
     public static final String SNAPSHOTS_COMPLETED = "es.repositories.snapshots.completed.total";
     public static final String SNAPSHOTS_IN_PROGRESS = "es.repositories.snapshots.current";
+    public static final String SNAPSHOTS_BY_STATE = "es.repositories.snapshots.by_state.current";
     public static final String SNAPSHOT_DURATION = "es.repositories.snapshots.duration.histogram";
     public static final String SNAPSHOT_SHARDS_STARTED = "es.repositories.snapshots.shards.started.total";
     public static final String SNAPSHOT_SHARDS_COMPLETED = "es.repositories.snapshots.shards.completed.total";
     public static final String SNAPSHOT_SHARDS_IN_PROGRESS = "es.repositories.snapshots.shards.current";
-    public static final String SNAPSHOT_SHARDS_BY_STATUS = "es.repositories.snapshots.shards.by_status.current";
+    public static final String SNAPSHOT_SHARDS_BY_STATE = "es.repositories.snapshots.shards.by_state.current";
     public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
     public static final String SNAPSHOT_BYTES_UPLOADED = "es.repositories.snapshots.upload.bytes.total";
@@ -89,13 +90,12 @@ public record SnapshotMetrics(
         meterRegistry.registerLongsGauge(SNAPSHOTS_IN_PROGRESS, "snapshots in progress", "unit", snapshotsInProgressObserver);
     }
 
-    public void createSnapshotShardsByStatusMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
-        meterRegistry.registerLongsGauge(
-            SNAPSHOT_SHARDS_BY_STATUS,
-            "snapshotting shards by (potentially movement-blocking) status",
-            "unit",
-            shardSnapshotsByStatusObserver
-        );
+    public void createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
+        meterRegistry.registerLongsGauge(SNAPSHOT_SHARDS_BY_STATE, "snapshotting shards by state", "unit", shardSnapshotsByStatusObserver);
+    }
+
+    public void createSnapshotsByStateMetric(Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver) {
+        meterRegistry.registerLongsGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
     }
 
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {

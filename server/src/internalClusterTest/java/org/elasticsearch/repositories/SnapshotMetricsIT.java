@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -225,7 +226,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED, expectedAttrs);
     }
 
-    public void testShardsByStateCounts_InitAndQueued() throws Exception {
+    public void testByStateCounts_InitAndQueuedShards() throws Exception {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(2, 10);
         final int numReplicas = randomIntBetween(0, 1);
@@ -247,9 +248,11 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
             waitForBlockOnAnyDataNode(repositoryName);
 
-            // Should be {numShards} in INIT state
+            // Should be {numShards} in INIT state, and 1 STARTED snapshot
             Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
             assertThat(shardStates.get(SnapshotsInProgress.ShardState.INIT), equalTo((long) numShards));
+            Map<SnapshotsInProgress.State, Long> snapshotStates = getSnapshotStates();
+            assertThat(snapshotStates.get(SnapshotsInProgress.State.STARTED), equalTo(1L));
 
             // Queue up another snapshot
             clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, randomIdentifier())
@@ -257,9 +260,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(false)
                 .get();
 
-            // Should be {numShards} in QUEUED state
+            // Should be {numShards} in QUEUED and INIT states, and 2 STARTED snapshots
             shardStates = getShardStates();
+            assertThat(shardStates.get(SnapshotsInProgress.ShardState.INIT), equalTo((long) numShards));
             assertThat(shardStates.get(SnapshotsInProgress.ShardState.QUEUED), equalTo((long) numShards));
+            snapshotStates = getSnapshotStates();
+            assertThat(snapshotStates.get(SnapshotsInProgress.State.STARTED), equalTo(2L));
         } finally {
             unblockAllDataNodes(repositoryName);
         }
@@ -267,16 +273,22 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // All statuses should return to zero when the snapshots complete
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+        getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
-            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS,
+            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
+            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+        );
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_GAUGE,
+            SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
         );
     }
 
-    public void testShardsByStateCounts_PausedForRemoval() throws Exception {
+    public void testByStateCounts_PausedForRemovalShards() throws Exception {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(2, 10);
         final int numReplicas = randomIntBetween(0, 1);
@@ -321,6 +333,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         final Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
         assertThat(shardStates.get(SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL), equalTo((long) numShards));
+        final Map<SnapshotsInProgress.State, Long> snapshotStates = getSnapshotStates();
+        assertThat(snapshotStates.get(SnapshotsInProgress.State.STARTED), equalTo(1L));
 
         // clear shutdown metadata to allow snapshot to complete
         clearShutdownMetadata(clusterService);
@@ -328,16 +342,22 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // All statuses should return to zero when the snapshot completes
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+        getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
-            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS,
+            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
+            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+        );
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_GAUGE,
+            SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
         );
     }
 
-    public void testShardsByStateCounts_Waiting() throws Exception {
+    public void testByStateCounts_WaitingShards() throws Exception {
         final String indexName = randomIdentifier();
         final String boundNode = internalCluster().startDataOnlyNode();
         final String destinationNode = internalCluster().startDataOnlyNode();
@@ -386,9 +406,11 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // Wait till we see a shard in WAITING state
         createSnapshotInStateListener(clusterService(), repositoryName, indexName, 1, SnapshotsInProgress.ShardState.WAITING);
 
-        // Metrics should have a shard in waiting state
+        // Metrics should have 1 WAITING shard and 1 STARTED snapshot
         final Map<SnapshotsInProgress.ShardState, Long> shardStates = getShardStates();
         assertThat(shardStates.get(SnapshotsInProgress.ShardState.WAITING), equalTo(1L));
+        final Map<SnapshotsInProgress.State, Long> snapshotStates = getSnapshotStates();
+        assertThat(snapshotStates.get(SnapshotsInProgress.State.STARTED), equalTo(1L));
 
         // allow the relocation to complete
         safeAwait(handoffRequestBarrier);
@@ -396,11 +418,17 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // All statuses should return to zero when the snapshot completes
         awaitNumberOfSnapshotsInProgress(0);
         getShardStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
+        getSnapshotStates().forEach((key, value) -> assertThat(value, equalTo(0L)));
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
             InstrumentType.LONG_GAUGE,
-            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS,
+            SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
+            Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
+        );
+        assertMetricsHaveAttributes(
+            InstrumentType.LONG_GAUGE,
+            SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("project_id", ProjectId.DEFAULT.id(), "repo_name", repositoryName, "repo_type", "mock")
         );
     }
@@ -408,9 +436,9 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
     private Map<SnapshotsInProgress.ShardState, Long> getShardStates() {
         collectMetrics();
 
-        return allTestTelemetryPlugins().map(testTelemetryPlugin -> {
+        return allTestTelemetryPlugins().flatMap(testTelemetryPlugin -> {
             final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
-                SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATUS
+                SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE
             );
             final Map<SnapshotsInProgress.ShardState, Long> shardStates = new HashMap<>();
             // last one in wins
@@ -420,22 +448,22 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
                     measurement.getLong()
                 );
             }
-            return shardStates;
-        }).reduce(Map.of(), this::combineCounts);
+            return shardStates.entrySet().stream();
+        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue, Long::sum));
     }
 
-    private Map<SnapshotsInProgress.ShardState, Long> combineCounts(
-        Map<SnapshotsInProgress.ShardState, Long> lhs,
-        Map<SnapshotsInProgress.ShardState, Long> rhs
-    ) {
-        final Map<SnapshotsInProgress.ShardState, Long> result = new HashMap<>();
-        Stream.of(lhs, rhs)
-            .forEach(
-                countMap -> countMap.forEach(
-                    (status, count) -> result.compute(status, (state, current) -> current == null ? count : current + count)
-                )
-            );
-        return result;
+    private Map<SnapshotsInProgress.State, Long> getSnapshotStates() {
+        collectMetrics();
+
+        return allTestTelemetryPlugins().flatMap(testTelemetryPlugin -> {
+            final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(SnapshotMetrics.SNAPSHOTS_BY_STATE);
+            final Map<SnapshotsInProgress.State, Long> shardStates = new HashMap<>();
+            // last one in wins
+            for (Measurement measurement : longGaugeMeasurement) {
+                shardStates.put(SnapshotsInProgress.State.valueOf(measurement.attributes().get("state").toString()), measurement.getLong());
+            }
+            return shardStates.entrySet().stream();
+        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue, Long::sum));
     }
 
     private static void assertMetricsHaveAttributes(

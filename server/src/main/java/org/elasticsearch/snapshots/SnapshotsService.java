@@ -248,7 +248,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.transportService = transportService;
         this.snapshotMetrics = snapshotMetrics;
         snapshotMetrics.createSnapshotsInProgressMetric(this::getSnapshotsInProgress);
-        snapshotMetrics.createSnapshotShardsByStatusMetric(this::getShardsByState);
+        snapshotMetrics.createSnapshotShardsByStateMetric(this::getShardsByState);
+        snapshotMetrics.createSnapshotsByStateMetric(this::getSnapshotsByState);
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(transportService, clusterService, threadPool, actionFilters);
@@ -4511,6 +4512,33 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
         });
         return shardsByState;
+    }
+
+    private Collection<LongWithAttributes> getSnapshotsByState() {
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on snapshots-by-state
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final List<LongWithAttributes> snapshotsByState = new ArrayList<>();
+
+        currentState.metadata().projects().forEach((projectId, project) -> {
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
+                    final Map<SnapshotsInProgress.State, Integer> snapshotStateSummary = snapshotsInProgress
+                        .snapshotStateSummaryForRepository(projectId, repository.name());
+                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
+                    snapshotStateSummary.forEach(
+                        (snapshotState, count) -> snapshotsByState.add(
+                            new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
+                        )
+                    );
+                }
+            }
+        });
+        return snapshotsByState;
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {

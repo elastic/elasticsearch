@@ -9,10 +9,9 @@
 
 // TODO: publish this when ready?
 //apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compileOnly project(':libs:core') //just for @Nullable annotations
-
   testImplementation(project(":test:framework"))
   testImplementation('org.apache.commons:commons-math3:3.6.1')
 }

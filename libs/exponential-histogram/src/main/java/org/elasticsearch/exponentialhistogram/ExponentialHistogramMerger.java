@@ -7,8 +7,6 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.elasticsearch.core.Nullable;
-
 import java.util.Arrays;
 import java.util.stream.Stream;
 
@@ -125,7 +123,7 @@ public class ExponentialHistogramMerger {
         ExponentialHistogramBuilder output,
         ExponentialHistogram.BucketIterator buckets,
         boolean isPositive,
-        @Nullable DownscaleStats downscaleStats
+        DownscaleStats downscaleStats
     ) {
         boolean collectDownScaleStatsOnNext = false;
         long prevIndex = 0;

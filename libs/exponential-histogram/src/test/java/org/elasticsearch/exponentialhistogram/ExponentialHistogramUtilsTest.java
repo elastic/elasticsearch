@@ -7,7 +7,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Random;
 
@@ -21,9 +21,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertThrows;
 
-public class ExponentialHistogramUtilsTest {
+public class ExponentialHistogramUtilsTest extends ESTestCase {
 
-    @Test
     public void testMaxValue() {
         assertThat(getMaximumScaleIncrease(Long.MAX_VALUE), equalTo(0));
         assertThat(getMaximumScaleIncrease(Long.MAX_VALUE >> 1), equalTo(1));
@@ -34,7 +33,6 @@ public class ExponentialHistogramUtilsTest {
         assertThat(adjustScale(Long.MAX_VALUE >> 4, 4), equalTo((Long.MAX_VALUE & ~15) + 6));
     }
 
-    @Test
     public void testMinValue() {
         assertThat(getMaximumScaleIncrease(Long.MIN_VALUE), equalTo(0));
         assertThat(getMaximumScaleIncrease(Long.MIN_VALUE >> 1), equalTo(1));
@@ -45,7 +43,6 @@ public class ExponentialHistogramUtilsTest {
         assertThat(adjustScale(Long.MIN_VALUE >> 4, 4), equalTo((Long.MIN_VALUE & ~15) + 6));
     }
 
-    @Test
     public void testRandom() {
         Random rnd = new Random(42);
 
@@ -60,8 +57,7 @@ public class ExponentialHistogramUtilsTest {
     }
 
 
-    @Test
-    public void randomComparison() {
+    public void testRandomComparison() {
         Random rnd = new Random(42);
 
         for (int i=0; i<100_000; i++) {
@@ -91,7 +87,6 @@ public class ExponentialHistogramUtilsTest {
 
     }
 
-    @Test
     public void testScalingUpToMidpoint() {
         long midpointIndex = adjustScale(0, 64);
         double lowerBoundary = getLowerBucketBoundary(midpointIndex, 64);
@@ -102,7 +97,6 @@ public class ExponentialHistogramUtilsTest {
         assertThat(upperBoundary, equalTo(4.0/3.0));
     }
 
-    @Test
     public void testSaneBucketBoundaries() {
         assertThat(getLowerBucketBoundary(0, 42), equalTo(1.0));
         assertThat(getLowerBucketBoundary(1, 0), equalTo(2.0));

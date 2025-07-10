@@ -7,7 +7,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,21 +20,18 @@ import java.util.stream.LongStream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DownscaleStatsTest {
+public class DownscaleStatsTest extends ESTestCase {
 
-    @Test
-    public void exponential() {
+    public void testExponential() {
         long[] values = IntStream.range(0, 100).mapToLong(i -> (long) Math.min(Integer.MAX_VALUE, Math.pow(1.1, i))).distinct().toArray();
         verifyFor(values);
     }
 
-    @Test
-    public void numericalLimits() {
+    public void testNumericalLimits() {
         verifyFor(Long.MIN_VALUE, Long.MAX_VALUE);
     }
 
-    @Test
-    public void random() {
+    public void testRandom() {
         Random rnd = new Random(42);
 
         for (int i = 0; i < 100; i++) {

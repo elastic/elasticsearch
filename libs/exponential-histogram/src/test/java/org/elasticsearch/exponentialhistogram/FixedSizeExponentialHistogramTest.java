@@ -7,14 +7,13 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.stream.IntStream;
 
-public class FixedSizeExponentialHistogramTest {
+public class FixedSizeExponentialHistogramTest extends ESTestCase {
 
 
-    @Test
     public void testPrintBuckets() {
         ExponentialHistogram first = ExponentialHistogramGenerator.createFor(0.01234, 42, 56789);
         ExponentialHistogram second = ExponentialHistogramGenerator.createFor(38, 50, 250, 257, 10001.1234);
@@ -24,7 +23,6 @@ public class FixedSizeExponentialHistogramTest {
     }
 
 
-    @Test
     public void testPrintBucketsLinearScale() {
 
         ExponentialHistogram result = ExponentialHistogramGenerator.createFor(

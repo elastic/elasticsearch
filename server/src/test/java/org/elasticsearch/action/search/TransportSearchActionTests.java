@@ -548,7 +548,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 service,
-                false
+                null
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -625,7 +625,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    false
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -683,7 +683,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    false
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -773,7 +773,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    false
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -874,7 +874,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    false
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -888,7 +888,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
-                // assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
+                assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
             }
 
             // setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
@@ -927,7 +927,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    false
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1002,7 +1002,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    false
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1098,7 +1098,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
-                    false
+                    null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -1128,7 +1128,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
-                    false
+                    null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
@@ -1177,7 +1177,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
-                    false
+                    null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
@@ -1208,7 +1208,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
-                    false
+                    null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -1255,7 +1255,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
-                    false
+                    null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));

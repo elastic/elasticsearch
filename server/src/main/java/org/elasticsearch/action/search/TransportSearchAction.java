@@ -168,8 +168,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final Client client;
     private final UsageService usageService;
     private final boolean collectTelemetry;
-    private final boolean alwaysEstablishConnection;
-    private static final long FORCE_CONNECT_CLUSTER_DEFAULT_TIMEOUT = 3L;
+    private final TimeValue forceConnectTimeoutSecs;
 
     @Inject
     public TransportSearchAction(
@@ -218,8 +217,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
-        alwaysEstablishConnection = settings.getAsBoolean("serverless.force_cluster_reconnect", false);
-        logger.info("Should force reconnect cluster: {}", alwaysEstablishConnection);
+        forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
+        logger.info("Should force reconnect cluster: {}", forceConnectTimeoutSecs);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -452,7 +451,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchPhaseProvider.apply(l)
                         ),
                         transportService,
-                        alwaysEstablishConnection
+                        forceConnectTimeoutSecs
                     );
                 } else {
                     final SearchContextId searchContext = resolvedIndices.getSearchContextId();
@@ -513,7 +512,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
                         }),
-                        alwaysEstablishConnection
+                        forceConnectTimeoutSecs
                     );
                 }
             }
@@ -644,21 +643,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * Return a subscribable listener with optional timeout depending on force reconnect setting is registered or
      * not.
-     * @param alwaysEstablishConnection If we're running in a context where we always need to re-connect.
-     *                                  This value determines if we need to add a short timeout to avoid waiting
-     *                                  for long durations to reconnect.
+     * @param forceConnectTimeoutSecs Timeout in seconds that determines how long we'll wait to establish a connection
+     *                                to a remote.
      * @param threadPool The thread pool that'll be used for the timeout.
      * @param timeoutExecutor The executor that should be used for the timeout.
      * @return SubscribableListener A listener with optionally added timeout.
      */
     private static SubscribableListener<Transport.Connection> getListenerWithOptionalTimeout(
-        boolean alwaysEstablishConnection,
+        TimeValue forceConnectTimeoutSecs,
         ThreadPool threadPool,
         Executor timeoutExecutor
     ) {
         var subscribableListener = new SubscribableListener<Transport.Connection>();
-        if (alwaysEstablishConnection) {
-            subscribableListener.addTimeout(TimeValue.timeValueSeconds(FORCE_CONNECT_CLUSTER_DEFAULT_TIMEOUT), threadPool, timeoutExecutor);
+        if (forceConnectTimeoutSecs != null) {
+            subscribableListener.addTimeout(forceConnectTimeoutSecs, threadPool, timeoutExecutor);
         }
 
         return subscribableListener;
@@ -667,12 +665,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     /**
      * The default disconnected strategy for Elasticsearch is RECONNECT_UNLESS_SKIP_UNAVAILABLE. So we either force
      * connect if required (like in CPS) or when skip unavailable is false for a cluster.
-     * @param alwaysEstablishConnection If we're running in a context where we always need to re-connect.
+     * @param forceConnectTimeoutSecs The timeout value from the force connect setting.
+     *                                If it is set, use it as it takes precedence.
      * @param skipUnavailable The usual skip unavailable setting.
      * @return boolean If we should always force reconnect.
      */
-    private static boolean shouldEstablishConnection(boolean alwaysEstablishConnection, boolean skipUnavailable) {
-        return alwaysEstablishConnection || skipUnavailable == false;
+    private static boolean shouldEstablishConnection(TimeValue forceConnectTimeoutSecs, boolean skipUnavailable) {
+        return forceConnectTimeoutSecs != null || skipUnavailable == false;
     }
 
     /**
@@ -691,7 +690,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
         TransportService transportService,
-        boolean shouldForceReconnectCluster
+        TimeValue forceConnectTimeoutSecs
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
@@ -710,7 +709,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 true
             );
 
-            var connectionListener = getListenerWithOptionalTimeout(shouldForceReconnectCluster, threadPool, remoteClientResponseExecutor);
+            var connectionListener = getListenerWithOptionalTimeout(forceConnectTimeoutSecs, threadPool, remoteClientResponseExecutor);
             var searchListener = new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
@@ -770,7 +769,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
-                shouldEstablishConnection(shouldForceReconnectCluster, skipUnavailable),
+                shouldEstablishConnection(forceConnectTimeoutSecs, skipUnavailable),
                 connectionListener
             );
         } else {
@@ -809,7 +808,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
 
                 SubscribableListener<Transport.Connection> connectionListener = getListenerWithOptionalTimeout(
-                    shouldForceReconnectCluster,
+                    forceConnectTimeoutSecs,
                     threadPool,
                     remoteClientResponseExecutor
                 );
@@ -828,7 +827,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                 remoteClusterService.maybeEnsureConnectedAndGetConnection(
                     clusterAlias,
-                    shouldEstablishConnection(shouldForceReconnectCluster, skipUnavailable),
+                    shouldEstablishConnection(forceConnectTimeoutSecs, skipUnavailable),
                     connectionListener
                 );
             }
@@ -897,7 +896,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider,
         TransportService transportService,
         ActionListener<Map<String, SearchShardsResponse>> listener,
-        boolean shouldForceReconnectCluster
+        TimeValue forceConnectTimeoutSecs
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
@@ -929,7 +928,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             var threadPool = transportService.getThreadPool();
             var connectionListener = getListenerWithOptionalTimeout(
-                shouldForceReconnectCluster,
+                forceConnectTimeoutSecs,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
             );
@@ -977,7 +976,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
-                shouldEstablishConnection(shouldForceReconnectCluster, skipUnavailable),
+                shouldEstablishConnection(forceConnectTimeoutSecs, skipUnavailable),
                 connectionListener
             );
         }

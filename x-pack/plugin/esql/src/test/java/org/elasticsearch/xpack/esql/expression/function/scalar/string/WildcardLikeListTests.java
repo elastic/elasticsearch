@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.V_8_17_0;
+import static org.elasticsearch.TransportVersions.V_8_16_0;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -105,7 +105,7 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
     public void testNotPushableOverCanMatch() {
         TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
         assertThat(
-            translatable.translatable(LucenePushdownPredicates.forCanMatch(V_8_17_0, new EsqlFlags(true))).finish(),
+            translatable.translatable(LucenePushdownPredicates.forCanMatch(V_8_16_0, new EsqlFlags(true))).finish(),
             equalTo(TranslationAware.FinishedTranslatable.NO)
         );
     }

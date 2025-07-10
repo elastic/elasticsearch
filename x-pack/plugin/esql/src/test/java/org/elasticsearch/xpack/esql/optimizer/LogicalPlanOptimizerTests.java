@@ -7007,7 +7007,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
         VerificationException error = expectThrows(
             VerificationException.class,
-            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
+            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)))
         );
         assertThat(error.getMessage(), equalTo("""
             Found 1 problem

@@ -105,11 +105,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         rewrite = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
-        if (expressionTransportSupported(in.getTransportVersion())) {
-            forceStringMatch = in.readBoolean();
-        } else {
-            forceStringMatch = false;
-        }
+            if (expressionTransportSupported(in.getTransportVersion())) {
+                forceStringMatch = in.readBoolean();
+            } else {
+                forceStringMatch = false;
+            }
         }
     }
 

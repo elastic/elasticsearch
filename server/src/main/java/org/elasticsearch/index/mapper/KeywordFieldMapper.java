@@ -934,7 +934,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean hasNormalizer() {
             return normalizer != Lucene.KEYWORD_ANALYZER;
         }
-        }
 
         @Override
         public Query automatonQuery(
@@ -945,6 +944,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             String description
         ) {
             return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
+        }
     }
 
     private final boolean indexed;

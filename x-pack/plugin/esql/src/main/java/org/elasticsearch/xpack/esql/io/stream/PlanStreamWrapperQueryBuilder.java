@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTransportSupported;
-
 /**
  * A {@link QueryBuilder} that wraps another {@linkplain QueryBuilder}
  * so it read with a {@link PlanStreamInput}.

@@ -135,6 +135,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
                                 nodeHeapMax,
                                 entry.getValue().numSegments(),
                                 entry.getValue().totalFields(),
+                                entry.getValue().postingsInMemoryBytes(),
                                 nodeId
                             )
                         )

@@ -66,8 +66,7 @@ public class LlamaEmbeddingsRequest implements Request {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
-        if (model.getSecretSettings() instanceof DefaultSecretSettings) {
-            var secretSettings = (DefaultSecretSettings) model.getSecretSettings();
+        if (model.getSecretSettings() instanceof DefaultSecretSettings secretSettings) {
             httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
 

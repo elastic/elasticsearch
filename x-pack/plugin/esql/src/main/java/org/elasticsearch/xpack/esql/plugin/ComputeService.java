@@ -592,23 +592,36 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-                ActionListener.releaseAfter(listener.map(ignored -> {
-                    if (context.configuration().profile()) {
-                        return DriverCompletionInfo.includingProfiles(
+            ActionListener<Void> driverListener = listener.map(ignored -> {
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug(
+                        "finished {}",
+                        DriverCompletionInfo.includingProfiles(
                             drivers,
                             context.description(),
                             clusterService.getClusterName().value(),
                             transportService.getLocalNode().getName(),
                             localPlan.toString()
-                        );
-                    } else {
-                        return DriverCompletionInfo.excludingProfiles(drivers);
-                    }
-                }), () -> Releasables.close(drivers))
+                        )
+                    );
+                }
+                if (context.configuration().profile()) {
+                    return DriverCompletionInfo.includingProfiles(
+                        drivers,
+                        context.description(),
+                        clusterService.getClusterName().value(),
+                        transportService.getLocalNode().getName(),
+                        localPlan.toString()
+                    );
+                } else {
+                    return DriverCompletionInfo.excludingProfiles(drivers);
+                }
+            });
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
             listener.onFailure(e);

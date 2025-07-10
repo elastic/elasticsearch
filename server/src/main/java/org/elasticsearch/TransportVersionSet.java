@@ -59,12 +59,10 @@ public class TransportVersionSet {
     private static final Map<String, TransportVersionSet> TRANSPORT_VERSION_SETS = loadTransportVersionSets();
     public static final List<TransportVersion> TRANSPORT_VERSIONS = collectTransportVersions();
 
-    private static final String LATEST_SUFFIX = "-LATEST.json";
-
     private static Map<String, TransportVersionSet> loadTransportVersionSets() {
         Map<String, TransportVersionSet> transportVersionSets = new HashMap<>();
 
-        String latestLocation = "transport/" + Version.CURRENT.major + "." + Version.CURRENT.minor + LATEST_SUFFIX;
+        String latestLocation = "transport/" + Version.CURRENT.major + "." + Version.CURRENT.minor + "-LATEST.json";
         int latestId = 0;
         try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(latestLocation)) {
             TransportVersionSet latest = fromXContent(inputStream, Integer.MAX_VALUE);

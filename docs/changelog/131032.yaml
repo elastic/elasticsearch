@@ -1,0 +1,5 @@
+pr: 131032
+summary: "[Synonym] Return Empty `RuleSet`"
+area: Relevance
+type: bug
+issues: []

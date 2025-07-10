@@ -48,8 +48,7 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.SEMANTIC_TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.addAll(

@@ -659,7 +659,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        final var project = clusterState.metadata().getDefaultProject();
+        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.get(project);
         if (pTasksMeta == null) {
             return Collections.emptyList();
         }

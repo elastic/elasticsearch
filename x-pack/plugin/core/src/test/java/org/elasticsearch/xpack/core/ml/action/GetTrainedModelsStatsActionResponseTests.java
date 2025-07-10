@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTest
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -60,8 +62,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 10)).toList();
         return new IngestStats(
             new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-            pipelineIds.stream().map(id -> new IngestStats.PipelineStat(id, randomStats(), randomByteStats())).collect(Collectors.toList()),
-            pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats()))
+            pipelineIds.stream()
+                .map(id -> new IngestStats.PipelineStat(ProjectId.DEFAULT, id, randomStats(), randomByteStats()))
+                .collect(Collectors.toList()),
+            pipelineIds.isEmpty()
+                ? Map.of()
+                : Map.of(
+                    ProjectId.DEFAULT,
+                    pipelineIds.stream().collect(Collectors.toMap(Function.identity(), v -> randomProcessorStats()))
+                )
         );
     }
 
@@ -104,9 +113,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -139,9 +149,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -212,9 +223,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -285,9 +297,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -358,9 +371,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -432,9 +446,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -506,9 +521,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -580,9 +596,10 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         .stream()
                                         .map(
                                             pipelineStat -> new IngestStats.PipelineStat(
+                                                ProjectId.DEFAULT,
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),

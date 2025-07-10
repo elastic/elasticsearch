@@ -133,8 +133,8 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
             }
             main.addIntermediateRowInput(0, leaf, 0);
             try (IntVector selected = ctx.blockFactory().newConstantIntVector(0, 1)) {
-                main.evaluateFinal(results, 0, selected, ctx);
-                leaf.evaluateFinal(results, 1, selected, ctx);
+                main.evaluateFinal(results, 0, selected, new GroupingAggregatorEvaluationContext(ctx));
+                leaf.evaluateFinal(results, 1, selected, new GroupingAggregatorEvaluationContext(ctx));
             }
             assertThat(results[0], equalTo(results[1]));
         } finally {

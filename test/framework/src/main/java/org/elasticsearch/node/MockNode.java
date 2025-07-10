@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -101,7 +102,8 @@ public class MockNode extends Node {
             FetchPhase fetchPhase,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer
+            Tracer tracer,
+            OnlinePrewarmingService onlinePrewarmingService
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -114,9 +116,11 @@ public class MockNode extends Node {
                     fetchPhase,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    onlinePrewarmingService
                 );
             }
+
             return new MockSearchService(
                 clusterService,
                 indicesService,
@@ -126,7 +130,8 @@ public class MockNode extends Node {
                 fetchPhase,
                 circuitBreakerService,
                 executorSelector,
-                tracer
+                tracer,
+                onlinePrewarmingService
             );
         }
 
@@ -162,8 +167,10 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer
+            Tracer tracer,
+            String nodeId
         ) {
+
             // we use the MockTransportService.TestPlugin class as a marker to create a network
             // module with this MockNetworkService. NetworkService is such an integral part of the systme
             // we don't allow to plug it in from plugins or anything. this is a test-only override and
@@ -178,7 +185,8 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer
+                    tracer,
+                    nodeId
                 );
             } else {
                 return new MockTransportService(
@@ -188,7 +196,8 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders()
+                    taskManager.getTaskHeaders(),
+                    nodeId
                 );
             }
         }

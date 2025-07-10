@@ -701,7 +701,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         processor.process(aggregations);
         processor.writeAllDocsCancellable(_timestamp -> false, outputStream);
         keyValuePairsWritten = processor.getKeyValueCount();
-        return outputStream.toString(StandardCharsets.UTF_8.name());
+        return outputStream.toString(StandardCharsets.UTF_8);
     }
 
     private String aggToStringComposite(Set<String> fields, List<InternalComposite.InternalBucket> buckets) throws IOException {

@@ -1,0 +1,7 @@
+pr: 129600
+summary: Make flattened synthetic source concatenate object keys on scalar/object
+  mismatch
+area: Mapping
+type: bug
+issues:
+ - 122936

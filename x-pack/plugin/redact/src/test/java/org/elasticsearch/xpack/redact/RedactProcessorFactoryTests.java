@@ -44,7 +44,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("patterns", List.of());
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, null, null, config));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, null, null, config, null));
         assertThat(e.getMessage(), containsString("List of patterns must not be empty"));
     }
 
@@ -55,7 +55,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("patterns", List.of("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
-        RedactProcessor processor = factory.create(null, null, null, config);
+        RedactProcessor processor = factory.create(null, null, null, config, null);
         assertThat(processor.getGroks(), not(empty()));
         assertThat(processor.getGroks().get(0).match("foo!"), equalTo(true));
     }
@@ -71,7 +71,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
         config.put("trace_redact", true);
         config.put("extra", "unused");
 
-        factory.create(null, null, null, config);
+        factory.create(null, null, null, config, null);
         assertThat(config.entrySet(), hasSize(1));
         assertEquals("unused", config.get("extra"));
     }
@@ -87,7 +87,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             // since skip_if_unlicensed is true, we can use the redact processor regardless of the license state
             XPackLicenseState licenseState = randomBoolean() ? mockLicenseState() : mockNotAllowedLicenseState();
             RedactProcessor.Factory factory = new RedactProcessor.Factory(licenseState, MatcherWatchdog.noop());
-            RedactProcessor processor = factory.create(null, null, null, config);
+            RedactProcessor processor = factory.create(null, null, null, config, null);
             processor.extraValidation();
             assertThat(processor.getSkipIfUnlicensed(), equalTo(true));
         }
@@ -103,7 +103,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
 
             // regardless of default/explicit, the license must be sufficient for the feature
             RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
-            RedactProcessor processor = factory.create(null, null, null, config);
+            RedactProcessor processor = factory.create(null, null, null, config, null);
             processor.extraValidation();
             assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
         }
@@ -118,7 +118,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             }
             // if skip_if_unlicensed is false, then the license must allow for redact to be used in order to pass the extra validation
             RedactProcessor.Factory factory = new RedactProcessor.Factory(mockNotAllowedLicenseState(), MatcherWatchdog.noop());
-            RedactProcessor processor = factory.create(null, null, null, config);
+            RedactProcessor processor = factory.create(null, null, null, config, null);
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> processor.extraValidation());
             assertThat(e.getMessage(), containsString("[skip_if_unlicensed] current license is non-compliant for [redact_processor]"));
         }

@@ -23,7 +23,7 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
     public static final String NAME = "elser_mlnode_service_settings";
 
     public static MinimalServiceSettings minimalServiceSettings() {
-        return MinimalServiceSettings.sparseEmbedding();
+        return MinimalServiceSettings.sparseEmbedding(ElasticsearchInternalService.NAME);
     }
 
     public static ElserInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {

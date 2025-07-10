@@ -30,7 +30,7 @@ public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTest
     }
 
     @Override
-    protected String randomValue() {
+    protected Object randomValue() {
         return randomAlphanumericOfLength(2);
     }
 }

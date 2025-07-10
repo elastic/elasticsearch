@@ -47,14 +47,7 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
         if (aggMetricFieldType.getMetricType() != null) {
             // If the field is an aggregate_metric_double field, we should use the correct subfields
             // for each aggregation. This is a downsample-of-downsample case
-            MetricFieldProducer.Metric metricOperation = switch (metric) {
-                case max -> new MetricFieldProducer.Max();
-                case min -> new MetricFieldProducer.Min();
-                case sum -> new MetricFieldProducer.Sum();
-                // To compute value_count summary, we must sum all field values
-                case value_count -> new MetricFieldProducer.Sum(AggregateMetricDoubleFieldMapper.Metric.value_count.name());
-            };
-            return new MetricFieldProducer.GaugeMetricFieldProducer(aggMetricFieldType.name(), metricOperation);
+            return new MetricFieldProducer.AggregatedGaugeMetricFieldProducer(aggMetricFieldType.name(), metric);
         } else {
             // If field is not a metric, we downsample it as a label
             return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);

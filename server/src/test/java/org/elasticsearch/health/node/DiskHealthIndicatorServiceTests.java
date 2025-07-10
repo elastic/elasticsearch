@@ -36,6 +36,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -274,7 +275,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(discoveryNode.getId(), new DiskHealthInfo(HealthStatus.GREEN));
             }
         }
-        HealthInfo healthInfo = new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of());
+        HealthInfo healthInfo = new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
 
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(HealthStatus.RED));
@@ -1050,7 +1056,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(node.getId(), diskHealthInfo);
             }
         }
-        return new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of());
+        return new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+        );
     }
 
     private static ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {

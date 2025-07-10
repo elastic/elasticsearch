@@ -968,6 +968,23 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         );
     }
 
+    public void testHandleTokenResponseNullContentType() {
+        final HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, RestStatus.OK.getStatus(), "");
+        final StringEntity entity = new StringEntity("", (ContentType) null);
+        response.setEntity(entity);
+
+        final PlainActionFuture<Tuple<AccessToken, JWT>> future = new PlainActionFuture<>();
+        OpenIdConnectAuthenticator.handleTokenResponse(response, future);
+        final IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
+
+        assertThat(
+            exception,
+            TestMatchers.throwableWithMessage(
+                "Unable to parse Token Response. Content type was expected to be [application/json] but was [null]"
+            )
+        );
+    }
+
     public void testLogIdTokenAndNonce() throws URISyntaxException, BadJOSEException, JOSEException, IllegalAccessException {
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
         Loggers.setLevel(logger, Level.DEBUG);

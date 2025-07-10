@@ -10,6 +10,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.CompoundProcessor;
@@ -44,6 +45,8 @@ import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -58,10 +61,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, null, null, pipelineCompoundProcessor);
         Map<String, Processor.Factory> registry = Collections.singletonMap(
             "mock_processor",
-            (factories, tag, description, config) -> processor
+            (factories, tag, description, config, projectId) -> processor
         );
         ingestService = mock(IngestService.class);
-        when(ingestService.getPipeline(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
+        when(ingestService.getPipeline(any(), eq(SIMULATED_PIPELINE_ID))).thenReturn(pipeline);
         when(ingestService.getProcessorFactories()).thenReturn(registry);
     }
 
@@ -89,7 +92,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             expectedDocs.add(expectedDoc);
         }
 
+        var projectId = randomProjectIdOrDefault();
         SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parseWithPipelineId(
+            projectId,
             SIMULATED_PIPELINE_ID,
             requestContent,
             false,
@@ -185,11 +190,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
 
         requestContent.put(Fields.PIPELINE, pipelineConfig);
 
+        var projectId = randomProjectIdOrDefault();
         SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parse(
+            projectId,
             requestContent,
             false,
             ingestService,
-            RestApiVersion.current()
+            RestApiVersion.current(),
+            (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));
@@ -213,29 +221,46 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
     }
 
     public void testNullPipelineId() {
+        var projectId = randomProjectIdOrDefault();
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         requestContent.put(Fields.DOCS, docs);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parseWithPipelineId(null, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parseWithPipelineId(
+                projectId,
+                null,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current()
+            )
         );
         assertThat(e.getMessage(), equalTo("param [pipeline] is null"));
     }
 
     public void testNonExistentPipelineId() {
+        var projectId = randomProjectIdOrDefault();
         String pipelineId = randomAlphaOfLengthBetween(1, 10);
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         requestContent.put(Fields.DOCS, docs);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parseWithPipelineId(pipelineId, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parseWithPipelineId(
+                projectId,
+                pipelineId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current()
+            )
         );
         assertThat(e.getMessage(), equalTo("pipeline [" + pipelineId + "] does not exist"));
     }
 
     public void testNotValidDocs() {
+        var projectId = randomProjectIdOrDefault();
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         Map<String, Object> pipelineConfig = new HashMap<>();
@@ -245,7 +270,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parse(
+                projectId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current(),
+                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            )
         );
         assertThat(e1.getMessage(), equalTo("must specify at least one document in [docs]"));
 
@@ -256,7 +288,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parse(
+                projectId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current(),
+                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            )
         );
         assertThat(e2.getMessage(), equalTo("malformed [docs] section, should include an inner object"));
 
@@ -265,7 +304,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         requestContent.put(Fields.PIPELINE, pipelineConfig);
         Exception e3 = expectThrows(
             ElasticsearchParseException.class,
-            () -> SimulatePipelineRequest.parse(requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parse(
+                projectId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current(),
+                (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
+            )
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
     }
@@ -338,11 +384,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             pipelineConfig.put("on_failure", onFailureProcessors);
         }
         requestContent.put(Fields.PIPELINE, pipelineConfig);
+        var projectId = randomProjectIdOrDefault();
         SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parse(
+            projectId,
             requestContent,
             false,
             ingestService,
-            RestApiVersion.V_8
+            RestApiVersion.V_8,
+            (nodeFeature) -> DataStream.LOGS_STREAM_FEATURE_FLAG
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));

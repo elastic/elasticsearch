@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -108,6 +110,7 @@ public class CompletionPersistentTaskAction {
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
+        private final ProjectResolver projectResolver;
 
         @Inject
         public TransportAction(
@@ -115,7 +118,8 @@ public class CompletionPersistentTaskAction {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            PersistentTasksClusterService persistentTasksClusterService
+            PersistentTasksClusterService persistentTasksClusterService,
+            ProjectResolver projectResolver
         ) {
             super(
                 INSTANCE.name(),
@@ -128,6 +132,7 @@ public class CompletionPersistentTaskAction {
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
+            this.projectResolver = projectResolver;
         }
 
         @Override
@@ -143,10 +148,16 @@ public class CompletionPersistentTaskAction {
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener
         ) {
+            // Try resolve the project-id which may be null if the request is for a cluster-scope task.
+            // A non-null project-id does not guarantee the task is project-scope. This will be determined
+            // later by checking the taskName associated with the task-id.
+            final ProjectId projectIdHint = PersistentTasksClusterService.resolveProjectIdHint(projectResolver);
+
             if (request.localAbortReason != null) {
                 assert request.exception == null
                     : "request has both exception " + request.exception + " and local abort reason " + request.localAbortReason;
                 persistentTasksClusterService.unassignPersistentTask(
+                    projectIdHint,
                     request.taskId,
                     request.allocationId,
                     request.localAbortReason,
@@ -154,6 +165,7 @@ public class CompletionPersistentTaskAction {
                 );
             } else {
                 persistentTasksClusterService.completePersistentTask(
+                    projectIdHint,
                     request.taskId,
                     request.allocationId,
                     request.exception,

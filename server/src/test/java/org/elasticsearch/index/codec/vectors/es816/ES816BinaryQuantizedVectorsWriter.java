@@ -45,8 +45,8 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
@@ -822,6 +822,10 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             return dimension;
         }
 
+        public int quantizedDimension() {
+            return byteBuffer.array().length;
+        }
+
         public OffHeapBinarizedQueryVectorValues copy() throws IOException {
             return new OffHeapBinarizedQueryVectorValues(slice.clone(), dimension, size, vectorSimilarityFunction);
         }
@@ -959,8 +963,8 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public RandomVectorScorer scorer(int ord) throws IOException {
-            return supplier.scorer(ord);
+        public UpdateableRandomVectorScorer scorer() throws IOException {
+            return supplier.scorer();
         }
 
         @Override

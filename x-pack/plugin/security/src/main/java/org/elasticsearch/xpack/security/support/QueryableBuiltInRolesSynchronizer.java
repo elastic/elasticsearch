@@ -488,7 +488,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     }
 
     private static IndexMetadata resolveSecurityIndexMetadata(final Metadata metadata) {
-        return SecurityIndexManager.resolveConcreteIndex(SECURITY_MAIN_ALIAS, metadata);
+        return SecurityIndexManager.resolveConcreteIndex(SECURITY_MAIN_ALIAS, metadata.getProject());
     }
 
     static class MarkRolesAsSyncedTask implements ClusterStateTaskListener {
@@ -515,7 +515,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         }
 
         Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
-            IndexMetadata indexMetadata = state.metadata().index(concreteSecurityIndexName);
+            IndexMetadata indexMetadata = state.metadata().getProject().index(concreteSecurityIndexName);
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(concreteSecurityIndexName);
             }
@@ -528,7 +528,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                     indexMetadataBuilder.removeCustom(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
                 }
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-                ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(state.metadata().indices());
+                ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(state.metadata().getProject().indices());
                 builder.put(concreteSecurityIndexName, indexMetadataBuilder.build());
                 return new Tuple<>(
                     ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indices(builder.build()).build()).build(),

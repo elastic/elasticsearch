@@ -47,7 +47,7 @@ plugins.withType(InternalJavaRestTestPlugin) {
   tasks.withType(StandaloneRestIntegTestTask).configureEach {
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
     classpath = sourceSets.javaRestTest.runtimeClasspath
-    usesDefaultDistribution()
+    usesDefaultDistribution("BWC tests require full distribution for now")
   }
 }
 

@@ -90,6 +90,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * A test that keep a singleton node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
+@ESTestCase.WithoutEntitlements // ES-12042
 public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
@@ -234,7 +235,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            Stream.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.")
+            Stream.of(
+                "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
+            )
         ).collect(Collectors.toList());
     }
 
@@ -532,5 +536,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 )
             )
         );
+    }
+
+    protected void updateClusterSettings(Settings settings) {
+        safeGet(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).execute());
     }
 }

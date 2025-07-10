@@ -212,7 +212,8 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
                 getExtraConfigFiles(),
                 getSystemPropertyProviders(),
                 getSystemProperties(),
-                getJvmArgs()
+                getJvmArgs(),
+                Optional.ofNullable(getConfigDirSupplier()).map(Supplier::get).orElse(null)
             );
         }
     }

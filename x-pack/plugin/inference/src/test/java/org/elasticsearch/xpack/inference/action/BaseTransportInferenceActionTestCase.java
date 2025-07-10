@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -24,6 +26,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -58,6 +61,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     private ModelRegistry modelRegistry;
     private StreamingTaskManager streamingTaskManager;
     private BaseTransportInferenceAction<Request> action;
+    private ThreadPool threadPool;
 
     protected static final String serviceId = "serviceId";
     protected final TaskType taskType;
@@ -77,7 +81,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     public void setUp() throws Exception {
         super.setUp();
         ActionFilters actionFilters = mock();
-        ThreadPool threadPool = mock();
+        threadPool = mock();
         nodeClient = mock();
         transportService = mock();
         inferenceServiceRateLimitCalculator = mock();
@@ -171,7 +175,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         verify(listener).onFailure(assertArg(e -> {
             assertThat(e, isA(ElasticsearchException.class));
-            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]. "));
+            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]"));
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
@@ -287,7 +291,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     public void testMetricsAfterStreamInferSuccess() {
-        mockStreamResponse(Flow.Subscriber::onComplete);
+        mockStreamResponse(Flow.Subscriber::onComplete).subscribe(mock());
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
@@ -302,10 +306,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     public void testMetricsAfterStreamInferFailure() {
         var expectedException = new IllegalStateException("hello");
         var expectedError = expectedException.getClass().getSimpleName();
-        mockStreamResponse(subscriber -> {
-            subscriber.subscribe(mock());
-            subscriber.onError(expectedException);
-        });
+        mockStreamResponse(subscriber -> subscriber.onError(expectedException)).subscribe(mock());
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
@@ -352,7 +353,39 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         }));
     }
 
-    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
+    public void testProductUseCaseHeaderPresentInThreadContextIfPresent() {
+        String productUseCase = "product-use-case";
+
+        // We need to use real instances instead of mocks as these are final classes
+        InferenceContext context = new InferenceContext(productUseCase);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        mockModelRegistry(taskType);
+        mockService(listener -> listener.onResponse(mock()));
+
+        Request request = createRequest();
+        when(request.getContext()).thenReturn(context);
+        when(request.getInferenceEntityId()).thenReturn(inferenceId);
+        when(request.getTaskType()).thenReturn(taskType);
+        when(request.isStreaming()).thenReturn(false);
+
+        ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
+            @Override
+            public void onResponse(InferenceAction.Response o) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
+
+        action.doExecute(mock(), request, listener);
+
+        // Verify the product use case header was set in the thread context
+        assertThat(threadContext.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+    }
+
+    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Subscriber<?>> action) {
         mockService(true, Set.of(), listener -> {
             Flow.Processor<ChunkedToXContent, ChunkedToXContent> taskProcessor = mock();
             doAnswer(innerAns -> {
@@ -390,9 +423,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(7));
+            listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
@@ -425,7 +458,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
     }
 
-    private void mockNodeClient(){
+    private void mockNodeClient() {
         when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
     }
 }

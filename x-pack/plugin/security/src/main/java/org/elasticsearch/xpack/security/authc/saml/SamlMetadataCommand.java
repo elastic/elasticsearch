@@ -32,6 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -166,7 +167,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         final Locale locale = findLocale(options);
         terminal.println(Terminal.Verbosity.VERBOSE, "Using locale: " + locale.toLanguageTag());
 
-        final SpConfiguration spConfig = SamlRealm.getSpConfiguration(realm);
+        final SpConfiguration spConfig = SingleSamlSpConfiguration.create(realm);
         final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId()).assertionConsumerServiceUrl(
             spConfig.getAscUrl()
         )
@@ -455,7 +456,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
         if (options.has(realmSpec)) {
             final String name = realmSpec.value(options);
-            final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, name);
+            final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(SingleSpSamlRealmSettings.TYPE, name);
             final Settings realmSettings = realms.get(identifier);
             if (realmSettings == null) {
                 throw new UserException(ExitCodes.CONFIG, "No such realm '" + name + "' defined in " + env.configDir());
@@ -500,7 +501,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
     }
 
     private static boolean isSamlRealm(RealmConfig.RealmIdentifier realmIdentifier) {
-        return SamlRealmSettings.TYPE.equals(realmIdentifier.getType());
+        return SingleSpSamlRealmSettings.TYPE.equals(realmIdentifier.getType());
     }
 
     private Locale findLocale(OptionSet options) {

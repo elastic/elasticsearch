@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.After;
 import org.junit.Before;
 
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     private Environment environment;
@@ -52,7 +54,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -78,7 +81,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).loadBestOnDiskState().metadata.persistentSettings()
             )
         );

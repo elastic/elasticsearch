@@ -38,7 +38,7 @@ public class RegisteredDomainProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        RegisteredDomainProcessor publicSuffixProcessor = factory.create(null, processorTag, null, config);
+        RegisteredDomainProcessor publicSuffixProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(publicSuffixProcessor.getTag(), equalTo(processorTag));
         assertThat(publicSuffixProcessor.getTargetField(), equalTo(targetField));
         assertThat(publicSuffixProcessor.getIgnoreMissing(), equalTo(ignoreMissing));
@@ -51,7 +51,7 @@ public class RegisteredDomainProcessorFactoryTests extends ESTestCase {
         config.put("field", field);
 
         String processorTag = randomAlphaOfLength(10);
-        RegisteredDomainProcessor publicSuffixProcessor = factory.create(null, processorTag, null, config);
+        RegisteredDomainProcessor publicSuffixProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(publicSuffixProcessor.getTargetField(), equalTo(RegisteredDomainProcessor.Factory.DEFAULT_TARGET_FIELD));
     }
 
@@ -59,7 +59,7 @@ public class RegisteredDomainProcessorFactoryTests extends ESTestCase {
         HashMap<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
         try {
-            factory.create(null, processorTag, null, config);
+            factory.create(null, processorTag, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

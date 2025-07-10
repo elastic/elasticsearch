@@ -12,6 +12,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
@@ -51,5 +54,8 @@ public record PluginServiceInstances(
     SystemIndices systemIndices,
     DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
     DocumentParsingProvider documentParsingProvider,
-    TaskManager taskManager
+    TaskManager taskManager,
+    ProjectResolver projectResolver,
+    SlowLogFieldProvider slowLogFieldProvider,
+    IndexingPressure indexingPressure
 ) implements Plugin.PluginServices {}

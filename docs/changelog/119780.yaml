@@ -1,5 +1,0 @@
-pr: 119780
-summary: Add index and reindex request settings to speed up reindex
-area: Data streams
-type: enhancement
-issues: []

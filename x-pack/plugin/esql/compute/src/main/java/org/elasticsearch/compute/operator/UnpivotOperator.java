@@ -101,9 +101,11 @@ public class UnpivotOperator extends AbstractPageMappingOperator {
                 case DOUBLE -> blockForDouble(page);
                 case NULL -> null;
                 case BYTES_REF -> blockForBytesRef(page);
+                case AGGREGATE_METRIC_DOUBLE -> blockForAggregateMetricDouble(page);
                 case DOC -> blockForDoc(page);
                 case COMPOSITE -> throw new IllegalArgumentException();
                 case UNKNOWN -> throw new IllegalArgumentException();
+
             };
             if (result == null) {
                 continue;
@@ -115,6 +117,10 @@ public class UnpivotOperator extends AbstractPageMappingOperator {
     }
 
     private Block blockForDoc(Page page) {
+        throw new UnsupportedOperationException(); // TODO
+    }
+
+    private Block blockForAggregateMetricDouble(Page page) {
         throw new UnsupportedOperationException(); // TODO
     }
 

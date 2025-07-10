@@ -109,8 +109,10 @@ public class TransportGetUsersActionTests extends ESTestCase {
     public void testAnonymousUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
         reservedRealm.setRealmRef(new Authentication.RealmRef(ReservedRealm.NAME, ReservedRealm.TYPE, "node"));
@@ -178,8 +180,10 @@ public class TransportGetUsersActionTests extends ESTestCase {
     public void testReservedUsersOnly() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
 
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(
@@ -263,8 +267,10 @@ public class TransportGetUsersActionTests extends ESTestCase {
         );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(
             mock(Environment.class),
@@ -364,8 +370,10 @@ public class TransportGetUsersActionTests extends ESTestCase {
         );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(
             mock(Environment.class),

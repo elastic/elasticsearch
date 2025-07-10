@@ -9,9 +9,10 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,9 +41,10 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
         private final String synonymsSetId;
         private final SynonymRule[] synonymRules;
+        private final boolean refresh;
 
         public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
         private static final ConstructingObjectParser<SynonymRule[], Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
@@ -59,10 +61,16 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRules = in.readArray(SynonymRule::new, SynonymRule[]::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+                this.refresh = in.readBoolean();
+            } else {
+                this.refresh = false;
+            }
         }
 
-        public Request(String synonymsSetId, BytesReference content, XContentType contentType) throws IOException {
+        public Request(String synonymsSetId, boolean refresh, BytesReference content, XContentType contentType) throws IOException {
             this.synonymsSetId = synonymsSetId;
+            this.refresh = refresh;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
                 this.synonymRules = PARSER.apply(parser, null);
             } catch (Exception e) {
@@ -70,9 +78,10 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             }
         }
 
-        Request(String synonymsSetId, SynonymRule[] synonymRules) {
+        Request(String synonymsSetId, SynonymRule[] synonymRules, boolean refresh) {
             this.synonymsSetId = synonymsSetId;
             this.synonymRules = synonymRules;
+            this.refresh = refresh;
         }
 
         @Override
@@ -95,10 +104,17 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeArray(synonymRules);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+                out.writeBoolean(refresh);
+            }
         }
 
         public String synonymsSetId() {
             return synonymsSetId;
+        }
+
+        public boolean refresh() {
+            return refresh;
         }
 
         public SynonymRule[] synonymRules() {
@@ -110,12 +126,14 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId) && Arrays.equals(synonymRules, request.synonymRules);
+            return Objects.equals(refresh, request.refresh)
+                && Objects.equals(synonymsSetId, request.synonymsSetId)
+                && Arrays.equals(synonymRules, request.synonymRules);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules));
+            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules), refresh);
         }
     }
 }

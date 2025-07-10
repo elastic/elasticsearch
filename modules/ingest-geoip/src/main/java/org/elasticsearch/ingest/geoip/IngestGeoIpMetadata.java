@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 /**
  * Holds the ingest-geoip databases that are available in the cluster state.
  */
-public final class IngestGeoIpMetadata implements Metadata.Custom {
+public final class IngestGeoIpMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ingest_geoip";
     private static final ParseField DATABASES_FIELD = new ParseField("databases");
@@ -100,11 +100,11 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new GeoIpMetadataDiff((IngestGeoIpMetadata) before, this);
     }
 
-    static class GeoIpMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class GeoIpMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, DatabaseConfigurationMetadata>> databases;
 
@@ -122,7 +122,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new IngestGeoIpMetadata(databases.apply(((IngestGeoIpMetadata) part).databases));
         }
 

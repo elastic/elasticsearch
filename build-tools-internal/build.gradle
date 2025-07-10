@@ -282,8 +282,6 @@ dependencies {
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  // same version as http client transitive dep
-  api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.nebula.info
   api buildLibs.apache.rat
@@ -303,8 +301,8 @@ dependencies {
   api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
-  api buildLibs.httpclient
-  api buildLibs.httpcore
+  api buildLibs.httpclient5
+  api buildLibs.httpcore5
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections

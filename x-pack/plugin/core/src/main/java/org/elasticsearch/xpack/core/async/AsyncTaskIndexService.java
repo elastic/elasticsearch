@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -327,9 +326,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             os = Streams.noCloseStream(os);
             TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
             TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-            if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
-                os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
-            }
+            os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
             try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
                 out.setTransportVersion(minNodeVersion);
                 response.writeTo(out);
@@ -580,11 +577,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         final StreamInput input;
-        if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
-        } else {
-            input = new InputStreamStreamInput(encodedIn);
-        }
+        input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
         try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);

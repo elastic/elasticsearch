@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.integration.RoleMappingFileSettingsIT;
@@ -124,6 +125,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationSuccessful() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -157,6 +159,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationSuccessfulNoOverlap() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -190,6 +193,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationSuccessfulNoNative() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -220,6 +224,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationFallbackNamePreCondition() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
         // Wait for file watcher to start
@@ -243,7 +248,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         SecurityIndexManager.RoleMappingsCleanupMigrationStatus status = SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
-            clusterService.state(),
+            clusterService.state().projectState(Metadata.DEFAULT_PROJECT_ID),
             SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION - 1
         );
         assertThat(status, equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.NOT_READY));
@@ -255,6 +260,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testSkipMigrationNoFileBasedMappings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         // Create a native role mapping to create security index and trigger migration (skipped initially)
         createNativeRoleMapping("everyone_kibana_alone");
@@ -274,6 +280,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testSkipMigrationEmptyFileBasedMappings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -303,6 +310,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testNewIndexSkipMigration() {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         final String masterNode = internalCluster().getMasterName();
         ensureGreen();
         deleteSecurityIndex(); // hack to force a new security index to be created
@@ -401,7 +409,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     }
 
     private int getCurrentMigrationVersion(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().getIndices().get(INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getProject().index(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }

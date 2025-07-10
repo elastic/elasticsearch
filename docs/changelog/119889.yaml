@@ -1,5 +1,0 @@
-pr: 119889
-summary: Optimize ST_EXTENT_AGG for `geo_shape` and `cartesian_shape`
-area: "ES|QL"
-type: enhancement
-issues: []

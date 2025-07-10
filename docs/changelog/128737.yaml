@@ -1,0 +1,7 @@
+pr: 128737
+summary: React more prompty to task cancellation while waiting for the cluster to
+  unblock
+area: Task Management
+type: enhancement
+issues:
+ - 117971

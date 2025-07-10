@@ -5,5 +5,5 @@ dependencies {
 }
 
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

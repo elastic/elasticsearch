@@ -92,7 +92,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -197,7 +197,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = builder.build();
 
         for (int i = 0; i < numIndices; i++) {
-            rtBuilder.addAsNew(metadata.index("test_" + i));
+            rtBuilder.addAsNew(metadata.getProject().index("test_" + i));
         }
         RoutingTable routingTable = rtBuilder.build();
 
@@ -249,7 +249,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -428,7 +428,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
 
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = new HashMap<>(numberOfShards);
-        final Index index = metadata.index("test").getIndex();
+        final Index index = metadata.getProject().index("test").getIndex();
         for (int i = 0; i < numberOfShards; i++) {
             final ShardId shardId = new ShardId(index, i);
             snapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), randomNonNegativeLong());
@@ -439,7 +439,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsRestore(
-                        metadata.index("test"),
+                        metadata.getProject().index("test"),
                         new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, IndexVersion.current(), indexId)
                     )
                     .build()
@@ -550,7 +550,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT, IndexVersion.current()));

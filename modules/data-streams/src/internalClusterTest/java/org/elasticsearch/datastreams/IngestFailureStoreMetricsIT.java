@@ -57,7 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * An integration test that verifies how different paths/scenarios affect the APM metrics for failure stores.
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
 
     private static final List<String> METRICS = List.of(
@@ -265,7 +265,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     public void testDataStreamAlias() throws IOException {
         putComposableIndexTemplate(false);
         createDataStream();
-        var indicesAliasesRequest = new IndicesAliasesRequest();
+        var indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         indicesAliasesRequest.addAliasAction(
             IndicesAliasesRequest.AliasActions.add().alias("some-alias").index(dataStream).writeIndex(true)
         );
@@ -403,9 +403,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             Map<String, Processor.Factory> processors = new HashMap<>();
             processors.put(
                 "drop",
-                (factories, tag, description, config) -> new TestProcessor(tag, "drop", description, ingestDocument -> null)
+                (factories, tag, description, config, projectId) -> new TestProcessor(tag, "drop", description, ingestDocument -> null)
             );
-            processors.put("reroute", (factories, tag, description, config) -> {
+            processors.put("reroute", (factories, tag, description, config, projectId) -> {
                 String destination = (String) config.remove("destination");
                 return new TestProcessor(
                     tag,
@@ -416,7 +416,12 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             });
             processors.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             return processors;
         }

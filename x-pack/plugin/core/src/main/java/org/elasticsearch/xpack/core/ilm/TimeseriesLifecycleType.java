@@ -132,7 +132,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 if (actions.containsKey(UnfollowAction.NAME) == false
                     && (actions.containsKey(RolloverAction.NAME)
                         || actions.containsKey(ShrinkAction.NAME)
-                        || actions.containsKey(SearchableSnapshotAction.NAME))) {
+                        || actions.containsKey(SearchableSnapshotAction.NAME)
+                        || actions.containsKey(DownsampleAction.NAME))) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
                     actionMap.put(UnfollowAction.NAME, UnfollowAction.INSTANCE);
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -44,7 +45,6 @@ import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -969,7 +969,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             versionBeforeCrossClusterAccessRealm
         );
         when(connection.getTransportVersion()).thenReturn(version);
@@ -1130,7 +1130,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(SslKeyConfig.class),
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.NONE,
-                List.of("TLS_RSA_WITH_AES_256_GCM_SHA384"),
+                List.of(Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_256_GCM_SHA384" : "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
                 List.of("TLSv1.2")
             )
         );

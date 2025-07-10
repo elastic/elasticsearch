@@ -1,6 +1,0 @@
-pr: 117451
-summary: ST_EXTENT aggregation
-area: ES|QL
-type: feature
-issues:
- - 104659

@@ -297,16 +297,13 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             searchContext.addFetchResult();
             SearchHit[] hits = new SearchHit[3];
             hits[0] = SearchHit.unpooled(4);
-            hits[0].setDocumentField(fieldName, new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(4))));
+            hits[0].setDocumentField(new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(4))));
 
             hits[1] = SearchHit.unpooled(9);
-            hits[1].setDocumentField(fieldName, new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(9))));
+            hits[1].setDocumentField(new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(9))));
 
             hits[2] = SearchHit.unpooled(numDocs - 1);
-            hits[2].setDocumentField(
-                fieldName,
-                new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(numDocs - 1)))
-            );
+            hits[2].setDocumentField(new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(numDocs - 1))));
             searchHits = SearchHits.unpooled(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1.0f);
             searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(false);

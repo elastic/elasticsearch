@@ -1,5 +1,0 @@
-pr: 116531
-summary: "Add a standard deviation aggregating function: STD_DEV"
-area: ES|QL
-type: enhancement
-issues: []

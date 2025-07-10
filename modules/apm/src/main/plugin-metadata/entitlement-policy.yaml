@@ -83,9 +83,3 @@ org.elasticsearch.telemetry.apm:
         - elastic.apm.application_packages
         - elastic.apm.stack_trace_limit
         - elastic.apm.span_stack_trace_min_duration
-elastic.apm.agent:
-  - set_https_connection_properties
-  - write_system_properties:
-      properties:
-        - AsyncProfiler.safemode
-  - load_native_libraries

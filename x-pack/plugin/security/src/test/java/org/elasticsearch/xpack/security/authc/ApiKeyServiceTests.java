@@ -1142,7 +1142,9 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCrossClusterApiKeyUsageFailsWhenIndexNotAvailable() {
         securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
         final ElasticsearchException expectedException = new ElasticsearchException("not available");
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(expectedException);
+        when(securityIndex.forCurrentProject().getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
+            expectedException
+        );
         final ApiKeyService apiKeyService = createApiKeyService();
 
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
@@ -2553,6 +2555,16 @@ public class ApiKeyServiceTests extends ESTestCase {
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
         final EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
         assertThat(e, is(rejectedExecutionException));
+    }
+
+    public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
+        assertThat(iae.getMessage(), equalTo("creating elasticsearch api keys using cloud api keys is not supported"));
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {

@@ -200,7 +200,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             )
         );
         logger.info("Creating aliases alias release");
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAlias("test", "release", termQuery("text", "release"))
             .addAlias("test", "beta", termQuery("text", "beta"))
             .get();
@@ -265,7 +265,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         String aliasName = "foo_name";
 
         indicesAdmin().prepareCreate(indexName).get();
-        indicesAdmin().prepareAliases().addAlias(indexName, aliasName).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -134,33 +135,29 @@ public class DateDiff extends EsqlScalarFunction {
             Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
             If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""",
         detailedDescription = """
-            [cols=\"^,^\",role=\"styled\"]
-            |===
-            2+h|Datetime difference units
+            **Datetime difference units**
 
-            s|unit
-            s|abbreviations
+            | unit | abbreviations |
+            | --- | --- |
+            | year | years, yy, yyyy |
+            | quarter | quarters, qq, q |
+            | month | months, mm, m |
+            | dayofyear | dy, y |
+            | day | days, dd, d |
+            | week | weeks, wk, ww |
+            | weekday | weekdays, dw |
+            | hour | hours, hh |
+            | minute | minutes, mi, n |
+            | second | seconds, ss, s |
+            | millisecond | milliseconds, ms |
+            | microsecond | microseconds, mcs |
+            | nanosecond | nanoseconds, ns |
 
-            | year        | years, yy, yyyy
-            | quarter     | quarters, qq, q
-            | month       | months, mm, m
-            | dayofyear   | dy, y
-            | day         | days, dd, d
-            | week        | weeks, wk, ww
-            | weekday     | weekdays, dw
-            | hour        | hours, hh
-            | minute      | minutes, mi, n
-            | second      | seconds, ss, s
-            | millisecond | milliseconds, ms
-            | microsecond | microseconds, mcs
-            | nanosecond  | nanoseconds, ns
-            |===
-
-            Note that while there is an overlap between the function's supported units and
-            {esql}'s supported time span literals, these sets are distinct and not
+            Note that while there is an overlap between the function’s supported units and
+            {{esql}}’s supported time span literals, these sets are distinct and not
             interchangeable. Similarly, the supported abbreviations are conveniently shared
             with implementations of this function in other established products and not
-            necessarily common with the date-time nomenclature used by {es}.""",
+            necessarily common with the date-time nomenclature used by {{es}}.""",
         examples = { @Example(file = "date", tag = "docsDateDiff"), @Example(description = """
             When subtracting in calendar units - like year, month a.s.o. - only the fully elapsed units are counted.
             To avoid this and obtain also remainders, simply switch to the next smaller unit and do the date math accordingly.
@@ -321,7 +318,7 @@ public class DateDiff extends EsqlScalarFunction {
 
         if (unit.foldable()) {
             try {
-                Part datePartField = Part.resolve(((BytesRef) unit.fold(toEvaluator.foldCtx())).utf8ToString());
+                Part datePartField = Part.resolve(BytesRefs.toString(unit.fold(toEvaluator.foldCtx())));
                 return constantFactory.build(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());

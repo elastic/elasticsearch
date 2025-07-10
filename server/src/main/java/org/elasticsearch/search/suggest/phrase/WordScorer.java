@@ -9,7 +9,6 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -29,10 +28,6 @@ public abstract class WordScorer {
     protected final long numTerms;
     private final TermsEnum termsEnum;
     private final boolean useTotalTermFreq;
-
-    public WordScorer(IndexReader reader, String field, double realWordLikelihood, BytesRef separator) throws IOException {
-        this(reader, MultiTerms.getTerms(reader, field), field, realWordLikelihood, separator);
-    }
 
     public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) throws IOException {
         if (terms == null) {

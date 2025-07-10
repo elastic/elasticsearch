@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.jar;
 
-import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -101,10 +99,10 @@ public final class JarUtils {
      * @param path Path to the jar file to load
      * @return A URLClassLoader that will load classes from the jar. It should be closed when no longer needed.
      */
-    public static ClosableURLClassLoader loadJar(Path path) {
+    public static URLClassLoader loadJar(Path path) {
         try {
             URL[] urls = new URL[] { path.toUri().toURL() };
-            return new ClosableURLClassLoader(URLClassLoader.newInstance(urls, JarUtils.class.getClassLoader()));
+            return URLClassLoader.newInstance(urls, JarUtils.class.getClassLoader());
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }

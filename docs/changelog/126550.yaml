@@ -1,0 +1,6 @@
+pr: 126550
+summary: Add leniency to missing array values in mustache
+area: Infra/Scripting
+type: bug
+issues:
+ - 55200

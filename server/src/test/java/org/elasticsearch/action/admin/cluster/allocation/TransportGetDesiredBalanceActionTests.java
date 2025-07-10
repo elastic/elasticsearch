@@ -251,7 +251,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             for (var shardDesiredBalance : shardsMap.entrySet()) {
                 DesiredBalanceResponse.DesiredShards desiredShard = shardDesiredBalance.getValue();
                 int shardId = shardDesiredBalance.getKey();
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
                 for (int idx = 0; idx < indexShardRoutingTable.size(); idx++) {
                     ShardRouting shard = indexShardRoutingTable.shard(idx);

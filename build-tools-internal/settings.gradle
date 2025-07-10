@@ -5,11 +5,11 @@ pluginManagement {
   }
 
   includeBuild "../build-conventions"
-    includeBuild "../build-tools"
+  includeBuild "../build-tools"
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.18.1"
+  id "com.gradle.develocity" version "4.0.1"
 }
 
 dependencyResolutionManagement {

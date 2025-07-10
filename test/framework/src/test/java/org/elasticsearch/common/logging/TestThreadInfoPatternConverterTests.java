@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.common.logging.TestThreadInfoPatternConverter.threadInfo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TestThreadInfoPatternConverterTests extends ESTestCase {
     private static String suiteInfo;
@@ -23,19 +24,24 @@ public class TestThreadInfoPatternConverterTests extends ESTestCase {
         suiteInfo = threadInfo(Thread.currentThread().getName());
     }
 
-    public void testThreadInfo() {
+    public void testElasticsearchThreadInfo() {
         // Threads that are part of a node get the node name
-        String nodeName = randomAlphaOfLength(5);
-        String threadName = EsExecutors.threadName(nodeName, randomAlphaOfLength(20)) + "[T#" + between(0, 1000) + "]";
-        assertEquals(nodeName, threadInfo(threadName));
+        var nodeName = randomAlphaOfLength(5);
+        var prefix = randomAlphaOfLength(20);
+        var thread = "T#" + between(0, 1000);
+        var threadName = EsExecutors.threadName(nodeName, prefix) + "[" + thread + "]";
+        assertThat(threadInfo(threadName), equalTo(nodeName + "][" + prefix + "][" + thread));
+    }
 
-        // Test threads get the test name
+    public void testCaseNameThreadInfo() {
         assertEquals(getTestName(), threadInfo(Thread.currentThread().getName()));
+    }
 
-        // Suite initialization gets "suite"
+    public void testSuiteThreadInfo() {
         assertEquals("suite", suiteInfo);
+    }
 
-        // And stuff that doesn't match anything gets wrapped in [] so we can see it
+    public void testUnmatchedThreadInfo() {
         String unmatched = randomAlphaOfLength(5);
         assertEquals("[" + unmatched + "]", threadInfo(unmatched));
     }

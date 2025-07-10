@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +30,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.persistent.PersistentTasksClusterService.resolveProjectIdHint;
 
 public class RemovePersistentTaskAction {
 
@@ -77,6 +81,7 @@ public class RemovePersistentTaskAction {
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
+        private final ProjectResolver projectResolver;
 
         @Inject
         public TransportAction(
@@ -84,7 +89,8 @@ public class RemovePersistentTaskAction {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            PersistentTasksClusterService persistentTasksClusterService
+            PersistentTasksClusterService persistentTasksClusterService,
+            ProjectResolver projectResolver
         ) {
             super(
                 INSTANCE.name(),
@@ -97,6 +103,7 @@ public class RemovePersistentTaskAction {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
+            this.projectResolver = projectResolver;
         }
 
         @Override
@@ -112,7 +119,12 @@ public class RemovePersistentTaskAction {
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener
         ) {
-            persistentTasksClusterService.removePersistentTask(request.taskId, listener.map(PersistentTaskResponse::new));
+            // Try resolve the project-id which may be null if the request is for a cluster-scope task.
+            // A non-null project-id does not guarantee the task is project-scope. This will be determined
+            // later by checking the taskName associated with the task-id.
+            final ProjectId projectIdHint = resolveProjectIdHint(projectResolver);
+
+            persistentTasksClusterService.removePersistentTask(projectIdHint, request.taskId, listener.map(PersistentTaskResponse::new));
         }
     }
 }

@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -31,25 +33,24 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionVisitor;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionVisitor;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
@@ -258,72 +259,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool)) {
-            @Override
-            public void doInfer(
-                Model model,
-                InferenceInputs inputs,
-                Map<String, Object> taskSettings,
-                InputType inputType,
-                TimeValue timeout,
-                ActionListener<InferenceServiceResults> listener
-            ) {
-                TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
-                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.028680f, 0.022033f }))
-                );
-
-                listener.onResponse(results);
-            }
-        }) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>();
-            serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
-            serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
-            serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
-            serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
-
-            Map<String, Object> taskSettingsMap = new HashMap<>();
-
-            Map<String, Object> secretSettingsMap = new HashMap<>();
-            secretSettingsMap.put("api_key", "secret");
-
-            var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
-                "service",
-                TaskType.TEXT_EMBEDDING,
-                serviceSettingsMap,
-                taskSettingsMap,
-                secretSettingsMap
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            Map<String, Object> expectedServiceSettingsMap = new HashMap<>();
-            expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
-            expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
-            expectedServiceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
-            expectedServiceSettingsMap.put(ServiceFields.SIMILARITY, "DOT_PRODUCT");
-            expectedServiceSettingsMap.put(ServiceFields.DIMENSIONS, 2);
-
-            Map<String, Object> expectedTaskSettingsMap = new HashMap<>();
-
-            Map<String, Object> expectedSecretSettingsMap = new HashMap<>();
-            expectedSecretSettingsMap.put("api_key", "secret");
-
-            var expectedModel = AlibabaCloudSearchEmbeddingsModelTests.createModel(
-                "service",
-                TaskType.TEXT_EMBEDDING,
-                expectedServiceSettingsMap,
-                expectedTaskSettingsMap,
-                expectedSecretSettingsMap
-            );
-
-            MatcherAssert.assertThat(result, is(expectedModel));
-        }
-    }
-
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -361,6 +296,141 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
+    public void testInfer_ThrowsValidationErrorForInvalidInputType_TextEmbedding() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        Map<String, Object> serviceSettingsMap = new HashMap<>();
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
+
+        Map<String, Object> taskSettingsMap = new HashMap<>();
+
+        Map<String, Object> secretSettingsMap = new HashMap<>();
+        secretSettingsMap.put("api_key", "secret");
+
+        var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+            "service",
+            TaskType.TEXT_EMBEDDING,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap
+        );
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    null,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.CLASSIFICATION,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Input type [classification] is not supported for [AlibabaCloud AI Search];")
+            );
+        }
+    }
+
+    public void testInfer_ThrowsValidationExceptionForInvalidInputType_SparseEmbedding() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        Map<String, Object> serviceSettingsMap = new HashMap<>();
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
+
+        Map<String, Object> taskSettingsMap = new HashMap<>();
+
+        Map<String, Object> secretSettingsMap = new HashMap<>();
+        secretSettingsMap.put("api_key", "secret");
+
+        var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+            "service",
+            TaskType.SPARSE_EMBEDDING,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap
+        );
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    null,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.CLASSIFICATION,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Input type [classification] is not supported for [AlibabaCloud AI Search];")
+            );
+        }
+    }
+
+    public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        Map<String, Object> serviceSettingsMap = new HashMap<>();
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.SERVICE_ID, "service_id");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.HOST, "host");
+        serviceSettingsMap.put(AlibabaCloudSearchServiceSettings.WORKSPACE_NAME, "default");
+        serviceSettingsMap.put(ServiceFields.DIMENSIONS, 1536);
+
+        Map<String, Object> taskSettingsMap = new HashMap<>();
+
+        Map<String, Object> secretSettingsMap = new HashMap<>();
+        secretSettingsMap.put("api_key", "secret");
+
+        var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+            "service",
+            TaskType.RERANK,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap
+        );
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    "hi",
+                    Boolean.TRUE,
+                    10,
+                    List.of("a"),
+                    false,
+                    new HashMap<>(),
+                    null,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Validation Failed: 1: Invalid return_documents [true]. The return_documents option is not supported by this "
+                        + "service;2: Invalid top_n [10]. The top_n option is not supported by this service;"
+                )
+            );
+        }
+    }
+
     public void testChunkedInfer_TextEmbeddingChunkingSettingsSet() throws IOException {
         testChunkedInfer(TaskType.TEXT_EMBEDDING, ChunkingSettingsTests.createRandomChunkingSettings());
     }
@@ -378,7 +448,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {
-        var input = List.of("foo", "bar");
+        var input = List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -386,7 +456,15 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.chunkedInfer(
+                model,
+                null,
+                input,
+                new HashMap<>(),
+                InputTypeTests.randomWithIngestAndSearch(),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
@@ -520,7 +598,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             secretSettingsMap,
             null
         ) {
-            public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+            public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
                     TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
                         List.of(
@@ -551,7 +629,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             secretSettingsMap,
             null
         ) {
-            public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+            public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
                     listener.onResponse(SparseEmbeddingResultsTests.createRandomResults(2, 1));
                 };

@@ -10,6 +10,7 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
@@ -23,7 +24,7 @@ public interface DocumentParsingProvider {
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
      */
     default DocumentSizeReporter newDocumentSizeReporter(
-        String indexName,
+        Index index,
         MapperService mapperService,
         DocumentSizeAccumulator documentSizeAccumulator
     ) {

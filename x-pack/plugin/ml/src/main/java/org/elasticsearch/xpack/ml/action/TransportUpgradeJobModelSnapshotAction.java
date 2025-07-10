@@ -121,7 +121,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        PersistentTasksCustomMetadata customMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata customMetadata = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (customMetadata != null
             && (customMetadata.findTasks(
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
@@ -211,7 +211,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 && (JobState.CLOSED.equals(MlTasks.getJobState(request.getJobId(), customMetadata)) == false)) {
                 listener.onFailure(
                     ExceptionsHelper.conflictStatusException(
-                        "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]",
+                        "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]. "
+                            + "Please close the job before upgrading the snapshot.",
                         request.getSnapshotId(),
                         request.getJobId(),
                         MlTasks.getJobState(request.getJobId(), customMetadata)

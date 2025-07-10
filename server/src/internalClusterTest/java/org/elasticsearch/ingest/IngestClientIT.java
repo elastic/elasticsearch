@@ -322,8 +322,8 @@ public class IngestClientIT extends ESIntegTestCase {
             client().index(indexRequest).get();
         });
         IngestProcessorException ingestException = (IngestProcessorException) e.getCause();
-        assertThat(ingestException.getHeader("processor_type"), equalTo(List.of("fail")));
-        assertThat(ingestException.getHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
+        assertThat(ingestException.getBodyHeader("processor_type"), equalTo(List.of("fail")));
+        assertThat(ingestException.getBodyHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
     }
 
     public void testPipelineProcessorOnFailure() throws Exception {
@@ -386,11 +386,16 @@ public class IngestClientIT extends ESIntegTestCase {
             factories.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
             factories.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             factories.put(
                 "onfailure_processor",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, document -> {
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(tag, "fail", description, document -> {
                     String onFailurePipeline = document.getFieldValue("_ingest.on_failure_pipeline", String.class);
                     document.setFieldValue("readme", "pipeline with id [" + onFailurePipeline + "] is a bad pipeline");
                 })

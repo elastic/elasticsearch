@@ -1,5 +1,0 @@
-pr: 118544
-summary: ESQL - Remove restrictions for disjunctions in full text functions
-area: ES|QL
-type: enhancement
-issues: []

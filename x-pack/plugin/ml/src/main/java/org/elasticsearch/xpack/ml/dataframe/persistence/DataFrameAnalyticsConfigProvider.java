@@ -205,7 +205,7 @@ public class DataFrameAnalyticsConfigProvider {
         ClusterState clusterState
     ) {
         String analyticsId = update.getId();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(analyticsId, tasks);
         if (DataFrameAnalyticsState.STOPPED.equals(analyticsState)) {
             // Analytics is stopped, therefore it is safe to proceed with the udpate

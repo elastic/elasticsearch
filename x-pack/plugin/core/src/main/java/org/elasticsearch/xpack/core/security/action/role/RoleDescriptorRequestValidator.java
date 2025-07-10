@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -48,9 +50,12 @@ public class RoleDescriptorRequestValidator {
         if (roleDescriptor.getIndicesPrivileges() != null) {
             for (RoleDescriptor.IndicesPrivileges idp : roleDescriptor.getIndicesPrivileges()) {
                 try {
-                    IndexPrivilege.get(Set.of(idp.getPrivileges()));
+                    IndexPrivilege.resolveBySelectorAccess(Set.of(idp.getPrivileges()));
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
+                }
+                for (final String indexName : idp.getIndices()) {
+                    validationException = validateIndexNameExpression(indexName, validationException);
                 }
             }
         }
@@ -60,9 +65,18 @@ public class RoleDescriptorRequestValidator {
                 validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
             }
             try {
-                IndexPrivilege.get(Set.of(ridp.indicesPrivileges().getPrivileges()));
+                Set<IndexPrivilege> privileges = IndexPrivilege.resolveBySelectorAccess(Set.of(ridp.indicesPrivileges().getPrivileges()));
+                if (privileges.stream().anyMatch(p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES)) {
+                    validationException = addValidationError(
+                        "remote index privileges cannot contain privileges that grant access to the failure store",
+                        validationException
+                    );
+                }
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
+            }
+            for (String indexName : ridp.indicesPrivileges().getIndices()) {
+                validationException = validateIndexNameExpression(indexName, validationException);
             }
         }
         if (roleDescriptor.hasRemoteClusterPermissions()) {
@@ -108,6 +122,23 @@ public class RoleDescriptorRequestValidator {
             if (error != null) {
                 validationException = addValidationError(error.toString(), validationException);
             }
+        }
+        return validationException;
+    }
+
+    private static ActionRequestValidationException validateIndexNameExpression(
+        String indexNameExpression,
+        ActionRequestValidationException validationException
+    ) {
+        if (IndexNameExpressionResolver.hasSelectorSuffix(indexNameExpression)) {
+            validationException = addValidationError(
+                "selectors ["
+                    + IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR
+                    + "] are not allowed in the index name expression ["
+                    + indexNameExpression
+                    + "]",
+                validationException
+            );
         }
         return validationException;
     }

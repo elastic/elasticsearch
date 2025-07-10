@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -41,7 +42,7 @@ public class SamlRealmTestHelper {
         slo.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
         slo.setLocation(IDP_LOGOUT_URL);
 
-        final SpConfiguration spConfiguration = new SpConfiguration(
+        final SpConfiguration spConfiguration = new SingleSamlSpConfiguration(
             SP_ENTITY_ID,
             SP_ACS_URL,
             SP_LOGOUT_URL,
@@ -56,7 +57,8 @@ public class SamlRealmTestHelper {
             mock(SamlLogoutRequestHandler.class),
             mock(SamlLogoutResponseHandler.class),
             () -> idpDescriptor,
-            spConfiguration
+            spConfiguration,
+            SamlRealmSettings.UserAttributeNameConfiguration.fromConfig(realmConfig)
         );
     }
 

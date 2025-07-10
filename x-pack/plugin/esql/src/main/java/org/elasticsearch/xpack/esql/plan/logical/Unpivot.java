@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -90,11 +92,11 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet result = new AttributeSet();
+        Set<Attribute> result = new HashSet<>();
         for (NamedExpression sourceColumn : sourceColumns) {
             result.addAll(sourceColumn.references());
         }
-        return result;
+        return AttributeSet.of(result);
     }
 
     public String commandName() {

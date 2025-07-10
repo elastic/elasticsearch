@@ -19,6 +19,8 @@ public class AmazonBedrockConstants {
     public static final String TOP_K_FIELD = "top_k";
     public static final String MAX_NEW_TOKENS_FIELD = "max_new_tokens";
 
+    public static final String TRUNCATE_FIELD = "truncate";
+
     public static final Double MIN_TEMPERATURE_TOP_P_TOP_K_VALUE = 0.0;
     public static final Double MAX_TEMPERATURE_TOP_P_TOP_K_VALUE = 1.0;
 

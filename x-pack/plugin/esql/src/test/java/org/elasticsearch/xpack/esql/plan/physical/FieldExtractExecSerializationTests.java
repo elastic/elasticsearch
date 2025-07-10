@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -18,7 +19,7 @@ public class FieldExtractExecSerializationTests extends AbstractPhysicalPlanSeri
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         List<Attribute> attributesToExtract = randomFieldAttributes(1, 4, false);
-        return new FieldExtractExec(source, child, attributesToExtract);
+        return new FieldExtractExec(source, child, attributesToExtract, MappedFieldType.FieldExtractPreference.NONE);
     }
 
     @Override
@@ -35,7 +36,7 @@ public class FieldExtractExecSerializationTests extends AbstractPhysicalPlanSeri
         } else {
             attributesToExtract = randomValueOtherThan(attributesToExtract, () -> randomFieldAttributes(1, 4, false));
         }
-        return new FieldExtractExec(instance.source(), child, attributesToExtract);
+        return new FieldExtractExec(instance.source(), child, attributesToExtract, MappedFieldType.FieldExtractPreference.NONE);
     }
 
     @Override

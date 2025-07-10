@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.Unpivot.calculateOutput;
 
@@ -69,11 +71,11 @@ public class UnpivotExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet result = new AttributeSet();
+        Set<Attribute> result = new HashSet<>();
         for (NamedExpression sourceColumn : sourceColumns) {
             result.addAll(sourceColumn.references());
         }
-        return result;
+        return AttributeSet.of(result);
     }
 
     @Override

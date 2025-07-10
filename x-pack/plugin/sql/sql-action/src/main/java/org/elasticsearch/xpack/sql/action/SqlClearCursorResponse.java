@@ -31,7 +31,6 @@ public class SqlClearCursorResponse extends ActionResponse implements ToXContent
     }
 
     SqlClearCursorResponse(StreamInput in) throws IOException {
-        super(in);
         succeeded = in.readBoolean();
     }
 

@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -50,6 +52,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMigrateToDataTiersAction(
@@ -60,7 +63,8 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         ActionFilters actionFilters,
         NamedXContentRegistry xContentRegistry,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        ProjectResolver projectResolver
     ) {
         super(
             MigrateToDataTiersAction.NAME,
@@ -76,6 +80,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -88,6 +93,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         if (request.isDryRun()) {
             MigratedEntities entities = migrateToDataTiersRouting(
                 state,
+                projectResolver,
                 request.getNodeAttributeName(),
                 request.getLegacyTemplateToDelete(),
                 xContentRegistry,
@@ -109,10 +115,13 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             return;
         }
 
-        IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentILMMode(state) != STOPPED) {
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null && currentILMMode(projectMetadata) != STOPPED) {
             listener.onFailure(
-                new IllegalStateException("stop ILM before migrating to data tiers, current state is [" + currentILMMode(state) + "]")
+                new IllegalStateException(
+                    "stop ILM before migrating to data tiers, current state is [" + currentILMMode(projectMetadata) + "]"
+                )
             );
             return;
         }
@@ -123,6 +132,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             public ClusterState execute(ClusterState currentState) {
                 Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
                     currentState,
+                    projectResolver,
                     request.getNodeAttributeName(),
                     request.getLegacyTemplateToDelete(),
                     xContentRegistry,

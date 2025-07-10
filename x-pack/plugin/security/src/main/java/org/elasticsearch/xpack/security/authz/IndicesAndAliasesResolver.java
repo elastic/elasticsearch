@@ -34,8 +34,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -63,11 +65,13 @@ class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
+    private final boolean flatWorldEnabled;
 
     IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        this.flatWorldEnabled = SearchService.FLAT_WORLD_ENABLED.get(settings);
     }
 
     /**
@@ -129,37 +133,42 @@ class IndicesAndAliasesResolver {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
-        if (request instanceof FlatIndicesRequest flatIndicesRequest && flatIndicesRequest.requiresRewrite()) {
-            rewrite(flatIndicesRequest, authorizedIndices);
+        if (flatWorldEnabled && request instanceof FlatIndicesRequest flatIndicesRequest && flatIndicesRequest.requiresRewrite()) {
+            rewriteFlatIndexExpression(flatIndicesRequest, authorizedIndices);
         }
 
         return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
     }
 
-    void rewrite(FlatIndicesRequest request, AuthorizationEngine.AuthorizedIndices authorizedIndices) {
-        assert request.requiresRewrite();
+    void rewriteFlatIndexExpression(FlatIndicesRequest request, AuthorizationEngine.AuthorizedIndices authorizedIndices) {
+        assert flatWorldEnabled && request.requiresRewrite();
 
-        var clusters = remoteClusterResolver.clusters();
-        logger.info("Clusters available for remote indices: {}", clusters);
+        Set<String> remotes = remoteClusterResolver.clusters();
+        Map<String, List<RemoteClusterService.RemoteTag>> tags = remoteClusterResolver.tags();
+
+        logger.info("Remote available: {} with tags {}", remotes, tags);
         // no remotes, nothing to rewrite...
-        if (clusters.isEmpty()) {
-            logger.info("No remote clusters linked, skipping...");
+        if (remotes.isEmpty()) {
+            logger.info("No remotes, skipping...");
             return;
         }
 
         var indices = request.indices();
         // empty indices actually means search everything so would need to also rewrite that
 
-        var authorizedClusters = new HashSet<String>();
-        for (var cluster : clusters) {
-            if (authorizedIndices.checkRemote(cluster)) {
-                logger.info("Remote cluster [{}] authorized", cluster);
-                authorizedClusters.add(cluster);
+        var targetRemotes = new HashSet<String>();
+        for (var remote : remotes) {
+            List<RemoteClusterService.RemoteTag> tagsForRemote = tags.get(remote);
+            logger.info("Remote [{}] has tags [{}]", remote, tagsForRemote);
+            // TODO routing also needs to apply to local
+            if (authorizedIndices.checkRemote(remote) && request.checkRemote(remote, tagsForRemote)) {
+                logger.info("Remote [{}] authorized and matches routing", remote);
+                targetRemotes.add(remote);
             }
         }
 
-        if (authorizedClusters.isEmpty()) {
-            logger.info("No remote clusters authorized, skipping...");
+        if (targetRemotes.isEmpty()) {
+            logger.info("No target remotes, skipping...");
             return;
         }
 
@@ -174,7 +183,7 @@ class IndicesAndAliasesResolver {
         for (var local : resolved.getLocal()) {
             List<String> rewritten = new ArrayList<>();
             rewritten.add(local);
-            for (var cluster : authorizedClusters) {
+            for (var cluster : targetRemotes) {
                 rewritten.add(RemoteClusterAware.buildRemoteIndexName(cluster, local));
                 indexExpressions.add(new FlatIndicesRequest.IndexExpression(local, rewritten));
             }
@@ -601,10 +610,13 @@ class IndicesAndAliasesResolver {
     private static class RemoteClusterResolver extends RemoteClusterAware {
 
         private final CopyOnWriteArraySet<String> clusters;
+        // TODO consolidate
+        private final Map<String, List<RemoteClusterService.RemoteTag>> tags;
 
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
             clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
+            tags = RemoteClusterService.getEnabledRemoteClustersWithTags(settings);
             listenForUpdates(clusterSettings);
         }
 
@@ -629,6 +641,10 @@ class IndicesAndAliasesResolver {
 
         Set<String> clusters() {
             return Collections.unmodifiableSet(clusters);
+        }
+
+        Map<String, List<RemoteClusterService.RemoteTag>> tags() {
+            return Collections.unmodifiableMap(tags);
         }
     }
 }

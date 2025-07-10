@@ -202,7 +202,7 @@ public class PlannerUtils {
         final List<QueryBuilder> requestFilters = new ArrayList<>();
         final LucenePushdownPredicates ctx = LucenePushdownPredicates.forCanMatch(minTransportVersion);
         plan.forEachDown(FragmentExec.class, fe -> {
-            if (fe.esFilter() != null && fe.esFilter().getMinimalSupportedVersion().onOrAfter(minTransportVersion)) {
+            if (fe.esFilter() != null && minTransportVersion.onOrAfter(fe.esFilter().getMinimalSupportedVersion())) {
                 requestFilters.add(fe.esFilter());
             }
             // detect filter inside the query

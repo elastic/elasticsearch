@@ -26,6 +26,11 @@ configurations {
   }
 }
 
+// Check this out(
+/*
+declaring a config called rest spec
+contents of that config are just this folder
+ */
 artifacts {
   basicRestSpecs(new File(projectDir, "src/main/resources"))
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))

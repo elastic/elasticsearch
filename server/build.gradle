@@ -12,6 +12,8 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
+apply plugin: 'elasticsearch.check-transport-version'
+apply plugin: 'elasticsearch.generate-transport-version-manifest'
 
 publishing {
   publications {
@@ -116,6 +118,7 @@ def generateModulesList = tasks.register("generateModulesList") {
     }
 }
 
+// here, check this out for how to aggregate
 def generatePluginsList = tasks.register("generatePluginsList") {
     Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
     plugins.remove('example')

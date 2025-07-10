@@ -35,9 +35,11 @@ configurations {
       attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, DependenciesInfoPlugin.USAGE_ATTRIBUTE))
     }
   }
-  featuresMetadata {
+  featuresMetadata { // here, this is how we want to do this. Can't depend on explicit configs in serverless
     attributes {
-      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE) // disambiguates what artifact I need
+      // two configs in this dance, one that produces the artifact, and one that consumes it.
+      //  - on the consumer side, I'm going to resolve the config
     }
   }
 }
@@ -210,7 +212,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  dependencies.add('featuresMetadata', module)
+  dependencies.add('featuresMetadata', module) // TODO look at what we do here
   if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }

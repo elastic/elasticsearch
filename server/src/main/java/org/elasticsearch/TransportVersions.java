@@ -338,6 +338,10 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
     public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
 
+    // public static final TransportVersion2 FOO = TransportVersion2.declare("testPotato");
+
+    public static final TransportVersionSet FOO2 = TransportVersionSet.get("testPotato2");
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

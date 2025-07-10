@@ -333,12 +333,7 @@ public class CustomService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         return new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                similarityToUse,
-                embeddingSize,
-                serviceSettings.getMaxInputTokens(),
-                serviceSettings.elementType()
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(similarityToUse, embeddingSize, serviceSettings.getMaxInputTokens()),
             serviceSettings.getUrl(),
             serviceSettings.getHeaders(),
             serviceSettings.getQueryParameters(),
@@ -353,6 +348,12 @@ public class CustomService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+    }
+
+    @Override
+    public boolean hideFromConfigurationApi() {
+        // The Custom service is very configurable so we're going to hide it from being exposed in the service API.
+        return true;
     }
 
     public static class Configuration {

@@ -18,6 +18,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -35,6 +36,8 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -151,6 +154,35 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     private static boolean checkVersion(org.elasticsearch.Version version) {
         return version.onOrAfter(Version.fromString("9.1.0"))
             || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")));
+    }
+
+    public void testIndicesDontExistWithRemoteLookupJoin() throws IOException {
+        assumeTrue("Only works with remote LOOKUP JOIN support", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        // This check is for "local" cluster - which is different from test runner actually, so it could be old
+        assumeTrue(
+            "Only works with remote LOOKUP JOIN support",
+            clusterHasCapability(
+                client(),
+                "POST",
+                "_query",
+                List.of(),
+                List.of(EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName())
+            ).orElse(false)
+        );
+
+        int docsTest1 = randomIntBetween(1, 5);
+        indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
+
+        var pattern = "FROM test1,*:test1";
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
+        );
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(
+            e.getMessage(),
+            allOf(containsString("verification_exception"), containsString("Unknown index [foo,remote_cluster:foo]"))
+        );
     }
 
     // We need a separate test since remote missing indices and local missing indices now work differently

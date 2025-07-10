@@ -191,7 +191,6 @@ MIN(salary):integer | MAX(salary):integer | AVG(salary):double | height_bucket:d
 33956               | 74999               | 49684.545454545456 | 1.9
 26436               | 73717               | 47524.0            | 2.0
 28336               | 66817               | 46637.8            | 2.1
-null                | null                | null               | null
 // end::bucket_height_with_empty-result[]
 ;
 

@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -153,13 +154,15 @@ public class HashAggregationOperator implements Operator {
         return finished == false;
     }
 
-    private static final AtomicBoolean isInitialPage = new AtomicBoolean(true);
+    private final AtomicBoolean isInitialPage = new AtomicBoolean(true);
 
     @Override
     public void addInput(Page page) {
-        if (isInitialPage.compareAndSet(true, false)) {
+        if (isInitialPage.compareAndSet(true, false) && aggregators.size() > 0 && AggregatorMode.INITIAL.equals(aggregators.get(0).getMode())) {
             Page initialPage = createInitialPage(page.getBlockCount());
-            addInputInternal(initialPage);
+            if (initialPage != null) {
+                addInputInternal(initialPage);
+            }
         }
         addInputInternal(page);
     }
@@ -310,12 +313,15 @@ public class HashAggregationOperator implements Operator {
         return page;
     }
 
-    private Page createInitialPage(int blockCount) {
-        Block[] blocks = new Block[blockCount];
+    private @Nullable Page createInitialPage(int blockCount) {
         int maxBucketCount = getMaxBucketCount(groups);
+        if (maxBucketCount == 0) {
+            return null;
+        }
         Map<Integer, BlockHash.GroupSpec> channelsToAppend = groups.stream()
             .filter(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets())
             .collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
+        Block[] blocks = new Block[blockCount];
         for (int i = 0; i < blockCount; i++) {
             if (channelsToAppend.containsKey(i)) {
                 blocks[i] = appendValues(channelsToAppend.get(i).emptyBucketDef(), maxBucketCount);

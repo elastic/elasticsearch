@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -37,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -2240,6 +2242,60 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testRemoteLookupJoinWithPipelineBreaker() {
+        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
+        assertEquals(
+            "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
+            error(
+                "FROM test,remote:test | STATS c = COUNT(*) by languages "
+                    + "| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+
+        assertEquals(
+            "1:72: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@1:25",
+            error(
+                "FROM test,remote:test | SORT emp_no | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+
+        assertEquals(
+            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
+            error(
+                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+        assertEquals(
+            "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
+            error(
+                "FROM test,remote:test | EVAL language_code = languages | ENRICH _coordinator:languages_coord "
+                    + "| LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+    }
+
+    public void testRemoteLookupJoinIsSnapshot() {
+        // TODO: remove when we allow remote joins in release builds
+        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        assertTrue(Build.current().isSnapshot());
+    }
+
+    public void testRemoteLookupJoinIsDisabled() {
+        // TODO: remove when we allow remote joins in release builds
+        assumeFalse("Remote LOOKUP JOIN enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
+        );
+        assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
+
+    }
+
     private void checkFullTextFunctionsInStats(String functionInvocation) {
         query("from test | stats c = max(id) where " + functionInvocation, fullTextAnalyzer);
         query("from test | stats c = max(id) where " + functionInvocation + " or length(title) > 10", fullTextAnalyzer);
@@ -2260,7 +2316,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(parser.createStatement(query, TEST_CFG));
     }
 
     private String error(String query) {
@@ -2291,7 +2347,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters), TEST_CFG))
         );
         assertThat(e, instanceOf(exception));
 

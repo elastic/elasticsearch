@@ -22,13 +22,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.plan.logical.Unpivot.calculateOutput;
+import static org.elasticsearch.xpack.esql.plan.logical.Untable.calculateOutput;
 
-public class UnpivotExec extends UnaryExec {
+public class UntableExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
-        "UnpivotExec",
-        UnpivotExec::new
+        "UntableExec",
+        UntableExec::new
     );
 
     private final List<NamedExpression> sourceColumns;
@@ -37,7 +37,7 @@ public class UnpivotExec extends UnaryExec {
 
     private final List<Attribute> output;
 
-    public UnpivotExec(Source source, PhysicalPlan child, List<NamedExpression> sourceColumns, Attribute keyColumn, Attribute valueColumn) {
+    public UntableExec(Source source, PhysicalPlan child, List<NamedExpression> sourceColumns, Attribute keyColumn, Attribute valueColumn) {
         super(source, child);
         this.sourceColumns = sourceColumns;
         this.keyColumn = keyColumn;
@@ -45,7 +45,7 @@ public class UnpivotExec extends UnaryExec {
         this.output = calculateOutput(child.output(), sourceColumns, keyColumn, valueColumn);
     }
 
-    private UnpivotExec(StreamInput in) throws IOException {
+    private UntableExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
@@ -79,13 +79,13 @@ public class UnpivotExec extends UnaryExec {
     }
 
     @Override
-    protected NodeInfo<UnpivotExec> info() {
-        return NodeInfo.create(this, UnpivotExec::new, child(), sourceColumns, keyColumn, valueColumn);
+    protected NodeInfo<UntableExec> info() {
+        return NodeInfo.create(this, UntableExec::new, child(), sourceColumns, keyColumn, valueColumn);
     }
 
     @Override
-    public UnpivotExec replaceChild(PhysicalPlan newChild) {
-        return new UnpivotExec(source(), newChild, sourceColumns, keyColumn, valueColumn);
+    public UntableExec replaceChild(PhysicalPlan newChild) {
+        return new UntableExec(source(), newChild, sourceColumns, keyColumn, valueColumn);
     }
 
     public Attribute keyColumn() {
@@ -119,7 +119,7 @@ public class UnpivotExec extends UnaryExec {
             return false;
         }
 
-        UnpivotExec other = (UnpivotExec) obj;
+        UntableExec other = (UntableExec) obj;
 
         return Objects.equals(sourceColumns, other.sourceColumns)
             && Objects.equals(child(), other.child())

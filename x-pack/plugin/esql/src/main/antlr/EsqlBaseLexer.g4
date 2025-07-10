@@ -67,7 +67,7 @@ import ChangePoint,
        Project,
        Rename,
        Show,
-       Unpivot,
+       Untable,
        UnknownCommand;
 
 LINE_COMMENT

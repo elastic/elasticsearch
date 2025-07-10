@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
+import org.elasticsearch.xpack.esql.plan.logical.Untable;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -54,11 +54,11 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
                 return duplicateLimitAsFirstGrandchild(limit);
-            } else if (unary instanceof Unpivot unp) {
-                // UNPIVOT will multiply the number of rows by the number of unpivoted fields.
+            } else if (unary instanceof Untable unp) {
+                // UNTABLE will multiply the number of rows by the number of untableed fields.
                 // We'll have to preserve the existing limit
                 // and push down a smaller limit, that is the minimum to get all the rows we need to respect the original limit, ie.
-                // ceil(originalLimit / numUnpivotedFields)
+                // ceil(originalLimit / numUntableedFields)
 
                 if (limit.duplicated()) {
                     return limit;
@@ -72,8 +72,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 }
 
                 LogicalPlan lowerLimit = new Limit(Source.EMPTY, new Literal(Source.EMPTY, lowerLimitVal, DataType.INTEGER), unp.child());
-                UnaryPlan unpivot = unp.replaceChild(lowerLimit);
-                return limit.replaceChild(unpivot).withDuplicated(true);
+                UnaryPlan untable = unp.replaceChild(lowerLimit);
+                return limit.replaceChild(untable).withDuplicated(true);
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value

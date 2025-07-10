@@ -2209,12 +2209,12 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testUnpivotWrongTypes() {
+    public void testUntableWrongTypes() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
         assertThat(
-            error("FROM test | UNPIVOT fieldName FOR fieldValue IN (first_name, salary)"),
-            containsString("1:13: Cannot UNPIVOT columns of different types: [first_name] type [KEYWORD], [salary] type [INTEGER]")
+            error("FROM test | UNTABLE fieldName FOR fieldValue IN (first_name, salary)"),
+            containsString("1:13: Cannot UNTABLE columns of different types: [first_name] type [KEYWORD], [salary] type [INTEGER]")
         );
     }
 

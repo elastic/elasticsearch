@@ -1252,9 +1252,9 @@ public class EsqlCapabilities {
         NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
 
         /**
-         * UNPIVOT command
+         * UNTABLE command
          */
-        UNPIVOT(Build.current().isSnapshot());
+        UNTABLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

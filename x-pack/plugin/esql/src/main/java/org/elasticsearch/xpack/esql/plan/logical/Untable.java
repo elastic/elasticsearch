@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Unpivot", Unpivot::new);
+public class Untable extends UnaryPlan implements PostAnalysisVerificationAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Untable", Untable::new);
 
     private final List<NamedExpression> sourceColumns;
     private final Attribute keyColumn;
@@ -40,14 +40,14 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
 
     private List<Attribute> output;
 
-    public Unpivot(Source source, LogicalPlan child, List<NamedExpression> sourceColumns, Attribute keyColumn, Attribute valueColumn) {
+    public Untable(Source source, LogicalPlan child, List<NamedExpression> sourceColumns, Attribute keyColumn, Attribute valueColumn) {
         super(source, child);
         this.keyColumn = keyColumn;
         this.valueColumn = valueColumn;
         this.sourceColumns = sourceColumns;
     }
 
-    private Unpivot(StreamInput in) throws IOException {
+    private Untable(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
@@ -100,7 +100,7 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
     }
 
     public String commandName() {
-        return "UNPIVOT";
+        return "UNTABLE";
     }
 
     @Override
@@ -110,7 +110,7 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Unpivot(source(), newChild, sourceColumns, keyColumn, valueColumn);
+        return new Untable(source(), newChild, sourceColumns, keyColumn, valueColumn);
     }
 
     @Override
@@ -135,7 +135,7 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Unpivot::new, child(), sourceColumns, keyColumn, valueColumn);
+        return NodeInfo.create(this, Untable::new, child(), sourceColumns, keyColumn, valueColumn);
     }
 
     @Override
@@ -148,7 +148,7 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
         if (false == super.equals(obj)) {
             return false;
         }
-        Unpivot other = ((Unpivot) obj);
+        Untable other = ((Untable) obj);
         return Objects.equals(sourceColumns, other.sourceColumns)
             && Objects.equals(keyColumn, other.keyColumn)
             && Objects.equals(valueColumn, other.valueColumn);
@@ -158,7 +158,7 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
     public void postAnalysisVerification(Failures failures) {
         DataType type = null;
         if (sourceColumns.isEmpty()) {
-            failures.add(fail(this, "UNPIVOT does not match any columns [{}]", sourceText()));
+            failures.add(fail(this, "UNTABLE does not match any columns [{}]", sourceText()));
         }
         for (NamedExpression sourceColumn : sourceColumns) {
             DataType nextType = sourceColumn.dataType();
@@ -168,7 +168,7 @@ public class Unpivot extends UnaryPlan implements PostAnalysisVerificationAware 
                 failures.add(
                     fail(
                         this,
-                        "Cannot UNPIVOT columns of different types: [{}] type [{}], [{}] type [{}]",
+                        "Cannot UNTABLE columns of different types: [{}] type [{}], [{}] type [{}]",
                         sourceColumns.get(0).name(),
                         sourceColumns.get(0).dataType(),
                         sourceColumn.name(),

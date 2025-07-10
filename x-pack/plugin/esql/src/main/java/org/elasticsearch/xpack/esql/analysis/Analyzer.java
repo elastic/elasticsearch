@@ -94,7 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
-import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
+import org.elasticsearch.xpack.esql.plan.logical.Untable;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -528,8 +528,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveMvExpand(p, childrenOutput);
             }
 
-            if (plan instanceof Unpivot p) {
-                return resolveUnpivot(p, childrenOutput);
+            if (plan instanceof Untable p) {
+                return resolveUntable(p, childrenOutput);
             }
 
             if (plan instanceof Lookup l) {
@@ -659,7 +659,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return p;
         }
 
-        private LogicalPlan resolveUnpivot(Unpivot p, List<Attribute> childrenOutput) {
+        private LogicalPlan resolveUntable(Untable p, List<Attribute> childrenOutput) {
             boolean changed = false;
             Set<NamedExpression> resolvedAttributes = new LinkedHashSet<>();
             for (NamedExpression sourceColumn : p.sourceColumns()) {
@@ -674,7 +674,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolveAgainstList(pattern, childrenOutput).stream().filter(x -> (x instanceof Unresolvable) == false).toList()
                     );
                 } else {
-                    throw new IllegalArgumentException("Invalid input for UNPIVOT: [" + sourceColumn.name() + "]");
+                    throw new IllegalArgumentException("Invalid input for UNTABLE: [" + sourceColumn.name() + "]");
                 }
                 changed = true;
             }
@@ -685,7 +685,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     .map(Expression::dataType)
                     .findFirst()
                     .orElse(null);
-                return new Unpivot(
+                return new Untable(
                     p.source(),
                     p.child(),
                     resolvedList,

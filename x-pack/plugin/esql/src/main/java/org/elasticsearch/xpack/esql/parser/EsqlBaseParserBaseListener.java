@@ -865,13 +865,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx) { }
+  @Override public void enterUntableCommand(EsqlBaseParser.UntableCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx) { }
+  @Override public void exitUntableCommand(EsqlBaseParser.UntableCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *

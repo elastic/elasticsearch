@@ -30,7 +30,7 @@ public class EsqlBaseParser extends ParserConfig {
     SORT=14, STATS=15, WHERE=16, DEV_INLINESTATS=17, DEV_RERANK=18, FROM=19, 
     DEV_TIME_SERIES=20, FORK=21, DEV_FUSE=22, JOIN_LOOKUP=23, DEV_JOIN_FULL=24, 
     DEV_JOIN_LEFT=25, DEV_JOIN_RIGHT=26, DEV_LOOKUP=27, MV_EXPAND=28, DROP=29, 
-    KEEP=30, DEV_INSIST=31, RENAME=32, SHOW=33, DEV_UNPIVOT=34, UNKNOWN_CMD=35, 
+    KEEP=30, DEV_INSIST=31, RENAME=32, SHOW=33, DEV_UNTABLE=34, UNKNOWN_CMD=35, 
     CHANGE_POINT_LINE_COMMENT=36, CHANGE_POINT_MULTILINE_COMMENT=37, CHANGE_POINT_WS=38, 
     ENRICH_POLICY_NAME=39, ENRICH_LINE_COMMENT=40, ENRICH_MULTILINE_COMMENT=41, 
     ENRICH_WS=42, ENRICH_FIELD_LINE_COMMENT=43, ENRICH_FIELD_MULTILINE_COMMENT=44, 
@@ -54,9 +54,9 @@ public class EsqlBaseParser extends ParserConfig {
     ID_PATTERN=130, PROJECT_LINE_COMMENT=131, PROJECT_MULTILINE_COMMENT=132, 
     PROJECT_WS=133, AS=134, RENAME_LINE_COMMENT=135, RENAME_MULTILINE_COMMENT=136, 
     RENAME_WS=137, INFO=138, SHOW_LINE_COMMENT=139, SHOW_MULTILINE_COMMENT=140, 
-    SHOW_WS=141, UNPIVOT_LINE_COMMENT=142, UNPIVOT_MULTILINE_COMMENT=143, 
-    UNPIVOT_WS=144, UNPIVOT_FIELD_LINE_COMMENT=145, UNPIVOT_FIELD_MULTILINE_COMMENT=146, 
-    UNPIVOT_FIELD_WS=147;
+    SHOW_WS=141, UNTABLE_LINE_COMMENT=142, UNTABLE_MULTILINE_COMMENT=143, 
+    UNTABLE_WS=144, UNTABLE_FIELD_LINE_COMMENT=145, UNTABLE_FIELD_MULTILINE_COMMENT=146, 
+    UNTABLE_FIELD_WS=147;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_dataType = 5, RULE_rowCommand = 6, RULE_fields = 7, 
@@ -79,7 +79,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_completionCommand = 57, RULE_lookupCommand = 58, RULE_inlinestatsCommand = 59, 
     RULE_insistCommand = 60, RULE_fuseCommand = 61, RULE_inferenceCommandOptions = 62, 
     RULE_inferenceCommandOption = 63, RULE_inferenceCommandOptionValue = 64, 
-    RULE_rerankCommand = 65, RULE_unpivotCommand = 66, RULE_booleanExpression = 67, 
+    RULE_rerankCommand = 65, RULE_untableCommand = 66, RULE_booleanExpression = 67, 
     RULE_regexBooleanExpression = 68, RULE_matchBooleanExpression = 69, RULE_valueExpression = 70, 
     RULE_operatorExpression = 71, RULE_primaryExpression = 72, RULE_functionExpression = 73, 
     RULE_functionName = 74, RULE_mapExpression = 75, RULE_entryExpression = 76, 
@@ -104,7 +104,7 @@ public class EsqlBaseParser extends ParserConfig {
       "forkSubQuery", "forkSubQueryCommand", "forkSubQueryProcessingCommand", 
       "completionCommand", "lookupCommand", "inlinestatsCommand", "insistCommand", 
       "fuseCommand", "inferenceCommandOptions", "inferenceCommandOption", "inferenceCommandOptionValue", 
-      "rerankCommand", "unpivotCommand", "booleanExpression", "regexBooleanExpression", 
+      "rerankCommand", "untableCommand", "booleanExpression", "regexBooleanExpression", 
       "matchBooleanExpression", "valueExpression", "operatorExpression", "primaryExpression", 
       "functionExpression", "functionName", "mapExpression", "entryExpression", 
       "constant", "booleanValue", "numericValue", "decimalValue", "integerValue", 
@@ -141,7 +141,7 @@ public class EsqlBaseParser extends ParserConfig {
       "SAMPLE", "SORT", "STATS", "WHERE", "DEV_INLINESTATS", "DEV_RERANK", 
       "FROM", "DEV_TIME_SERIES", "FORK", "DEV_FUSE", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
       "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MV_EXPAND", "DROP", 
-      "KEEP", "DEV_INSIST", "RENAME", "SHOW", "DEV_UNPIVOT", "UNKNOWN_CMD", 
+      "KEEP", "DEV_INSIST", "RENAME", "SHOW", "DEV_UNTABLE", "UNKNOWN_CMD", 
       "CHANGE_POINT_LINE_COMMENT", "CHANGE_POINT_MULTILINE_COMMENT", "CHANGE_POINT_WS", 
       "ENRICH_POLICY_NAME", "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", 
       "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", "ENRICH_FIELD_MULTILINE_COMMENT", 
@@ -163,9 +163,9 @@ public class EsqlBaseParser extends ParserConfig {
       "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", "ID_PATTERN", "PROJECT_LINE_COMMENT", 
       "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", 
       "RENAME_MULTILINE_COMMENT", "RENAME_WS", "INFO", "SHOW_LINE_COMMENT", 
-      "SHOW_MULTILINE_COMMENT", "SHOW_WS", "UNPIVOT_LINE_COMMENT", "UNPIVOT_MULTILINE_COMMENT", 
-      "UNPIVOT_WS", "UNPIVOT_FIELD_LINE_COMMENT", "UNPIVOT_FIELD_MULTILINE_COMMENT", 
-      "UNPIVOT_FIELD_WS"
+      "SHOW_MULTILINE_COMMENT", "SHOW_WS", "UNTABLE_LINE_COMMENT", "UNTABLE_MULTILINE_COMMENT", 
+      "UNTABLE_WS", "UNTABLE_FIELD_LINE_COMMENT", "UNTABLE_FIELD_MULTILINE_COMMENT", 
+      "UNTABLE_FIELD_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -555,8 +555,8 @@ public class EsqlBaseParser extends ParserConfig {
     public FuseCommandContext fuseCommand() {
       return getRuleContext(FuseCommandContext.class,0);
     }
-    public UnpivotCommandContext unpivotCommand() {
-      return getRuleContext(UnpivotCommandContext.class,0);
+    public UntableCommandContext untableCommand() {
+      return getRuleContext(UntableCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -755,7 +755,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(226);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(227);
-        unpivotCommand();
+        untableCommand();
         }
         break;
       }
@@ -4776,11 +4776,11 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class UnpivotCommandContext extends ParserRuleContext {
+  public static class UntableCommandContext extends ParserRuleContext {
     public QualifiedNamePatternContext valueColumn;
     public QualifiedNamePatternContext keyColumn;
     public QualifiedNamePatternsContext target;
-    public TerminalNode DEV_UNPIVOT() { return getToken(EsqlBaseParser.DEV_UNPIVOT, 0); }
+    public TerminalNode DEV_UNTABLE() { return getToken(EsqlBaseParser.DEV_UNTABLE, 0); }
     public TerminalNode FOR() { return getToken(EsqlBaseParser.FOR, 0); }
     public TerminalNode IN() { return getToken(EsqlBaseParser.IN, 0); }
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
@@ -4795,45 +4795,45 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(QualifiedNamePatternsContext.class,0);
     }
     @SuppressWarnings("this-escape")
-    public UnpivotCommandContext(ParserRuleContext parent, int invokingState) {
+    public UntableCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_unpivotCommand; }
+    @Override public int getRuleIndex() { return RULE_untableCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterUnpivotCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterUntableCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitUnpivotCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitUntableCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitUnpivotCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitUntableCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final UnpivotCommandContext unpivotCommand() throws RecognitionException {
-    UnpivotCommandContext _localctx = new UnpivotCommandContext(_ctx, getState());
-    enterRule(_localctx, 132, RULE_unpivotCommand);
+  public final UntableCommandContext untableCommand() throws RecognitionException {
+    UntableCommandContext _localctx = new UntableCommandContext(_ctx, getState());
+    enterRule(_localctx, 132, RULE_untableCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(576);
-      match(DEV_UNPIVOT);
+      match(DEV_UNTABLE);
       setState(577);
-      ((UnpivotCommandContext)_localctx).valueColumn = qualifiedNamePattern();
+      ((UntableCommandContext)_localctx).valueColumn = qualifiedNamePattern();
       setState(578);
       match(FOR);
       setState(579);
-      ((UnpivotCommandContext)_localctx).keyColumn = qualifiedNamePattern();
+      ((UntableCommandContext)_localctx).keyColumn = qualifiedNamePattern();
       setState(580);
       match(IN);
       setState(581);
       match(LP);
       setState(582);
-      ((UnpivotCommandContext)_localctx).target = qualifiedNamePatterns();
+      ((UntableCommandContext)_localctx).target = qualifiedNamePatterns();
       setState(583);
       match(RP);
       }

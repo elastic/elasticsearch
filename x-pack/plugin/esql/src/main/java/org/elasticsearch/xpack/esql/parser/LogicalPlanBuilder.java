@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
+import org.elasticsearch.xpack.esql.plan.logical.Untable;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -458,12 +458,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx) {
+    public PlanFactory visitUntableCommand(EsqlBaseParser.UntableCommandContext ctx) {
         List<NamedExpression> target = visitQualifiedNamePatterns(ctx.target);
         NamedExpression keyField = visitQualifiedNamePattern(ctx.valueColumn);
         NamedExpression valueField = visitQualifiedNamePattern(ctx.keyColumn);
         Source src = source(ctx);
-        return child -> new Unpivot(
+        return child -> new Untable(
             src,
             child,
             target,

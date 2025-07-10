@@ -21,25 +21,25 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 
-public class UnpivotOperator extends AbstractPageMappingOperator {
-    private static final Logger logger = LogManager.getLogger(UnpivotOperator.class);
+public class UntableOperator extends AbstractPageMappingOperator {
+    private static final Logger logger = LogManager.getLogger(UntableOperator.class);
     private final List<String> names;
 
     public record Factory(int[] sourceChannels, List<String> names) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new UnpivotOperator(sourceChannels, names);
+            return new UntableOperator(sourceChannels, names);
         }
 
         @Override
         public String describe() {
-            return "UnpivotOperator[surceChannels=" + sourceChannels + "]";
+            return "UntableOperator[surceChannels=" + sourceChannels + "]";
         }
     }
 
     private final int[] sourceChannels;
 
-    public UnpivotOperator(int[] sourceChannels, List<String> names) {
+    public UntableOperator(int[] sourceChannels, List<String> names) {
         this.sourceChannels = sourceChannels;
         this.names = names;
     }
@@ -244,7 +244,7 @@ public class UnpivotOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "UnpivotOperator[" + "sourceChannels=" + sourceChannels + ']';
+        return "UntableOperator[" + "sourceChannels=" + sourceChannels + ']';
     }
 
 }

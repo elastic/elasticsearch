@@ -1,6 +1,6 @@
-rowUnpivot
-required_capability: unpivot
-ROW id=1, name1="foo", name2="bar", name3="baz" | UNPIVOT fieldName FOR fieldValue IN (name1, name2);
+rowUntable
+required_capability: untable
+ROW id=1, name1="foo", name2="bar", name3="baz" | UNTABLE fieldName FOR fieldValue IN (name1, name2);
 
 id:integer | name3:keyword | fieldName:keyword | fieldValue:keyword
 1          | baz           | name1             | foo
@@ -8,9 +8,9 @@ id:integer | name3:keyword | fieldName:keyword | fieldValue:keyword
 ;
 
 
-rowUnpivotInteger
-required_capability: unpivot
-ROW id=1, name1=1, name2=2, name3=3 | UNPIVOT fieldName FOR fieldValue IN (name1, name2);
+rowUntableInteger
+required_capability: untable
+ROW id=1, name1=1, name2=2, name3=3 | UNTABLE fieldName FOR fieldValue IN (name1, name2);
 
 id:integer | name3:integer | fieldName:keyword | fieldValue:integer
 1          | 3             | name1             | 1
@@ -18,9 +18,9 @@ id:integer | name3:integer | fieldName:keyword | fieldValue:integer
 ;
 
 
-rowUnpivotWildcard
-required_capability: unpivot
-ROW id=1, name1="foo", name2="bar", name3="baz" | UNPIVOT fieldName FOR fieldValue IN (name*);
+rowUntableWildcard
+required_capability: untable
+ROW id=1, name1="foo", name2="bar", name3="baz" | UNTABLE fieldName FOR fieldValue IN (name*);
 
 id:integer | fieldName:keyword | fieldValue:keyword
 1          | name1             | foo
@@ -29,9 +29,9 @@ id:integer | fieldName:keyword | fieldValue:keyword
 ;
 
 
-rowUnpivotWildcardLimit
-required_capability: unpivot
-ROW id=1, name1="foo", name2="bar", name3="baz" | UNPIVOT fieldName FOR fieldValue IN (name*) | limit 2;
+rowUntableWildcardLimit
+required_capability: untable
+ROW id=1, name1="foo", name2="bar", name3="baz" | UNTABLE fieldName FOR fieldValue IN (name*) | limit 2;
 
 id:integer | fieldName:keyword | fieldValue:keyword
 1          | name1             | foo
@@ -39,12 +39,12 @@ id:integer | fieldName:keyword | fieldValue:keyword
 ;
 
 
-simpleUnpivot
-required_capability: unpivot
+simpleUntable
+required_capability: untable
 FROM employees
 | WHERE emp_no < 10003
 | SORT emp_no
-| UNPIVOT nameType FOR nameValue in (*name)
+| UNTABLE nameType FOR nameValue in (*name)
 | KEEP emp_no, nameType, nameValue;
 
 emp_no:integer | nameType:keyword | nameValue:keyword

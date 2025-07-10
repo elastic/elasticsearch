@@ -65,7 +65,7 @@ processingCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? fuseCommand
-    | {this.isDevVersion()}? unpivotCommand
+    | {this.isDevVersion()}? untableCommand
     ;
 
 whereCommand
@@ -333,6 +333,6 @@ rerankCommand
     : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
     ;
 
-unpivotCommand
-    : DEV_UNPIVOT valueColumn=qualifiedNamePattern FOR keyColumn=qualifiedNamePattern IN LP target=qualifiedNamePatterns RP
+untableCommand
+    : DEV_UNTABLE valueColumn=qualifiedNamePattern FOR keyColumn=qualifiedNamePattern IN LP target=qualifiedNamePatterns RP
     ;

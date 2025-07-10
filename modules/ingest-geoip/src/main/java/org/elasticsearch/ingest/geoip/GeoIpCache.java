@@ -53,10 +53,7 @@ public final class GeoIpCache {
 
     // package private for testing
     static GeoIpCache createGeoIpCacheWithMaxCountAndCustomTimeProvider(long maxSize, LongSupplier relativeNanoTimeProvider) {
-        return new GeoIpCache(
-            relativeNanoTimeProvider,
-            CacheBuilder.<CacheKey, Response>builder().setMaximumWeight(maxSize).build()
-        );
+        return new GeoIpCache(relativeNanoTimeProvider, CacheBuilder.<CacheKey, Response>builder().setMaximumWeight(maxSize).build());
     }
 
     /**

@@ -27,7 +27,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
-import java.util.function.LongFunction;
 
 public abstract class SnapshotShardContext extends DelegatingActionListener<ShardSnapshotResult, ShardSnapshotResult> {
 
@@ -109,7 +108,10 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
 
     public abstract FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException;
 
-    public interface FileReader extends LongFunction<InputStream>, Closeable {
+    public interface FileReader extends Closeable {
+
+        InputStream openInput(long limit) throws IOException;
+
         void verify() throws IOException;
     }
 

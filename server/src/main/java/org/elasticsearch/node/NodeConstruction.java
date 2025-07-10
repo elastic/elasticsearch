@@ -186,8 +186,10 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
@@ -248,6 +250,7 @@ import static java.lang.invoke.MethodHandles.lookup;
 import static java.util.Collections.newSetFromMap;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.core.Types.forciblyCast;
+import static org.elasticsearch.snapshots.SnapshotsService.STATELESS_SNAPSHOT_ENABLED;
 
 /**
  * Class uses to perform all the operations needed to construct a {@link Node} instance.
@@ -1110,6 +1113,18 @@ class NodeConstruction {
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
 
+        final boolean statelessSnapshotEnabled = settings.getAsBoolean(STATELESS_SNAPSHOT_ENABLED, false);
+        final SnapshotShardContextFactory snapshotShardContextFactory;
+        if (statelessSnapshotEnabled) {
+            snapshotShardContextFactory = pluginsService.loadSingletonServiceProvider(SnapshotShardContextFactory.class, () -> {
+                throw new IllegalStateException(
+                    STATELESS_SNAPSHOT_ENABLED + " is enabled, but no SnapshotShardContextFactory is registered"
+                );
+            });
+        } else {
+            snapshotShardContextFactory = new LocalPrimarySnapshotShardContextFactory(indicesService);
+        }
+
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
@@ -1126,7 +1141,8 @@ class NodeConstruction {
             clusterService,
             repositoriesService,
             transportService,
-            indicesService
+            indicesService,
+            snapshotShardContextFactory
         );
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));

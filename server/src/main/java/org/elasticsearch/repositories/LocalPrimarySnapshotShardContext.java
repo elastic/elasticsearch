@@ -188,11 +188,6 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
         return new FileReader(file, metadata);
     }
 
-    @Override
-    public <T> ActionListener<T> closingBefore(ActionListener<T> delegate) {
-        return commitRef.closingBefore(delegate);
-    }
-
     class FileReader implements SnapshotShardContext.FileReader {
 
         private final String file;
@@ -206,7 +201,7 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
         }
 
         @Override
-        public InputStream apply(long limit) {
+        public InputStream openInput(long limit) throws IOException {
             return new InputStreamIndexInput(indexInput, limit);
         }
 

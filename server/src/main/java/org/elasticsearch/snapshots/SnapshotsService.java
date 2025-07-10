@@ -217,6 +217,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    public static final String STATELESS_SNAPSHOT_ENABLED = "stateless.snapshot.enabled";
+
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(

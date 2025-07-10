@@ -65,16 +65,14 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
             throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
         }
 
-        snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
-
         SnapshotIndexCommit snapshotIndexCommit = null;
         try {
+            snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
             snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
             snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
             snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
             snapshotStatus.ensureNotAborted();
-
             snapshotShardContextConsumer.accept(
                 new LocalPrimarySnapshotShardContext(
                     indexShard.store(),

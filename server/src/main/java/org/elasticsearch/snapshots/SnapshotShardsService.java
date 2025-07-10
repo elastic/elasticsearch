@@ -42,7 +42,6 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -108,12 +107,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         ClusterService clusterService,
         RepositoriesService repositoriesService,
         TransportService transportService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SnapshotShardContextFactory snapshotShardContextFactory
     ) {
         this.indicesService = indicesService;
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.snapshotShardContextFactory = snapshotShardContextFactory;
         this.threadPool = transportService.getThreadPool();
         this.snapshotShutdownProgressTracker = new SnapshotShutdownProgressTracker(
             () -> clusterService.state().nodes().getLocalNodeId(),
@@ -138,7 +139,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
-        this.snapshotShardContextFactory = new LocalPrimarySnapshotShardContextFactory(indicesService);
     }
 
     @Override

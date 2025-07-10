@@ -474,3 +474,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/126124
+- class: org.elasticsearch.xpack.restart.MlHiddenIndicesFullClusterRestartIT
+  method: testMlIndicesBecomeHidden {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/130766

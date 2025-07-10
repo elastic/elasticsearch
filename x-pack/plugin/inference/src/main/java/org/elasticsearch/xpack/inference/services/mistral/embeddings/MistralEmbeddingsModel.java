@@ -59,7 +59,6 @@ public class MistralEmbeddingsModel extends MistralModel {
     }
 
     private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
-        this.model = serviceSettings.modelId();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
     }

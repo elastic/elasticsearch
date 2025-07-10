@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_COMPLETIONS_PATH;
 
@@ -102,14 +101,8 @@ public class MistralChatCompletionModel extends MistralModel {
     }
 
     private void setPropertiesFromServiceSettings(MistralChatCompletionServiceSettings serviceSettings) {
-        this.model = serviceSettings.modelId();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
-    }
-
-    @Override
-    public int rateLimitGroupingHash() {
-        return Objects.hash(model, getSecretSettings().apiKey());
     }
 
     private void setEndpointUrl() {

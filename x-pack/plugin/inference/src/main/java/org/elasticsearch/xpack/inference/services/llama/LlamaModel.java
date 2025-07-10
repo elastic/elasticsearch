@@ -61,7 +61,7 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(uri, getSecretSettings());
+        return Objects.hash(getServiceSettings().modelId(), uri, getSecretSettings());
     }
 
     // Needed for testing only

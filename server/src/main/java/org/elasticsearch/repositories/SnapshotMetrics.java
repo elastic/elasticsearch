@@ -40,7 +40,6 @@ public record SnapshotMetrics(
 
     public static final String SNAPSHOTS_STARTED = "es.repositories.snapshots.started.total";
     public static final String SNAPSHOTS_COMPLETED = "es.repositories.snapshots.completed.total";
-    public static final String SNAPSHOTS_IN_PROGRESS = "es.repositories.snapshots.current";
     public static final String SNAPSHOTS_BY_STATE = "es.repositories.snapshots.by_state.current";
     public static final String SNAPSHOT_DURATION = "es.repositories.snapshots.duration.histogram";
     public static final String SNAPSHOT_SHARDS_STARTED = "es.repositories.snapshots.shards.started.total";
@@ -84,10 +83,6 @@ public record SnapshotMetrics(
             "unit",
             shardSnapshotsInProgressObserver
         );
-    }
-
-    public void createSnapshotsInProgressMetric(Supplier<Collection<LongWithAttributes>> snapshotsInProgressObserver) {
-        meterRegistry.registerLongsGauge(SNAPSHOTS_IN_PROGRESS, "snapshots in progress", "unit", snapshotsInProgressObserver);
     }
 
     public void createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {

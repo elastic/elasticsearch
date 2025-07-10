@@ -122,7 +122,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
             waitForBlockOnAnyDataNode(repositoryName);
             collectMetrics();
-            assertSnapshotsInProgressMetricIs(greaterThan(0L));
             assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_STARTED), equalTo(1L));
             assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(0L));
@@ -174,7 +173,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo((long) numShards));
 
-        assertSnapshotsInProgressMetricIs(equalTo(0L));
         assertShardsInProgressMetricIs(everyItem(equalTo(0L)));
 
         // Restore the snapshot
@@ -209,7 +207,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             SnapshotState.SUCCESS.name()
         );
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOTS_STARTED, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOTS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOTS_COMPLETED, expectedAttrsWithSnapshotState);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_DURATION, expectedAttrsWithSnapshotState);
 
@@ -505,20 +502,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             return longGaugeMeasurement.getLast().getLong();
         }).toList();
         assertThat(values, matcher);
-    }
-
-    private static void assertSnapshotsInProgressMetricIs(Matcher<Long> matcher) {
-        final List<Long> values = internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .map(testTelemetryPlugin -> {
-                final List<Measurement> longGaugeMeasurement = testTelemetryPlugin.getLongGaugeMeasurement(
-                    SnapshotMetrics.SNAPSHOTS_IN_PROGRESS
-                );
-                return longGaugeMeasurement.getLast().getLong();
-            })
-            .toList();
-        assertThat(values, hasSize(1));
-        assertThat(values.getFirst(), matcher);
     }
 
     private static void collectMetrics() {

@@ -242,7 +242,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
         this.snapshotMetrics = snapshotMetrics;
-        snapshotMetrics.createSnapshotsInProgressMetric(this::getSnapshotsInProgress);
         snapshotMetrics.createSnapshotShardsByStateMetric(this::getShardsByState);
         snapshotMetrics.createSnapshotsByStateMetric(this::getSnapshotsByState);
 
@@ -4456,28 +4455,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             });
             return res;
         }
-    }
-
-    private Collection<LongWithAttributes> getSnapshotsInProgress() {
-        final ClusterState currentState = clusterService.state();
-        // Only the master should report on snapshots-in-progress
-        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
-            return List.of();
-        }
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
-        final List<LongWithAttributes> snapshotsInProgressMetrics = new ArrayList<>();
-        currentState.metadata().projects().forEach((projectId, project) -> {
-            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
-            if (repositoriesMetadata != null) {
-                repositoriesMetadata.repositories().forEach(repository -> {
-                    int snapshotCount = snapshotsInProgress.forRepo(projectId, repository.name()).size();
-                    snapshotsInProgressMetrics.add(
-                        new LongWithAttributes(snapshotCount, SnapshotMetrics.createAttributesMap(projectId, repository))
-                    );
-                });
-            }
-        });
-        return snapshotsInProgressMetrics;
     }
 
     private Collection<LongWithAttributes> getShardsByState() {

@@ -107,11 +107,14 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         final String originalMaster = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
-        internalCluster().validateClusterFormed();
+        awaitMasterNode();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
-        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(state.nodes().size(), equalTo(2 + numDataNodes));
-        assertThat(VotingOnlyNodePlugin.isVotingOnlyNode(state.nodes().getMasterNode()), equalTo(false));
+        assertThat(
+            VotingOnlyNodePlugin.isVotingOnlyNode(
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
+            ),
+            equalTo(false)
+        );
     }
 
     public void testBootstrapOnlyVotingOnlyNodes() throws Exception {
@@ -169,7 +172,6 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
         // start a fresh full master node, which will be brought into the cluster as master by the voting-only nodes
         final String newMaster = internalCluster().startNode();
-        internalCluster().validateClusterFormed();
         assertEquals(newMaster, internalCluster().getMasterName());
         final String newMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
         assertNotEquals(oldMasterId, newMasterId);

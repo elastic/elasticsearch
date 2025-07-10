@@ -169,6 +169,7 @@ bucket:datetime
 
 bucketMonthInAggWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS MAX(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | SORT bucket
 ;
@@ -189,11 +190,9 @@ null                | 1985-12-01T00:00:00.000Z
 ;
 
 bucketMonthInAggsWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-// tag::bucket_in_aggs_with_empty[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS MIN(salary), MAX(salary), AVG(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", true)
-// end::bucket_in_aggs_with_empty[]
 | SORT bucket
 ;
 warningRegex:evaluation of \[AVG\(salary\)\] failed, treating result as null. Only first 20 failures recorded

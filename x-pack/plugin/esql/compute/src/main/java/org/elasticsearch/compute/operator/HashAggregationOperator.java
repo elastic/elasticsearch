@@ -158,7 +158,8 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        if (isInitialPage.compareAndSet(true, false) && (aggregators.size() == 0 || AggregatorMode.INITIAL.equals(aggregators.get(0).getMode()))) {
+        if (isInitialPage.compareAndSet(true, false)
+            && (aggregators.size() == 0 || AggregatorMode.INITIAL.equals(aggregators.get(0).getMode()))) {
             Page initialPage = createInitialPage(page.getBlockCount());
             if (initialPage != null) {
                 addInputInternal(initialPage);

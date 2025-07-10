@@ -1,72 +1,14 @@
 # Elasticsearch
 
-{{es}} is a distributed search and analytics engine, scalable data store, and vector database built on Apache Lucene. It’s optimized for speed and relevance on production-scale workloads. Use Elasticsearch to search, index, store, and analyze data of all shapes and sizes in near real time.
+This section contains reference information for {{es}} and index management features.
 
-## Quick Links
+To learn more about {{es}} features and how to get started, refer to the [{{es}}](docs-content://solutions/search.md) documentation.
 
-- [REST API Reference](./rest-apis/index.md)
-- [API Conventions](./rest-apis/api-conventions.md)
-- [Settings Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html)
-- [Breaking Changes](https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes.html)
-- [Compatibility](./rest-apis/compatibility.md)
-- [Glossary](https://www.elastic.co/guide/en/elasticsearch/reference/current/glossary.html)
-- [Plugin Development](https://www.elastic.co/guide/en/elasticsearch/plugins/current/index.html)
-- [Supported Platforms](https://www.elastic.co/support/matrix#matrix_jvm)
+For more details about query and scripting languages, check these sections:
+* [Query languages](../query-languages/index.md)
+* [Scripting languages](../scripting-languages/index.md)
 
-## Search and analyze your data
+{{es}} also provides the following REST APIs:
 
-{{es}} is the search and analytics engine that powers the {{stack}}.
-
-- [Get started](docs-content://get-started.md)
-- [Introduction](docs-content://get-started.md)
-- [What's new](elasticsearch://release-notes/elasticsearch)
-- [Release notes](https://www.elastic.co/docs/release-notes/elasticsearch)
-
-## Get to know Elasticsearch
-
-_Demos:_ [Hands-on learning for Search](https://www.elastic.co/demo-gallery?solutions=search&features=null&type=hands-on-learning)
-_New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/virtual-events/architecting-search-apps-on-google-cloud)
-
-## Install, manage, and secure
-
-* [Set up Elasticsearch](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md)
-* [Secure the Elastic Stack](docs-content://deploy-manage/security.md)
-* [Upgrade Elasticsearch](docs-content://deploy-manage/upgrade/deployment-or-cluster.md)
-* [Set up a cluster for high availability](docs-content://deploy-manage/tools.md)
-* [Monitor a cluster](docs-content://deploy-manage/monitor/cloud-health-perf.md)
-* [Troubleshooting](docs-content://troubleshoot/elasticsearch.md)
-* [Optimizations](docs-content://deploy-manage/production-guidance/optimize-performance.md)
-
-## Ingest data
-
-* [Adding data to Elasticsearch](docs-content://manage-data/ingest.md)
-* [Connectors](https://www.elastic.co/docs/reference/search-connectors)
-* [Web crawler](https://www.elastic.co/search-labs/blog/elastic-open-crawler-release)
-* [Data streams](docs-content://manage-data/data-store/data-streams.md)
-* [Ingest pipelines](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md)
-* [Mapping](docs-content://manage-data/data-store/mapping.md)
-
-## Search and analyze
-
-* [Search your data](docs-content://solutions/search/querying-for-search.md)
-* Query data with [the Query DSL](docs-content://explore-analyze/query-filter/languages/querydsl.md), [ES|QL](docs-content://explore-analyze/query-filter/languages/esql.md), [EQL](docs-content://explore-analyze/query-filter/languages/eql.md), or [SQL](docs-content://explore-analyze/query-filter/languages/sql.md)
-* [Search applications](docs-content://solutions/search/search-applications.md)
-* [Aggregations](docs-content://explore-analyze/query-filter/aggregations.md)
-* [Geospatial analysis](docs-content://explore-analyze/geospatial-analysis.md)
-* [Machine Learning](docs-content://explore-analyze/machine-learning.md)
-* [Alerting](docs-content://explore-analyze/alerts-cases.md)
-
-## Data management
-
-* [Data management](docs-content://manage-data/lifecycle.md)
-* [Downsampling](docs-content://manage-data/lifecycle.md)
-* [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md)
-
-## APIs and developer docs
-
-* [REST APIs](https://www.elastic.co/docs/reference/elasticsearch/rest-apis)
-* [{{es}} Clients](https://www.elastic.co/docs/reference/elasticsearch-clients)
-* [Painless](https://www.elastic.co/docs/reference/scripting-languages/painless/painless)
-* [Plugins and integrations](https://www.elastic.co/docs/reference/elasticsearch/plugins)
-* [Search Labs](https://www.elastic.co/search-labs)
-* [Notebook examples](https://www.elastic.co/search-labs/tutorials/examples)
+* [{{es}} API](https://www.elastic.co/docs/api/doc/elasticsearch)
+* [{{es}} Serverless API](https://www.elastic.co/docs/api/doc/elasticsearch-serverless)

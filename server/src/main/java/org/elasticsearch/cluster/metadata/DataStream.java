@@ -18,6 +18,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
@@ -87,6 +88,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
+    public static final TransportVersionSet MAPPINGS_IN_DATA_STREAMS = TransportVersionSet.get("mappings-in-data-streams");
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final String FAILURE_STORE_PREFIX = ".fs-";
@@ -297,7 +299,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             settings = Settings.EMPTY;
         }
         CompressedXContent mappings;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
+        if (MAPPINGS_IN_DATA_STREAMS.isCompatible(in.getTransportVersion())) {
             mappings = CompressedXContent.readCompressedString(in);
         } else {
             mappings = EMPTY_MAPPINGS;
@@ -1379,7 +1381,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
             settings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
+        if (MAPPINGS_IN_DATA_STREAMS.isCompatible(out.getTransportVersion())) {
             mappings.writeTo(out);
         }
     }

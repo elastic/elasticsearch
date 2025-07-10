@@ -11,7 +11,6 @@ from colors metadata _score
 | sort _score desc, color asc
 // end::knn-function[]
 | keep color, rgb_vector
-| limit 10
 ;
 
 // tag::knn-function-result[]
@@ -50,11 +49,10 @@ knnHybridSearch
 required_capability: knn_function_v3
 
 from colors metadata _score 
-| where match(color, "blue") or knn(rgb_vector, [65,105,225], 140)
+| where match(color, "blue") or knn(rgb_vector, [65,105,225], 10)
 | where primary == true
 | sort _score desc, color asc
 | keep color, rgb_vector
-| limit 10
 ;
 
 color:text | rgb_vector:dense_vector
@@ -69,17 +67,18 @@ red        | [255.0, 0.0, 0.0]
 yellow     | [255.0, 255.0, 0.0]
 ;
 
-knnWithMultipleFunctions
+knnWithPrefilter
 required_capability: knn_function_v3
 
 from colors metadata _score
-| where knn(rgb_vector, [128,128,0], 140) and match(color, "olive") 
+| where knn(rgb_vector, [128,128,0], 10) and (match(color, "olive") or match(color, "green")) 
 | sort _score desc, color asc
 | keep color, rgb_vector
 ;
 
 color:text       | rgb_vector:dense_vector
 olive            | [128.0, 128.0, 0.0]
+green            | [0.0, 128.0, 0.0]
 ;
 
 knnAfterKeep
@@ -163,9 +162,8 @@ yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 knnWithDisjunctionAndFiltersConjunction
 required_capability: knn_function_v3
 
-# TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
-| where (knn(rgb_vector, [0,255,255], 140) or knn(rgb_vector, [128, 0, 255], 140)) and primary == true 
+| where (knn(rgb_vector, [0,255,255], 140) or knn(rgb_vector, [128, 0, 255], 10)) and primary == true 
 | keep color, rgb_vector, _score
 | sort _score desc, color asc
 | drop _score
@@ -265,21 +263,4 @@ from colors
 c: long       | primary: boolean    
 41            | false          
 9             | true           
-;
-
-testKnnUsesPrefiltering
-required_capability: knn_function_v3
-
-from colors metadata _score
-| where knn(rgb_vector, [255, 0, 0], 5) and primary == true
-| sort _score desc, color asc
-| keep color
-;
-
-color:text
-red            
-gray           
-black          
-magenta        
-yellow
 ;

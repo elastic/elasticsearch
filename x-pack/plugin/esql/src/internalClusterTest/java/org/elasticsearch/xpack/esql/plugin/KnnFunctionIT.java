@@ -113,6 +113,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             assertEquals(5 + Math.max(0, numDocs - 10 - 1), valuesList.size());
         }
     }
+
     public void testKnnWithPrefilters() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 1.0f);
@@ -135,6 +136,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             assertEquals(5, valuesList.size());
         }
     }
+
     public void testKnnWithLookupJoin() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 1.0f);

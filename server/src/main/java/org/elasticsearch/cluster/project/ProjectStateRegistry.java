@@ -101,10 +101,6 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         return projectsMarkedForDeletion.contains(projectId);
     }
 
-    public boolean isProjectMarkedForDeletion(ProjectId projectId) {
-        return projectsMarkedForDeletion.contains(projectId);
-    }
-
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean multiProject = params.paramAsBoolean("multi-project", false);
@@ -187,8 +183,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     @Override
     public String toString() {
         return "ProjectStateRegistry["
-            + "projectsSettings="
-            + projectsSettings
+            + "entities="
+            + projectsEntries
             + ", projectsMarkedForDeletion="
             + projectsMarkedForDeletion
             + ", projectsMarkedForDeletionGeneration="

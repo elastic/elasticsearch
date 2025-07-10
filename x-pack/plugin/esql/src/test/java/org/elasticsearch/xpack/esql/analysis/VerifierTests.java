@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -37,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -359,7 +361,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -1235,8 +1237,8 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3], 10)");
         }
     }
 
@@ -1368,8 +1370,8 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2], 10)", "function");
         }
     }
 
@@ -1407,8 +1409,8 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3], 10)");
         }
     }
 
@@ -1472,8 +1474,8 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3], 10)", "function");
         }
     }
 
@@ -1543,8 +1545,8 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2])");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         }
     }
 
@@ -2071,8 +2073,8 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], 10, {\"%s\": %s})");
         }
     }
 
@@ -2159,9 +2161,10 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
-            checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionNullArgs("knn(null, [0, 1, 2], 10)", "first");
+            checkFullTextFunctionNullArgs("knn(vector, null, 10)", "second");
+            checkFullTextFunctionNullArgs("knn(vector, [0, 1, 2], null)", "third");
         }
     }
 
@@ -2172,24 +2175,25 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testFullTextFunctionsConstantQuery() throws Exception {
-        checkFullTextFunctionsConstantQuery("match(title, category)", "second");
-        checkFullTextFunctionsConstantQuery("qstr(title)", "");
-        checkFullTextFunctionsConstantQuery("kql(title)", "");
-        checkFullTextFunctionsConstantQuery("match_phrase(title, tags)", "second");
+    public void testFullTextFunctionsConstantArg() throws Exception {
+        checkFullTextFunctionsConstantArg("match(title, category)", "second");
+        checkFullTextFunctionsConstantArg("qstr(title)", "");
+        checkFullTextFunctionsConstantArg("kql(title)", "");
+        checkFullTextFunctionsConstantArg("match_phrase(title, tags)", "second");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
+            checkFullTextFunctionsConstantArg("multi_match(category, body)", "first");
+            checkFullTextFunctionsConstantArg("multi_match(concat(title, \"world\"), title)", "first");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
+            checkFullTextFunctionsConstantArg("term(title, tags)", "second");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsConstantArg("knn(vector, vector, 10)", "second");
+            checkFullTextFunctionsConstantArg("knn(vector, [0, 1, 2], category)", "third");
         }
     }
 
-    private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
+    private void checkFullTextFunctionsConstantArg(String functionInvocation, String argOrdinal) throws Exception {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
@@ -2214,9 +2218,63 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            checkFullTextFunctionsInStats("knn(vector, [0, 1, 2], 10)");
         }
+    }
+
+    public void testRemoteLookupJoinWithPipelineBreaker() {
+        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
+        assertEquals(
+            "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
+            error(
+                "FROM test,remote:test | STATS c = COUNT(*) by languages "
+                    + "| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+
+        assertEquals(
+            "1:72: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@1:25",
+            error(
+                "FROM test,remote:test | SORT emp_no | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+
+        assertEquals(
+            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
+            error(
+                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+        assertEquals(
+            "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
+            error(
+                "FROM test,remote:test | EVAL language_code = languages | ENRICH _coordinator:languages_coord "
+                    + "| LOOKUP JOIN languages_lookup ON language_code",
+                analyzer
+            )
+        );
+    }
+
+    public void testRemoteLookupJoinIsSnapshot() {
+        // TODO: remove when we allow remote joins in release builds
+        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        assertTrue(Build.current().isSnapshot());
+    }
+
+    public void testRemoteLookupJoinIsDisabled() {
+        // TODO: remove when we allow remote joins in release builds
+        assumeFalse("Remote LOOKUP JOIN enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
+        );
+        assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
+
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
@@ -2239,7 +2297,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(parser.createStatement(query, TEST_CFG));
     }
 
     private String error(String query) {
@@ -2270,7 +2328,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters), TEST_CFG))
         );
         assertThat(e, instanceOf(exception));
 

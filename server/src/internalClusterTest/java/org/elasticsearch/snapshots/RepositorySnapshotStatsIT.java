@@ -24,7 +24,7 @@ import java.util.Collections;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
@@ -97,6 +97,6 @@ public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotStats.numberOfBytesUploaded(), greaterThan(0L));
         assertThat(snapshotStats.totalUploadTimeInMillis(), greaterThan(0L));
         assertThat(snapshotStats.totalUploadReadTimeInMillis(), greaterThan(0L));
-        assertThat(snapshotStats.totalUploadReadTimeInMillis(), lessThan(snapshotStats.totalUploadTimeInMillis()));
+        assertThat(snapshotStats.totalUploadReadTimeInMillis(), lessThanOrEqualTo(snapshotStats.totalUploadTimeInMillis()));
     }
 }

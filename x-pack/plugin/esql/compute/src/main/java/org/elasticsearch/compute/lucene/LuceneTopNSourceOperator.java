@@ -14,6 +14,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
@@ -75,7 +76,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                needsScore ? TOP_DOCS_WITH_SCORES : TOP_DOCS
+                scoreModeFunction(sorts, needsScore)
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -331,18 +332,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, Weight> weightFunction(
-        Function<ShardContext, Query> queryFunction,
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(
         List<SortBuilder<?>> sorts,
         boolean needsScore
     ) {
         return ctx -> {
-            final var query = queryFunction.apply(ctx);
-            final var searcher = ctx.searcher();
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.
-                var scoreMode = newPerShardCollector(ctx, sorts, needsScore, 1).collector.scoreMode();
-                return searcher.createWeight(searcher.rewrite(query), scoreMode, 1);
+                return newPerShardCollector(ctx, sorts, needsScore, 1).collector.scoreMode();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

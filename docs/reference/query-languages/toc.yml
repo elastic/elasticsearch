@@ -158,5 +158,4 @@ toc:
       - file: eql/eql-syntax.md
       - file: eql/eql-function-ref.md
       - file: eql/eql-pipe-ref.md
-      - file: eql/eql-ex-threat-detection.md
   - file: kql.md

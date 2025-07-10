@@ -15,20 +15,20 @@ import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.SourceSet;
 
-public class CheckTransportVersionPlugin implements Plugin<Project> {
-
+public class LocateTransportVersionsPlugin implements Plugin<Project> {
+    public static final String TRANSPORT_VERSION_NAMES_FILE = "generated-transport-info/transport-version-set-names.txt";
     @Override
     public void apply(Project project) {
         // TODO figure out what the classpath needs to be to be able to scan the server classes
         // Does this need to be a lib (to limit scanning by making this a jar, to exclude gradle)? Ask Mark
         // "/Users/john.verwolf/code/elasticsearch/build-tools-internal/build/classes/java/main"
 
-        final var checkTransportVersion = project.getTasks().register("checkTransportVersion", CheckTransportVersionTask.class, t -> {
+        final var checkTransportVersion = project.getTasks().register("locateTransportVersions", LocateTransportVersionsTask.class, t -> {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
             t.getClassDirs().set(compiledPluginClasses);
 
-            t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-transport-info/transport-version-set-names.txt"));
+            t.getOutputFile().set(project.getLayout().getBuildDirectory().file(TRANSPORT_VERSION_NAMES_FILE));
         });
     }
 }

@@ -12,8 +12,10 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
-apply plugin: 'elasticsearch.check-transport-version'
+apply plugin: 'elasticsearch.locate-transport-versions'
 apply plugin: 'elasticsearch.generate-transport-version-manifest'
+apply plugin: 'elasticsearch.generate-transport-version-data'
+apply plugin: 'elasticsearch.validate-transport-versions'
 
 publishing {
   publications {

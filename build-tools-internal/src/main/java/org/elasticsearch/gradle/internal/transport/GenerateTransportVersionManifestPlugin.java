@@ -14,7 +14,6 @@ import org.gradle.api.Project;
 import org.gradle.language.jvm.tasks.ProcessResources;
 
 public class GenerateTransportVersionManifestPlugin implements Plugin<Project> {
-
     @Override
     public void apply(Project project) {
         var transportVersionManifestTask = project.getTasks()

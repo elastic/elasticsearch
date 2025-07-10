@@ -35,28 +35,30 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public abstract class CheckTransportVersionTask extends DefaultTask {
+/**
+ * This task locates all method invocations of org.elasticsearch.TransportVersionSet#get(java.lang.String) in the
+ * provided directory, and then records the value of string literals passed as arguments. It then records each
+ * String on a newline in the provided output file.
+ */
+public abstract class LocateTransportVersionsTask extends DefaultTask {
     public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersionSet";
-    /*
-       1. get the names from all TV declaration sites
-       2. Get all metadata files that currently exist
-       3. Validate if all names exist in those metadata files
-       4. If metadata files exist without a declaration, we error
-       5. If any declarations exist without metadata, we create the metadata
-           - This requires an alg for figuring out the next one
-               - if on main, bump the 3 digit one, if not on main, bump the patch
-        */
+    public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "get";
 
+    /**
+     * The directory to scan for TransportVersionSet#get invocations.
+     */
     @InputFiles
     public abstract Property<FileCollection> getClassDirs();
 
+    /**
+     * The output file, with each newline containing the string literal argument of each TransportVersionSet#get
+     * invocation.
+     */
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
     @TaskAction
     public void checkTransportVersion() {
-        /// Users/john.verwolf/code/elasticsearch/build-tools-internal/build/classes/java/main
-
         var tvNames = getTVDeclarationNames(getClassDirs().get().getFiles());
         File file = new File(getOutputFile().get().getAsFile().getAbsolutePath());
         try (FileWriter writer = new FileWriter(file)) {
@@ -87,8 +89,7 @@ public abstract class CheckTransportVersionTask extends DefaultTask {
 
                             @Override
                             public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                                // if (owner.equals(TRANSPORT_VERSION_CLASS) && name.equals("<init>")) {
-                                if (owner.equals(TRANSPORT_VERSION_SET_CLASS) && name.equals("get")) {
+                                if (owner.equals(TRANSPORT_VERSION_SET_CLASS) && name.equals(TRANSPORT_VERSION_SET_METHOD_NAME)) {
                                     // System.out.println("Potato: opcode: " + opcode + " owner: " + owner + " name: " + name);
                                     var abstractInstruction = this.instructions.getLast();
                                     if (abstractInstruction instanceof LdcInsnNode ldcInsnNode) {

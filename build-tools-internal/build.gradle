@@ -220,13 +220,21 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
-    checkTransportVersionPlugin { // TODO ask mark what the heck is going on with this missing function
-      id = 'elasticsearch.check-transport-version'
-      implementationClass = 'org.elasticsearch.gradle.internal.transport.CheckTransportVersionPlugin'
+    locateTransportVersionsPlugin { // TODO ask mark what the heck is going on with this missing function
+      id = 'elasticsearch.locate-transport-versions'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.LocateTransportVersionsPlugin'
     }
     generateTransportVersionManifestPlugin { // TODO ask mark what the heck is going on with this missing function
       id = 'elasticsearch.generate-transport-version-manifest'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.GenerateTransportVersionManifestPlugin'
+    }
+    generateTransportVersionDataPlugin {
+        id = 'elasticsearch.generate-transport-version-data'
+        implementationClass = 'org.elasticsearch.gradle.internal.transport.GenerateTransportVersionDataPlugin'
+    }
+    validateTransportVersionsPlugin {
+      id = 'elasticsearch.validate-transport-versions'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.ValidateTransportVersionsPlugin'
     }
   }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -151,9 +152,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(
-                    new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, analysisRegistry)
-                );
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -352,11 +351,53 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     }
 
     private static Pattern pattern = Pattern.compile("BUCKET\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*" +      // field
-        "(\\d+)\\s*,\\s*" +                                        // buckets
+        "([^\"]+)\\s*,\\s*" +                                      // buckets
         "\"([^\"]+)\"\\s*,\\s*" +                                  // from
         "\"([^\"]+)\"\\s*,\\s*" +                                  // to
         "(true|false)\\s*\\)"                                      // emitEmptyBuckets
     );
+
+    // DO NOT SUBMIT
+    // This is a hack to obtain Bucket object out of the expression. This should be done differently.
+    private static @Nullable Bucket toBucket(Expression unwrappedExpression) {
+        Matcher matcher = pattern.matcher(unwrappedExpression.sourceText());
+        if (matcher.find() == false) {
+            return null;
+        }
+        String field = matcher.group(1);
+        String datePeriod = matcher.group(2);
+        int buckets = -1;
+        try {
+            buckets = Integer.parseInt(datePeriod);
+        } catch (NumberFormatException ex) {}
+        Instant from = Instant.parse(matcher.group(3));
+        Instant to = Instant.parse(matcher.group(4));
+        boolean emitEmptyBuckets = Boolean.parseBoolean(matcher.group(5));
+        return new Bucket(
+            unwrappedExpression.source(),
+            new Literal(Source.EMPTY, field, DataType.DATETIME),
+            buckets != -1
+                ? new Literal(Source.EMPTY, buckets, DataType.INTEGER)
+                : new Literal(
+                    Source.EMPTY,
+                    EsqlDataTypeConverter.parseTemporalAmount(datePeriod, DataType.DATE_PERIOD),
+                    DataType.DATE_PERIOD
+                ),
+            new Literal(Source.EMPTY, from.toEpochMilli(), DataType.DATETIME),
+            new Literal(Source.EMPTY, to.toEpochMilli(), DataType.DATETIME),
+            new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
+        );
+    }
+
+    private static BlockHash.EmptyBucketDef toEmptyBucketDef(Bucket bucket) {
+        FoldContext foldContext = new FoldContext(128);
+        return new BlockHash.EmptyBucketDef(
+            (Boolean) bucket.emitEmptyBuckets().fold(foldContext),
+            (Long) bucket.from().fold(foldContext),
+            (Long) bucket.to().fold(foldContext),
+            bucket.getDateRoundingOrNull(foldContext)
+        );
+    }
 
     /**
      * The input configuration of this group.
@@ -365,41 +406,23 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, AnalysisRegistry analysisRegistry) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
 
-            BlockHash.GroupSpec result;
             Expression unwrappedExpression = Alias.unwrap(expression);
-            Matcher matcher = pattern.matcher(unwrappedExpression.sourceText());
-            if (matcher.find()) {
-                String field = matcher.group(1);
-                int buckets = Integer.parseInt(matcher.group(2));
-                Instant from = Instant.parse(matcher.group(3));
-                Instant to = Instant.parse(matcher.group(4));
-                boolean emitEmptyBuckets = Boolean.parseBoolean(matcher.group(5));
-                Bucket bucket = new Bucket(
-                    expression.source(),
-                    new Literal(Source.EMPTY, field, DataType.DATETIME),
-                    new Literal(Source.EMPTY, buckets, DataType.INTEGER),
-                    new Literal(Source.EMPTY, from.toEpochMilli(), DataType.DATETIME),
-                    new Literal(Source.EMPTY, to.toEpochMilli(), DataType.DATETIME),
-                    new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
-                );
-                Rounding.Prepared rounding = bucket.getDateRoundingOrNull(new FoldContext(128));
-                result = new BlockHash.GroupSpec(
-                    channel,
-                    elementType(),
-                    new BlockHash.EmptyBucketDef(emitEmptyBuckets, from.toEpochMilli(), to.toEpochMilli(), rounding)
-                );
-            } else if (unwrappedExpression instanceof Categorize) {
-                result = new BlockHash.GroupSpec(channel, elementType(), true);
+            if (unwrappedExpression instanceof Categorize) {
+                return new BlockHash.GroupSpec(channel, elementType(), true);
             } else {
-                result = new BlockHash.GroupSpec(channel, elementType());
+                Bucket bucket = toBucket(unwrappedExpression);
+                if (bucket == null) {
+                    return new BlockHash.GroupSpec(channel, elementType());
+                } else {
+                    return new BlockHash.GroupSpec(channel, elementType(), toEmptyBucketDef(bucket));
+                }
             }
-            return result;
         }
 
         ElementType elementType() {

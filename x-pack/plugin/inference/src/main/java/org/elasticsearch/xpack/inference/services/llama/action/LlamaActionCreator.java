@@ -18,13 +18,13 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsResponseHandler;
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.llama.request.embeddings.LlamaEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.services.llama.response.embeddings.LlamaEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.Objects;
@@ -44,7 +44,7 @@ public class LlamaActionCreator implements LlamaActionVisitor {
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new LlamaEmbeddingsResponseHandler(
         "llama text embedding",
-        LlamaEmbeddingsResponseEntity::fromResponse
+        HuggingFaceEmbeddingsResponseEntity::fromResponse
     );
     private static final ResponseHandler COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
         "llama completion",

@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -248,7 +248,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 if (parent.isStored()) {
                     return storedFieldFetcher(parentField);
                 } else if (parent.hasDocValues()) {
-                    return docValuesFieldFetcher(parentField);
+                    var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
+                    return docValuesFieldFetcher(ifd);
                 } else {
                     assert false : "parent field should either be stored or have doc values";
                 }
@@ -260,7 +261,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     if (fieldType.isStored()) {
                         return storedFieldFetcher(fieldType.name());
                     } else if (fieldType.hasDocValues()) {
-                        return docValuesFieldFetcher(fieldType.name());
+                        var ifd = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                        return docValuesFieldFetcher(ifd);
                     } else {
                         assert false : "multi field should either be stored or have doc values";
                     }
@@ -285,15 +287,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             };
         }
 
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(String name) {
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(
+            IndexFieldData<?> ifd
+        ) {
             return context -> {
-                var sortedDocValues = DocValues.getSortedSet(context.reader(), name);
+                var sortedBinaryDocValues = ifd.load(context).getBytesValues();
                 return docId -> {
-                    if (sortedDocValues.advanceExact(docId)) {
-                        var values = new ArrayList<>(sortedDocValues.docValueCount());
-                        for (int i = 0; i < sortedDocValues.docValueCount(); i++) {
-                            long ord = sortedDocValues.nextOrd();
-                            values.add(sortedDocValues.lookupOrd(ord).utf8ToString());
+                    if (sortedBinaryDocValues.advanceExact(docId)) {
+                        var values = new ArrayList<>(sortedBinaryDocValues.docValueCount());
+                        for (int i = 0; i < sortedBinaryDocValues.docValueCount(); i++) {
+                            values.add(sortedBinaryDocValues.nextValue().utf8ToString());
                         }
                         return values;
                     } else {

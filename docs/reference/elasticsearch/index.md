@@ -42,7 +42,7 @@
 
 {{es}} is the search and analytics engine that powers the {{stack}}.
 
-- [Get started](docs-content://get-started.md)
+- [Get started](docs-content://get-started/index.md)
 - [Search your data](docs-content://solutions/search/querying-for-search.md)
 - Query data with [the Query DSL](docs-content://explore-analyze/query-filter/languages/querydsl.md), [ES|QL](docs-content://explore-analyze/query-filter/languages/esql.md), [EQL](docs-content://explore-analyze/query-filter/languages/eql.md), or [SQL](docs-content://explore-analyze/query-filter/languages/sql.md)
 - [Search applications](docs-content://solutions/search/search-applications.md)

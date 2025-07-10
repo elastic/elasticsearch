@@ -471,3 +471,6 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/126124

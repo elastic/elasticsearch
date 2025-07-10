@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.project;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersionSet;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -42,6 +41,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
     public static final TransportVersionSet PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = TransportVersionSet.get(
         "project-state-registry-records-deletions"
     );
+
+    public static final TransportVersionSet CLUSTER_STATE_PROJECTS_SETTINGS = TransportVersionSet.get("cluster-state-projects-settings");
 
     private final Map<ProjectId, Settings> projectsSettings;
     // Projects that have been marked for deletion based on their file-based setting
@@ -117,7 +118,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS;
+        return CLUSTER_STATE_PROJECTS_SETTINGS.local();
     }
 
     @Override

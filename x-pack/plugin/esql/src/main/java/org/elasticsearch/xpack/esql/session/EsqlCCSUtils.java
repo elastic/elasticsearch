@@ -203,11 +203,6 @@ public class EsqlCCSUtils {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
         clustersWithNoMatchingIndices.removeAll(EsqlCCSUtils.determineUnavailableRemoteClusters(indexResolution.failures()).keySet());
-        for (var e : indexResolution.failures().entrySet()) {
-            if (e.getValue().stream().anyMatch(f -> f.getException() instanceof IndexNotFoundException == false)) {
-                clustersWithNoMatchingIndices.remove(e.getKey());
-            }
-        }
         /*
          * Rules enforced at planning time around non-matching indices
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
@@ -247,8 +242,22 @@ public class EsqlCCSUtils {
                     );
                 }
             } else {
+                // We check for the valid resolution because if we have empty resolution it's still an error.
                 if (indexResolution.isValid()) {
-                    markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                    List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
+                    // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+                    if (failures.isEmpty()) {
+                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                    } else {
+                        // skip reporting index_not_found exceptions to avoid spamming users with such errors
+                        // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+                        Exception nonIndexNotFound = failures.stream()
+                            .map(FieldCapabilitiesFailure::getException)
+                            .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
+                            .findAny()
+                            .orElse(null);
+                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
+                    }
                 }
             }
         }

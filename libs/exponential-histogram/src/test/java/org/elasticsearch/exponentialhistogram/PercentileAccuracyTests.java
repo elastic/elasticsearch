@@ -27,7 +27,7 @@ import java.util.Random;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class PercentileAccuracyTest extends ESTestCase {
+public class PercentileAccuracyTests extends ESTestCase {
 
     public static final double[] PERCENTILES_TO_TEST = { 0, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0 };
 
@@ -254,7 +254,7 @@ public class PercentileAccuracyTest extends ESTestCase {
             // only positive values
             double gammaSquare = Math.pow(largestPositive / smallestPositive, 2.0 / (bucketCount));
             return (gammaSquare - 1) / (gammaSquare + 1);
-        } else if (largestAbsNegative == 0) {
+        } else if (smallestAbsNegative == 0) {
             // only negative values
             double gammaSquare = Math.pow(largestAbsNegative / smallestAbsNegative, 2.0 / (bucketCount));
             return (gammaSquare - 1) / (gammaSquare + 1);

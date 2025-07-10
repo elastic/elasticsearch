@@ -19,10 +19,10 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.exponentialhistogram.FixedSizeExponentialHistogramTest.printMidpoints;
+import static org.elasticsearch.exponentialhistogram.FixedSizeExponentialHistogramTests.printMidpoints;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExponentialHistogramMergerTest extends ESTestCase {
+public class ExponentialHistogramMergerTests extends ESTestCase {
 
     public void testZeroThresholdCollapsesOverlappingBuckets() {
         FixedSizeExponentialHistogram first = new FixedSizeExponentialHistogram(100);

@@ -21,7 +21,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.g
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ExponentialHistogramUtilsTest extends ESTestCase {
+public class ExponentialHistogramUtilsTests extends ESTestCase {
 
     public void testMaxValue() {
         assertThat(getMaximumScaleIncrease(Long.MAX_VALUE), equalTo(0));

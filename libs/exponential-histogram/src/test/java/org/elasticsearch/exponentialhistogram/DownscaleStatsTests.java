@@ -22,7 +22,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DownscaleStatsTest extends ESTestCase {
+public class DownscaleStatsTests extends ESTestCase {
 
     public void testExponential() {
         long[] values = IntStream.range(0, 100).mapToLong(i -> (long) Math.min(Integer.MAX_VALUE, Math.pow(1.1, i))).distinct().toArray();

@@ -43,7 +43,7 @@ import java.util.function.Supplier;
 @State(Scope.Thread)
 public class ExponentialHistogramGenerationBench {
 
-    @Param({ "100", "500", "1000", "5000" })
+    @Param({ "100", "500", "1000", "5000" , "10000", "20000"})
     int bucketCount;
 
     @Param({ "NORMAL", "GAUSSIAN" })

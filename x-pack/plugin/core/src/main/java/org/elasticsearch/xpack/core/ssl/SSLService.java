@@ -29,7 +29,6 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -119,16 +118,9 @@ public class SSLService {
         Setting.Property.NodeScope
     );
 
-    private static final Setting<TimeValue> TRANSPORT_TLS_HANDSHAKE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "xpack.security.transport.ssl.handshake_timeout",
-        TimeValue.timeValueSeconds(10),
-        Setting.Property.NodeScope
-    );
-
     private final Environment env;
     private final Settings settings;
     private final boolean diagnoseTrustExceptions;
-    private final long handshakeTimeoutMillis;
 
     /**
      * This is a mapping from "context name" (in general use, the name of a setting key)
@@ -164,7 +156,6 @@ public class SSLService {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
-        this.handshakeTimeoutMillis = TRANSPORT_TLS_HANDSHAKE_TIMEOUT_SETTING.get(environment.settings()).millis();
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = loadSslConfigurations(this.sslConfigurations);
     }
@@ -175,7 +166,6 @@ public class SSLService {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
-        this.handshakeTimeoutMillis = TRANSPORT_TLS_HANDSHAKE_TIMEOUT_SETTING.get(settings).millis();
         this.sslConfigurations = getSSLConfigurations(env, this.settings);
         this.sslContexts = loadSslConfigurations(this.sslConfigurations);
     }
@@ -188,7 +178,6 @@ public class SSLService {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
-        this.handshakeTimeoutMillis = TRANSPORT_TLS_HANDSHAKE_TIMEOUT_SETTING.get(environment.settings()).millis();
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = sslContexts;
     }
@@ -225,7 +214,6 @@ public class SSLService {
 
     public static void registerSettings(List<Setting<?>> settingList) {
         settingList.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
-        settingList.add(TRANSPORT_TLS_HANDSHAKE_TIMEOUT_SETTING);
     }
 
     /**
@@ -990,9 +978,5 @@ public class SSLService {
         throw new IllegalArgumentException(
             "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
         );
-    }
-
-    public long getHandshakeTimeoutMillis() {
-        return handshakeTimeoutMillis;
     }
 }

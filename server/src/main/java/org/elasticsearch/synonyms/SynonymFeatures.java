@@ -19,8 +19,6 @@ public class SynonymFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
-            RETURN_EMPTY_SYNONYM_SETS
-        );
+        return Set.of(RETURN_EMPTY_SYNONYM_SETS);
     }
 }

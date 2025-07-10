@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +28,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -364,8 +364,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CohereServiceSettings mutateInstanceForVersion(CohereServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isNotCompatible(version)) {
             return new CohereServiceSettings(
                 instance.uri(),
                 instance.similarity(),

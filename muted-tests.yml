@@ -5,6 +5,9 @@ tests:
 - class: org.elasticsearch.packaging.test.CertGenCliTests
   method: test40RunWithCert
   issue: https://github.com/elastic/elasticsearch/issues/109831
+- class: org.elasticsearch.rest.action.RestCancellableNodeClientTests
+  method: testConcurrentExecuteAndClose
+  issue: https://github.com/elastic/elasticsearch/issues/130372
 
 # Examples:
 #

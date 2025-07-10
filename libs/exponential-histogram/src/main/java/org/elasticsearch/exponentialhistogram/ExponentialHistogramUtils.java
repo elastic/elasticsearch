@@ -29,7 +29,8 @@ public class ExponentialHistogramUtils {
     /** The number of bits used to represent the exponent of IEEE 754 double precision number. */
     private static final int EXPONENT_WIDTH = 11;
 
-    private static final double LOG_BASE2_E = 1D / Math.log(2);
+    private static final double LN_2 = Math.log(2);
+    private static final double LOG_BASE2_E = 1D / LN_2;
 
     // Magic number, computed via log(4/3)/log(2^(2^-64)), but exact
     private static final long SCALE_UP_64_OFFSET = 7656090530189244512L;
@@ -82,35 +83,21 @@ public class ExponentialHistogramUtils {
     }
 
     public static double getUpperBucketBoundary(long index, int scale) {
-        long nextIndex = index;
-        if (index < Long.MAX_VALUE) {
-            nextIndex++;
-        }
-        return getLowerBucketBoundary(nextIndex, scale);
+        return getLowerBucketBoundary(index + 1, scale);
     }
 
     public static double getLowerBucketBoundary(long index, int scale) {
-        // TODO: handle numeric limits, implement exact algorithms with 128 bit precision
-        double inverseFactor = Math.pow(2, -scale);
-        return Math.pow(2, inverseFactor * index);
+        // TODO: handle numeric limits, implement by splitting the index into two 32 bit integers
+        double inverseFactor = Math.scalb(LN_2, -scale);
+        return Math.exp(inverseFactor * index);
     }
 
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
         // TODO: handle numeric limits, implement exact algorithms with 128 bit precision
-        double inverseFactor = Math.pow(2, -scale);
-        return Math.pow(2, inverseFactor * (bucketIndex + 1 / 3.0));
+        double inverseFactor = Math.scalb(LN_2, -scale);
+        return Math.exp(inverseFactor * (bucketIndex + 1/3.0));
     }
 
-    /**
-     * Compute the index for the given value.
-     *
-     * <p>The algorithm to retrieve the index is specified in the <a
-     * href="https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/data-model.md#exponential-buckets">OpenTelemetry
-     * specification</a>.
-     *
-     * @param value Measured value (must be non-zero).
-     * @return the index of the bucket which the value maps to.
-     */
     static long computeIndex(double value, int scale) {
         double absValue = Math.abs(value);
         // For positive scales, compute the index by logarithm, which is simpler but may be
@@ -135,7 +122,8 @@ public class ExponentialHistogramUtils {
      *     Scales: Use the Logarithm Function</a>
      */
     private static long getIndexByLogarithm(double value, int scale) {
-        return (long) Math.ceil(Math.log(value) * computeScaleFactor(scale)) - 1;
+        double scaleFactor = Math.scalb(LOG_BASE2_E, scale);
+        return (long) Math.ceil(Math.scalb(Math.log(value) * LOG_BASE2_E, scale)) - 1;
     }
 
     /**
@@ -159,7 +147,4 @@ public class ExponentialHistogramUtils {
         return ieeeExponent;
     }
 
-    private static double computeScaleFactor(int scale) {
-        return Math.scalb(LOG_BASE2_E, scale);
-    }
 }

@@ -11,9 +11,9 @@ package org.elasticsearch.exponentialhistogram;
 
 public final class FixedSizeExponentialHistogram implements ExponentialHistogramBuilder, ExponentialHistogram {
 
-    // scale of 52 is the largest scale being able to represent the smallest and largest double numbers
-    // while giving a relative error less
-    public static final int DEFAULT_BUCKET_SCALE = 52;
+    // scale of 38 is the largest scale where the index computation doesn't suffer much rounding
+    // if we want to use something larger, we'll have to rework the math
+    public static final int DEFAULT_BUCKET_SCALE = 38;
 
     private final long[] bucketIndices;
     private final long[] bucketCounts;

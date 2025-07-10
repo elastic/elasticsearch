@@ -263,8 +263,21 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
     A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum. Each configuration can have a different weight and normalization depending on the specified retriever.
 
+`normalizer`
+:   (Optional, String)
 
-Each entry specifies the following parameters:
+    Specifies a normalizer to be applied to all sub-retrievers. This provides a simple way to configure normalization for all retrievers at once.
+
+    The `normalizer` can be specified at the top level, at the per-retriever level, or both, with the following rules:
+
+    * If only the top-level `normalizer` is specified, it applies to all sub-retrievers.
+    * If both a top-level and a per-retriever `normalizer` are specified, the per-retriever normalizer must be identical to the top-level one. If they differ, the request will fail.
+    * If only per-retriever normalizers are specified, they can be different for each sub-retriever.
+    * If no normalizer is specified at any level, no normalization is applied.
+
+    Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
+
+Each entry in the `retrievers` array specifies the following parameters:
 
 `retriever`
 :   (Required, a `retriever` object)
@@ -279,18 +292,12 @@ Each entry specifies the following parameters:
 `normalizer`
 :   (Optional, String)
 
-    - Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
+    Specifies how we will normalize this specific retriever’s scores, before applying the specified `weight`. If a top-level `normalizer` is also specified, this normalizer must be the same. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
-
-        ```
-        score = (score - min) / (max - min)
-        ```
-
+    `score = (score - min) / (max - min)`
     * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
-
-See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
 `rank_window_size`
 :   (Optional, integer)

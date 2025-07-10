@@ -32,7 +32,9 @@ COMPLETION [column =] prompt WITH inference_id
 
 The `COMPLETION` command uses a machine learning model to generate text completions based on the provided prompt.
 
-The command works with any LLM deployed to the [Elasticsearch inference API](/https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) and can be chained with other ES|QL commands for further processing.
+The command works with any LLM deployed to
+the [Elasticsearch inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
+and can be chained with other ES|QL commands for further processing.
 
 **Examples**
 

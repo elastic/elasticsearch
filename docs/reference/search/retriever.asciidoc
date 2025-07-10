@@ -954,6 +954,7 @@ The `linear` and `rrf` retrievers support a multi-field query format that provid
 This format automatically generates appropriate inner retrievers based on the field types and query parameters.
 This is a great way to search an index, knowing little to nothing about its schema, while also handling normalization across lexical and semantic matches.
 
+[discrete]
 [[multi-field-field-grouping]]
 ==== Field grouping
 
@@ -972,6 +973,7 @@ In the `linear` retriever, this grouping relies on using a normalizer other than
 If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
 ====
 
+[discrete]
 [[multi-field-field-boosting]]
 ==== Linear retriever field boosting
 
@@ -1094,6 +1096,7 @@ The score breakdown would change to:
   ** `title_semantic`: 33% of semantic fields group score, 16.5% of final score
   ** `description_semantic`: 66% of semantic fields group score, 33% of final score
 
+[discrete]
 [[multi-field-wildcard-field-patterns]]
 ==== Wildcard field patterns
 
@@ -1124,11 +1127,15 @@ Note, however, that wildcard field patterns will only resolve to fields that eit
 - Support term queries, such as `keyword` and `text` fields
 - Are `semantic_text` fields
 
+[discrete]
+[[multi-field-limitations]]
 ==== Limitations
 
 - **Single index**: Multi-field queries currently work with single index searches only
 - **CCS (Cross Cluster Search)**: Multi-field queries do not support remote cluster searches
 
+[discrete]
+[[multi-field-examples]]
 ==== Examples
 
 - <<retrievers-examples-rrf-multi-field-query-format, RRF with the multi-field query format>>

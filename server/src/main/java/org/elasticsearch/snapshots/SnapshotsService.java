@@ -101,7 +101,9 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -200,6 +202,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final boolean serializeProjectMetadata;
 
+    private final SnapshotMetrics snapshotMetrics;
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
@@ -228,7 +232,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         TransportService transportService,
         ActionFilters actionFilters,
         SystemIndices systemIndices,
-        boolean serializeProjectMetadata
+        boolean serializeProjectMetadata,
+        SnapshotMetrics snapshotMetrics
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -236,6 +241,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.repositoriesService = repositoriesService;
         this.threadPool = transportService.getThreadPool();
         this.transportService = transportService;
+        this.snapshotMetrics = snapshotMetrics;
+        snapshotMetrics.createSnapshotShardsByStateMetric(this::getShardsByState);
+        snapshotMetrics.createSnapshotsByStateMetric(this::getSnapshotsByState);
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(transportService, clusterService, threadPool, actionFilters);
@@ -1647,6 +1655,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
                                 completeListenersIgnoringException(actionListeners, snapshotInfo);
+                                final Map<String, Object> attributesWithState = Maps.copyMapWithAddedEntry(
+                                    SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repo.getMetadata()),
+                                    "state",
+                                    snapshotInfo.state().name()
+                                );
+                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithState);
+                                snapshotMetrics.snapshotsDurationHistogram()
+                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributesWithState);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
 
@@ -4427,6 +4443,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var res = snapshotsInProgress.withAddedEntry(newEntry);
             taskContext.success(() -> {
                 logger.info("snapshot [{}] started", snapshot);
+                final Map<String, Object> attributes = SnapshotMetrics.createAttributesMap(
+                    snapshot.getProjectId(),
+                    repository.getMetadata()
+                );
+                snapshotMetrics.snapshotsStartedCounter().incrementBy(1, attributes);
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
                     endSnapshot(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);
@@ -4434,6 +4455,62 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             });
             return res;
         }
+    }
+
+    private Collection<LongWithAttributes> getShardsByState() {
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on shards-by-state
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final List<LongWithAttributes> shardsByState = new ArrayList<>();
+
+        currentState.metadata().projects().forEach((projectId, project) -> {
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
+                    final Map<ShardState, Integer> shardStateSummary = snapshotsInProgress.shardStateSummaryForRepository(
+                        projectId,
+                        repository.name()
+                    );
+                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
+                    shardStateSummary.forEach(
+                        (shardState, count) -> shardsByState.add(
+                            new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
+                        )
+                    );
+                }
+            }
+        });
+        return shardsByState;
+    }
+
+    private Collection<LongWithAttributes> getSnapshotsByState() {
+        final ClusterState currentState = clusterService.state();
+        // Only the master should report on snapshots-by-state
+        if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+            return List.of();
+        }
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final List<LongWithAttributes> snapshotsByState = new ArrayList<>();
+
+        currentState.metadata().projects().forEach((projectId, project) -> {
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
+                    final Map<SnapshotsInProgress.State, Integer> snapshotStateSummary = snapshotsInProgress
+                        .snapshotStateSummaryForRepository(projectId, repository.name());
+                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
+                    snapshotStateSummary.forEach(
+                        (snapshotState, count) -> snapshotsByState.add(
+                            new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
+                        )
+                    );
+                }
+            }
+        });
+        return snapshotsByState;
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {

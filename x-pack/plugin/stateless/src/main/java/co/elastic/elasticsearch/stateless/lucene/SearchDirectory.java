@@ -28,19 +28,11 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
-import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -54,8 +46,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -66,12 +56,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
-import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
 public class SearchDirectory extends BlobStoreCacheDirectory {
-
-    private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
-
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();
     private final LongAdder totalBytesWarmedFromIndexing = new LongAdder();
@@ -284,32 +270,22 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public CacheBlobReader getCacheBlobReader(String fileName, BlobLocation blobLocation) {
-        return cacheBlobReaderService.getCacheBlobReader(
-            shardId,
-            this::getBlobContainer,
+        return getCacheBlobReader(
+            fileName,
             blobLocation,
-            objectStoreUploadTracker,
-            totalBytesReadFromObjectStore::add,
-            totalBytesReadFromIndexing::add,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            cacheService.getShardReadThreadPoolExecutor(),
-            fileName
+            cacheService.getShardReadThreadPoolExecutor()
         );
     }
 
     @Override
     public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation blobLocation) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-        return cacheBlobReaderService.getCacheBlobReader(
-            shardId,
-            this::getBlobContainer,
+        return getCacheBlobReader(
+            fileName,
             blobLocation,
-            objectStoreUploadTracker,
-            totalBytesWarmedFromObjectStore::add,
-            totalBytesWarmedFromIndexing::add,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            fileName
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
@@ -326,6 +302,41 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * @return a CacheBlobReader for reading the specified file
      */
     public CacheBlobReader getCacheBlobReaderForSearchOnlineWarming(String fileName, BlobLocation blobLocation) {
+        return getCacheBlobReader(
+            fileName,
+            blobLocation,
+            BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+    }
+
+    /**
+     * Returns a CacheBlobReader for reading a specific file from the blob store
+     * for proactive commit prefetching purposes (i.e. triggered by commit notifications
+     * to improve future search performance)
+     *
+     * We allow creating this reader from any thread but the actual downloading of
+     * bytes will happen on the stateless_prewarm pool.
+     *
+     * @param fileName the name of the file to be read
+     * @param blobLocation the location of the blob containing the file
+     * @return a CacheBlobReader for reading the specified file
+     */
+    public CacheBlobReader getCacheBlobReaderForPreFetching(String fileName, BlobLocation blobLocation) {
+        return getCacheBlobReader(
+            fileName,
+            blobLocation,
+            BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+    }
+
+    private CacheBlobReader getCacheBlobReader(
+        String fileName,
+        BlobLocation blobLocation,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        Executor executor
+    ) {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
@@ -333,8 +344,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             objectStoreUploadTracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
-            BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            cachePopulationReason,
+            executor,
             fileName
         );
     }
@@ -394,62 +405,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         throw e;
     }
 
-    public void downloadCommit(StatelessCompoundCommit commit, Executor fetchExecutor, ActionListener<Void> listener) {
-        assert false : "this method requires fixes, see https://elasticco.atlassian.net/browse/ES-8140";
-        try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
-            final String latestCompoundCommitLocation = StatelessCompoundCommit.blobNameFromGeneration(commit.generation());
-            commit.commitFiles().forEach((file, blobLocation) -> {
-                if (blobLocation.blobName().equals(latestCompoundCommitLocation) == false) {
-                    // only pre-fetch files that are part of the latest commit generation
-                    return;
-                }
-                FileCacheKey key = new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName());
-                final var blobLength = Long.MIN_VALUE;
-                final var container = getBlobContainer(blobLocation.primaryTerm());
-                cacheService.maybeFetchFullEntry(
-                    key,
-                    blobLength,
-                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> ActionListener
-                        .completeWith(completionListener, () -> {
-                            assert streamFactory == null : streamFactory;
-                            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
-                                cacheService.getRangeSize(),
-                                relativePos,
-                                length,
-                                blobLength
-                            );
-                            final long streamStartPosition = rangeToWrite.start() + relativePos;
-                            try (
-                                InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)
-                            ) {
-                                // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-                                logger.trace(
-                                    "{}: writing channel {} pos {} length {} (details: {})",
-                                    key.fileName(),
-                                    channelPos,
-                                    relativePos,
-                                    length,
-                                    key
-                                );
-                                SharedBytes.copyToCacheFileAligned(
-                                    channel,
-                                    in,
-                                    channelPos,
-                                    relativePos,
-                                    length,
-                                    progressUpdater,
-                                    writeBuffer.get().clear()
-                                );
-                                return null;
-                            }
-                        }),
-                    fetchExecutor,
-                    refCountingListener.acquire()
-                );
-            });
-        }
-    }
-
     @Override
     public void close() throws IOException {
         Releasables.close(lastAcquiredGenerationalFilesTermAndGen);
@@ -460,8 +415,4 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         }
         super.close();
     }
-
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
-    );
 }

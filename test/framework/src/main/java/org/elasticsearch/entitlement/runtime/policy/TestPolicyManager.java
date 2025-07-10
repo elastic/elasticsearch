@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -184,7 +185,11 @@ public class TestPolicyManager extends PolicyManager {
         }
         Path needle;
         try {
-            needle = Paths.get(codeSource.getLocation().toURI());
+            URI uri = codeSource.getLocation().toURI();
+            if (uri.getScheme().equals("jrt")) {
+                return false; // won't be on testOnlyClasspath
+            }
+            needle = Paths.get(uri);
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

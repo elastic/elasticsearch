@@ -152,7 +152,7 @@ class IndicesAndAliasesResolver {
 
         var authorizedClusters = new HashSet<String>();
         for (var cluster : clusters) {
-            if (authorizedIndices.checkProject(cluster)) {
+            if (authorizedIndices.checkRemote(cluster)) {
                 logger.info("Remote cluster [{}] authorized", cluster);
                 authorizedClusters.add(cluster);
             }

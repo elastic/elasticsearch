@@ -1158,9 +1158,9 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
-        public boolean checkProject(String name) {
-            Objects.requireNonNull(name, "must specify a project name for authorization check");
-            return projectPredicate.test(name);
+        public boolean checkRemote(String remoteAlias) {
+            Objects.requireNonNull(remoteAlias, "must specify a project name for authorization check");
+            return projectPredicate.test(remoteAlias);
         }
     }
 }

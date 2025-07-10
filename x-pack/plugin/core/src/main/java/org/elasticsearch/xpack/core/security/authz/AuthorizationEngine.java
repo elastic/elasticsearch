@@ -301,7 +301,7 @@ public interface AuthorizationEngine {
         boolean check(String name, IndexComponentSelector selector);
 
         // Does not belong here
-        default boolean checkProject(String projectId) {
+        default boolean checkRemote(String remoteAlias) {
             return false;
         }
     }

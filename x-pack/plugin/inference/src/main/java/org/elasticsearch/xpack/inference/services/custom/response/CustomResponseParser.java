@@ -11,9 +11,17 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 
 import java.io.IOException;
 
 public interface CustomResponseParser extends ToXContentFragment, NamedWriteable {
     InferenceServiceResults parse(HttpResult response) throws IOException;
+
+    /**
+     * Returns the configured embedding type for this response parser. This should be overridden for text embedding parsers.
+     */
+    default CustomServiceEmbeddingType getEmbeddingType() {
+        return null;
+    }
 }

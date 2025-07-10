@@ -26,6 +26,7 @@ public interface Cache<Key, Value> {
      * @return the value to which the specified key is mapped, or null if this map contains no mapping for the key
      */
     Value get(Key key);
+
     /**
      * Associates the specified value with the specified key in this map. If the map previously contained a mapping for
      * the key, the old value is replaced.
@@ -34,6 +35,7 @@ public interface Cache<Key, Value> {
      * @param value value to be associated with the specified key
      */
     void put(Key key, Value value);
+
     /**
      * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
      * value using the given mapping function and enters it into this map unless null. The load method for a given key
@@ -49,6 +51,7 @@ public interface Cache<Key, Value> {
      * @throws ExecutionException thrown if loader throws an exception or returns a null value
      */
     Value computeIfAbsent(Key key, CacheLoader<Key, Value> loader) throws ExecutionException;
+
     /**
      * Invalidate the association for the specified key. A removal notification will be issued for invalidated
      * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
@@ -56,6 +59,7 @@ public interface Cache<Key, Value> {
      * @param key the key whose mapping is to be invalidated from the cache
      */
     void invalidate(Key key);
+
     /**
      * Invalidate the entry for the specified key and value. If the value provided is not equal to the value in
      * the cache, no removal will occur. A removal notification will be issued for invalidated
@@ -65,27 +69,32 @@ public interface Cache<Key, Value> {
      * @param value the expected value that should be associated with the key
      */
     void invalidate(Key key, Value value);
+
     /**
      * Invalidate all cache entries. A removal notification will be issued for invalidated entries with
      * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      */
     void invalidateAll();
+
     /**
      * Force any outstanding evictions to occur
      */
     void refresh();
+
     /**
      * The number of entries in the cache.
      *
      * @return the number of entries in the cache
      */
     int count();
+
     /**
      * The weight of the entries in the cache.
      *
      * @return the weight of the entries in the cache
      */
     long weight();
+
     /**
      * An undefined sequencing of the keys in the cache that supports removal. Implementations might guarantee a specific sequencing.
      * The returned sequence is not protected from mutations to the cache (except for {@link Iterator#remove()}. The result of
@@ -94,6 +103,7 @@ public interface Cache<Key, Value> {
      * @return an {@link Iterable} over the keys in the cache
      */
     Iterable<Key> keys();
+
     /**
      * An undefined sequencing of the values in the cache that supports removal. Implementations might guarantee a specific sequencing.
      * The returned sequence is not protected from mutations to the cache (except for {@link Iterator#remove()}. The result of
@@ -102,6 +112,7 @@ public interface Cache<Key, Value> {
      * @return an {@link Iterable} over the values in the cache
      */
     Iterable<Value> values();
+
     /**
      * The cache statistics tracking hits, misses and evictions. These are taken on a best-effort basis meaning that
      * they could be out-of-date mid-flight.
@@ -109,6 +120,7 @@ public interface Cache<Key, Value> {
      * @return the current cache statistics
      */
     CacheStats stats();
+
     /**
      * Point in time capture of stats
      * @param hits number of times a cached value was hit

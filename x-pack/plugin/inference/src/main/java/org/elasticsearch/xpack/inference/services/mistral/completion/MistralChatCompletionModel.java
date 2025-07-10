@@ -124,6 +124,7 @@ public class MistralChatCompletionModel extends MistralModel {
      * @param creator The visitor that creates the executable action.
      * @return An ExecutableAction that can be executed.
      */
+    @Override
     public ExecutableAction accept(MistralActionVisitor creator) {
         return creator.create(this);
     }

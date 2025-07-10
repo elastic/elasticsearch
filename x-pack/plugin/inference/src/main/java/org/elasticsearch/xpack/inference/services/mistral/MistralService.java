@@ -98,10 +98,8 @@ public class MistralService extends SenderService {
     ) {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
-        if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
-        } else if (model instanceof MistralChatCompletionModel mistralChatCompletionModel) {
-            mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+        if (model instanceof MistralModel mistralModel) {
+            mistralModel.accept(actionCreator).execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
@@ -158,7 +156,7 @@ public class MistralService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
+                var action = mistralEmbeddingsModel.accept(actionCreator);
                 action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
             }
         } else {
@@ -355,10 +353,10 @@ public class MistralService extends SenderService {
      */
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 

@@ -92,7 +92,8 @@ public class MistralEmbeddingsModel extends MistralModel {
         return (MistralEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
-    public ExecutableAction accept(MistralActionVisitor creator, Map<String, Object> taskSettings) {
-        return creator.create(this, taskSettings);
+    @Override
+    public ExecutableAction accept(MistralActionVisitor creator) {
+        return creator.create(this);
     }
 }

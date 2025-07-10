@@ -285,6 +285,9 @@ public class TaskManagerTests extends ESTestCase {
         final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
+        final boolean hasParentTask = randomBoolean();
+        final TaskId parentTask = hasParentTask ? new TaskId("parentNode", 1) : TaskId.EMPTY_TASK_ID;
+
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
             @Override
@@ -295,11 +298,14 @@ public class TaskManagerTests extends ESTestCase {
 
             @Override
             public TaskId getParentTask() {
-                return TaskId.EMPTY_TASK_ID;
+                return parentTask;
             }
         });
 
-        verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), anyMap());
+        Map<String, Object> attributes = hasParentTask
+            ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
+            : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
+        verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), eq(attributes));
     }
 
     /**

@@ -220,6 +220,9 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     /** -Dorg.elasticsearch.nativeaccess.enableVectorLibrary=false to disable.*/
     static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     static boolean checkEnableSystemProperty() {
         return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }

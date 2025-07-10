@@ -2285,40 +2285,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(AttributeSet.EMPTY, intersection);
     }
 
-    public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-
-        var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
-        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
-        var indexResolutionAsLookup = Map.of("test", indexResolution);
-        var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
-
-        analyze("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
-        analyze(
-            "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
-            AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
-        );
-
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyze(
-                "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
-                AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("1:70: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
-        );
-        e = expectThrows(
-            VerificationException.class,
-            () -> analyze("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("1:25: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode")
-        );
-    }
+    // Lookup modes are now tested on index resulution
 
     public void testImplicitCasting() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
@@ -3382,28 +3349,19 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
     }
 
-    public void testValidRrf() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
              | fork ( where first_name:"foo" )
                     ( where first_name:"bar" )
-             | rrf
+             | fuse
             """);
 
         Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
 
-        assertThat(orderBy.order().size(), equalTo(3));
-        assertThat(orderBy.order().get(0).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        Dedup dedup = as(orderBy.child(), Dedup.class);
+        Dedup dedup = as(limit.child(), Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.aggregates().size(), equalTo(15));
 
@@ -3416,37 +3374,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(rrf.child(), instanceOf(Fork.class));
     }
 
-    public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testFuseError() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | rrf
+            | fuse
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
         assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test metadata _score, _index, _id
-            | eval _fork = 1
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
-             from test metadata _id, _index, _score
-            | fork ( where first_name:"foo" )
-                   ( where first_name:"bar" )
-            | rrf
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
 
@@ -3454,7 +3396,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _id
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_index]"));
 
@@ -3462,7 +3404,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
@@ -4118,6 +4060,21 @@ public class AnalyzerTests extends ESTestCase {
         verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
         EsRelation esRelation = as(eval.child(), EsRelation.class);
         assertEquals("test*", esRelation.indexPattern());
+    }
+
+    public void testGroupingOverridesInStats() {
+        verifyUnsupported("""
+            from test
+            | stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testGroupingOverridesInInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inlinestats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
     }
 
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {

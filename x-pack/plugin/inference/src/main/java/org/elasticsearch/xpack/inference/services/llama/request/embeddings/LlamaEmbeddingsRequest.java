@@ -60,7 +60,8 @@ public class LlamaEmbeddingsRequest implements Request {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new LlamaEmbeddingsRequestEntity(model.model(), truncationResult.input())).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new LlamaEmbeddingsRequestEntity(model.getServiceSettings().modelId(), truncationResult.input()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

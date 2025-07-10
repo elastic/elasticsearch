@@ -28,7 +28,6 @@ import java.util.Objects;
  * This class extends RateLimitGroupingModel and provides common functionality for Llama models.
  */
 public abstract class LlamaModel extends RateLimitGroupingModel {
-    protected String modelId;
     protected URI uri;
     protected RateLimitSettings rateLimitSettings;
 
@@ -51,10 +50,6 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
         super(model, serviceSettings);
     }
 
-    public String model() {
-        return this.modelId;
-    }
-
     public URI uri() {
         return this.uri;
     }
@@ -66,7 +61,7 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(modelId, uri, getSecretSettings());
+        return Objects.hash(uri, getSecretSettings());
     }
 
     // Needed for testing only

@@ -105,7 +105,6 @@ public class LlamaChatCompletionModel extends LlamaModel {
     }
 
     private void setPropertiesFromServiceSettings(LlamaChatCompletionServiceSettings serviceSettings) {
-        this.modelId = serviceSettings.modelId();
         this.uri = serviceSettings.uri();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }

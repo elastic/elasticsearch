@@ -75,7 +75,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param serviceSettings the service settings to extract properties from
      */
     private void setPropertiesFromServiceSettings(LlamaEmbeddingsServiceSettings serviceSettings) {
-        this.modelId = serviceSettings.modelId();
         this.uri = serviceSettings.uri();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }

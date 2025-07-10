@@ -665,10 +665,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
 
         boolean isPartial() {
-            return status == Status.PARTIAL
-                || status == Status.SKIPPED
-                || (failedShards != null && failedShards > 0)
-                || failures.isEmpty() == false;
+            return status == Status.PARTIAL || status == Status.SKIPPED || (failedShards != null && failedShards > 0);
         }
 
         @Override

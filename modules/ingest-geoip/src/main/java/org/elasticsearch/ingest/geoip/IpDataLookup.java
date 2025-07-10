@@ -28,12 +28,16 @@ interface IpDataLookup {
      */
     Map<String, Object> getData(IpDatabase ipDatabase, String ip) throws IOException;
 
-    default <RECORD extends Response> RECORD databaseLookup(
+    default <RECORD extends GeoIpCache.Response> RECORD databaseLookup(
         IpDatabase ipDatabase,
         String ipAddress,
         CheckedBiFunction<Reader, String, RECORD, Exception> responseProvider
     ) {
-        return ipDatabase.getResponse(ipAddress, responseProvider);
+        if (ipDatabase instanceof CacheingIpDatabase cacheingIpDatabase) {
+            return cacheingIpDatabase.getCacheableResponse(ipAddress, responseProvider);
+        } else {
+            return ipDatabase.getResponse(ipAddress, responseProvider);
+        }
     }
 
     /**
@@ -41,18 +45,10 @@ interface IpDataLookup {
      */
     Set<Database.Property> getProperties();
 
-    interface Response {
-
-        // TODO PETE: Remove this default implementation and implement in all implementing classes instead
-        default long sizeInBytes() {
-            return 0;
-        }
-    }
-
     /**
      * A helper record that holds other records. Every ip data lookup will have an associated ip address that was looked up, as well
      * as a network for which the  record applies. Having a helper record prevents each individual response record from needing to
      * track these bits of information.
      */
-    record Result<T extends Response>(T result, String ip, String network) implements Response {}
+    record Result<T extends GeoIpCache.Response>(T result, String ip, String network) implements GeoIpCache.Response {}
 }

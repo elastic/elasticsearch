@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GeoIpCacheTests extends ESTestCase {
 
-    private record FakeResponse(long sizeInBytes) implements IpDataLookup.Response {}
+    private record FakeResponse(long sizeInBytes) implements GeoIpCache.Response {}
 
     public void testCachesAndEvictsResults_maxCount() {
         GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1);

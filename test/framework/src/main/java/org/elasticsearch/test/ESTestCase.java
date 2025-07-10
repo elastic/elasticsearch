@@ -517,16 +517,30 @@ public abstract class ESTestCase extends LuceneTestCase {
     public @interface WithEntitlementsOnTestCode {
     }
 
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
+    }
+
     @BeforeClass
     public static void setupEntitlementsForClass() {
         boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
         boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
+        EntitledTestPackages entitledPackages = getTestClass().getAnnotation(EntitledTestPackages.class);
+
         if (TestEntitlementBootstrap.isEnabledForTest()) {
             TestEntitlementBootstrap.setActive(false == withoutEntitlements);
             TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
+            if (entitledPackages != null) {
+                assert withEntitlementsOnTestCode == false : "Cannot use @WithEntitlementsOnTestCode together with @EntitledTestPackages";
+                assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
+                TestEntitlementBootstrap.setEntitledTestPackages(entitledPackages.value());
+            }
         } else if (withEntitlementsOnTestCode) {
             throw new AssertionError(
-                "Cannot use WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
+                "Cannot use @WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
             );
         }
     }
@@ -2200,7 +2214,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return Booleans.parseBoolean(System.getProperty(FIPS_SYSPROP, "false"));
     }
 
     /*
@@ -2884,9 +2898,23 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Constructs a {@link ProjectState} for the given {@link ProjectMetadata}.
+     */
+    public static ProjectState projectStateFromProject(ProjectMetadata project) {
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.id());
+    }
+
+    /**
      * Constructs an empty {@link ProjectState} with one (empty) project.
      */
     public static ProjectState projectStateWithEmptyProject() {
         return projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
+    }
+
+    /**
+     * Constructs an empty {@link ProjectMetadata} with a random ID.
+     */
+    public static ProjectMetadata emptyProject() {
+        return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
     }
 }

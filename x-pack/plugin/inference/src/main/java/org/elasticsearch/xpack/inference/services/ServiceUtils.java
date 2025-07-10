@@ -1092,5 +1092,11 @@ public final class ServiceUtils {
         }
     }
 
+    public static void checkByteBounds(short value) {
+        if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+        }
+    }
+
     private ServiceUtils() {}
 }

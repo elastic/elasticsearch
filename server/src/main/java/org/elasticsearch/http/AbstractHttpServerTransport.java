@@ -40,6 +40,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -115,7 +116,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         this.settings = settings;
         this.networkService = networkService;
@@ -140,7 +141,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.tracer = tracer;
+        this.tracer = telemetryProvider.getTracer();
         this.httpLogger = new HttpTracer(settings, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(
             TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
@@ -235,6 +236,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
 
+    @Override
+    protected final void doStart() {
+        startInternal();
+    }
+
+    protected abstract void startInternal();
+
     /**
      * Gracefully shut down.  If {@link HttpTransportSettings#SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD} is zero, the default, then
      * forcefully close all open connections immediately.
@@ -251,7 +259,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * </ol>
      */
     @Override
-    protected void doStop() {
+    protected final void doStop() {
         synchronized (httpServerChannels) {
             if (httpServerChannels.isEmpty() == false) {
                 try {

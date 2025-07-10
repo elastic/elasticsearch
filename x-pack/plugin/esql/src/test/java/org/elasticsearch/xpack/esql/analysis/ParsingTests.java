@@ -206,10 +206,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     private String error(String query, QueryParams params) {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> defaultAnalyzer.analyze(parser.createStatement(query, params))
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer.analyze(parser.createStatement(query, params)));
         String message = e.getMessage();
         assertTrue(message.startsWith("line "));
         return message.substring("line ".length());

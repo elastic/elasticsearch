@@ -33,7 +33,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +40,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
@@ -127,8 +125,6 @@ public class TestEntitlementBootstrap {
         } else {
             classPathEntries = Arrays.stream(classPathProperty.split(separator)).map(PathUtils::get).collect(toCollection(TreeSet::new));
         }
-        Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
-
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathString = System.getenv("es.entitlement.testOnlyPath");
@@ -144,8 +140,8 @@ public class TestEntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            pluginSourcePaths,
             pathLookup,
+            classPathEntries,
             testOnlyClassPath
         );
     }

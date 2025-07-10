@@ -39,7 +39,7 @@ public class TestPolicyManager extends PolicyManager {
      * We need this larger map per class instead.
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
-
+    final Collection<Path> classpath;
     final Collection<Path> testOnlyClasspath;
 
     public TestPolicyManager(
@@ -47,11 +47,13 @@ public class TestPolicyManager extends PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup,
+        Collection<Path> classpath,
         Collection<Path> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
+        this.classpath = classpath;
+        ;
         this.testOnlyClasspath = testOnlyClasspath;
         reset();
     }
@@ -121,7 +123,7 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     protected Collection<Path> getComponentPathsFromClass(Class<?> requestingClass) {
-        return testOnlyClasspath; // required to grant read access to the test resources
+        return classpath; // required to grant read access to the production source and test resources
     }
 
     private boolean isEntitlementClass(Class<?> requestingClass) {

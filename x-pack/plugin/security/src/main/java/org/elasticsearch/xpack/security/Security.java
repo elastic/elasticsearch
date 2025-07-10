@@ -109,7 +109,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -2092,7 +2091,7 @@ public class Security extends Plugin
         HttpServerTransport.Dispatcher dispatcher,
         BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
@@ -2144,7 +2143,7 @@ public class Security extends Plugin
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
-                tracer,
+                telemetryProvider,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
                 (httpRequest, channel, listener) -> {
@@ -2182,7 +2181,7 @@ public class Security extends Plugin
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
         HttpValidator httpValidator,
@@ -2196,7 +2195,7 @@ public class Security extends Plugin
             dispatcher,
             clusterSettings,
             sharedGroupFactory,
-            tracer,
+            telemetryProvider,
             tlsConfig,
             acceptPredicate,
             (httpRequest, channel, listener) -> {
@@ -2228,7 +2227,7 @@ public class Security extends Plugin
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
         HttpValidator httpValidator
@@ -2241,7 +2240,7 @@ public class Security extends Plugin
             dispatcher,
             clusterSettings,
             sharedGroupFactory,
-            tracer,
+            telemetryProvider,
             tlsConfig,
             acceptPredicate,
             Objects.requireNonNull(httpValidator)

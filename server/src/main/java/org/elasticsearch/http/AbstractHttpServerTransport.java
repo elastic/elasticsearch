@@ -41,6 +41,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -103,6 +105,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private final HttpTracer httpLogger;
     private final Tracer tracer;
+    private final MeterRegistry meterRegistry;
+    private final List<AutoCloseable> metricsToClose = new ArrayList<>(2);
     private volatile boolean shuttingDown;
     private final ReadWriteLock shuttingDownRWLock = new StampedLock().asReadWriteLock();
 
@@ -142,6 +146,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = telemetryProvider.getTracer();
+        this.meterRegistry = telemetryProvider.getMeterRegistry();
         this.httpLogger = new HttpTracer(settings, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(
             TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
@@ -238,6 +243,22 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     protected final void doStart() {
+        metricsToClose.add(
+            meterRegistry.registerLongAsyncCounter(
+                "es.http.connections.total",
+                "total number of inbound HTTP connections accepted",
+                "count",
+                () -> new LongWithAttributes(totalChannelsAccepted.get())
+            )
+        );
+        metricsToClose.add(
+            meterRegistry.registerLongGauge(
+                "es.http.connections.current",
+                "number of inbound HTTP connections currently open",
+                "count",
+                () -> new LongWithAttributes(httpChannels.size())
+            )
+        );
         startInternal();
     }
 
@@ -328,6 +349,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 logger.warn("unexpected exception while waiting for http channels to close", e);
             }
         }
+
+        for (final var metricToClose : metricsToClose) {
+            try {
+                metricToClose.close();
+            } catch (Exception e) {
+                logger.warn("unexpected exception while closing metric [{}]", metricToClose);
+                assert false : e;
+            }
+        }
+
         stopInternal();
     }
 

@@ -19,10 +19,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
@@ -692,16 +691,15 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        public PersistentTasksCustomMetadata.Assignment getProjectScopedAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            @SuppressWarnings("HiddenField") ClusterState clusterState,
-            @Nullable ProjectId projectId
+            ProjectState projectState
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
                 params,
-                clusterState,
+                projectState.cluster(),
                 isMemoryTrackerRecentlyRefreshed
             );
             // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
@@ -709,7 +707,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 return optionalAssignment.get();
             }
             JobNodeSelector jobNodeSelector = new JobNodeSelector(
-                clusterState,
+                projectState.cluster(),
                 candidateNodes,
                 params.getId(),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,

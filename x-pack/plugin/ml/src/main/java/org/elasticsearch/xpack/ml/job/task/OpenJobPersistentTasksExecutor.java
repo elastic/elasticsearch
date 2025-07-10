@@ -16,12 +16,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -123,11 +122,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     @Override
-    public Assignment getAssignment(
+    public Assignment getProjectScopedAssignment(
         OpenJobAction.JobParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState,
-        @Nullable ProjectId projectId
+        ProjectState projectState
     ) {
         Job job = params.getJob();
         // If the task parameters do not have a job field then the job
@@ -135,14 +133,14 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         // out of cluster state - this should be impossible in version 8
         assert job != null;
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, projectState.cluster(), isMemoryTrackerRecentlyRefreshed);
         // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
-            clusterState,
+            projectState.cluster(),
             candidateNodes,
             params.getJobId(),
             MlTasks.JOB_TASK_NAME,
@@ -217,13 +215,13 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     @Override
-    public void validate(OpenJobAction.JobParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
+    public void validateProject(OpenJobAction.JobParams params, ProjectState projectState) {
         final Job job = params.getJob();
         final String jobId = params.getJobId();
         validateJobAndId(jobId, job);
         // If we already know that we can't find an ml node because all ml nodes are running at capacity or
         // simply because there are no ml nodes in the cluster then we fail quickly here:
-        var assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, projectId);
+        var assignment = getProjectScopedAssignment(params, projectState.cluster().nodes().getAllNodes(), projectState);
         if (assignment.equals(AWAITING_UPGRADE)) {
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }

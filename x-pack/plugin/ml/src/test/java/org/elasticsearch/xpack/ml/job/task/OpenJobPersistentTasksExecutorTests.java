@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -87,9 +88,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     private Client client;
     private MlMemoryTracker mlMemoryTracker;
     private XPackLicenseState licenseState;
+    private ProjectId projectId;
 
     @Before
-    public void setUpMocks() {
+    public void setUp() throws Exception {
+        super.setUp();
         ThreadPool tp = mock(ThreadPool.class);
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -119,6 +122,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         client = mock(Client.class);
         mlMemoryTracker = mock(MlMemoryTracker.class);
         licenseState = mock(XPackLicenseState.class);
+        projectId = ProjectId.DEFAULT;
     }
 
     public void testValidate_jobMissing() {
@@ -173,7 +177,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build(), null).getExplanation()
+            executor.getProjectScopedAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build().projectState(projectId))
+                .getExplanation()
         );
     }
 
@@ -192,11 +197,10 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         when(job.allowLazyOpen()).thenReturn(true);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getProjectScopedAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build(),
-            null
+            csBuilder.build().projectState(projectId)
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -214,11 +218,10 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         Job job = mock(Job.class);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getProjectScopedAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build(),
-            null
+            csBuilder.build().projectState(projectId)
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());

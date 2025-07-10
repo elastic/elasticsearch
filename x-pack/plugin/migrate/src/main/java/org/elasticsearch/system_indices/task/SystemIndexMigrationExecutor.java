@@ -8,13 +8,11 @@
 package org.elasticsearch.system_indices.task;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -88,17 +86,16 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksCustomMetadata.Assignment getProjectScopedAssignment(
         SystemIndexMigrationTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState,
-        @Nullable ProjectId projectId
+        ProjectState projectState
     ) {
         // This should select from master-eligible nodes because we already require all master-eligible nodes to have all plugins installed.
         // However, due to a misunderstanding, this code as-written needs to run on the master node in particular. This is not a fundamental
         // problem, but more that you can't submit cluster state update tasks from non-master nodes. If we translate the process of updating
         // the cluster state to a Transport action, we can revert this to selecting any master-eligible node.
-        DiscoveryNode discoveryNode = clusterState.nodes().getMasterNode();
+        DiscoveryNode discoveryNode = projectState.cluster().nodes().getMasterNode();
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {

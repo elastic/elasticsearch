@@ -19,9 +19,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -114,11 +114,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksCustomMetadata.Assignment getProjectScopedAssignment(
         TransformTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState,
-        @Nullable ProjectId projectId
+        ProjectState projectState
     ) {
         /* Note:
          *
@@ -127,6 +126,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
+        var clusterState = projectState.cluster();
         var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
         if (transformMetadata.upgradeMode()) {
             return AWAITING_UPGRADE;

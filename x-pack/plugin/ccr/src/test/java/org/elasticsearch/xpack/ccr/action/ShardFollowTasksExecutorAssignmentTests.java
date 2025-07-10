@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -90,11 +91,10 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
             nodesBuilder.add(newNode(otherNodesRolesSupplier.get()));
         }
         clusterStateBuilder.nodes(nodesBuilder);
-        final Assignment assignment = executor.getAssignment(
+        final Assignment assignment = executor.getProjectScopedAssignment(
             mock(ShardFollowTask.class),
             clusterStateBuilder.nodes().getAllNodes(),
-            clusterStateBuilder.build(),
-            null
+            clusterStateBuilder.build().projectState(ProjectId.DEFAULT)
         );
         consumer.accept(theSpecial, assignment);
     }

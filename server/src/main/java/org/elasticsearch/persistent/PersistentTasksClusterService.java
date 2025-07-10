@@ -168,10 +168,15 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 }
 
                 PersistentTasksExecutor<Params> taskExecutor = registry.getPersistentTaskExecutorSafe(taskName);
-                assert (projectId == null && taskExecutor.scope() == PersistentTasksExecutor.Scope.CLUSTER)
-                    || (projectId != null && taskExecutor.scope() == PersistentTasksExecutor.Scope.PROJECT)
-                    : "inconsistent project-id [" + projectId + "] and task scope [" + taskExecutor.scope() + "]";
-                taskExecutor.validate(taskParams, currentState, projectId);
+                if (taskExecutor.scope() == PersistentTasksExecutor.Scope.CLUSTER) {
+                    assert projectId == null : "project id must be null when persistent task is cluster scoped";
+                    taskExecutor.validateCluster(taskParams, currentState);
+                } else if (taskExecutor.scope() == PersistentTasksExecutor.Scope.PROJECT) {
+                    assert projectId != null : "project id must not be null when persistent task is project scoped";
+                    taskExecutor.validateProject(taskParams, currentState.projectState(projectId));
+                } else {
+                    assert false : "unknown scope " + taskExecutor.scope();
+                }
 
                 Assignment assignment = createAssignment(taskName, taskParams, currentState, projectId);
                 logger.debug("creating {} persistent task [{}] with assignment [{}]", taskTypeString(projectId), taskName, assignment);
@@ -469,7 +474,16 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         // Task assignment should not rely on node order
         Randomness.shuffle(candidateNodes);
 
-        final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState, projectId);
+        final Assignment assignment = switch (persistentTasksExecutor.scope()) {
+            case PROJECT -> {
+                assert projectId != null : "project id must not be null when persistent task is project scoped";
+                yield persistentTasksExecutor.getProjectScopedAssignment(taskParams, candidateNodes, currentState.projectState(projectId));
+            }
+            case CLUSTER -> {
+                assert projectId == null : "project id must be null when persistent task is cluster scoped";
+                yield persistentTasksExecutor.getClusterScopedAssignment(taskParams, candidateNodes, currentState);
+            }
+        };
         assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
         assert (assignment.getExecutorNode() == null
             || currentState.metadata().nodeShutdowns().contains(assignment.getExecutorNode()) == false)
@@ -541,7 +555,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
      * persistent tasks changed.
      */
     boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {
-        var projectIdToTasksIterator = PersistentTasks.getAllTasks(event.state()).iterator();
+        var projectIdToTasksIterator = getAllTasks(event.state()).iterator();
         if (projectIdToTasksIterator.hasNext() == false) {
             return false;
         }
@@ -814,7 +828,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 // TODO just run on the elected master?
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
-                if (isAnyTaskUnassigned(PersistentTasks.getAllTasks(state))) {
+                if (isAnyTaskUnassigned(getAllTasks(state))) {
                     reassignPersistentTasks();
                 }
             }

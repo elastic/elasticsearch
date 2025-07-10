@@ -18,10 +18,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -495,14 +495,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        public PersistentTasksCustomMetadata.Assignment getProjectScopedAssignment(
             StartDatafeedAction.DatafeedParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState,
-            @Nullable ProjectId projectId
+            ProjectState projectState
         ) {
             return new DatafeedNodeSelector(
-                clusterState,
+                projectState.cluster(),
                 resolver,
                 params.getDatafeedId(),
                 params.getJobId(),
@@ -512,9 +511,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
+        public void validateProject(StartDatafeedAction.DatafeedParams params, ProjectState projectState) {
             new DatafeedNodeSelector(
-                clusterState,
+                projectState.cluster(),
                 resolver,
                 params.getDatafeedId(),
                 params.getJobId(),

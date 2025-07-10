@@ -9,11 +9,14 @@
 
 package org.elasticsearch.ingest.otel;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.common.JsonProcessor;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -60,6 +63,8 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
      * OpenTelemetry-compatible fields that are renamed by the processor.
      */
     private static final Set<String> KEEP_KEYS;
+    private static final Logger log = LogManager.getLogger(NormalizeForStreamProcessor.class);
+
     static {
         Set<String> keepKeys = new HashSet<>(Set.of("@timestamp", "attributes", "resource"));
         Set<String> renamedTopLevelFields = new HashSet<>();
@@ -103,6 +108,40 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
 
         // non-OTel document
 
+        // handling structured messages
+        Map<String, Object> body = null;
+        try {
+            String message = document.getFieldValue("message", String.class, true);
+            if (message != null) {
+                message = message.trim();
+                if (message.startsWith("{") && message.endsWith("}")) {
+                    // if the message is a JSON object, we assume it is a structured log
+                    Object parsedMessage = JsonProcessor.apply(message, true, true);
+                    if (parsedMessage instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> messageMap = (Map<String, Object>) parsedMessage;
+                        if (messageMap.containsKey("@timestamp")) {
+                            // todo - log debug
+                            // ECS-JSON format - merge contents into root document
+                            source.remove("message");
+                            JsonProcessor.recursiveMerge(source, messageMap);
+                        } else {
+                            // todo - log debug
+                            // Non-ECS format - move to body.structured
+                            body = new HashMap<>();
+                            body.put(STRUCTURED_KEY, messageMap);
+                            source.remove("message");
+                        }
+                    } else {
+                        // todo - log warning
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // todo - log warning
+            log.warn("");
+        }
+
         Map<String, Object> newAttributes = new HashMap<>();
         // The keep keys indicate the fields that should be kept at the top level later on when applying the namespacing.
         // However, at this point we need to move their original values (if they exist) to the one of the new attributes namespaces, except
@@ -115,6 +154,11 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
             if (source.containsKey(keepKey)) {
                 newAttributes.put(keepKey, source.remove(keepKey));
             }
+        }
+
+        // if the body is not null, it means we have a structured log that we need to move to the body.structured field.
+        if (body != null) {
+            source.put("body", body);
         }
 
         source.put(ATTRIBUTES_KEY, newAttributes);

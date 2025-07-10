@@ -27,6 +27,8 @@ public class IngestOtelClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("ingest-otel")
+        .module("lang-painless")
+        .module("ingest-common")
         .feature(FeatureFlag.LOGS_STREAM)
         .build();
 

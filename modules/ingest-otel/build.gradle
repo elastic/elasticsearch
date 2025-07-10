@@ -14,6 +14,11 @@ esplugin {
   classname ='org.elasticsearch.ingest.otel.NormalizeForStreamPlugin'
 }
 
+dependencies {
+  implementation project(':modules:ingest-common')
+  clusterModules project(':modules:ingest-common')
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'

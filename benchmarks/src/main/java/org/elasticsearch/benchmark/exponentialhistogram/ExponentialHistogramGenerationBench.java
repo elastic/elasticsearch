@@ -9,7 +9,6 @@
 
 package org.elasticsearch.benchmark.exponentialhistogram;
 
-
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -44,8 +43,7 @@ import java.util.function.Supplier;
 @State(Scope.Thread)
 public class ExponentialHistogramGenerationBench {
 
-
-    @Param({ "100", "500" , "1000", "5000"})
+    @Param({ "100", "500", "1000", "5000" })
     int bucketCount;
 
     @Param({ "NORMAL", "GAUSSIAN" })
@@ -63,7 +61,7 @@ public class ExponentialHistogramGenerationBench {
 
         Supplier<Double> nextRandom = () -> distribution.equals("GAUSSIAN") ? random.nextGaussian() : random.nextDouble();
 
-        //TODO: why is this here for T-DIGEST?
+        // TODO: why is this here for T-DIGEST?
         for (int i = 0; i < 10000; ++i) {
             histoGenerator.add(nextRandom.get());
         }

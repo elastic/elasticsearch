@@ -121,7 +121,12 @@ public class ExponentialHistogramMerger {
         }
     }
 
-    private static int putBuckets(ExponentialHistogramBuilder output, ExponentialHistogram.BucketIterator buckets, boolean isPositive, @Nullable DownscaleStats downscaleStats) {
+    private static int putBuckets(
+        ExponentialHistogramBuilder output,
+        ExponentialHistogram.BucketIterator buckets,
+        boolean isPositive,
+        @Nullable DownscaleStats downscaleStats
+    ) {
         boolean collectDownScaleStatsOnNext = false;
         long prevIndex = 0;
         int overflowCount = 0;

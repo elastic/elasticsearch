@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,6 +35,8 @@ public record DriverCompletionInfo(
     List<DriverProfile> driverProfiles,
     List<PlanProfile> planProfiles
 ) implements Writeable {
+
+    public static final TransportVersionSet ESQL_PROFILE_INCLUDE_PLAN = TransportVersionSet.get("esql-profile-include-plan");
 
     /**
      * Completion info we use when we didn't properly complete any drivers.
@@ -94,10 +96,9 @@ public record DriverCompletionInfo(
             in.readVLong(),
             in.readVLong(),
             in.readCollectionAsImmutableList(DriverProfile::readFrom),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
-                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                    : List.of()
+            ESQL_PROFILE_INCLUDE_PLAN.isCompatible(in.getTransportVersion())
+                ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                : List.of()
         );
     }
 
@@ -106,8 +107,7 @@ public record DriverCompletionInfo(
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
         out.writeCollection(driverProfiles);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+        if (ESQL_PROFILE_INCLUDE_PLAN.isCompatible(out.getTransportVersion())) {
             out.writeCollection(planProfiles);
         }
     }

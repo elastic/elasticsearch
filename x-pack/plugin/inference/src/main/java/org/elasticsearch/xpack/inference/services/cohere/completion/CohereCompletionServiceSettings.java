@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToU
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.API_VERSION;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.MODEL_REQUIRED_FOR_V2_API;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.apiVersionFromMap;
 
@@ -102,8 +103,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         uri = createOptionalUri(in.readOptionalString());
         modelId = in.readOptionalString();
         rateLimitSettings = new RateLimitSettings(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isCompatible(in.getTransportVersion())) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -155,8 +155,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(modelId);
         rateLimitSettings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isCompatible(out.getTransportVersion())) {
             out.writeEnum(apiVersion);
         }
     }

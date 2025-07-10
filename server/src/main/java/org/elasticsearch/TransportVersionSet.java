@@ -85,7 +85,7 @@ public class TransportVersionSet {
             String versionLocation = "transport/" + name;
             try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(versionLocation)) {
                 TransportVersionSet transportVersionSet = TransportVersionSet.fromXContent(inputStream, latestId);
-                transportVersionSets.put(name, transportVersionSet);
+                transportVersionSets.put(transportVersionSet.name, transportVersionSet);
             } catch (IOException ioe) {
                 throw new UncheckedIOException("transport version set file not found at [ " + versionLocation + "]", ioe);
             }
@@ -95,14 +95,12 @@ public class TransportVersionSet {
     }
 
     private static List<TransportVersion> collectTransportVersions() {
-        List<TransportVersion> tranportVersions = new ArrayList<>();
+        List<TransportVersion> transportVersions = new ArrayList<>();
         for (TransportVersionSet transportVersionSet : TRANSPORT_VERSION_SETS.values()) {
-            for (TransportVersion transportVersion : transportVersionSet.versions) {
-                tranportVersions.add(transportVersion);
-            }
+            transportVersions.addAll(transportVersionSet.versions);
         }
-        tranportVersions.sort(TransportVersion::compareTo);
-        return tranportVersions;
+        transportVersions.sort(TransportVersion::compareTo);
+        return transportVersions;
     }
 
     private static TransportVersionSet fromXContent(InputStream inputStream, int maxTransportId) throws IOException {

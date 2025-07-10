@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.cohere;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +49,8 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     public static final String MODEL_ID = "model_id";
     public static final String API_VERSION = "api_version";
     public static final String MODEL_REQUIRED_FOR_V2_API = "The [service_settings.model_id] field is required for the Cohere V2 API.";
+
+    public static final TransportVersionSet ML_INFERENCE_COHERE_API_VERSION = TransportVersionSet.get("ml-inference-cohere-api-version");
 
     public enum CohereApiVersion {
         V1,
@@ -182,8 +185,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isCompatible(in.getTransportVersion())) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -285,8 +287,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isCompatible(out.getTransportVersion())) {
             out.writeEnum(apiVersion);
         }
     }

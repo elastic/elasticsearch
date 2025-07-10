@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 
 public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereRerankServiceSettings> {
     public static CohereRerankServiceSettings createRandom() {
@@ -88,15 +89,14 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
                 CohereServiceSettings.CohereApiVersion.V1
             );
-        } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            && version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false) {
-                return new CohereRerankServiceSettings(
-                    instance.uri(),
-                    instance.modelId(),
-                    instance.rateLimitSettings(),
-                    CohereServiceSettings.CohereApiVersion.V1
-                );
-            }
+        } else if (ML_INFERENCE_COHERE_API_VERSION.isNotCompatible(version)) {
+            return new CohereRerankServiceSettings(
+                instance.uri(),
+                instance.modelId(),
+                instance.rateLimitSettings(),
+                CohereServiceSettings.CohereApiVersion.V1
+            );
+        }
         return instance;
     }
 

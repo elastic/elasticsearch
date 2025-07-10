@@ -124,7 +124,6 @@ public class LlamaService extends SenderService {
      * @param inferenceId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param serviceSettings the settings for the inference service
-     * @param taskSettings the settings specific to the task
      * @param chunkingSettings the settings for chunking, if applicable
      * @param secretSettings the secret settings for the model, such as API keys or tokens
      * @param failureMessage the message to use in case of failure
@@ -135,7 +134,6 @@ public class LlamaService extends SenderService {
         String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage,
@@ -143,16 +141,7 @@ public class LlamaService extends SenderService {
     ) {
         switch (taskType) {
             case TEXT_EMBEDDING:
-                return new LlamaEmbeddingsModel(
-                    inferenceId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
+                return new LlamaEmbeddingsModel(inferenceId, taskType, NAME, serviceSettings, chunkingSettings, secretSettings, context);
             case CHAT_COMPLETION, COMPLETION:
                 return new LlamaChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
             default:
@@ -280,7 +269,6 @@ public class LlamaService extends SenderService {
                 modelId,
                 taskType,
                 serviceSettingsMap,
-                taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
@@ -305,7 +293,7 @@ public class LlamaService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -317,7 +305,6 @@ public class LlamaService extends SenderService {
             modelId,
             taskType,
             serviceSettingsMap,
-            taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(modelId, NAME)
@@ -328,7 +315,6 @@ public class LlamaService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage
@@ -337,7 +323,6 @@ public class LlamaService extends SenderService {
             inferenceEntityId,
             taskType,
             serviceSettings,
-            taskSettings,
             chunkingSettings,
             secretSettings,
             failureMessage,
@@ -348,7 +333,7 @@ public class LlamaService extends SenderService {
     @Override
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
         if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
@@ -359,7 +344,6 @@ public class LlamaService extends SenderService {
             modelId,
             taskType,
             serviceSettingsMap,
-            taskSettingsMap,
             chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(modelId, NAME)

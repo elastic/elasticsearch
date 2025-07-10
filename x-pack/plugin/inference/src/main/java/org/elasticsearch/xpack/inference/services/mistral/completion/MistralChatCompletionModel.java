@@ -94,7 +94,7 @@ public class MistralChatCompletionModel extends MistralModel {
         DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);

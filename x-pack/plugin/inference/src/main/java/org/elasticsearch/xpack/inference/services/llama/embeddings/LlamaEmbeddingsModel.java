@@ -12,7 +12,6 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -42,7 +41,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
@@ -52,7 +50,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
             taskType,
             service,
             LlamaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,    // no task settings for Llama embeddings
             chunkingSettings,
             retrieveSecretSettings(secrets)
         );
@@ -86,7 +83,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
-     * @param taskSettings the task settings for the model
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      */
@@ -95,7 +91,6 @@ public class LlamaEmbeddingsModel extends LlamaModel {
         TaskType taskType,
         String service,
         LlamaEmbeddingsServiceSettings serviceSettings,
-        TaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         SecretSettings secrets
     ) {

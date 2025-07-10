@@ -480,3 +480,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.xpack.restart.MlHiddenIndicesFullClusterRestartIT
+  method: testMlIndicesBecomeHidden {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131016

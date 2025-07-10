@@ -95,3 +95,33 @@ Top function with invalid sort order:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
   - match: { error.reason: "Found 1 problem\nline 3:30: Invalid order value in [TOP(hire_date, 2, REVERSE(\"csed123\"))], expected [ASC, DESC] but got [321desc]" }
+
+---
+
+Sample function with constant folding:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                sample_salary = SAMPLE(salary, 1+2)
+            | LIMIT 5
+  - match: { columns.0.name: "sample_salary" }
+  - length: { values: 1 }
+  - length: { values.0: 1 }
+
+---
+
+Sample function with negative limit value after folding:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                sample_salary = SAMPLE(salary, 2-5)
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - match: { error.reason: "Found 1 problem\nline 3:36: Limit must be greater than 0 in [SAMPLE(salary, 2-5)], found [-3]" }

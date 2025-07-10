@@ -335,6 +335,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = def(9_116_0_00);
     public static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = def(9_117_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
+    public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
+    public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

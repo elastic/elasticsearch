@@ -697,6 +697,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 Map.of(),
                 Map.of(),
                 reservedSpace,
+                Map.of(),
                 Map.of()
             );
         }

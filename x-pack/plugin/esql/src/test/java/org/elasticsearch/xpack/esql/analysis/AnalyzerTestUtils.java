@@ -184,6 +184,15 @@ public final class AnalyzerTestUtils {
             "airport_city_boundaries",
             "mapping-airport_city_boundaries.json"
         );
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.COORDINATOR,
+            MATCH_TYPE,
+            "languages_coord",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
         return enrichResolution;
     }
 
@@ -209,6 +218,25 @@ public final class AnalyzerTestUtils {
         enrich.addResolvedPolicy(
             policy,
             Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(field, policyType, enrichFields, Map.of("", index), indexResolution.get().mapping())
+        );
+    }
+
+    public static void loadEnrichPolicyResolution(
+        EnrichResolution enrich,
+        Enrich.Mode mode,
+        String policyType,
+        String policy,
+        String field,
+        String index,
+        String mapping
+    ) {
+        IndexResolution indexResolution = loadMapping(mapping, index);
+        List<String> enrichFields = new ArrayList<>(indexResolution.get().mapping().keySet());
+        enrichFields.remove(field);
+        enrich.addResolvedPolicy(
+            policy,
+            mode,
             new ResolvedEnrichPolicy(field, policyType, enrichFields, Map.of("", index), indexResolution.get().mapping())
         );
     }

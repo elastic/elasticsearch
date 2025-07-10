@@ -122,8 +122,7 @@ public class PolicyManager {
         String componentName,
         String moduleName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
-        FileAccessTree fileAccess,
-        Logger logger
+        FileAccessTree fileAccess
     ) {
 
         public ModuleEntitlements {
@@ -141,6 +140,11 @@ public class PolicyManager {
             }
             return entitlements.stream().map(entitlementClass::cast);
         }
+
+        Logger logger(Class<?> requestingClass) {
+            var loggerSuffix = "." + componentName + "." + requestingClass.getPackageName();
+            return LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
+        }
     }
 
     private FileAccessTree getDefaultFileAccess(Collection<Path> componentPaths) {
@@ -149,13 +153,7 @@ public class PolicyManager {
 
     // pkg private for testing
     ModuleEntitlements defaultEntitlements(String componentName, Collection<Path> componentPaths, String moduleName) {
-        return new ModuleEntitlements(
-            componentName,
-            moduleName,
-            Map.of(),
-            getDefaultFileAccess(componentPaths),
-            getLogger(componentName, moduleName)
-        );
+        return new ModuleEntitlements(componentName, moduleName, Map.of(), getDefaultFileAccess(componentPaths));
     }
 
     // pkg private for testing
@@ -175,8 +173,7 @@ public class PolicyManager {
             componentName,
             moduleName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths),
-            getLogger(componentName, moduleName)
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPaths, exclusivePaths)
         );
     }
 
@@ -285,21 +282,6 @@ public class PolicyManager {
             }
         }
     }
-
-    private static Logger getLogger(String componentName, String moduleName) {
-        var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
-        return MODULE_LOGGERS.computeIfAbsent(PolicyManager.class.getName() + loggerSuffix, LogManager::getLogger);
-    }
-
-    /**
-     * We want to use the same {@link Logger} object for a given name, because we want {@link ModuleEntitlements}
-     * {@code equals} and {@code hashCode} to work.
-     * <p>
-     * This would not be required if LogManager
-     * <a href="https://github.com/elastic/elasticsearch/issues/87511">memoized the loggers</a>,
-     * but here we are.
-     */
-    private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
 
     protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
         return moduleEntitlementsMap.computeIfAbsent(requestingClass.getModule(), m -> computeEntitlements(requestingClass));

@@ -217,7 +217,7 @@ final class IpinfoIpDataLookups {
 
     public record GeolocationResult(String city, String country, Double lat, Double lng, String postalCode, String region, String timezone)
         implements
-        IpDataLookup.Response {
+            IpDataLookup.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public GeolocationResult(
@@ -237,7 +237,7 @@ final class IpinfoIpDataLookups {
 
     public record PrivacyDetectionResult(Boolean hosting, Boolean proxy, Boolean relay, String service, Boolean tor, Boolean vpn)
         implements
-        IpDataLookup.Response {
+            IpDataLookup.Response {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
         public PrivacyDetectionResult(

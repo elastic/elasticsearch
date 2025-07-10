@@ -12,7 +12,6 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -20,7 +19,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -44,9 +42,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
-import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
 
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
@@ -332,10 +327,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, ScoreMode> scoreModeFunction(
-        List<SortBuilder<?>> sorts,
-        boolean needsScore
-    ) {
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.

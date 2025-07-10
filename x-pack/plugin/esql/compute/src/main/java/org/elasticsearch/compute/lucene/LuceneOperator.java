@@ -116,7 +116,14 @@ public abstract class LuceneOperator extends SourceOperator {
         ) {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
-            this.sliceQueue = LuceneSliceQueue.create(contexts, queryFunction, dataPartitioning, autoStrategy, taskConcurrency, scoreModeFunction);
+            this.sliceQueue = LuceneSliceQueue.create(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                taskConcurrency,
+                scoreModeFunction
+            );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;
         }

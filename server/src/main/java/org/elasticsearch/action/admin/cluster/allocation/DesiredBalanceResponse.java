@@ -41,6 +41,11 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersions.V_8_7_0;
     private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersions.V_8_8_0;
 
+    private static final String STATS_FIELD_NAME = "stats";
+    private static final String CLUSTER_BALANCE_STATS_FIELD_NAME = "cluster_balance_stats";
+    private static final String ROUTING_TABLE_FIELD_NAME = "routing_table";
+    private static final String CLUSTER_INFO_FIELD_NAME = "cluster_info";
+
     private final DesiredBalanceStats stats;
     private final ClusterBalanceStats clusterBalanceStats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
@@ -89,9 +94,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         return Iterators.concat(
             chunk(
                 (builder, p) -> builder.startObject()
-                    .field("stats", stats)
-                    .field("cluster_balance_stats", clusterBalanceStats)
-                    .startObject("routing_table")
+                    .field(STATS_FIELD_NAME, stats)
+                    .field(CLUSTER_BALANCE_STATS_FIELD_NAME, clusterBalanceStats)
+                    .startObject(ROUTING_TABLE_FIELD_NAME)
             ),
             Iterators.flatMap(
                 routingTable.entrySet().iterator(),
@@ -106,7 +111,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                     )
                 )
             ),
-            chunk((builder, p) -> builder.endObject().startObject("cluster_info")),
+            chunk((builder, p) -> builder.endObject().startObject(CLUSTER_INFO_FIELD_NAME)),
             clusterInfo.toXContentChunked(params),
             chunk((builder, p) -> builder.endObject().endObject())
         );
@@ -145,14 +150,11 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
     @Override
     public String toString() {
-        return "DesiredBalanceResponse{stats="
-            + stats
-            + ", clusterBalanceStats="
-            + clusterBalanceStats
-            + ", routingTable="
-            + routingTable
-            + ", clusterInfo="
-            + clusterInfo
+        return "DesiredBalanceResponse{"
+            + CLUSTER_INFO_FIELD_NAME + "=" + stats + ", "
+            + CLUSTER_BALANCE_STATS_FIELD_NAME + "=" + clusterBalanceStats + ", "
+            + ROUTING_TABLE_FIELD_NAME + "=" + routingTable + ", "
+            + CLUSTER_INFO_FIELD_NAME + "=" + clusterInfo
             + "}";
     }
 

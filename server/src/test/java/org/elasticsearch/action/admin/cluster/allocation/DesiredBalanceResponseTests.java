@@ -91,7 +91,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomNonNegativeInt(),
             randomDouble(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomDouble()
         );
     }
 

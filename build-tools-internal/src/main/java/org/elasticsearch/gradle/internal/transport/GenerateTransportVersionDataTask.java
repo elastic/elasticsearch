@@ -11,5 +11,4 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
 
-public class GenerateTransportVersionDataTask extends DefaultTask {
-}
+public class GenerateTransportVersionDataTask extends DefaultTask {}

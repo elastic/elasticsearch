@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import groovy.json.JsonSlurper;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.InputDirectory;
@@ -40,7 +41,6 @@ public abstract class ValidateTransportVersionsTask extends DefaultTask {
         var dataFileDirectory = getDataFileDirectory();
         var tvDataDir = dataFileDirectory.getAsFile().get();
 
-
         Set<String> tvSetNamesInDataFiles = new HashSet<>();
         for (var tvDataFile : Objects.requireNonNull(tvDataDir.listFiles())) {
             if (tvDataFile.getName().endsWith("-LATEST.json") == false) {
@@ -59,8 +59,12 @@ public abstract class ValidateTransportVersionsTask extends DefaultTask {
         try (var reader = new BufferedReader(new FileReader(tvSetDeclaredNamesFile))) {
             reader.lines().forEach(declaredName -> {
                 if (tvSetNamesInDataFiles.contains(declaredName) == false) {
-                    throw new RuntimeException("TransportVersionSet.get(\"" + declaredName + "\") was used, but lacks a" +
-                        "data file with a corresponding transport version. This can be generated with the <TODO> task"); //TODO
+                    throw new RuntimeException(
+                        "TransportVersionSet.get(\""
+                            + declaredName
+                            + "\") was used, but lacks a"
+                            + "data file with a corresponding transport version. This can be generated with the <TODO> task"
+                    ); // TODO
                 }
             });
         }

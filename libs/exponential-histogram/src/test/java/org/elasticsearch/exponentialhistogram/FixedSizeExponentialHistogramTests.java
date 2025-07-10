@@ -13,7 +13,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class FixedSizeExponentialHistogramTests extends ESTestCase {
+
+
+    public void testDefaultZeroBucketHasZeroThreshold() {
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor();
+        assertThat(histo.zeroBucket().zeroThreshold(), equalTo(0.0));
+    }
 
     public void testPrintBuckets() {
         ExponentialHistogram first = ExponentialHistogramGenerator.createFor(0.01234, 42, 56789);

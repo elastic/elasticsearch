@@ -9,17 +9,18 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.compareLowerBoundaries;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.computeIndex;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.getLowerBucketBoundary;
-import static org.elasticsearch.exponentialhistogram.FixedSizeExponentialHistogram.DEFAULT_BUCKET_SCALE;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 
 public record ZeroBucket(long index, int scale, long count) {
 
-    private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(Long.MIN_VALUE, Integer.MIN_VALUE / 256, 0);
+    private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, Integer.MIN_VALUE / 256, 0);
 
     public ZeroBucket(double zeroThreshold, long count) {
-        this(computeIndex(zeroThreshold, DEFAULT_BUCKET_SCALE) + 1, DEFAULT_BUCKET_SCALE, count);
+        this(computeIndex(zeroThreshold, MAX_SCALE) + 1, MAX_SCALE, count);
     }
 
     public static ZeroBucket minimalEmpty() {

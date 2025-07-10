@@ -9,6 +9,10 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
+
 public class ExponentialHistogramUtils {
 
     /** Bit mask used to isolate exponent of IEEE 754 double precision number. */
@@ -76,10 +80,13 @@ public class ExponentialHistogramUtils {
      * of the index.
      */
     public static int getMaximumScaleIncrease(long index) {
+        if (index < MIN_INDEX || index > MAX_INDEX) {
+            throw new IllegalArgumentException("index must be in range ["+MIN_INDEX+".."+MAX_INDEX+"]");
+        }
         if (index < 0) {
             index = ~index;
         }
-        return Long.numberOfLeadingZeros(index) - 1;
+        return Long.numberOfLeadingZeros(index) - (64 - MAX_INDEX_BITS);
     }
 
     public static double getUpperBucketBoundary(long index, int scale) {
@@ -93,7 +100,6 @@ public class ExponentialHistogramUtils {
     }
 
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
-        // TODO: handle numeric limits, implement exact algorithms with 128 bit precision
         double inverseFactor = Math.scalb(LN_2, -scale);
         return Math.exp(inverseFactor * (bucketIndex + 1/3.0));
     }

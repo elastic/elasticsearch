@@ -11,10 +11,6 @@ package org.elasticsearch.exponentialhistogram;
 
 public final class FixedSizeExponentialHistogram implements ExponentialHistogramBuilder, ExponentialHistogram {
 
-    // scale of 38 is the largest scale where the index computation doesn't suffer much rounding
-    // if we want to use something larger, we'll have to rework the math
-    public static final int DEFAULT_BUCKET_SCALE = 38;
-
     private final long[] bucketIndices;
     private final long[] bucketCounts;
     private int negativeBucketCount;
@@ -32,11 +28,14 @@ public final class FixedSizeExponentialHistogram implements ExponentialHistogram
 
     void reset() {
         setZeroBucket(ZeroBucket.minimalEmpty());
-        resetBuckets(DEFAULT_BUCKET_SCALE);
+        resetBuckets(MAX_SCALE);
     }
 
     @Override
     public void resetBuckets(int newScale) {
+        if (newScale > MAX_SCALE) {
+            throw new IllegalArgumentException("scale must be <= MAX_SCALE ("+MAX_SCALE+")");
+        }
         negativeBucketCount = 0;
         positiveBucketCount = 0;
         bucketScale = newScale;
@@ -54,6 +53,9 @@ public final class FixedSizeExponentialHistogram implements ExponentialHistogram
 
     @Override
     public boolean tryAddBucket(long index, long count, boolean isPositive) {
+        if (index < MIN_INDEX || index > MAX_INDEX) {
+            throw new IllegalArgumentException("index must be in range ["+MIN_INDEX+".."+MAX_INDEX+"]");
+        }
         if (isPositive == false && positiveBucketCount > 0) {
             throw new IllegalArgumentException("Cannot add negative buckets after a positive bucket was added");
         }

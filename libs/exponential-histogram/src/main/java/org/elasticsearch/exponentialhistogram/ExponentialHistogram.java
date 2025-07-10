@@ -11,6 +11,18 @@ package org.elasticsearch.exponentialhistogram;
 
 public interface ExponentialHistogram {
 
+    // scale of 38 is the largest scale where at the borders we don't run into problems due to floating point precision
+    // theoretically, a MAX_SCALE of 51 would work and would still cover the entire range of double values
+    // if we want to use something larger, we'll have to rework the math of converting from double to indices and back
+    // One option would be to use "Quadruple": https://github.com/m-vokhm/Quadruple
+    int MAX_SCALE = 38;
+
+    // Only use 62 bit at max to allow to compute the difference between the smallest and largest index without causing overflow
+    // Also the extra bit gives us room for some tricks for compact storage
+    int MAX_INDEX_BITS = 62;
+    long MAX_INDEX = (1L << MAX_INDEX_BITS) - 1;
+    long MIN_INDEX = -MAX_INDEX;
+
     int scale();
 
     ZeroBucket zeroBucket();

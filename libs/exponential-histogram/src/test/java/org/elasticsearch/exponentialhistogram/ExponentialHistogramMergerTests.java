@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.exponentialhistogram.FixedSizeExponentialHistogramTests.printMidpoints;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramMergerTests extends ESTestCase {
@@ -62,7 +63,7 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         third.setZeroBucket(new ZeroBucket(45.0, 1));
 
         mergeResult = mergeWithMinimumScale(100, 0, mergeResult, third);
-        assertThat(mergeResult.zeroBucket().zeroThreshold(), equalTo(45.0));
+        assertThat(mergeResult.zeroBucket().zeroThreshold(), closeTo(45.0, 0.000001));
         assertThat(mergeResult.zeroBucket().count(), equalTo(1L + 14L + 42L + 7L));
         assertThat(mergeResult.positiveBuckets().hasNext(), equalTo(false));
         assertThat(mergeResult.negativeBuckets().hasNext(), equalTo(false));

@@ -112,10 +112,10 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private void addRawInput(int positionOffset, IntVector groups, Block values) {
         int position = positionOffset;
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++, position++) {
-            int groupId = groups.getInt(groupPosition);
             if (values.isNull(position)) {
                 continue;
             }
+            int groupId = groups.getInt(groupPosition);
             state.increment(groupId, values.getValueCount(position));
         }
     }
@@ -123,16 +123,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private void addRawInput(int positionOffset, IntArrayBlock groups, Block values) {
         int position = positionOffset;
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++, position++) {
-            if (groups.isNull(groupPosition)) {
+            if (groups.isNull(groupPosition) || values.isNull(position)) {
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                if (values.isNull(position)) {
-                    continue;
-                }
                 state.increment(groupId, values.getValueCount(position));
             }
         }
@@ -141,16 +138,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private void addRawInput(int positionOffset, IntBigArrayBlock groups, Block values) {
         int position = positionOffset;
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++, position++) {
-            if (groups.isNull(groupPosition)) {
+            if (groups.isNull(groupPosition) || values.isNull(position)) {
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                if (values.isNull(position)) {
-                    continue;
-                }
                 state.increment(groupId, values.getValueCount(position));
             }
         }

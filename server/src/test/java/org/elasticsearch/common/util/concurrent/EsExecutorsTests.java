@@ -685,9 +685,9 @@ public class EsExecutorsTests extends ESTestCase {
                 randomBoolean(),
                 EsExecutors.daemonThreadFactory("test"),
                 threadContext,
-                randomBoolean() ?
-                    EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(executionTimeEwma).build() :
-                    EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(executionTimeEwma).build()
+                randomBoolean()
+                    ? EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(executionTimeEwma).build()
+                    : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(executionTimeEwma).build()
             );
             assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
         }

@@ -641,6 +641,7 @@ public class EsExecutors {
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+
             public Builder() {}
 
             public Builder trackExecutionTime(double alpha) {

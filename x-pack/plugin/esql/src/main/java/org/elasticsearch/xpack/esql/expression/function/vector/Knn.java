@@ -254,6 +254,22 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Knn(source(), field(), query(), k(), options(), queryBuilder, filterExpressions());
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        Translatable translatable = super.translatable(pushdownPredicates);
+        // We need to check whether filter expressions are translatable as well
+        for (Expression filterExpression : filterExpressions()) {
+            translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
+        }
+
+        return translatable;
+    }
+
+    @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = Match.fieldAsFieldAttribute(field());
 
@@ -272,26 +288,17 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
         List<QueryBuilder> filterQueries = new ArrayList<>();
         for (Expression filterExpression : filterExpressions()) {
-            filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
+            if (filterExpression instanceof TranslationAware translationAware) {
+                // We can only translate filter expressions that are translatable. In case any is not translatable,
+                // Knn won't be pushed down as it will not be translatable so it's safe not to translate all filters and check them
+                // when creating an evaluator for the non-pushed down query
+                if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
+                    filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
+                }
+            }
         }
 
         return new KnnQuery(source(), fieldName, queryAsFloats, opts, filterQueries);
-    }
-
-    @Override
-    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), k(), options(), queryBuilder, filterExpressions());
-    }
-
-    @Override
-    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        Translatable translatable = super.translatable(pushdownPredicates);
-        // We need to check whether filter expressions are translatable as well
-        for (Expression filterExpression : filterExpressions()) {
-            translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
-        }
-
-        return translatable;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {

@@ -1979,30 +1979,50 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryExec = as(field.child(), EsQueryExec.class);
 
         KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 10, null, null, null);
+        KnnVectorQueryBuilder firstKnnQueryAsFilter = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            10,
+            null,
+            null,
+            null
+        );
         // Integer range query (right side of first OR)
         QueryBuilder integerRangeQuery = wrapWithSingleQuery(
             query,
             unscore(rangeQuery("integer").gt(10)),
             "integer",
-            new Source(2, 45, "integer > 10")
+            new Source(2, 46, "integer > 10")
         );
 
         // Second KNN query (right side of second OR)
         KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
+        KnnVectorQueryBuilder secondKnnQueryAsFilter = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 4, 5, 6 },
+            10,
+            null,
+            null,
+            null
+        );
 
         // Keyword term query (left side of second OR)
         QueryBuilder keywordQuery = wrapWithSingleQuery(
             query,
             unscore(termQuery("keyword", "test")),
             "keyword",
-            new Source(2, 87, "keyword == \"test\"")
+            new Source(2, 66, "keyword == \"test\"")
         );
 
         // First OR (knn1 OR integer > 10)
         var firstOr = boolQuery().should(firstKnnQuery).should(integerRangeQuery);
+        var firstOrAsFilter = boolQuery().should(firstKnnQueryAsFilter).should(integerRangeQuery);
         // Second OR (keyword == "test" OR knn2)
-        var secondOr = boolQuery().should(keywordQuery).should(secondKnnQuery.addFilterQuery(firstOr));
-        firstKnnQuery.addFilterQuery(secondOr);
+        var secondOr = boolQuery().should(keywordQuery).should(secondKnnQuery);
+        var secondOrAsFilter = boolQuery().should(keywordQuery).should(secondKnnQueryAsFilter);
+        // Add prefilters to the knn queries. knn queries in prefilters don't have prefilters so we use copies of the queries
+        firstKnnQuery.addFilterQuery(secondOrAsFilter);
+        secondKnnQuery.addFilterQuery(firstOrAsFilter);
 
         // Top-level AND combining both ORs
         var expectedQuery = boolQuery().must(firstOr).must(secondOr);

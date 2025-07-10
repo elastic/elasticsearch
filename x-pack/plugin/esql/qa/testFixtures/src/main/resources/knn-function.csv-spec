@@ -266,3 +266,20 @@ c: long       | primary: boolean
 41            | false          
 9             | true           
 ;
+
+testKnnUsesPrefiltering
+required_capability: knn_function_v3
+
+from colors metadata _score
+| where knn(rgb_vector, [255, 0, 0], 5) and primary == true
+| sort _score desc, color asc
+| keep color
+;
+
+color:text
+red            
+gray           
+black          
+magenta        
+yellow
+;

@@ -46,10 +46,9 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
             return new SparseVectorFieldMapper.SparseVectorIndexOptions(false, null);
         }
 
-        return new SparseVectorFieldMapper.SparseVectorIndexOptions(true, new TokenPruningConfig(
-            randomFloatBetween(1.0f, 100.0f, true),
-            randomFloatBetween(0.0f, 1.0f, true),
-            randomBoolean()
-        ));
+        return new SparseVectorFieldMapper.SparseVectorIndexOptions(
+            true,
+            new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
+        );
     }
 }

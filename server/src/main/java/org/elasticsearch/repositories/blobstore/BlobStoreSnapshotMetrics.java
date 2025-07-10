@@ -51,17 +51,9 @@ public class BlobStoreSnapshotMetrics {
         snapshotRateLimitingTimeInNanos.inc(throttleTimeNanos);
     }
 
-    public long snapshotRateLimitingTimeInNanos() {
-        return snapshotRateLimitingTimeInNanos.count();
-    }
-
     public void incrementRestoreRateLimitingTimeInNanos(long throttleTimeNanos) {
         snapshotMetrics.restoreThrottleDurationCounter().incrementBy(throttleTimeNanos, metricAttributes);
         restoreRateLimitingTimeInNanos.inc(throttleTimeNanos);
-    }
-
-    public long restoreRateLimitingTimeInNanos() {
-        return restoreRateLimitingTimeInNanos.count();
     }
 
     public void incrementCountersForPartUpload(long partSizeInBytes, long partWriteTimeMillis) {

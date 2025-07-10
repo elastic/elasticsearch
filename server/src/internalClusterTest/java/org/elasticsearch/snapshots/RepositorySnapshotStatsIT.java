@@ -21,12 +21,22 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 
+import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // Make upload time more accurate
+            .put(ESTIMATED_TIME_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+    }
 
     public void testRepositorySnapshotStats() {
 

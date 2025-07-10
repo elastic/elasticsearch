@@ -178,11 +178,12 @@ setup:
 
   - match:
       results:
+        - synonyms_set: "empty-synonyms"
+          count: 0
         - synonyms_set: "test-synonyms-1"
           count: 3
         - synonyms_set: "test-synonyms-2"
           count: 1
         - synonyms_set: "test-synonyms-3"
           count: 2
-        - synonyms_set: "empty-synonyms"
-          count: 0
+

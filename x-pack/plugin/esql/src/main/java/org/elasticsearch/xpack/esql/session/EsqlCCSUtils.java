@@ -196,13 +196,14 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         IndexResolution indexResolution,
+        Set<String> unavailableClusters,
         QueryBuilder filter
     ) {
         final Set<String> clustersWithNoMatchingIndices = new HashSet<>(executionInfo.clusterAliases());
         for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
-        clustersWithNoMatchingIndices.removeAll(EsqlCCSUtils.determineUnavailableRemoteClusters(indexResolution.failures()).keySet());
+        clustersWithNoMatchingIndices.removeAll(unavailableClusters);
         /*
          * Rules enforced at planning time around non-matching indices
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
@@ -268,7 +269,8 @@ public class EsqlCCSUtils {
 
     // Filter-less version, mainly for testing where we don't need filter support
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, null);
+        var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(indexResolution.failures()).keySet();
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, unavailableClusters, null);
     }
 
     // visible for testing

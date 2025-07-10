@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -51,7 +52,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
-import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
@@ -120,7 +120,7 @@ public class PlannerUtils {
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
-        final var pipelineBreakers = fragment.fragment().collectFirstChildren(Mapper::isPipelineBreaker);
+        final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
             return null;
         }

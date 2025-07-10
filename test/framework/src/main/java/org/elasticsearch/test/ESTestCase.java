@@ -2897,9 +2897,23 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Constructs a {@link ProjectState} for the given {@link ProjectMetadata}.
+     */
+    public static ProjectState projectStateFromProject(ProjectMetadata project) {
+        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build().projectState(project.id());
+    }
+
+    /**
      * Constructs an empty {@link ProjectState} with one (empty) project.
      */
     public static ProjectState projectStateWithEmptyProject() {
         return projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
+    }
+
+    /**
+     * Constructs an empty {@link ProjectMetadata} with a random ID.
+     */
+    public static ProjectMetadata emptyProject() {
+        return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
     }
 }

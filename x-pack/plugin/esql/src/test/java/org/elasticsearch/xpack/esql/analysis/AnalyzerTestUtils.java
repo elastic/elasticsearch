@@ -129,7 +129,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
-        var plan = new EsqlParser().createStatement(query);
+        var plan = new EsqlParser().createStatement(query, configuration(query));
         // System.out.println(plan);
         var analyzed = analyzer.analyze(plan);
         // System.out.println(analyzed);
@@ -137,7 +137,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String mapping, QueryParams params) {
-        var plan = new EsqlParser().createStatement(query, params);
+        var plan = new EsqlParser().createStatement(query, params, configuration(query));
         var analyzer = analyzer(loadMapping(mapping, "test"), TEST_VERIFIER, configuration(query));
         return analyzer.analyze(plan);
     }
@@ -184,6 +184,15 @@ public final class AnalyzerTestUtils {
             "airport_city_boundaries",
             "mapping-airport_city_boundaries.json"
         );
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.COORDINATOR,
+            MATCH_TYPE,
+            "languages_coord",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
         return enrichResolution;
     }
 
@@ -209,6 +218,25 @@ public final class AnalyzerTestUtils {
         enrich.addResolvedPolicy(
             policy,
             Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(field, policyType, enrichFields, Map.of("", index), indexResolution.get().mapping())
+        );
+    }
+
+    public static void loadEnrichPolicyResolution(
+        EnrichResolution enrich,
+        Enrich.Mode mode,
+        String policyType,
+        String policy,
+        String field,
+        String index,
+        String mapping
+    ) {
+        IndexResolution indexResolution = loadMapping(mapping, index);
+        List<String> enrichFields = new ArrayList<>(indexResolution.get().mapping().keySet());
+        enrichFields.remove(field);
+        enrich.addResolvedPolicy(
+            policy,
+            mode,
             new ResolvedEnrichPolicy(field, policyType, enrichFields, Map.of("", index), indexResolution.get().mapping())
         );
     }

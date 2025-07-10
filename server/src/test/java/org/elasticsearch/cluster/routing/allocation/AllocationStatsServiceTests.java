@@ -79,6 +79,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
 

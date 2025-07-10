@@ -86,44 +86,13 @@ public class TransportVersionSet {
         for (String name : versionNames) {
             String versionLocation = "transport/" + name;
             try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(versionLocation)) {
-                if (inputStream != null) {
-                    TransportVersionSet transportVersionSet = TransportVersionSet.fromXContent(inputStream, latestId);
-                    transportVersionSets.put(name, transportVersionSet);
-                } else {
-                    throw new RuntimeException("Input stream is null");
-                }
+                TransportVersionSet transportVersionSet = TransportVersionSet.fromXContent(inputStream, latestId);
+                transportVersionSets.put(name, transportVersionSet);
             } catch (IOException ioe) {
                 throw new UncheckedIOException("transport version set file not found at [ " + versionLocation + "]", ioe);
             }
         }
 
-        // TODO: load
-        // TODO: TEST ONLY
-        // transportVersionSets.put("ml-inference-custom-service-embedding-type", new TransportVersionSet(
-        // "ml-inference-custom-service-embedding-type",
-        // List.of(new TransportVersion(9118000))
-        // ));
-        // transportVersionSets.put("esql-local-relation-with-new-blocks", new TransportVersionSet(
-        // "esql-local-relation-with-new-blocks",
-        // List.of(new TransportVersion(9117000))
-        // ));
-        // transportVersionSets.put("esql-split-on-big-values", new TransportVersionSet(
-        // "esql-split-on-big-values",
-        // List.of(
-        // new TransportVersion(9116000),
-        // new TransportVersion(9112001),
-        // new TransportVersion(8841063)
-        // )
-        // ));
-        // transportVersionSets.put("ml-inference-ibm-watsonx-completion-added", new TransportVersionSet(
-        // "ml-inference-ibm-watsonx-completion-added",
-        // List.of(new TransportVersion(9115000))
-        // ));
-        // transportVersionSets.put("esql-serialize-timeseries-field-type", new TransportVersionSet(
-        // "esql-serialize-timeseries-field-type",
-        // List.of(new TransportVersion(9114000))
-        // ));
-        // // TODO: END TEST ONLY
         return Collections.unmodifiableMap(transportVersionSets);
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.List;
 
@@ -17,6 +18,8 @@ public interface FlatIndicesRequest extends IndicesRequest {
     boolean requiresRewrite();
 
     void indexExpressions(List<IndexExpression> indexExpressions);
+
+    boolean checkRemote(String remote, List<RemoteClusterService.RemoteTag> tags);
 
     record IndexExpression(String original, List<String> rewritten) {}
 }

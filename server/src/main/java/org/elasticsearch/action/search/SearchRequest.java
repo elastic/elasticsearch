@@ -32,6 +32,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -74,6 +75,8 @@ public class SearchRequest extends LegacyActionRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+    // This will be a more complex thing in the real implementation -- a lucene expression instead of just a list of literals
+    private List<RemoteClusterService.RemoteTag> routingTags = List.of();
 
     @Nullable
     private List<IndexExpression> indexExpressions;
@@ -405,6 +408,11 @@ public class SearchRequest extends LegacyActionRequest
     public SearchRequest indices(String... indices) {
         validateIndices(indices);
         this.indices = indices;
+        return this;
+    }
+
+    public SearchRequest routingTags(List<RemoteClusterService.RemoteTag> routingTags) {
+        this.routingTags = routingTags;
         return this;
     }
 
@@ -872,5 +880,19 @@ public class SearchRequest extends LegacyActionRequest
         assert requiresRewrite();
         this.indexExpressions = indexExpressions;
         indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
+    }
+
+    @Override
+    public boolean checkRemote(String remote, List<RemoteClusterService.RemoteTag> tags) {
+        if (routingTags.isEmpty()) {
+            return true; // no routing requested, so no constraints
+        }
+        // if any tag in routingTags matches one in tags, return true
+        for (RemoteClusterService.RemoteTag tag : routingTags) {
+            if (tags.contains(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -98,24 +99,19 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
         final int numDataNodes = randomInt(2);
         internalCluster().startDataOnlyNodes(numDataNodes);
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
+        internalCluster().validateClusterFormed();
+
+        awaitClusterState(
+            state -> state.getLastCommittedConfiguration().getNodeIds().size() == 3 && state.nodes().size() == 3 + numDataNodes
         );
         final String originalMaster = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
-        awaitMasterNode();
+        internalCluster().validateClusterFormed();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
-        ensureStableCluster(2 + numDataNodes); // wait for all nodes to join
-        assertThat(
-            VotingOnlyNodePlugin.isVotingOnlyNode(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
-            ),
-            equalTo(false)
-        );
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertThat(state.nodes().size(), equalTo(2 + numDataNodes));
+        assertThat(VotingOnlyNodePlugin.isVotingOnlyNode(state.nodes().getMasterNode()), equalTo(false));
     }
 
     public void testBootstrapOnlyVotingOnlyNodes() throws Exception {
@@ -159,21 +155,21 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         internalCluster().startNodes(2, addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
-        internalCluster().startDataOnlyNodes(randomInt(2));
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
+        final int numDataNodes = randomInt(2);
+        internalCluster().startDataOnlyNodes(numDataNodes);
+        internalCluster().validateClusterFormed();
+
+        awaitClusterState(
+            state -> state.getLastCommittedConfiguration().getNodeIds().size() == 3 && state.nodes().size() == 3 + numDataNodes
         );
-        awaitMasterNode();
-        final String oldMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
+        final String oldMasterId = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
         awaitMasterNotFound();
 
         // start a fresh full master node, which will be brought into the cluster as master by the voting-only nodes
         final String newMaster = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
         assertEquals(newMaster, internalCluster().getMasterName());
         final String newMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
         assertNotEquals(oldMasterId, newMasterId);

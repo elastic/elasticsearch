@@ -11,9 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -194,12 +192,18 @@ public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
             // Verify slow log contains correct authentication context from the original user
             // The key test: slow logs should show the original user from querying cluster
             Map<String, Object> expectedAuthContext = Map.of(
-                "user.name", "slow_log_test_user",          // Original user from querying cluster
-                "user.realm", "default_native",             // User's realm on querying cluster
-                "user.full_name", "Slow Log Test User",     // User's full name
-                "auth.type", "API_KEY",                     // Authentication type
-                "apikey.id", apiKeyId,                      // API key from querying cluster
-                "apikey.name", "slow_log_test_api_key"      // API key name
+                "user.name",
+                "slow_log_test_user",          // Original user from querying cluster
+                "user.realm",
+                "default_native",             // User's realm on querying cluster
+                "user.full_name",
+                "Slow Log Test User",     // User's full name
+                "auth.type",
+                "API_KEY",                     // Authentication type
+                "apikey.id",
+                apiKeyId,                      // API key from querying cluster
+                "apikey.name",
+                "slow_log_test_api_key"      // API key name
             );
 
             verifySlowLogAuthenticationContext(expectedAuthContext);
@@ -280,22 +284,31 @@ public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
                 }""");
 
             // Add both authentication and run-as headers
-            runAsSearchRequest.setOptions(RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", basicAuthHeaderValue("run_as_user", PASS))
-                .addHeader("es-security-runas-user", "target_user"));
+            runAsSearchRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", basicAuthHeaderValue("run_as_user", PASS))
+                    .addHeader("es-security-runas-user", "target_user")
+            );
 
             final Response runAsResponse = client().performRequest(runAsSearchRequest);
             assertOK(runAsResponse);
 
             // Verify slow log shows both authenticating and effective users from querying cluster
             Map<String, Object> expectedRunAsAuthContext = Map.of(
-                "user.name", "run_as_user",                    // Authenticating user from querying cluster
-                "user.realm", "default_native",
-                "user.full_name", "Run As User",
-                "user.effective.name", "target_user",          // Effective user from querying cluster
-                "user.effective.realm", "default_native",
-                "user.effective.full_name", "Target User",
-                "auth.type", "REALM"
+                "user.name",
+                "run_as_user",                    // Authenticating user from querying cluster
+                "user.realm",
+                "default_native",
+                "user.full_name",
+                "Run As User",
+                "user.effective.name",
+                "target_user",          // Effective user from querying cluster
+                "user.effective.realm",
+                "default_native",
+                "user.effective.full_name",
+                "Target User",
+                "auth.type",
+                "REALM"
             );
 
             verifySlowLogAuthenticationContext(expectedRunAsAuthContext);
@@ -310,7 +323,7 @@ public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
         assertBusy(() -> {
             try (var slowLog = fulfillingCluster.getNodeLog(0, LogType.SEARCH_SLOW)) {
                 final List<String> lines = Streams.readAllLines(slowLog);
-                assert(!lines.isEmpty());
+                assert (!lines.isEmpty());
 
                 // Get the most recent slow log entry
                 String lastLogLine = lines.get(lines.size() - 1);
@@ -334,14 +347,12 @@ public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
     }
 
     private Response performRequestWithSlowLogTestUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Authorization", basicAuthHeaderValue("slow_log_test_user", PASS)));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("slow_log_test_user", PASS)));
         return client().performRequest(request);
     }
 
     private Response performRequestWithApiKey(final Request request, final String encoded) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Authorization", "ApiKey " + encoded));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encoded));
         return client().performRequest(request);
     }
 }

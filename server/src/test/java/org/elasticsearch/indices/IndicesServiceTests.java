@@ -619,8 +619,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             }
         }
 
-        when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
-        when(indexService.iterator()).thenReturn(shards.iterator());
+        when(mockIndicesService.iterator()).thenAnswer(invocation -> Collections.singleton(indexService).iterator());
+        when(indexService.iterator()).thenAnswer(unused -> shards.iterator());
         when(indexService.index()).thenReturn(index);
 
         // real one, which has a logger defined

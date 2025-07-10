@@ -9,20 +9,24 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.IndicesRequest;
+
 public interface CrossClusterSearchExtension {
 
-    Example example();
+    IndicesExpressionRewriter indicesExpressionRewriter();
 
-    interface Example {
-
+    interface IndicesExpressionRewriter {
+        IndicesRequest.Replaceable rewrite(IndicesRequest.Replaceable request);
     }
 
     class Default implements CrossClusterSearchExtension {
         public Default() {}
 
         @Override
-        public Example example() {
-            return new Example() {
+        public IndicesExpressionRewriter indicesExpressionRewriter() {
+            return request -> {
+                // Default implementation does nothing, can be overridden by extensions
+                return request;
             };
         }
     }

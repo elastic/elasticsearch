@@ -1021,7 +1021,7 @@ class NodeConstruction {
             CrossClusterSearchExtension.Default::new
         );
 
-        logger.info("Cross-cluster example: [{}]", crossClusterSearchExtension.example().getClass());
+        logger.info("Cross-cluster example: [{}]", crossClusterSearchExtension.indicesExpressionRewriter().getClass());
 
         ActionModule actionModule = new ActionModule(
             settings,

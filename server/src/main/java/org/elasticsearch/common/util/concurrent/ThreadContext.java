@@ -196,6 +196,7 @@ public final class ThreadContext implements Writeable, TraceContext {
      */
     public StoredContext newTraceContext() {
         final ThreadContextStruct originalContext = threadLocal.get();
+
         // this is the context when this method returns
         final ThreadContextStruct newContext;
         if (originalContext.hasTraceContext() == false) {

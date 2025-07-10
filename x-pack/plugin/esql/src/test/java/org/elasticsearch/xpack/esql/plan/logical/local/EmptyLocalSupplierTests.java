@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 

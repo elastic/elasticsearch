@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
-import org.elasticsearch.TransportVersionSet;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;

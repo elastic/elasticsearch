@@ -1,11 +1,9 @@
 ## `COMPLETION` [esql-completion]
 
-::::{warning}
-This functionality is in technical preview and may be
-changed or removed in a future release. Elastic will work to fix any
-issues, but features in technical preview are not subject to the support
-SLA of official GA features.
-::::
+```yaml {applies_to}
+serverless: preview
+stack: preview 9.1.0
+```
 
 The `COMPLETION` processing command generates text completions using a specified LLM (Large Language Model).
 
@@ -67,7 +65,7 @@ FROM movies
 | KEEP title, summary, rating
 ```
 
-```
+
 | title:keyword | summary:keyword | rating:double |
 | --- | --- | --- |
 | The Shawshank Redemption | A tale of hope and redemption in prison. | 9.3 |
@@ -80,4 +78,4 @@ FROM movies
 | Parasite | Class conflict between two families. | 8.6 |
 | Interstellar | A team explores space to save humanity. | 8.6 |
 | The Prestige | Rival magicians engage in dangerous competition. | 8.5 |
-```
+

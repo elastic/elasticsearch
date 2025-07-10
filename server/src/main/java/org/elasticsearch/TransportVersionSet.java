@@ -11,9 +11,14 @@ package org.elasticsearch;
 
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,19 +29,19 @@ import java.util.Map;
 public class TransportVersionSet {
 
     private static final ParseField NAME = new ParseField("name");
-    private static final ParseField VERSIONS = new ParseField("versions");
+    private static final ParseField IDS = new ParseField("ids");
 
     private static final ConstructingObjectParser<TransportVersionSet, Integer> PARSER = new ConstructingObjectParser<>(
         TransportVersionSet.class.getCanonicalName(),
         false,
         (args, latestTransportId) -> {
             String name = (String) args[0];
-            int[] ids = (int[]) args[1];
-            List<TransportVersion> versions = new ArrayList<>(ids.length);
-            for (int id = 0; id < ids.length; ++id) {
-                TransportVersion version = new TransportVersion(id);
+            @SuppressWarnings("unchecked")
+            List<Integer> ids = (List<Integer>) args[1];
+            List<TransportVersion> versions = new ArrayList<>(ids.size());
+            for (int id = 0; id < ids.size(); ++id) {
                 if (id <= latestTransportId) {
-                    versions.add(version);
+                    versions.add(new TransportVersion(ids.get(id)));
                 }
             }
             if (versions.isEmpty()) {
@@ -48,57 +53,81 @@ public class TransportVersionSet {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareIntArray(ConstructingObjectParser.constructorArg(), VERSIONS);
+        PARSER.declareIntArray(ConstructingObjectParser.constructorArg(), IDS);
     }
 
     private static final Map<String, TransportVersionSet> TRANSPORT_VERSION_SETS = loadTransportVersionSets();
-    private static final List<TransportVersion> TRANSPORT_VERSIONS = collectTranportVersions();
+    public static final List<TransportVersion> TRANSPORT_VERSIONS = collectTransportVersions();
 
-    private static final String MANIFEST_LOCATION = "META-INF/transport-versions-files-manifest.txt";
-    private static final String METADATA_LOCATION = "org/elasticsearch/transport/";
     private static final String LATEST_SUFFIX = "-LATEST.json";
 
     private static Map<String, TransportVersionSet> loadTransportVersionSets() {
         Map<String, TransportVersionSet> transportVersionSets = new HashMap<>();
 
-        String latestResourceLocation = Version.CURRENT.major + "-" + Version.CURRENT.minor + LATEST_SUFFIX;
-        try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(latestResourceLocation)) {
-
+        String latestLocation = "transport/" + Version.CURRENT.major + "." + Version.CURRENT.minor + LATEST_SUFFIX;
+        int latestId = 0;
+        try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(latestLocation)) {
+            TransportVersionSet latest = fromXContent(inputStream, Integer.MAX_VALUE);
+            // TODO: validation of latest tranport version set
+            latestId = latest.versions.get(0).id();
         } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
+            throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
+        }
+
+        String manifestLocation = "META-INF/transport-versions-files-manifest.txt";
+        List<String> versionNames;
+        try (InputStream transportVersionManifest = TransportVersionSet.class.getClassLoader().getResourceAsStream(manifestLocation)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionManifest));
+            versionNames = reader.lines().filter(line -> line.isBlank() == false).toList();
+        } catch (IOException ioe) {
+            throw new UncheckedIOException("transport version metadata manifest file not found at [" + manifestLocation + "]", ioe);
+        }
+
+        for (String name : versionNames) {
+            String versionLocation = "transport/" + name;
+            try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(versionLocation)) {
+                if (inputStream != null) {
+                    TransportVersionSet transportVersionSet = TransportVersionSet.fromXContent(inputStream, latestId);
+                    transportVersionSets.put(name, transportVersionSet);
+                } else {
+                    throw new RuntimeException("Input stream is null");
+                }
+            } catch (IOException ioe) {
+                throw new UncheckedIOException("transport version set file not found at [ " + versionLocation + "]", ioe);
+            }
         }
 
         // TODO: load
         // TODO: TEST ONLY
-        transportVersionSets.put("ml-inference-custom-service-embedding-type", new TransportVersionSet(
-            "ml-inference-custom-service-embedding-type",
-            List.of(new TransportVersion(9118000))
-        ));
-        transportVersionSets.put("esql-local-relation-with-new-blocks", new TransportVersionSet(
-            "esql-local-relation-with-new-blocks",
-            List.of(new TransportVersion(9117000))
-        ));
-        transportVersionSets.put("esql-split-on-big-values", new TransportVersionSet(
-            "esql-split-on-big-values",
-            List.of(
-                new TransportVersion(9116000),
-                new TransportVersion(9112001),
-                new TransportVersion(8841063)
-            )
-        ));
-        transportVersionSets.put("ml-inference-ibm-watsonx-completion-added", new TransportVersionSet(
-            "ml-inference-ibm-watsonx-completion-added",
-            List.of(new TransportVersion(9115000))
-        ));
-        transportVersionSets.put("esql-serialize-timeseries-field-type", new TransportVersionSet(
-                "esql-serialize-timeseries-field-type",
-                List.of(new TransportVersion(9114000))
-        ));
-        // TODO: END TEST ONLY
+//        transportVersionSets.put("ml-inference-custom-service-embedding-type", new TransportVersionSet(
+//            "ml-inference-custom-service-embedding-type",
+//            List.of(new TransportVersion(9118000))
+//        ));
+//        transportVersionSets.put("esql-local-relation-with-new-blocks", new TransportVersionSet(
+//            "esql-local-relation-with-new-blocks",
+//            List.of(new TransportVersion(9117000))
+//        ));
+//        transportVersionSets.put("esql-split-on-big-values", new TransportVersionSet(
+//            "esql-split-on-big-values",
+//            List.of(
+//                new TransportVersion(9116000),
+//                new TransportVersion(9112001),
+//                new TransportVersion(8841063)
+//            )
+//        ));
+//        transportVersionSets.put("ml-inference-ibm-watsonx-completion-added", new TransportVersionSet(
+//            "ml-inference-ibm-watsonx-completion-added",
+//            List.of(new TransportVersion(9115000))
+//        ));
+//        transportVersionSets.put("esql-serialize-timeseries-field-type", new TransportVersionSet(
+//                "esql-serialize-timeseries-field-type",
+//                List.of(new TransportVersion(9114000))
+//        ));
+//        // TODO: END TEST ONLY
         return Collections.unmodifiableMap(transportVersionSets);
     }
 
-    private static List<TransportVersion> collectTranportVersions() {
+    private static List<TransportVersion> collectTransportVersions() {
         List<TransportVersion> tranportVersions = new ArrayList<>();
         for (TransportVersionSet transportVersionSet : TRANSPORT_VERSION_SETS.values()) {
             for (TransportVersion transportVersion : transportVersionSet.versions) {
@@ -107,6 +136,11 @@ public class TransportVersionSet {
         }
         tranportVersions.sort(TransportVersion::compareTo);
         return tranportVersions;
+    }
+
+    private static TransportVersionSet fromXContent(InputStream inputStream, int maxTransportId) throws IOException {
+        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream);
+        return PARSER.parse(parser, maxTransportId);
     }
 
     public static TransportVersionSet get(String name) {
@@ -153,75 +187,4 @@ public class TransportVersionSet {
     public String toString() {
         return "TransportVersionSet{" + "name='" + name + '\'' + ", versions=" + versions + '}';
     }
-
-//    private static TransportVersionSet fromJSONInputStream(InputStream inputStream) throws IOException {
-//        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream);
-//        return TransportVersionSet.fromXContent(parser);
-//    }
-//
-//
-//
-//
-//        static {
-//            var locallyDefinedVersionSets = loadTransportVersionSets();
-//            var extendedVersionSets = new ArrayList<TransportVersionSet>(); // TODO add SPI for serverless
-//
-//            var allVersionSets = Stream.concat(
-//                locallyDefinedVersionSets.stream(),
-//                extendedVersionSets.stream()
-//            ).toList();
-//
-//            ALL_VERSIONS_SORTED = allVersionSets.stream().flatMap(tvSet -> tvSet.versions.stream()).sorted().toList();
-//
-//            ALL_VERSIONS_MAP = ALL_VERSIONS_SORTED.stream()
-//                .collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
-//
-//            ALL_VERSIONS_SETS_MAP = allVersionSets.stream()
-//                .collect(Collectors.toUnmodifiableMap(TransportVersionSet::name, Function.identity()));
-//
-//            LATEST = getLatestTVSet();
-//        }
-//
-//        private static TransportVersionSet getLatestTVSet() {
-//
-//            var major = Version.CURRENT.major;
-//            var minor = Version.CURRENT.minor;
-//            var fileName =  major + "." + minor + "-" + LATEST_SUFFIX;
-//
-//            var path = METADATA_LOCATION + fileName;
-//            return loadTransportVersionSet(path); // todo, use a different format?
-//        }
-//
-//        private static List<TransportVersionSet> loadTransportVersionSets() {
-//            var transportVersionSets = new ArrayList<TransportVersionSet>();
-//            for (var fileName : loadTransportVersionSetFileNames()) {
-//                var path = METADATA_LOCATION + fileName;
-//                transportVersionSets.add(loadTransportVersionSet(path));
-//            }
-//            return transportVersionSets;
-//        }
-//
-//        // TODO will getResourceAsStream work for IntelliJ?
-//        private static List<String> loadTransportVersionSetFileNames() {
-//            try (InputStream transportVersionManifest = TransportVersionSet.class.getResourceAsStream(MANIFEST_LOCATION)) {
-//                BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionManifest));
-//                return reader.lines().filter(line -> line.isBlank() == false).toList();
-//            } catch (IOException e) {
-//                throw new RuntimeException("Transport version metadata manifest file not found at " + MANIFEST_LOCATION, e);
-//            }
-//        }
-//
-//        private static TransportVersionSet loadTransportVersionSet(String path) {
-//            try (var fileStream = VersionsHolder.class.getResourceAsStream(path)) {
-//                if (fileStream != null) {
-//                    return TransportVersionSet.fromJSONInputStream(fileStream);
-//                } else {
-//                    throw new RuntimeException("Input stream is null");
-//                }
-//            } catch (IOException e) {
-//                throw new RuntimeException("Failed to load TransportVersionSet at path: " + path +
-//                    " specified in the manifest file: " + MANIFEST_LOCATION, e);
-//            }
-//        }
-//    }
 }

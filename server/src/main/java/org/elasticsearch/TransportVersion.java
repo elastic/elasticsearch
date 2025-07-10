@@ -196,17 +196,8 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
                 .orElse(Collections.emptyList());
 
             if (extendedVersions.isEmpty()) {
-                //ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
-                // TODO: remove for testing
                 ALL_VERSIONS = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
-                ALL_VERSIONS.add(new TransportVersion(9114000));
-                ALL_VERSIONS.add(new TransportVersion(9115000));
-                ALL_VERSIONS.add(new TransportVersion(8841063));
-                ALL_VERSIONS.add(new TransportVersion(9112001));
-                ALL_VERSIONS.add(new TransportVersion(9116000));
-                ALL_VERSIONS.add(new TransportVersion(9117000));
-                ALL_VERSIONS.add(new TransportVersion(9118000));
-                // TODO: end testing
+                ALL_VERSIONS.addAll(TransportVersionSet.TRANSPORT_VERSIONS);
             } else {
                 ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
             }

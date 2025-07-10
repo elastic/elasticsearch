@@ -19,7 +19,7 @@ public interface FlatIndicesRequest extends IndicesRequest {
 
     void indexExpressions(List<IndexExpression> indexExpressions);
 
-    boolean checkRemote(String remote, List<RemoteClusterService.RemoteTag> tags);
+    boolean checkRemote(List<RemoteClusterService.RemoteTag> tags);
 
     record IndexExpression(String original, List<String> rewritten) {}
 }

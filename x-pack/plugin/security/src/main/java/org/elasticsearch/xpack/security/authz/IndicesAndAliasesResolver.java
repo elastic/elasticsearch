@@ -161,7 +161,7 @@ class IndicesAndAliasesResolver {
             List<RemoteClusterService.RemoteTag> tagsForRemote = tags.get(remote);
             logger.info("Remote [{}] has tags [{}]", remote, tagsForRemote);
             // TODO routing also needs to apply to local
-            if (authorizedIndices.checkRemote(remote) && request.checkRemote(remote, tagsForRemote)) {
+            if (authorizedIndices.checkRemote(remote) && request.checkRemote(tagsForRemote)) {
                 logger.info("Remote [{}] authorized and matches routing", remote);
                 targetRemotes.add(remote);
             }

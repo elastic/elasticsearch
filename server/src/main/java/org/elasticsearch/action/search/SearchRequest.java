@@ -883,7 +883,7 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean checkRemote(String remote, List<RemoteClusterService.RemoteTag> tags) {
+    public boolean checkRemote(List<RemoteClusterService.RemoteTag> tags) {
         if (routingTags.isEmpty()) {
             return true; // no routing requested, so no constraints
         }

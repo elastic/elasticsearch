@@ -16,7 +16,7 @@ with the correct permissions.
    Entra ID.
 2) To register a new application, click **Enterprise applications** > **New
    application**.
-3) Click **Create your own application**, provide a name, and select the 
+3) Click **Create your own application**, provide a name, and select the
 **Integrate any other application you don’t find in the gallery** option.
 
 :::{image} ./images/ms-graph-authz/01-create-enterprise-application.png
@@ -39,17 +39,17 @@ with the correct permissions.
    :alt: get your application ID
    :::
 4) Under **Manage** > **Certificates & secrets**, do the following:
-    - Create a new client secret
+    - Create a new client secret.
     - Take note of your new client secret's **Value**. This is needed later, and
       is only displayed once.
       :::{image} ./images/ms-graph-authz/04-create-client-secret.png
       :alt: get your client secret
       :::
-5) Under Manage > API permissions
-    1. Go to **Add a permission**
-    2. Choose **Microsoft Graph**
-    3. Choose **Application permissions**
-    4. Select `Directory.ReadWrite.All`, `Group.ReadWrite.All`, `User.Read.All`
+5) Under **Manage** > **API permissions**, do the following:
+    1. Go to **Add a permission**.
+    2. Choose **Microsoft Graph**.
+    3. Choose **Application permissions**.
+    4. Select `Directory.ReadWrite.All`, `Group.ReadWrite.All`, `User.Read.All`.
 
    Note that an Azure Admin will need to approve these permissions before the
    credentials can be used

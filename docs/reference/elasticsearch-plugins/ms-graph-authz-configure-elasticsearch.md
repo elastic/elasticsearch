@@ -47,8 +47,7 @@ Create a Microsoft Graph realm, following the above settings, then configure an
 existing realm to delegate to it using `authorization_realms`.
 
 For example, the following configuration authenticates via Microsoft Entra with
-SAML,
-and uses the Microsoft Graph plugin to look up group membership:
+SAML, and uses the Microsoft Graph plugin to look up group membership:
 
 ```yaml
 xpack.security.authc.realms.saml.kibana-realm:

@@ -24,6 +24,10 @@ public class GroupingAggregator implements Releasable {
 
     private final AggregatorMode mode;
 
+    public AggregatorMode getMode() {
+        return mode;
+    }
+
     public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
 
     public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) {

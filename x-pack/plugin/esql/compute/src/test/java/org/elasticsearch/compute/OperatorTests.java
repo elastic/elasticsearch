@@ -216,15 +216,12 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
+                List<BlockHash.GroupSpec> groups = List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
                 operators.add(
                     new HashAggregationOperator(
+                        groups,
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(FINAL, List.of(1, 2))),
-                        () -> BlockHash.build(
-                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
-                            driverContext.blockFactory(),
-                            randomPageSize(),
-                            false
-                        ),
+                        () -> BlockHash.build(groups, driverContext.blockFactory(), randomPageSize(), false),
                         driverContext
                     )
                 );
@@ -316,15 +313,12 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
+                List<BlockHash.GroupSpec> groups = List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
                 operators.add(
                     new HashAggregationOperator(
+                        groups,
                         List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(FINAL, List.of(1))),
-                        () -> BlockHash.build(
-                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
-                            driverContext.blockFactory(),
-                            randomPageSize(),
-                            false
-                        ),
+                        () -> BlockHash.build(groups, driverContext.blockFactory(), randomPageSize(), false),
                         driverContext
                     )
                 );

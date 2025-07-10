@@ -11,6 +11,7 @@ package org.elasticsearch.common.cache;
 
 import java.util.Iterator;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 
 /**
  * Interface for cache implementations, currently still quite tied to {@link LRUCache}
@@ -114,15 +115,21 @@ public interface Cache<Key, Value> {
     Iterable<Value> values();
 
     /**
-     * The cache statistics tracking hits, misses and evictions. These are taken on a best-effort basis meaning that
-     * they could be out-of-date mid-flight.
+     * The cache statistics tracking hits, misses and evictions. These are captured on a best-effort basis.
      *
      * @return the current cache statistics
      */
     CacheStats stats();
 
     /**
-     * Point in time capture of stats
+     * Performs an action for each cache entry in the cache. While iterating over the cache entries this method might use locks. As such,
+     * the specified consumer should not try to modify the cache. Visibility of modifications might or might not be seen by the consumer.
+     *
+     * @param consumer the {@link BiConsumer}
+     */
+    void forEach(BiConsumer<Key, Value> consumer);
+    /**
+     * Point in time capture of cache statistics
      * @param hits number of times a cached value was hit
      * @param misses number of times no cached value could be found
      * @param evictions number of entries that have been evicted

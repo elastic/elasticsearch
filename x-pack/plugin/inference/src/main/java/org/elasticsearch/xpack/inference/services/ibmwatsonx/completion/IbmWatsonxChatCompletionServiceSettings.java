@@ -164,7 +164,7 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED.latest();
+        return ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED.local();
     }
 
     @Override

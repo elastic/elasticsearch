@@ -317,7 +317,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
 
     @Override
     protected TextEmbeddingResponseParser mutateInstanceForVersion(TextEmbeddingResponseParser instance, TransportVersion version) {
-        if (version.before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.latest())) {
+        if (version.before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.local())) {
             return new TextEmbeddingResponseParser(instance.getTextEmbeddingsPath(), CustomServiceEmbeddingType.FLOAT);
         }
         return instance;

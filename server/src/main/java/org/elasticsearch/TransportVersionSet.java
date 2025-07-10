@@ -151,8 +151,8 @@ public class TransportVersionSet {
         return transportVersionSet;
     }
 
-    public static TransportVersion latest(String name) {
-        return get(name).latest();
+    public static TransportVersion local(String name) {
+        return get(name).local();
     }
 
     public static boolean isCompatible(String name, TransportVersion version) {
@@ -171,14 +171,22 @@ public class TransportVersionSet {
         return name;
     }
 
-    public TransportVersion latest() {
+    public TransportVersion local() {
         return versions.get(0);
     }
 
     public boolean isCompatible(TransportVersion version) {
-        boolean compatible = version.onOrAfter(latest());
+        boolean compatible = version.onOrAfter(local());
         for (int v = 1; v < versions.size(); ++v) {
             compatible |= version.isPatchFrom(versions.get(v));
+        }
+        return compatible;
+    }
+
+    public boolean isNotCompatible(TransportVersion version) {
+        boolean compatible = version.before(local());
+        for (int v = 1; v < versions.size(); ++v) {
+            compatible &= version.isPatchFrom(versions.get(v)) == false;
         }
         return compatible;
     }

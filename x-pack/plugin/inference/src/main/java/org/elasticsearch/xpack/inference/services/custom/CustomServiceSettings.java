@@ -174,7 +174,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             this.dimensions = in.readOptionalVInt();
             this.maxInputTokens = in.readOptionalVInt();
 
-            if (in.getTransportVersion().before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.latest())) {
+            if (in.getTransportVersion().before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.local())) {
                 in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class);
             }
         }
@@ -185,7 +185,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
 
-            if (out.getTransportVersion().before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.latest())) {
+            if (out.getTransportVersion().before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.local())) {
                 out.writeOptionalEnum(null);
             }
         }

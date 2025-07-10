@@ -106,11 +106,8 @@ public class LlamaService extends SenderService {
         ActionListener<InferenceServiceResults> listener
     ) {
         var actionCreator = new LlamaActionCreator(getSender(), getServiceComponents());
-
-        if (model instanceof LlamaEmbeddingsModel llamaEmbeddingsModel) {
-            llamaEmbeddingsModel.accept(actionCreator).execute(inputs, timeout, listener);
-        } else if (model instanceof LlamaChatCompletionModel llamaChatCompletionModel) {
-            llamaChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+        if (model instanceof LlamaModel llamaModel) {
+            llamaModel.accept(actionCreator).execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
         }

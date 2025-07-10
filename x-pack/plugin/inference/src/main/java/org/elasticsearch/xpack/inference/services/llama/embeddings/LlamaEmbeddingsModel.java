@@ -118,6 +118,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param creator the visitor that creates the executable action
      * @return an ExecutableAction representing the Llama embeddings model
      */
+    @Override
     public ExecutableAction accept(LlamaActionVisitor creator) {
         return creator.create(this);
     }

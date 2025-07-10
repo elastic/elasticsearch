@@ -126,6 +126,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
      * @param creator the visitor that creates the executable action
      * @return an ExecutableAction representing this model
      */
+    @Override
     public ExecutableAction accept(LlamaActionVisitor creator) {
         return creator.create(this);
     }

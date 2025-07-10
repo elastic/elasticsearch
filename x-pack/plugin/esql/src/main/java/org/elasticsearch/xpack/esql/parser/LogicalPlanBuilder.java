@@ -639,8 +639,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            checkForRemoteClusters(p, source(target), "LOOKUP JOIN");
-            return new LookupJoin(source, p, right, joinFields);
+            boolean hasRemotes = p.anyMatch(node -> {
+                if (node instanceof UnresolvedRelation r) {
+                    return Arrays.stream(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()))
+                        .anyMatch(RemoteClusterAware::isRemoteIndexName);
+                } else {
+                    return false;
+                }
+            });
+            if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
+                throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
+            }
+            return new LookupJoin(source, p, right, joinFields, hasRemotes);
         };
     }
 

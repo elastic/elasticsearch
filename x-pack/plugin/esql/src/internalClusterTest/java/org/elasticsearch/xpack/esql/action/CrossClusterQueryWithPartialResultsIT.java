@@ -8,14 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.FailingFieldPlugin;
@@ -385,16 +381,6 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 containsString("index [unavailable-cluster1] has no active shard copy")
             );
         }
-    }
-
-    private static Exception randomFailure() {
-        return randomFrom(
-            new IllegalStateException("driver was closed already"),
-            new CircuitBreakingException("low memory", CircuitBreaker.Durability.PERMANENT),
-            new IOException("broken disk"),
-            new ResourceNotFoundException("exchange sink was not found"),
-            new EsRejectedExecutionException("node is shutting down")
-        );
     }
 
     private Set<String> populateIndexWithFailingFields(String clusterAlias, String indexName, int numShards) throws IOException {

@@ -19,7 +19,8 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -34,9 +35,9 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -78,7 +79,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -97,7 +97,6 @@ import java.util.stream.Collectors;
  * - {@link #getPersistedLocalCheckpoint()}
  */
 public class SearchEngine extends Engine {
-    private static final long SEARCH_IDLE_TIME = TimeUnit.SECONDS.toMillis(30L);
 
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
@@ -106,24 +105,29 @@ public class SearchEngine extends Engine {
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
-    private final Executor blobStoreFetchExecutor;
     private final CompletionStatsCache completionStatsCache;
+    private final SearchCommitPrefetcher commitPrefetcher;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+    private volatile long lastSearcherAcquiredTime;
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
 
     @SuppressWarnings("this-escape")
-    public SearchEngine(EngineConfig config, ClosedShardService closedShardService) {
+    public SearchEngine(
+        EngineConfig config,
+        ClosedShardService closedShardService,
+        StatelessSharedBlobCacheService statelessSharedBlobCacheService,
+        ClusterSettings clusterSettings,
+        Executor prefetchExecutor
+    ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
         this.closedShardService = closedShardService;
-
-        this.blobStoreFetchExecutor = config.getThreadPool().executor(Stateless.SHARD_READ_THREAD_POOL);
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -195,6 +199,14 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            this.commitPrefetcher = new SearchCommitPrefetcher(
+                directory.getShardId(),
+                statelessSharedBlobCacheService,
+                directory::getCacheBlobReaderForPreFetching,
+                config.getThreadPool(),
+                prefetchExecutor,
+                clusterSettings
+            );
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -232,6 +244,10 @@ public class SearchEngine extends Engine {
         return pendingCommitNotifications.get();
     }
 
+    public long getTotalPrefetchedBytes() {
+        return commitPrefetcher.getTotalPrefetchedBytes();
+    }
+
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
         // capture the term/gen used by opened Lucene generational files
         final var termAndGens = new HashSet<>(directory.getAcquiredGenerationalFileTermAndGenerations());
@@ -262,15 +278,44 @@ public class SearchEngine extends Engine {
         var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
         directory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
         directory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
-        if (addOrExecuteSegmentGenerationListener(ccTermAndGen, listener.map(g -> null))) {
-            commitNotifications.add(notification);
-            if (pendingCommitNotifications.incrementAndGet() == 1) {
-                processCommitNotifications();
-            }
-        }
+
+        SubscribableListener
+            // Dispatch the pre-fetching if enabled right away and if there are multiple concurrent
+            // pre-fetching the cache would take care of only pre-fetching the missing gaps once.
+            // There's a small risk of a merge invalidating the background pre-fetching, and wasting
+            // cache space and requests.
+            .<Void>newForked(l -> maybePreFetchLatestCommit(notification, l))
+            .<Void>andThen(l -> {
+                if (addOrExecuteSegmentGenerationListener(ccTermAndGen, l.map(g -> null))) {
+                    commitNotifications.add(notification);
+                    if (pendingCommitNotifications.incrementAndGet() == 1) {
+                        processCommitNotifications();
+                    }
+                }
+            })
+            .addListener(listener);
     }
 
-    private volatile long lastSearcherAcquiredTime;
+    private void maybePreFetchLatestCommit(NewCommitNotification newCommitNotification, ActionListener<Void> listener) {
+        if (store.isClosing() || store.tryIncRef() == false) {
+            // If the store is closed just skip prefetching
+            listener.onResponse(null);
+            return;
+        }
+        long timeSinceLastSearcherWasAcquiredInMillis = engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime;
+        commitPrefetcher.maybePrefetchLatestCommit(
+            newCommitNotification,
+            timeSinceLastSearcherWasAcquiredInMillis,
+            listener.delegateResponse((l, e) -> {
+                // We don't want to prevent the new commit notification to make progress
+                logger.warn(() -> "Unable to prefetch commit for notification " + newCommitNotification, e);
+                l.onResponse(null);
+            })
+        );
+
+        // We're just interested in ensuring that the store is not closing, we don't need to hold a reference while the prefetch runs
+        store.decRef();
+    }
 
     private void processCommitNotifications() {
         var refreshExecutor = engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH);
@@ -314,28 +359,10 @@ public class SearchEngine extends Engine {
                 logger.trace("updating directory with commit {}", latestCommit);
                 if (directory.updateCommit(latestCommit)) {
                     store.incRef();
-                    // if this index has been recently searched, and this commit hasn't been superseded, then
-                    // prefetch the new commit files
-                    // todo: disabled pre-fetching new commits, see https://github.com/elastic/elasticsearch-serverless/issues/1006
-                    if (false && engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
-                        finish.incRef();
-                        directory.downloadCommit(
-                            latestCommit,
-                            blobStoreFetchExecutor,
-                            new ThreadedActionListener<>(
-                                refreshExecutor,
-                                ActionListener.releaseAfter(
-                                    ActionListener.running(() -> updateInternalState(latestCommit, current)),
-                                    () -> Releasables.close(store::decRef, finish::decRef)
-                                )
-                            )
-                        );
-                    } else {
-                        try {
-                            updateInternalState(latestCommit, current);
-                        } finally {
-                            store.decRef();
-                        }
+                    try {
+                        updateInternalState(latestCommit, current);
+                    } finally {
+                        store.decRef();
                     }
                 }
             }
@@ -997,5 +1024,4 @@ public class SearchEngine extends Engine {
             return segmentInfos.getGeneration();
         }
     }
-
 }

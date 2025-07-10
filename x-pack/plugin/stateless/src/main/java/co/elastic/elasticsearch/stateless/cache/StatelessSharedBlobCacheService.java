@@ -73,4 +73,18 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return getRegionSize();
     }
 
+    @Override
+    public int getRegion(long position) {
+        return super.getRegion(position);
+    }
+
+    @Override
+    public int getEndingRegion(long position) {
+        return super.getEndingRegion(position);
+    }
+
+    @Override
+    public long getRegionEnd(int region) {
+        return super.getRegionEnd(region);
+    }
 }

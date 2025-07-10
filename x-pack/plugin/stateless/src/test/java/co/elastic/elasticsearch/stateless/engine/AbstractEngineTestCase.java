@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
@@ -116,6 +118,7 @@ import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POO
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -376,7 +379,23 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
-        return new SearchEngine(searchConfig, new ClosedShardService()) {
+        return new SearchEngine(
+            searchConfig,
+            new ClosedShardService(),
+            sharedBlobCacheService,
+            new ClusterSettings(
+                Settings.EMPTY,
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+                    SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+                    SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                    SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING
+                )
+            ),
+            DIRECT_EXECUTOR_SERVICE
+        ) {
             @Override
             public void close() throws IOException {
                 try {
@@ -448,7 +467,23 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new EngineResetLock(),
             MergeMetrics.NOOP
         );
-        return new SearchEngine(searchConfig, new ClosedShardService()) {
+        return new SearchEngine(
+            searchConfig,
+            new ClosedShardService(),
+            sharedBlobCacheService,
+            new ClusterSettings(
+                Settings.EMPTY,
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
+                    SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
+                    SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                    SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
+                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING
+                )
+            ),
+            DIRECT_EXECUTOR_SERVICE
+        ) {
             @Override
             public void close() throws IOException {
                 try {

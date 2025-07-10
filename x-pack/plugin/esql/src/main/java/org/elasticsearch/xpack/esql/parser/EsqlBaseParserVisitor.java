@@ -333,6 +333,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#enrichPolicyName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#enrichWithClause}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -345,29 +351,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#forkCommand}.
    * @param ctx the parse tree
@@ -407,11 +395,35 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#rrfCommand}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#inferenceCommandOptions}.
    * @param ctx the parse tree
@@ -436,12 +448,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

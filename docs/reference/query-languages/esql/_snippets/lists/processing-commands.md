@@ -4,6 +4,7 @@
 * [`ENRICH`](../../commands/processing-commands.md#esql-enrich)
 * [`EVAL`](../../commands/processing-commands.md#esql-eval)
 * [`GROK`](../../commands/processing-commands.md#esql-grok)
+* [preview] [`FORK`](../../commands/processing-commands.md#esql-fork)
 * [`KEEP`](../../commands/processing-commands.md#esql-keep)
 * [`LIMIT`](../../commands/processing-commands.md#esql-limit)
 * [`LOOKUP JOIN`](../../commands/processing-commands.md#esql-lookup-join)

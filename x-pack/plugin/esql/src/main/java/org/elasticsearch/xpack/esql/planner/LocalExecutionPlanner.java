@@ -60,6 +60,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -749,15 +751,37 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        Map<String, IndexMode> indicesWithModes = localSourceExec.indexNameWithModes();
-        if (indicesWithModes.size() != 1) {
-            throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
+
+        // After enabling remote joins, we can have one of the two situations here:
+        // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
+        // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
+        Map.Entry<String, IndexMode> entry;
+        if (localSourceExec.indexNameWithModes().size() == 1) {
+            entry = localSourceExec.indexNameWithModes().entrySet().iterator().next();
+        } else {
+            var maybeEntry = localSourceExec.indexNameWithModes()
+                .entrySet()
+                .stream()
+                .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
+                .findFirst();
+            entry = maybeEntry.orElseThrow(
+                () -> new IllegalStateException(
+                    "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+                )
+            );
         }
-        var entry = indicesWithModes.entrySet().iterator().next();
+
         if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
-        String indexName = entry.getKey();
+        String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        // No prefix is ok, prefix with this cluster is ok, something else is not
+        if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
+            throw new IllegalStateException(
+                "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+            );
+        }
+        String indexName = indexSplit[1];
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }

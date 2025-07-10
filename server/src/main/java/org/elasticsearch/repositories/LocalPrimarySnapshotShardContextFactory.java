@@ -24,6 +24,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
@@ -38,14 +39,15 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
     }
 
     @Override
-    public SnapshotShardContext create(
+    public void asyncCreate(
         ShardId shardId,
         Snapshot snapshot,
         IndexId indexId,
         IndexShardSnapshotStatus snapshotStatus,
         IndexVersion repositoryMetaVersion,
         long snapshotStartTime,
-        ActionListener<ShardSnapshotResult> listener
+        ActionListener<ShardSnapshotResult> listener,
+        Consumer<SnapshotShardContext> snapshotShardContextConsumer
     ) throws IOException {
 
         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
@@ -64,24 +66,44 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
         }
 
         snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
-        final SnapshotIndexCommit snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
-        snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
-        final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
-        snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
-        snapshotStatus.ensureNotAborted();
 
-        return new LocalPrimarySnapshotShardContext(
-            indexShard.store(),
-            indexShard.mapperService(),
-            snapshot.getSnapshotId(),
-            indexId,
-            snapshotIndexCommit,
-            shardStateId,
-            snapshotStatus,
-            repositoryMetaVersion,
-            snapshotStartTime,
-            listener
-        );
+        SnapshotIndexCommit snapshotIndexCommit = null;
+        try {
+            snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
+            snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
+            final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
+            snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
+            snapshotStatus.ensureNotAborted();
+
+            snapshotShardContextConsumer.accept(
+                new LocalPrimarySnapshotShardContext(
+                    indexShard.store(),
+                    indexShard.mapperService(),
+                    snapshot.getSnapshotId(),
+                    indexId,
+                    snapshotIndexCommit,
+                    shardStateId,
+                    snapshotStatus,
+                    repositoryMetaVersion,
+                    snapshotStartTime,
+                    listener
+                )
+            );
+            snapshotIndexCommit = null;
+        } finally {
+            if (snapshotIndexCommit != null) {
+                snapshotIndexCommit.closingBefore(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // we're already failing exceptionally, and prefer to propagate the original exception instead of this one
+                        logger.warn(Strings.format("exception closing commit for [%s] in [%s]", shardId, snapshot), e);
+                    }
+                }).onResponse(null);
+            }
+        }
     }
 
     static ActionListener<IndexShardSnapshotStatus.AbortStatus> makeAbortListener(

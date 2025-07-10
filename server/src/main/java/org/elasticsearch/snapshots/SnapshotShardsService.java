@@ -49,7 +49,6 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -593,33 +592,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             snapshotStatus.ensureNotAborted();
 
             final Repository repository = repositoriesService.repository(snapshot.getProjectId(), snapshot.getRepository());
-            SnapshotShardContext snapshotShardContext = null;
-            try {
-                snapshotShardContext = snapshotShardContextFactory.create(
-                    shardId,
-                    snapshot,
-                    indexId,
-                    snapshotStatus,
-                    version,
-                    entryStartTime,
-                    listener
-                );
-                repository.snapshotShard(snapshotShardContext);
-                snapshotShardContext = null; // success
-            } finally {
-                if (snapshotShardContext != null) {
-                    snapshotShardContext.closingBefore(new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void unused) {}
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // we're already failing exceptionally, and prefer to propagate the original exception instead of this one
-                            logger.warn(Strings.format("exception closing commit for [%s] in [%s]", shardId, snapshot), e);
-                        }
-                    }).onResponse(null);
-                }
-            }
+            snapshotShardContextFactory.asyncCreate(
+                shardId,
+                snapshot,
+                indexId,
+                snapshotStatus,
+                version,
+                entryStartTime,
+                listener,
+                repository::snapshotShard
+            );
         });
     }
 

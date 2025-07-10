@@ -109,8 +109,6 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
 
     public abstract FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException;
 
-    public abstract <T> ActionListener<T> closingBefore(ActionListener<T> delegate);
-
     public interface FileReader extends LongFunction<InputStream>, Closeable {
         void verify() throws IOException;
     }

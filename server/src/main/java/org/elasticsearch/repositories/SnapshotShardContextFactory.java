@@ -16,16 +16,18 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 public interface SnapshotShardContextFactory {
 
-    SnapshotShardContext create(
+    void asyncCreate(
         ShardId shardId,
         Snapshot snapshot,
         IndexId indexId,
         IndexShardSnapshotStatus snapshotStatus,
         IndexVersion repositoryMetaVersion,
         long snapshotStartTime,
-        ActionListener<ShardSnapshotResult> listener
+        ActionListener<ShardSnapshotResult> listener,
+        Consumer<SnapshotShardContext> snapshotShardContextConsumer
     ) throws IOException;
 }

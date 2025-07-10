@@ -135,7 +135,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
                 entitlements.componentName(),
-                PolicyCheckerImpl.getModuleName(requestingClass),
+                entitlements.moduleName(),
                 requestingClass,
                 operationDescription.get()
             ),
@@ -247,7 +247,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    entitlements.moduleName(),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
@@ -279,7 +279,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    entitlements.moduleName(),
                     requestingClass,
                     path
                 ),
@@ -383,7 +383,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                     () -> Strings.format(
                         "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                         entitlements.componentName(),
-                        PolicyCheckerImpl.getModuleName(requestingClass),
+                        entitlements.moduleName(),
                         requestingClass,
                         property
                     )
@@ -394,7 +394,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
-                PolicyCheckerImpl.getModuleName(requestingClass),
+                entitlements.moduleName(),
                 requestingClass,
                 property
             ),
@@ -447,7 +447,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    classEntitlements.moduleName(),
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 ),
@@ -460,7 +460,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 () -> Strings.format(
                     "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    classEntitlements.moduleName(),
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 )

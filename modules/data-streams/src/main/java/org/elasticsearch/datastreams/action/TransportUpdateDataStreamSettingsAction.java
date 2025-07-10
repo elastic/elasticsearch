@@ -222,9 +222,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         Map<String, Object> settingsToApply = new HashMap<>();
         List<String> appliedToDataStreamOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndBackingIndices = new ArrayList<>();
-        Settings effectiveSettings = dataStream.getEffectiveSettings(
-            clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-        );
+        Settings effectiveSettings = dataStream.getEffectiveSettings(projectResolver.getProjectMetadata(clusterService.state()));
         for (String settingName : requestSettings.keySet()) {
             if (APPLY_TO_BACKING_INDICES.contains(settingName)) {
                 settingsToApply.put(settingName, effectiveSettings.get(settingName));

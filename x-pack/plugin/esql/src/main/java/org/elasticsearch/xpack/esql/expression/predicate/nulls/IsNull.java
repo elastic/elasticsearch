@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -51,7 +52,8 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
             "unsigned_long",
             "counter_long",
             "counter_integer",
-            "counter_double" }
+            "counter_double" },
+        examples = { @Example(file = "null", tag = "is-null") }
     )
     public IsNull(
         Source source,

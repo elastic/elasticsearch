@@ -670,7 +670,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
             return null;
         }
 

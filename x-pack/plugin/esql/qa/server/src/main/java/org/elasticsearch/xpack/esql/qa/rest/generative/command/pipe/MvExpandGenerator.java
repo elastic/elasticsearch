@@ -25,7 +25,7 @@ public class MvExpandGenerator implements CommandGenerator {
         List<EsqlQueryGenerator.Column> previousOutput,
         QuerySchema schema
     ) {
-        String toExpand = EsqlQueryGenerator.randomName(previousOutput);
+        String toExpand = EsqlQueryGenerator.randomNonVector(previousOutput);
         if (toExpand == null) {
             return EMPTY_DESCRIPTION; // no columns to expand
         }

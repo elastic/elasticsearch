@@ -221,7 +221,7 @@ public class EsqlCCSUtils {
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
                 );
-                if (executionInfo.isSkipUnavailable(c) == false) {
+                if (executionInfo.isSkipUnavailable(c) == false || filter != null) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = error;
                     } else {
@@ -229,7 +229,7 @@ public class EsqlCCSUtils {
                     }
                 }
                 if (filter == null) {
-                    // We check for filter since the filter may be the reason why the index is missing, and then it's ok
+                    // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         c,
@@ -383,5 +383,13 @@ public class EsqlCCSUtils {
             return false;
         }
         return true;
+    }
+
+    public static String inClusterName(String clusterAlias) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            return "in local cluster";
+        } else {
+            return "in remote cluster [" + clusterAlias + "]";
+        }
     }
 }

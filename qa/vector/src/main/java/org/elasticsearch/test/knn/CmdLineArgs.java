@@ -42,13 +42,17 @@ record CmdLineArgs(
     int hnswM,
     int hnswEfConstruction,
     int searchThreads,
+    int numSearchers,
     int indexThreads,
     boolean reindex,
     boolean forceMerge,
+    float filterSelectivity,
+    long seed,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
     VectorEncoding vectorEncoding,
-    int dimensions
+    int dimensions,
+    boolean earlyTermination
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -63,6 +67,7 @@ record CmdLineArgs(
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
     static final ParseField HNSW_EF_CONSTRUCTION_FIELD = new ParseField("hnsw_ef_construction");
+    static final ParseField NUM_SEARCHERS_FIELD = new ParseField("num_searchers");
     static final ParseField SEARCH_THREADS_FIELD = new ParseField("search_threads");
     static final ParseField INDEX_THREADS_FIELD = new ParseField("index_threads");
     static final ParseField REINDEX_FIELD = new ParseField("reindex");
@@ -71,6 +76,9 @@ record CmdLineArgs(
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
+    static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
+    static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
+    static final ParseField SEED_FIELD = new ParseField("seed");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -93,6 +101,7 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
         PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
+        PARSER.declareInt(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
         PARSER.declareInt(Builder::setIndexThreads, INDEX_THREADS_FIELD);
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
@@ -100,6 +109,9 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
+        PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
+        PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
+        PARSER.declareLong(Builder::setSeed, SEED_FIELD);
     }
 
     @Override
@@ -122,6 +134,7 @@ record CmdLineArgs(
         builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
         builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
         builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+        builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
         builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
         builder.field(REINDEX_FIELD.getPreferredName(), reindex);
         builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
@@ -129,6 +142,9 @@ record CmdLineArgs(
         builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
         builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
         builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+        builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+        builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
+        builder.field(SEED_FIELD.getPreferredName(), seed);
         return builder.endObject();
     }
 
@@ -151,6 +167,7 @@ record CmdLineArgs(
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
         private int searchThreads = 1;
+        private int numSearchers = 1;
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
@@ -158,6 +175,9 @@ record CmdLineArgs(
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
         private int dimensions;
+        private boolean earlyTermination;
+        private float filterSelectivity = 1f;
+        private long seed = 1751900822751L;
 
         public Builder setDocVectors(String docVectors) {
             this.docVectors = PathUtils.get(docVectors);
@@ -224,6 +244,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setNumSearchers(int numSearchers) {
+            this.numSearchers = numSearchers;
+            return this;
+        }
+
         public Builder setIndexThreads(int indexThreads) {
             this.indexThreads = indexThreads;
             return this;
@@ -259,6 +284,21 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setEarlyTermination(Boolean patience) {
+            this.earlyTermination = patience;
+            return this;
+        }
+
+        public Builder setFilterSelectivity(float filterSelectivity) {
+            this.filterSelectivity = filterSelectivity;
+            return this;
+        }
+
+        public Builder setSeed(long seed) {
+            this.seed = seed;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -282,13 +322,17 @@ record CmdLineArgs(
                 hnswM,
                 hnswEfConstruction,
                 searchThreads,
+                numSearchers,
                 indexThreads,
                 reindex,
                 forceMerge,
+                filterSelectivity,
+                seed,
                 vectorSpace,
                 quantizeBits,
                 vectorEncoding,
-                dimensions
+                dimensions,
+                earlyTermination
             );
         }
     }

@@ -682,8 +682,9 @@ public class ThreadPoolTests extends ESTestCase {
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(instrumentType, ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + name);
             assertFalse(name + " has no measurements", measurements.isEmpty());
-            assertThat(valueExtractor.apply(measurements.getLast()), matcher);
-            return valueExtractor.apply(measurements.getLast());
+            var latestMetric = valueExtractor.apply(measurements.getLast());
+            assertThat(latestMetric, matcher);
+            return latestMetric;
         }
     }
 

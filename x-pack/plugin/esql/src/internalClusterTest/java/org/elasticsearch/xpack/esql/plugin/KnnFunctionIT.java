@@ -113,7 +113,28 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             assertEquals(5 + Math.max(0, numDocs - 10 - 1), valuesList.size());
         }
     }
+    public void testKnnWithPrefilters() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
 
+        // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s, 5) AND id > 5
+            | KEEP id, floats, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            // K = 5, 1 more for every id > 10
+            assertEquals(5, valuesList.size());
+        }
+    }
     public void testKnnWithLookupJoin() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 1.0f);
@@ -202,6 +223,5 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var createRequest = client.prepareCreate(lookupIndexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(createRequest);
-
     }
 }

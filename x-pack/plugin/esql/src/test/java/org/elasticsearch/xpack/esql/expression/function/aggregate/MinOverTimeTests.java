@@ -24,11 +24,11 @@ public class MinOverTimeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return MaxTests.parameters();
+        return MinTests.parameters();
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MaxOverTime(source, args.get(0));
+        return new MinOverTime(source, args.get(0));
     }
 }

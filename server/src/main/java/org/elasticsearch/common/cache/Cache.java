@@ -128,6 +128,7 @@ public interface Cache<Key, Value> {
      * @param consumer the {@link BiConsumer}
      */
     void forEach(BiConsumer<Key, Value> consumer);
+
     /**
      * Point in time capture of cache statistics
      * @param hits number of times a cached value was hit

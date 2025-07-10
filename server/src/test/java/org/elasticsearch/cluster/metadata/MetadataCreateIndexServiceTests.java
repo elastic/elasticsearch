@@ -795,7 +795,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     /**
      * When a failure store index is created, we must filter out any unsupported settings from the create request or from the template that
      * may have been provided by users in the create request or from the original data stream template. An exception to this is any settings
-     * that have been provided by index setting providers which should be considered default values on
+     * that have been provided by index setting providers which should be considered default values on indices.
      */
     public void testAggregateSettingsProviderIsNotFilteredOnFailureStore() {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {

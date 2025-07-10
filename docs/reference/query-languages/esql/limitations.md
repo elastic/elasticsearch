@@ -100,13 +100,9 @@ In addition, when [querying multiple indexes](docs-content://explore-analyze/que
 
 {{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
-[preview] {{esql}}'s support for [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is currently experimental.
-
-
 ## Full-text search [esql-limitations-full-text-search]
 
-[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is currently in Technical Preview.
-One limitation of full-text search is that it is necessary to use the search function,
+One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
 like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
 in a [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command, or close enough to it.

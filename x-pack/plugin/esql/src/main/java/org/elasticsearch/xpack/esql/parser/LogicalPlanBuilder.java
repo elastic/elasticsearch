@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
@@ -90,7 +89,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -120,6 +118,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            throw new ParsingException(source(ctx), "EXPLAIN does not support downstream commands");
+        }
+        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            // TODO this one is never reached because the Parser fails to understand multiple round brackets
+            throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
+        }
         var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
             return p;
@@ -507,8 +512,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
-        String stringValue = policyToken.getText();
+    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+        String stringValue;
+        if (ctx.ENRICH_POLICY_NAME() != null) {
+            stringValue = ctx.ENRICH_POLICY_NAME().getText();
+        } else {
+            stringValue = ctx.QUOTED_STRING().getText();
+            stringValue = stringValue.substring(1, stringValue.length() - 1);
+        }
+
         int index = stringValue.indexOf(":");
         Mode mode = null;
         if (index >= 0) {
@@ -520,7 +532,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (mode == null) {
                 throw new ParsingException(
-                    source(policyToken),
+                    source(ctx),
                     "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
                     modeValue,
                     Arrays.stream(Mode.values()).map(s -> "_" + s).toList()
@@ -627,8 +639,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            checkForRemoteClusters(p, source(target), "LOOKUP JOIN");
-            return new LookupJoin(source, p, right, joinFields);
+            boolean hasRemotes = p.anyMatch(node -> {
+                if (node instanceof UnresolvedRelation r) {
+                    return Arrays.stream(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()))
+                        .anyMatch(RemoteClusterAware::isRemoteIndexName);
+                } else {
+                    return false;
+                }
+            });
+            if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
+                throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
+            }
+            return new LookupJoin(source, p, right, joinFields, hasRemotes);
         };
     }
 
@@ -651,9 +673,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() < 2) {
-            throw new ParsingException(source(ctx), "Fork requires at least two branches");
+        if (subQueries.size() < Fork.MIN_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork requires at least " + Fork.MIN_BRANCHES + " branches");
         }
+        if (subQueries.size() > Fork.MAX_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork requires less than " + Fork.MAX_BRANCHES + " branches");
+        }
+
         return input -> {
             checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
@@ -707,9 +733,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
+    public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
+        Source source = source(ctx);
         return input -> {
-            Source source = source(ctx);
             Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
@@ -719,22 +745,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
-
-            List<Order> order = List.of(
-                new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
-                new Order(source, idAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
-                new Order(source, indexAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
-            );
-
-            return new OrderBy(source, dedup, order);
+            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
         };
     }
 
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
         Source source = source(ctx);
+        List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
+
         if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
             if (queryTextLiteral.value() == null) {
                 throw new ParsingException(
@@ -751,19 +771,72 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        Literal inferenceId = ctx.inferenceId != null ? inferenceId(ctx.inferenceId) : Literal.keyword(source, Rerank.DEFAULT_INFERENCE_ID);
-
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return new Rerank(source, p, inferenceId, queryText, visitRerankFields(ctx.rerankFields()));
+            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields), ctx.inferenceCommandOptions());
         };
+    }
+
+    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.InferenceCommandOptionsContext ctx) {
+        if (ctx == null) {
+            return rerank;
+        }
+
+        Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
+
+        for (var option : ctx.inferenceCommandOption()) {
+            String optionName = visitIdentifier(option.identifier());
+            EsqlBaseParser.InferenceCommandOptionValueContext optionValue = option.inferenceCommandOptionValue();
+            if (optionName.equals(Rerank.INFERENCE_ID_OPTION_NAME)) {
+                rerankBuilder.withInferenceId(visitInferenceId(optionValue));
+            } else if (optionName.equals(Rerank.SCORE_COLUMN_OPTION_NAME)) {
+                rerankBuilder.withScoreAttribute(visitRerankScoreAttribute(optionName, optionValue));
+            } else {
+                throw new ParsingException(
+                    source(option.identifier()),
+                    "Unknowm parameter [{}] in RERANK command",
+                    option.identifier().getText()
+                );
+            }
+        }
+
+        return rerankBuilder.build();
+    }
+
+    private UnresolvedAttribute visitRerankScoreAttribute(String optionName, EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
+        if (ctx.constant() == null && ctx.identifier() == null) {
+            throw new ParsingException(source(ctx), "Parameter [{}] is null or undefined", optionName);
+        }
+
+        Expression optionValue = ctx.identifier() != null
+            ? Literal.keyword(source(ctx.identifier()), visitIdentifier(ctx.identifier()))
+            : expression(ctx.constant());
+
+        if (optionValue instanceof UnresolvedAttribute scoreAttribute) {
+            return scoreAttribute;
+        } else if (optionValue instanceof Literal literal) {
+            if (literal.value() == null) {
+                throw new ParsingException(optionValue.source(), "Parameter [{}] is null or undefined", optionName);
+            }
+
+            if (literal.value() instanceof BytesRef attributeName) {
+                return new UnresolvedAttribute(literal.source(), BytesRefs.toString(attributeName));
+            }
+        }
+
+        throw new ParsingException(
+            source(ctx),
+            "Option [{}] expects a valid attribute in RERANK command. [{}] provided.",
+            optionName,
+            ctx.constant().getText()
+        );
     }
 
     @Override
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
         Expression prompt = expression(ctx.prompt);
-        Literal inferenceId = inferenceId(ctx.inferenceId);
+        Literal inferenceId = visitInferenceId(ctx.inferenceId);
         Attribute targetField = ctx.targetField == null
             ? new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME)
             : visitQualifiedName(ctx.targetField);
@@ -774,27 +847,43 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         };
     }
 
-    public Literal inferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+    private Literal visitInferenceId(EsqlBaseParser.IdentifierOrParameterContext ctx) {
         if (ctx.identifier() != null) {
             return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
         }
 
-        if (expression(ctx.parameter()) instanceof Literal literalParam) {
-            if (literalParam.value() != null) {
-                return literalParam;
+        return visitInferenceId(expression(ctx.parameter()));
+    }
+
+    private Literal visitInferenceId(EsqlBaseParser.InferenceCommandOptionValueContext ctx) {
+        if (ctx.identifier() != null) {
+            return Literal.keyword(source(ctx), visitIdentifier(ctx.identifier()));
+        }
+
+        return visitInferenceId(expression(ctx.constant()));
+    }
+
+    private Literal visitInferenceId(Expression expression) {
+        if (expression instanceof Literal literal) {
+            if (literal.value() == null) {
+                throw new ParsingException(
+                    expression.source(),
+                    "Parameter [{}] is null or undefined and cannot be used as inference id",
+                    expression.source().text()
+                );
             }
 
-            throw new ParsingException(
-                source(ctx.parameter()),
-                "Query parameter [{}] is null or undefined and cannot be used as inference id",
-                ctx.parameter().getText()
-            );
+            return literal;
+        } else if (expression instanceof UnresolvedAttribute attribute) {
+            // Support for unquoted inference id
+            return new Literal(expression.source(), attribute.name(), KEYWORD);
         }
 
         throw new ParsingException(
-            source(ctx.parameter()),
-            "Query parameter [{}] is not a string and cannot be used as inference id",
-            ctx.parameter().getText()
+            expression.source(),
+            "Query parameter [{}] is not a string and cannot be used as inference id [{}]",
+            expression.source().text(),
+            expression.getClass()
         );
     }
 

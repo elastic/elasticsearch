@@ -1,0 +1,5 @@
+pr: 129738
+summary: Watch SSL files instead of directories
+area: TLS
+type: bug
+issues: []

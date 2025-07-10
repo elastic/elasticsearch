@@ -64,6 +64,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final MergeSchedulerConfig config;
     protected final Logger logger;
     private final MergeTracking mergeTracking;
+    private final MergeMetrics mergeMetrics;
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
         16,
@@ -86,16 +87,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      * @param indexSettings                  used to obtain the {@link MergeSchedulerConfig}
      * @param threadPoolMergeExecutorService the executor service used to execute merge tasks from this scheduler
      * @param mergeMemoryEstimateProvider    provides an estimate for how much memory a merge will take
+     * @param mergeMetrics metrics related to merges
      */
     public ThreadPoolMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-        MergeMemoryEstimateProvider mergeMemoryEstimateProvider
+        MergeMemoryEstimateProvider mergeMemoryEstimateProvider,
+        MergeMetrics mergeMetrics
     ) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.mergeMetrics = mergeMetrics;
         this.mergeTracking = new MergeTracking(
             logger,
             () -> this.config.isAutoThrottle()
@@ -226,6 +230,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         try {
             MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
+            mergeMetrics.incrementQueuedMergeBytes(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes());
             mergeQueued(mergeTask.onGoingMerge);
             return threadPoolMergeExecutorService.submitMergeTask(mergeTask);
         } finally {
@@ -310,6 +315,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private void mergeTaskDone(OnGoingMerge merge) {
         doneMergeTaskCount.incrementAndGet();
+        mergeMetrics.decrementRunningMergeBytes(merge);
         mergeExecutedOrAborted(merge);
         checkMergeTaskThrottling();
     }
@@ -437,6 +443,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             assert hasStartedRunning() == false;
             assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the merge task";
+            boolean success = false;
             try {
                 beforeMerge(onGoingMerge);
                 try {
@@ -444,11 +451,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         throw new IllegalStateException("The merge task is already started or aborted");
                     }
                     mergeTracking.mergeStarted(onGoingMerge);
+                    mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge, mergeMemoryEstimateBytes);
                     if (verbose()) {
                         message(String.format(Locale.ROOT, "merge task %s start", this));
                     }
                     try {
                         doMerge(mergeSource, onGoingMerge.getMerge());
+                        success = onGoingMerge.getMerge().isAborted() == false;
                         if (verbose()) {
                             message(
                                 String.format(
@@ -468,6 +477,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         }
                     } finally {
                         long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
+                        if (success) {
+                            long newSegmentSize = getNewSegmentSize(onGoingMerge.getMerge());
+                            mergeMetrics.markMergeMetrics(onGoingMerge.getMerge(), newSegmentSize, tookMS);
+                        }
                         mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
                     }
                 } finally {
@@ -508,6 +521,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // {@code IndexWriter} checks the abort flag internally, while running the merge.
             // The segments of an aborted merge become available to subsequent merges.
             onGoingMerge.getMerge().setAborted();
+
+            mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge, mergeMemoryEstimateBytes);
             try {
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s start abort", this));
@@ -537,8 +552,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         long estimatedRemainingMergeSize() {
             // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
             // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
-            long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
-            return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
+            if (onGoingMerge.getMerge().isAborted()) {
+                // if the merge is aborted the assumption is that merging will soon stop with negligible further writing
+                return 0L;
+            } else {
+                long estimatedMergeSize = onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
+                return Math.max(0L, estimatedMergeSize - rateLimiter.getTotalBytesWritten());
+            }
         }
 
         public long getMergeMemoryEstimateBytes() {
@@ -547,6 +567,21 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         public OnGoingMerge getOnGoingMerge() {
             return onGoingMerge;
+        }
+
+        private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) {
+            try {
+                return currentMerge.getMergeInfo() != null ? currentMerge.getMergeInfo().sizeInBytes() : currentMerge.estimatedMergeBytes;
+            } catch (IOException e) {
+                // For stateless only: It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to
+                // reaching this point. Once the IW creates the new segment, it could be exposed to be included in a new merge. That
+                // merge can be executed concurrently if more than 1 merge threads are configured. That new merge allows this IW to
+                // delete segment created by this merge. Although the files may still be available in the object store for executing
+                // searches, the IndexDirectory will no longer have references to the underlying segment files and will throw file not
+                // found if we try to read them. In this case, we will ignore that exception (which would otherwise fail the shard) and
+                // use the originally estimated merge size for metrics.
+                return currentMerge.estimatedMergeBytes;
+            }
         }
 
         @Override

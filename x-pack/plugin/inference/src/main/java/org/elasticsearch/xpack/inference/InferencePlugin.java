@@ -180,10 +180,10 @@ public class InferencePlugin extends Plugin
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    public static final TimeValue DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
-    public static final Setting<TimeValue> SEMANTIC_TEXT_INFERENCE_TIMEOUT = Setting.timeSetting(
+    public static final TimeValue DEFAULT_QUERY_INFERENCE_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
+    public static final Setting<TimeValue> QUERY_INFERENCE_TIMEOUT = Setting.timeSetting(
         "xpack.inference.semantic_text.inference_timeout",
-        DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT,
+        DEFAULT_QUERY_INFERENCE_TIMEOUT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -506,7 +506,7 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-        settings.add(SEMANTIC_TEXT_INFERENCE_TIMEOUT);
+        settings.add(QUERY_INFERENCE_TIMEOUT);
         return settings;
     }
 

@@ -152,7 +152,7 @@ public class SageMakerService implements InferenceService {
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
         if (timeout == null) {
-            timeout = serviceComponents.clusterService().getClusterSettings().get(InferencePlugin.SEMANTIC_TEXT_INFERENCE_TIMEOUT);
+            timeout = serviceComponents.clusterService().getClusterSettings().get(InferencePlugin.QUERY_INFERENCE_TIMEOUT);
         }
 
         try {

@@ -75,7 +75,7 @@ public abstract class SenderService implements InferenceService {
         var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
         var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);
         if (timeout == null) {
-            timeout = serviceComponents.clusterService().getClusterSettings().get(InferencePlugin.SEMANTIC_TEXT_INFERENCE_TIMEOUT);
+            timeout = serviceComponents.clusterService().getClusterSettings().get(InferencePlugin.QUERY_INFERENCE_TIMEOUT);
         }
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }

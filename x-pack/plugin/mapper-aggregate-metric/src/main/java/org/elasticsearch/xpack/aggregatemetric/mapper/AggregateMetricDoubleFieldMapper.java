@@ -581,8 +581,12 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         }
                     }
 
-                    private void copyDoubleValuesToBuilder(Docs docs, int offset, BlockLoader.DoubleBuilder builder, NumericDocValues values)
-                        throws IOException {
+                    private void copyDoubleValuesToBuilder(
+                        Docs docs,
+                        int offset,
+                        BlockLoader.DoubleBuilder builder,
+                        NumericDocValues values
+                    ) throws IOException {
                         int lastDoc = -1;
                         for (int i = offset; i < docs.count(); i++) {
                             int doc = docs.get(i);

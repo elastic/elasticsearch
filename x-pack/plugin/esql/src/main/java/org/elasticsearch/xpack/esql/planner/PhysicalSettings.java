@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 /**
  * Values for cluster level settings used in physical planning.

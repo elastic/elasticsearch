@@ -236,7 +236,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (DataType.isSpatialAndGrid(left) && DataType.isSpatialAndGrid(right)) {
+        if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
             return left == right;
         }
         return DataType.areCompatible(left, right);
@@ -366,7 +366,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (DataType.isSpatialAndGrid(commonType)) {
+            if (DataType.isSpatialOrGrid(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {

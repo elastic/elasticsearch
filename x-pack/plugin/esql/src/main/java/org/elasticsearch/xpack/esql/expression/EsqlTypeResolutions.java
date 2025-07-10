@@ -83,7 +83,7 @@ public class EsqlTypeResolutions {
         return isType(e, DataType::isSpatial, operationName, paramOrd, SPATIAL_TYPE_NAMES);
     }
 
-    public static Expression.TypeResolution isSpatialAndGrid(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, DataType::isSpatialAndGrid, operationName, paramOrd, SPATIAL_AND_GRID_TYPE_NAMES);
+    public static Expression.TypeResolution isSpatialOrGrid(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, DataType::isSpatialOrGrid, operationName, paramOrd, SPATIAL_AND_GRID_TYPE_NAMES);
     }
 }

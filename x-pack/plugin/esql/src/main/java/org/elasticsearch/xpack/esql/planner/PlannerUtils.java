@@ -266,7 +266,7 @@ public class PlannerUtils {
      * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
-        if (DataType.isSpatialAndGrid(dataType)) {
+        if (DataType.isSpatialOrGrid(dataType)) {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);

@@ -12,7 +12,6 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -205,7 +204,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             }
         }
 
-        private long getGridId(Point point, @Fixed long gridId, @Fixed DataType gridType) {
+        private long getGridId(Point point, long gridId, DataType gridType) {
             return switch (gridType) {
                 case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), Geohash.stringEncode(gridId).length());
                 case GEOTILE -> GeoTileUtils.longEncode(
@@ -220,7 +219,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             };
         }
 
-        protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, @Fixed Component2D right)
+        protected void processSourceAndConstant(BooleanBlock.Builder builder, int position, BytesRefBlock left, Component2D right)
             throws IOException {
             if (left.getValueCount(position) < 1) {
                 builder.appendNull();
@@ -245,7 +244,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             BooleanBlock.Builder builder,
             int position,
             LongBlock leftValue,
-            @Fixed Component2D rightValue
+            Component2D rightValue
         ) throws IOException {
             if (leftValue.getValueCount(position) < 1) {
                 builder.appendNull();

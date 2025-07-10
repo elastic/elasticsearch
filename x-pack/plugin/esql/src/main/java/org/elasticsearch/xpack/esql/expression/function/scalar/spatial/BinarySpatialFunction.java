@@ -157,7 +157,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             return pointsOnly
                 ? EsqlTypeResolutions.isSpatialPoint(e, sourceText(), paramOrd)
                 : (supportsGrid
-                    ? EsqlTypeResolutions.isSpatialAndGrid(e, sourceText(), paramOrd)
+                    ? EsqlTypeResolutions.isSpatialOrGrid(e, sourceText(), paramOrd)
                     : EsqlTypeResolutions.isSpatial(e, sourceText(), paramOrd));
         }
 
@@ -217,7 +217,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             Predicate<DataType> isSpatialType = pointsOnly
                 ? dt -> dt == spatialDataType
                 : (supportsGrid
-                    ? dt -> DataType.isSpatialAndGrid(dt) && spatialCRSCompatible(spatialDataType, dt)
+                    ? dt -> DataType.isSpatialOrGrid(dt) && spatialCRSCompatible(spatialDataType, dt)
                     : dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt));
             return isType(expression, isSpatialType, operationName, paramOrd, compatibleTypeNames(spatialDataType));
         }
@@ -267,7 +267,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
         public static SpatialCrsType fromDataType(DataType dataType) {
             return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : DataType.isSpatialAndGrid(dataType) ? SpatialCrsType.CARTESIAN
+                : DataType.isSpatialOrGrid(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }
     }

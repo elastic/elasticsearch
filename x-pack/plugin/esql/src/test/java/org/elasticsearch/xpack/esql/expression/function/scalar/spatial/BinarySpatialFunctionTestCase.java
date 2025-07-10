@@ -32,7 +32,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialAndGrid;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction.compatibleTypeNames;
@@ -171,7 +171,7 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
             if (DataType.isGeoGrid(types.get(goodArgPosition))) {
                 // When the valid position is a grid, the other type can only be points
                 return oneInvalid(badArgPosition, goodArgPosition, includeOrdinal, types, true, supportsGrid);
-            } else if (isSpatialAndGrid(types.get(goodArgPosition)) == false) {
+            } else if (isSpatialOrGrid(types.get(goodArgPosition)) == false) {
                 return oneInvalid(badArgPosition, -1, includeOrdinal, types, pointsOnly, supportsGrid);
             } else {
                 return oneInvalid(badArgPosition, goodArgPosition, includeOrdinal, types, pointsOnly, supportsGrid);
@@ -297,7 +297,7 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
     ) {
         if (isSpatialGeo(leftType) || isSpatialGeo(rightType)) {
             return getRelationsField("GEO");
-        } else if (isSpatialAndGrid(leftType) || isSpatialAndGrid(rightType)) {
+        } else if (isSpatialOrGrid(leftType) || isSpatialOrGrid(rightType)) {
             return getRelationsField("CARTESIAN");
         } else {
             throw new IllegalArgumentException(
@@ -325,7 +325,7 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
     }
 
     protected static boolean typeCompatible(DataType leftType, DataType rightType) {
-        if (isSpatialAndGrid(leftType) && isSpatialAndGrid(rightType)) {
+        if (isSpatialOrGrid(leftType) && isSpatialOrGrid(rightType)) {
             // Both must be GEO_* or both must be CARTESIAN_*
             return countGeo(leftType, rightType) != 1;
         }
@@ -333,9 +333,9 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
     }
 
     private static DataType pickSpatialType(DataType leftType, DataType rightType) {
-        if (isSpatialAndGrid(leftType)) {
+        if (isSpatialOrGrid(leftType)) {
             return leftType;
-        } else if (isSpatialAndGrid(rightType)) {
+        } else if (isSpatialOrGrid(rightType)) {
             return rightType;
         } else {
             throw new IllegalArgumentException("Invalid spatial types: " + leftType + " and " + rightType);

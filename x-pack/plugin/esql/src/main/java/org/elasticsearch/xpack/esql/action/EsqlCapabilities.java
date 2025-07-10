@@ -1191,6 +1191,11 @@ public class EsqlCapabilities {
         RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
 
         /**
+         * Enable support for cross-cluster lookup joins.
+         */
+        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+
+        /**
          * MATCH PHRASE function
          */
         MATCH_PHRASE_FUNCTION,
@@ -1201,6 +1206,8 @@ public class EsqlCapabilities {
         KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
         LIKE_WITH_LIST_OF_PATTERNS,
+
+        LIKE_LIST_ON_INDEX_FIELDS,
 
         /**
          * Support parameters for SAMPLE command.
@@ -1224,7 +1231,10 @@ public class EsqlCapabilities {
          * FUSE command
          */
         FUSE(Build.current().isSnapshot()),
-
+        /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
         /**
          * Support avg with aggregate metric doubles
          */

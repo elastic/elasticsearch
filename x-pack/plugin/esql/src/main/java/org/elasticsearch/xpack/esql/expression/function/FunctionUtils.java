@@ -31,7 +31,9 @@ public class FunctionUtils {
      */
     public static Expression.TypeResolution resolveTypeLimit(Expression limitField, String sourceText) {
         if (limitField == null) {
-            return new Expression.TypeResolution(format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
+            return new Expression.TypeResolution(
+                format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField)
+            );
         }
         if (limitField instanceof Literal literal) {
             if (literal.value() == null) {
@@ -46,6 +48,7 @@ public class FunctionUtils {
         }
         return Expression.TypeResolution.TYPE_RESOLVED;
     }
+
     public static void postOptimizationVerificationLimit(Failures failures, Expression limitField, String sourceText) {
         if (limitField == null) {
             failures.add(fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));

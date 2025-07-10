@@ -576,9 +576,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testRowStatsProjectGroupByInt
   issue: https://github.com/elastic/elasticsearch/issues/131024
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/60_enrich/Enrich in fork}
-  issue: https://github.com/elastic/elasticsearch/issues/131028
 
 # Examples:
 #

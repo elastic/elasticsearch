@@ -49,8 +49,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
                 .append(pendingClusterTask.getSource())
                 .append("/")
                 .append(pendingClusterTask.getTimeInQueue())
-                .append("/")
-                .append(pendingClusterTask.executing())
+                .append(pendingClusterTask.executing() ? "[executing]" : "")
                 .append("\n");
         }
         return sb.toString();

@@ -12,6 +12,7 @@ import io.netty.handler.codec.http.HttpUtil;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -49,6 +50,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -58,6 +60,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1159,6 +1162,63 @@ public class Security extends Plugin
         return bootstrapChecks.get();
     }
 
+    /**
+     * Constructs a composed {@link CheckedFunction} chain that wraps a {@link DirectoryReader}
+     * with multiple reader-level security layers, including built-in DLS/FLS support and
+     * pluggable extensions (e.g., field masking).
+     *
+     * <p>This method is called per index and returns a function that applies each
+     * {@link DirectoryReader} wrapper in order, ensuring all registeredregistered security logic
+     * is applied consistently.
+     *
+     * @param indexService the {@link IndexService} associated with the index
+     * @return a composed function that wraps a {@link DirectoryReader} with all applicable security wrappers
+     */
+    private CheckedFunction<DirectoryReader, DirectoryReader, IOException> buildReaderWrapperChain(IndexService indexService){
+        // Create the core SecurityIndexReaderWrapper which enforces DLS/FLS
+        SecurityIndexReaderWrapper securityWrapper = new SecurityIndexReaderWrapper(
+            shardId -> indexService.newSearchExecutionContext(
+                shardId.id(),
+                0,
+                // we pass a null index reader, which is legal and will disable rewrite optimizations
+                // based on index statistics, which is probably safer...
+                null,
+                () -> {
+                    throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
+
+                },
+                null,
+                // Don't use runtime mappings in the security query
+                emptyMap()
+            ),
+            dlsBitsetCache.get(),
+            securityContext.get(),
+            getLicenseState(),
+            indexService.getScriptService()
+        );
+
+        // Initialize wrapper chain with core security logic
+        List<CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrappers = new ArrayList<>();
+        wrappers.add(securityWrapper);
+
+        // Add any additional reader wrappers provided by security extensions (e.g., field masking)
+        for (SecurityExtension securityExtension : securityExtensions) {
+            CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = securityExtension.getIndexReaderWrapper(securityContext.get());
+            if(wrapper !=null ){
+                wrappers.add(wrapper);
+            }
+        }
+
+        // Return a composed function that applies all wrappers in sequence
+        return reader -> {
+            DirectoryReader current = reader;
+            for (CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper : wrappers) {
+                current = wrapper.apply(current);
+            }
+            return current;
+        };
+    }
+
     @Override
     public void onIndexModule(IndexModule module) {
         if (enabled) {
@@ -1166,26 +1226,7 @@ public class Security extends Plugin
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 assert dlsBitsetCache.get() != null;
                 module.setReaderWrapper(
-                    indexService -> new SecurityIndexReaderWrapper(
-                        shardId -> indexService.newSearchExecutionContext(
-                            shardId.id(),
-                            0,
-                            // we pass a null index reader, which is legal and will disable rewrite optimizations
-                            // based on index statistics, which is probably safer...
-                            null,
-                            () -> {
-                                throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
-
-                            },
-                            null,
-                            // Don't use runtime mappings in the security query
-                            emptyMap()
-                        ),
-                        dlsBitsetCache.get(),
-                        securityContext.get(),
-                        getLicenseState(),
-                        indexService.getScriptService()
-                    )
+                    indexService -> buildReaderWrapperChain(indexService)
                 );
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This

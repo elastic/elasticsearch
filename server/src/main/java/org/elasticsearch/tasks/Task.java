@@ -44,16 +44,21 @@ public class Task implements Traceable {
      * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
      * has to be declared as a header copied over from http request.
      * May also be used internally when APM is enabled.
+     * https://www.w3.org/TR/trace-context-1/#traceparent-header
      */
     public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
-
-    public static final String TRACE_STATE = "tracestate";
 
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+
+    /**
+     * Optional request header carrying vendor-specific trace information.
+     * https://www.w3.org/TR/trace-context-1/#tracestate-header
+     */
+    public static final String TRACE_STATE = "tracestate";
 
     public static final String TRACE_START_TIME = "trace.starttime";
 

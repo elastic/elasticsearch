@@ -288,6 +288,8 @@ public class TaskManagerTests extends ESTestCase {
 
         // fake a trace parent
         threadPool.getThreadContext().putHeader(Task.TRACE_PARENT_HTTP_HEADER, "traceparent");
+        final boolean hasParentTask = randomBoolean();
+        final TaskId parentTask = hasParentTask ? new TaskId("parentNode", 1) : TaskId.EMPTY_TASK_ID;
 
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
 
@@ -301,11 +303,14 @@ public class TaskManagerTests extends ESTestCase {
 
                 @Override
                 public TaskId getParentTask() {
-                    return TaskId.EMPTY_TASK_ID;
+                    return parentTask;
                 }
             });
 
-            verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), anyMap());
+            Map<String, Object> attributes = hasParentTask
+                ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
+                : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
+            verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), eq(attributes));
         }
     }
 

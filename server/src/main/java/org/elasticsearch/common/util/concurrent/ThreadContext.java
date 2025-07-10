@@ -189,6 +189,9 @@ public final class ThreadContext implements Writeable, TraceContext {
      * moving tracing-related fields to different names so that a new child span can be started. This child span will pick up
      * the moved fields and use them to establish the parent-child relationship.
      *
+     * Response headers will be propagated. If no parent span is in progress (meaning there's no trace context), this will behave exactly
+     * the same way as {@link #newStoredContextPreservingResponseHeaders}.
+     *
      * @return a stored context, which can be restored when this context is no longer needed.
      */
     public StoredContext newTraceContext() {

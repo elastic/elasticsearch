@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,6 +29,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -102,18 +105,20 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 
 public class EsqlSession {
 
@@ -144,6 +149,7 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private Set<String> configuredClusters;
     private final InferenceRunner inferenceRunner;
+    private final RemoteClusterService remoteClusterService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -177,6 +183,7 @@ public class EsqlSession {
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceRunner = services.inferenceRunner();
         this.preMapper = new PreMapper(services);
+        this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
 
     public String sessionId() {
@@ -218,8 +225,8 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-        if (explainMode) {
+        if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
                 new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
@@ -232,44 +239,30 @@ public class EsqlSession {
             values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
             var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
             physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+            planRunner.run(physicalPlan, listener);
+        } else {
+            // TODO: this could be snuck into the underlying listener
+            EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+            // execute any potential subplans
+            executeSubPlans(optimizedPlan, planRunner, executionInfo, request, listener);
         }
-        // TODO: this could be snuck into the underlying listener
-        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-        // execute any potential subplans
-        executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
     }
 
-    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}
-
     private void executeSubPlans(
-        PhysicalPlan physicalPlan,
+        LogicalPlan optimizedPlan,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        List<PlanTuple> subplans = new ArrayList<>();
-
-        // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
-        // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-        physicalPlan.forEachUp(FragmentExec.class, f -> {
-            f.fragment().forEachUp(InlineJoin.class, ij -> {
-                // extract the right side of the plan and replace its source
-                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                // mark the new root node as optimized
-                subplan.setOptimized();
-                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
-            });
-        });
-
-        Iterator<PlanTuple> iterator = subplans.iterator();
+        var subPlan = firstSubPlan(optimizedPlan);
 
         // TODO: merge into one method
-        if (subplans.size() > 0) {
+        if (subPlan != null) {
             // code-path to execute subplans
-            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
+            executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
         } else {
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             // execute main plan
             runner.run(physicalPlan, listener);
         }
@@ -277,40 +270,47 @@ public class EsqlSession {
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
-        PhysicalPlan plan,
-        Iterator<PlanTuple> subPlanIterator,
+        LogicalPlan optimizedPlan,
+        InlineJoin.LogicalPlanTuple subPlans,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
+        EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        PlanTuple tuple = subPlanIterator.next();
+        LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
+        // Create a physical plan out of the logical sub-plan
+        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
 
-        runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
+        runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
+                // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
 
                 // replace the original logical plan with the backing result
-                PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
-                    LogicalPlan frag = f.fragment();
-                    return f.withFragment(
-                        frag.transformUp(
-                            InlineJoin.class,
-                            ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                        )
-                    );
-                });
+                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+                    InlineJoin.class,
+                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+                    // and equals would have ignored name IDs anyway
+                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                );
+                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+                newLogicalPlan.setOptimized();
+                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
+                // look for the next inlinejoin plan
+                var newSubPlan = firstSubPlan(newLogicalPlan);
 
-                if (subPlanIterator.hasNext() == false) {
-                    runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                if (newSubPlan == null) {// run the final "main" plan
+                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
+                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
+                    runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         completionInfoAccumulator.accumulate(finalResult.completionInfo());
                         finalListener.onResponse(
                             new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
                         );
                     }));
-                } else {
-                    // continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
+                } else {// continue executing the subplans
+                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
@@ -318,7 +318,7 @@ public class EsqlSession {
         }));
     }
 
-    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
         List<Page> pages = result.pages();
         List<Attribute> schema = result.schema();
         // if (pages.size() > 1) {
@@ -327,7 +327,7 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry, configuration);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
@@ -376,7 +376,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, l); });
+            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
@@ -415,16 +415,196 @@ public class EsqlSession {
         }).addListener(logicalPlanListener);
     }
 
-    private void preAnalyzeLookupIndex(IndexPattern table, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
-        Set<String> fieldNames = result.wildcardJoinIndices().contains(table.indexPattern()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+    private void preAnalyzeLookupIndex(
+        IndexPattern lookupIndexPattern,
+        PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        String localPattern = lookupIndexPattern.indexPattern();
+        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
+            : "Lookup index name should not include remote, but got: " + localPattern;
+        Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+
+        String patternWithRemotes;
+
+        if (executionInfo.getClusters().isEmpty()) {
+            patternWithRemotes = localPattern;
+        } else {
+            // convert index -> cluster1:index,cluster2:index, etc.for each running cluster
+            patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
+                .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
+                .collect(Collectors.joining(","));
+        }
+        if (patternWithRemotes.isEmpty()) {
+            return;
+        }
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            table.indexPattern(),
+            patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution))
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
-        // TODO: Verify that the resolved index actually has indexMode: "lookup"
+    }
+
+    private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
+        VerificationException error = new VerificationException(message);
+        // If we can, skip the cluster and mark it as such
+        if (executionInfo.isSkipUnavailable(clusterAlias)) {
+            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
+        } else {
+            throw error;
+        }
+    }
+
+    /**
+     * Receive and process lookup index resolutions from resolveAsMergedMapping.
+     * This processes the lookup index data for a single index, updates and returns the {@link PreAnalysisResult} result
+     */
+    private PreAnalysisResult receiveLookupIndexResolution(
+        PreAnalysisResult result,
+        String index,
+        EsqlExecutionInfo executionInfo,
+        IndexResolution lookupIndexResolution
+    ) {
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.unavailableClusters());
+        if (lookupIndexResolution.isValid() == false) {
+            // If the index resolution is invalid, don't bother with the rest of the analysis
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+        if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
+            // Local only case, still do some checks, since we moved analysis checks here
+            if (lookupIndexResolution.get().indexNameWithModes().size() > 1) {
+                throw new VerificationException(
+                    "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
+                );
+            }
+            var indexModeEntry = lookupIndexResolution.get().indexNameWithModes().entrySet().iterator().next();
+            if (indexModeEntry.getValue() != IndexMode.LOOKUP) {
+                throw new VerificationException(
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to ["
+                        + indexModeEntry.getKey()
+                        + "] in ["
+                        + indexModeEntry.getValue()
+                        + "] mode"
+                );
+            }
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+        // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
+        Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
+        lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
+            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            // Check that all indices are in lookup mode
+            if (indexMode != IndexMode.LOOKUP) {
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to ["
+                        + indexName
+                        + "] in ["
+                        + indexMode
+                        + "] mode"
+                );
+            }
+            // Each cluster should have only one resolution for the lookup index
+            if (clustersWithResolvedIndices.containsKey(clusterAlias)) {
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to multiple indices "
+                        + EsqlCCSUtils.inClusterName(clusterAlias)
+                );
+            } else {
+                clustersWithResolvedIndices.put(clusterAlias, indexName);
+            }
+        });
+
+        // These are clusters that are still in the running, we need to have the index on all of them
+        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
+        // Verify that all active clusters have the lookup index resolved
+        clusters.forEach(cluster -> {
+            String clusterAlias = cluster.getClusterAlias();
+            if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
+                // Missing cluster resolution
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias)
+                );
+            }
+        });
+
+        return result.addLookupIndexResolution(
+            index,
+            checkSingleIndex(index, executionInfo, lookupIndexResolution, clustersWithResolvedIndices.values())
+        );
+    }
+
+    /**
+     * Check whether the lookup index resolves to a single concrete index on all clusters or not.
+     * If it's a single index, we are compatible with old pre-9.2 LOOKUP JOIN code and just need to send the same resolution as we did.
+     * If there are multiple index names (e.g. due to aliases) then pre-9.2 clusters won't be able to handle it so we need to skip them.
+     * @return An updated `IndexResolution` object if the index resolves to a single concrete index,
+     *         or the original `lookupIndexResolution` if no changes are needed.
+     */
+    private IndexResolution checkSingleIndex(
+        String index,
+        EsqlExecutionInfo executionInfo,
+        IndexResolution lookupIndexResolution,
+        Collection<String> indexNames
+    ) {
+        // If all indices resolve to the same name, we can use that for BWC
+        // Older clusters only can handle one name in LOOKUP JOIN
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(Collectors.toSet());
+        if (localIndexNames.size() == 1) {
+            String indexName = localIndexNames.iterator().next();
+            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
+            return IndexResolution.valid(
+                newIndex,
+                newIndex.concreteIndices(),
+                lookupIndexResolution.getUnavailableShards(),
+                lookupIndexResolution.unavailableClusters()
+            );
+        }
+        // validate remotes to be able to handle multiple indices in LOOKUP JOIN
+        validateRemoteVersions(executionInfo);
+        return lookupIndexResolution;
+    }
+
+    /**
+     * Older clusters can only handle one name in LOCAL JOIN - verify that all the remotes involved
+     * are recent enough to be able to handle multiple indices.
+     * This is only checked if there are actually multiple indices, which happens when remotes have a different
+     * concrete indices aliased to the same index name.
+     */
+    private void validateRemoteVersions(EsqlExecutionInfo executionInfo) {
+        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
+        clusters.forEach(cluster -> {
+            String clusterAlias = cluster.getClusterAlias();
+            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                // No need to check local, obviously
+                var connection = remoteClusterService.getConnection(clusterAlias);
+                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_CCS)) {
+                    skipClusterOrError(
+                        clusterAlias,
+                        executionInfo,
+                        "remote cluster ["
+                            + clusterAlias
+                            + "] has version ["
+                            + connection.getTransportVersion()
+                            + "] that does not support multiple indices in LOOKUP JOIN, skipping"
+                    );
+                }
+            }
+        });
     }
 
     private void initializeClusterData(List<IndexPattern> indices, EsqlExecutionInfo executionInfo) {

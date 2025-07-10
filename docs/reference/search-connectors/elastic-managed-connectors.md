@@ -1,6 +1,6 @@
 ---
 applies_to:
-  ess: discontinued 9.0.0
+  ess: removed 9.0.0
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-native-connectors.html
 ---

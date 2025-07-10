@@ -97,6 +97,11 @@ public class KnnQuery extends Query {
         return true;
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     public List<QueryBuilder> filterQueries() {
         return filterQueries;
     }

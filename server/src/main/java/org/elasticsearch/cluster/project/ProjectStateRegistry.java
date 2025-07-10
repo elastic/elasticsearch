@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.project;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +39,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
     public static final String TYPE = "projects_registry";
     public static final ProjectStateRegistry EMPTY = new ProjectStateRegistry(Collections.emptyMap(), Collections.emptySet(), 0);
 
+    public static final TransportVersionSet PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = TransportVersionSet.get(
+        "project-state-registry-records-deletions"
+    );
+
     private final Map<ProjectId, Settings> projectsSettings;
     // Projects that have been marked for deletion based on their file-based setting
     private final Set<ProjectId> projectsMarkedForDeletion;
@@ -46,7 +51,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
 
     public ProjectStateRegistry(StreamInput in) throws IOException {
         projectsSettings = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (PROJECT_STATE_REGISTRY_RECORDS_DELETIONS.isCompatible(in.getTransportVersion())) {
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
             projectsMarkedForDeletionGeneration = in.readVLong();
         } else {
@@ -118,7 +123,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(projectsSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (PROJECT_STATE_REGISTRY_RECORDS_DELETIONS.isCompatible(out.getTransportVersion())) {
             out.writeCollection(projectsMarkedForDeletion);
             out.writeVLong(projectsMarkedForDeletionGeneration);
         } else {

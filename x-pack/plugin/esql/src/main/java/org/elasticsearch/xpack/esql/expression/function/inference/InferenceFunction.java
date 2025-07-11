@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
  */
 public interface InferenceFunction {
 
+    String INFERENCE_ID_PARAMETER_NAME = "inference_id";
+
     /**
      * Returns the inference model ID expression.
      */

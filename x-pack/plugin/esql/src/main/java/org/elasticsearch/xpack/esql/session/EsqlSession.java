@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.PreOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -138,6 +139,7 @@ public class EsqlSession {
     private final EnrichPolicyResolver enrichPolicyResolver;
 
     private final PreAnalyzer preAnalyzer;
+    private final PreOptimizer preOptimizer;
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
@@ -183,6 +185,7 @@ public class EsqlSession {
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceResolver = inferenceResolver;
+        this.preOptimizer = new PreOptimizer();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
@@ -206,10 +209,10 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                preMapper.preMapper(
-                    analyzedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l))
-                );
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizer.preOptimize(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
     }

@@ -56,6 +56,10 @@ public abstract class RemoteClusterAware {
         return RemoteConnectionStrategy.getRemoteClusters(settings);
     }
 
+    protected static Map<String, List<RemoteClusterService.RemoteTag>> getEnabledRemoteClustersWithTags(final Settings settings) {
+        return RemoteConnectionStrategy.getRemoteTags(settings);
+    }
+
     /**
      * Check whether the index expression represents remote index or not.
      * The index name is assumed to be individual index (no commas) but can contain `-`, wildcards,

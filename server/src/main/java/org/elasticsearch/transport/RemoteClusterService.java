@@ -41,6 +41,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -95,6 +96,33 @@ public final class RemoteClusterService extends RemoteClusterAware
         "cluster.remote.",
         "skip_unavailable",
         (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
+
+    public record RemoteTag(String key, String value) {
+        public static RemoteTag fromString(String tag) {
+            if (tag == null || tag.isEmpty()) {
+                throw new IllegalArgumentException("Remote tag must not be null or empty");
+            }
+            // - as a separator to simplify search path param parsing; won't be like this in the real implementation
+            int idx = tag.indexOf('-');
+            if (idx < 0) {
+                return new RemoteTag(tag, "");
+            } else {
+                return new RemoteTag(tag.substring(0, idx), tag.substring(idx + 1));
+            }
+        }
+    }
+
+    public static final Setting.AffixSetting<List<RemoteTag>> REMOTE_CLUSTER_TAGS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "tags",
+        (ns, key) -> Setting.listSetting(
+            key,
+            Collections.emptyList(),
+            RemoteTag::fromString,
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        )
     );
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(

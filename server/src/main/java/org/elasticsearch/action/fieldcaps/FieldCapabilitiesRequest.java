@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.FlatIndicesRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -18,11 +19,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,11 +33,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest
+    implements
+        FlatIndicesRequest,
+        IndicesRequest.Replaceable,
+        ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -52,6 +60,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
+    @Nullable
+    private List<IndexExpression> indexExpressions;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -322,5 +332,22 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    @Override
+    public boolean requiresRewrite() {
+        return indexExpressions == null;
+    }
+
+    @Override
+    public void indexExpressions(List<IndexExpression> indexExpressions) {
+        assert requiresRewrite();
+        this.indexExpressions = indexExpressions;
+        indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
+    }
+
+    @Override
+    public boolean checkRemote(List<RemoteClusterService.RemoteTag> tags) {
+        return true;
     }
 }

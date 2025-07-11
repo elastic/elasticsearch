@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.FlatIndicesRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -53,7 +55,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
+public class SearchRequest extends LegacyActionRequest
+    implements
+        FlatIndicesRequest,
+        IndicesRequest.Replaceable,
+        Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -69,6 +75,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+    // This will be a more complex thing in the real implementation -- a lucene expression instead of just a list of literals
+    private List<RemoteClusterService.RemoteTag> routingTags = List.of();
+
+    @Nullable
+    private List<IndexExpression> indexExpressions;
 
     @Nullable
     private String routing;
@@ -397,6 +408,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     public SearchRequest indices(String... indices) {
         validateIndices(indices);
         this.indices = indices;
+        return this;
+    }
+
+    public SearchRequest routingTags(List<RemoteClusterService.RemoteTag> routingTags) {
+        this.routingTags = routingTags;
         return this;
     }
 
@@ -852,5 +868,31 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             + ", source="
             + source
             + '}';
+    }
+
+    @Override
+    public boolean requiresRewrite() {
+        return indexExpressions == null;
+    }
+
+    @Override
+    public void indexExpressions(List<IndexExpression> indexExpressions) {
+        assert requiresRewrite();
+        this.indexExpressions = indexExpressions;
+        indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
+    }
+
+    @Override
+    public boolean checkRemote(List<RemoteClusterService.RemoteTag> tags) {
+        if (routingTags.isEmpty()) {
+            return true; // no routing requested, so no constraints
+        }
+        // if any tag in routingTags matches one in tags, return true
+        for (RemoteClusterService.RemoteTag tag : routingTags) {
+            if (tags.contains(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

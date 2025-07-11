@@ -556,12 +556,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             parentBitSet = context.bitsetFilter(parentFilter);
             ArrayList<Query> filterAdjusted = new ArrayList<>(filtersInitial.size());
             for (Query f : filtersInitial) {
-                if (NestedHelper.mightMatchMixedDocs(f, parentPath, context)) {
-                    throw new IllegalArgumentException(
-                        "A filter in knn search might match both nested and non-nested documents, which is not allowed. "
-                            + "Modify the filter to be either over the top-level or nested metadata."
-                    );
-                }
                 // If filter matches non-nested docs, we assume this is a filter over parents docs,
                 // so we will modify it accordingly: matching parents docs with join to its child docs
                 if (NestedHelper.mightMatchNonNestedDocs(f, parentPath, context)) {

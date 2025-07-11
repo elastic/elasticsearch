@@ -40,7 +40,7 @@ public class TestPolicyManager extends PolicyManager {
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
     final Collection<Path> classpath;
-    final Collection<Path> testOnlyClasspath;
+    final Collection<URI> testOnlyClasspath;
 
     public TestPolicyManager(
         Policy serverPolicy,
@@ -49,7 +49,7 @@ public class TestPolicyManager extends PolicyManager {
         Function<Class<?>, PolicyScope> scopeResolver,
         PathLookup pathLookup,
         Collection<Path> classpath,
-        Collection<Path> testOnlyClasspath
+        Collection<URI> testOnlyClasspath
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
@@ -184,14 +184,12 @@ public class TestPolicyManager extends PolicyManager {
             // This can happen for JDK classes
             return false;
         }
-        Path needle;
+        URI needle;
         try {
-            URI uri = codeSource.getLocation().toURI();
-            if (uri.getScheme().equals("jrt")) {
+            needle = codeSource.getLocation().toURI();
+            if (needle.getScheme().equals("jrt")) {
                 return false; // won't be on testOnlyClasspath
             }
-            // this MUST use the default filesystem rather than the mock filesystem used in tests
-            needle = FileSystems.getDefault().provider().getPath(uri);
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

@@ -384,4 +384,12 @@ public class EsqlCCSUtils {
         }
         return true;
     }
+
+    public static String inClusterName(String clusterAlias) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            return "in local cluster";
+        } else {
+            return "in remote cluster [" + clusterAlias + "]";
+        }
+    }
 }

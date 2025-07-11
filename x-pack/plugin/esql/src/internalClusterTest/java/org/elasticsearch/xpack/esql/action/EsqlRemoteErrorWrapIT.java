@@ -34,10 +34,9 @@ public class EsqlRemoteErrorWrapIT extends AbstractCrossClusterTestCase {
             );
         }
 
-        RemoteException wrappedError = expectThrows(
-            RemoteException.class,
-            () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":*," + REMOTE_CLUSTER_2 + ":* | LIMIT 100", false)
-        );
+        RemoteException wrappedError = expectThrows(RemoteException.class, () -> {
+            try (EsqlQueryResponse ignored = runQuery("FROM " + REMOTE_CLUSTER_1 + ":*," + REMOTE_CLUSTER_2 + ":* | LIMIT 100", false)) {}
+        });
         assertThat(wrappedError.getMessage(), is("Remote [cluster-a] encountered an error"));
     }
 }

@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -40,7 +39,6 @@ public class ToGeohash extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(INTEGER, (source, fieldEval) -> fieldEval),
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeohashFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeohashFromStringEvaluator.Factory::new)

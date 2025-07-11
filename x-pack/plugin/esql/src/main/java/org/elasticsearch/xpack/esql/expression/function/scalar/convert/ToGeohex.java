@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -36,7 +35,6 @@ public class ToGeohex extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGeohex", ToGeohex::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(INTEGER, (source, fieldEval) -> fieldEval),
         Map.entry(LONG, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeohexFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeohexFromStringEvaluator.Factory::new)

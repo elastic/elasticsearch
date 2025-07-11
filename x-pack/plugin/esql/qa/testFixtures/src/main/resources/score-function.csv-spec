@@ -7,11 +7,11 @@ required_capability: metadata_score
 required_capability: score_function
 required_capability: match_function
 
-// tag::score-single[]
+// tag::score-function[]
 FROM books METADATA _score
 | WHERE match(title, "Return") AND match(author, "Tolkien")
 | EVAL first_score = score(match(title, "Return")) 
-// end::score-single[]
+// end::score-function[]
 | KEEP book_no, title, _score, first_score
 | SORT book_no
 | LIMIT 5

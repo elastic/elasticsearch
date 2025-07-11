@@ -48,7 +48,7 @@ public class Score extends Function implements EvaluatorMapper {
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
         description = "Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.",
-        examples = { @Example(file = "score-function", tag = "score-single") }
+        examples = { @Example(file = "score-function", tag = "score-function") }
     )
     public Score(
         Source source,

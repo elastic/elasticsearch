@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.response;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionExceptionConvertible;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class IbmWatsonxErrorResponseEntity extends ErrorResponse {
+public class IbmWatsonxErrorResponseEntity extends ErrorResponse implements UnifiedChatCompletionExceptionConvertible {
+
+    private static final String WATSONX_ERROR = "watsonx_error";
 
     private IbmWatsonxErrorResponseEntity(String errorMessage) {
         super(errorMessage);
@@ -40,5 +46,10 @@ public class IbmWatsonxErrorResponseEntity extends ErrorResponse {
         }
 
         return ErrorResponse.UNDEFINED_ERROR;
+    }
+
+    @Override
+    public UnifiedChatCompletionException toUnifiedChatCompletionException(String errorMessage, RestStatus restStatus) {
+        return new UnifiedChatCompletionException(restStatus, errorMessage, WATSONX_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
 }

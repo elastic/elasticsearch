@@ -12,10 +12,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -34,17 +36,22 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String SERVER_ERROR_OBJECT = "Received an error response";
     public static final String BAD_REQUEST = "Received a bad request status code";
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
+    protected static final String STREAM_ERROR = "stream_error";
 
     protected final String requestType;
     protected final ResponseParser parseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
     private final boolean canHandleStreamingResponses;
 
-    public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorResponse> errorParseFunction) {
+    protected BaseResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction
+    ) {
         this(requestType, parseFunction, errorParseFunction, false);
     }
 
-    public BaseResponseHandler(
+    protected BaseResponseHandler(
         String requestType,
         ResponseParser parseFunction,
         Function<HttpResult, ErrorResponse> errorParseFunction,
@@ -109,19 +116,136 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     }
 
     protected Exception buildError(String message, Request request, HttpResult result) {
-        var errorEntityMsg = errorParseFunction.apply(result);
-        return buildError(message, request, result, errorEntityMsg);
+        var errorResponse = errorParseFunction.apply(result);
+        return buildError(message, request, result, errorResponse);
     }
 
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         return new ElasticsearchStatusException(
-            errorMessage(message, request, result, errorResponse, responseStatusCode),
+            extractErrorMessage(message, request, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)
         );
     }
 
-    protected String errorMessage(String message, Request request, HttpResult result, ErrorResponse errorResponse, int statusCode) {
+    /**
+     * Builds an error for a streaming request with a custom error type.
+     * This method is used when an error response is received from the external service.
+     * Only streaming requests support this format, and it should be used when the error response.
+     *
+     * @param message            the error message to include in the exception
+     * @param request            the request that caused the error
+     * @param result             the HTTP result containing the error response
+     * @param errorResponse      the parsed error response from the HTTP result
+     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
+     */
+    protected UnifiedChatCompletionException buildChatCompletionError(
+        String message,
+        Request request,
+        HttpResult result,
+        ErrorResponse errorResponse
+    ) {
+        assert request.isStreaming() : "Only streaming requests support this format";
+        var statusCode = result.response().getStatusLine().getStatusCode();
+        var errorMessage = extractErrorMessage(message, request, errorResponse, statusCode);
+        var restStatus = toRestStatus(statusCode);
+
+        if (errorResponse.errorStructureFound()
+            && errorResponse instanceof UnifiedChatCompletionExceptionConvertible chatCompletionExceptionConvertible) {
+            return chatCompletionExceptionConvertible.toUnifiedChatCompletionException(errorMessage, restStatus);
+        } else {
+            return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
+        }
+    }
+
+    /**
+     * Builds a default {@link UnifiedChatCompletionException} for a streaming request.
+     * This method is used when an error response is received but no specific error handling is implemented.
+     * Only streaming requests should use this method.
+     *
+     * @param errorResponse the error response parsed from the HTTP result
+     * @param errorMessage  the error message to include in the exception
+     * @param restStatus    the REST status code of the response
+     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
+     */
+    protected static UnifiedChatCompletionException buildDefaultChatCompletionError(
+        ErrorResponse errorResponse,
+        String errorMessage,
+        RestStatus restStatus
+    ) {
+        return new UnifiedChatCompletionException(
+            restStatus,
+            errorMessage,
+            createErrorType(errorResponse),
+            restStatus.name().toLowerCase(Locale.ROOT)
+        );
+    }
+
+    /**
+     * Builds a mid-stream error for a streaming request with a custom error type.
+     * This method is used when an error occurs while processing a streaming response and allows for custom error handling.
+     * Only streaming requests should use this method.
+     *
+     * @param inferenceEntityId the ID of the inference entity
+     * @param message           the error message
+     * @param e                the exception that caused the error, can be null
+     * @param midStreamErrorExtractor a function that extracts the mid-stream error response from the message
+     * @return a {@link UnifiedChatCompletionException} representing the mid-stream error
+     */
+    protected UnifiedChatCompletionException buildMidStreamChatCompletionError(
+        String inferenceEntityId,
+        String message,
+        Exception e,
+        Function<String, ErrorResponse> midStreamErrorExtractor
+    ) {
+        // Extract the error response from the message using the provided method
+        var error = midStreamErrorExtractor.apply(message);
+        // Check if the error response matches the expected type
+        if (error.errorStructureFound() && error instanceof MidStreamUnifiedChatCompletionExceptionConvertible midStreamError) {
+            // If it matches, we can build a custom mid-stream error exception
+            return midStreamError.toUnifiedChatCompletionException(inferenceEntityId);
+        } else if (e != null) {
+            // If the error response does not match, we can still return an exception based on the original throwable
+            return UnifiedChatCompletionException.fromThrowable(e);
+        } else {
+            // If no specific error response is found, we return a default mid-stream error
+            return buildDefaultMidStreamChatCompletionError(inferenceEntityId, error);
+        }
+    }
+
+    /**
+     * Builds a default mid-stream error for a streaming request.
+     * This method is used when no specific error response is found in the message.
+     * Only streaming requests should use this method.
+     *
+     * @param inferenceEntityId the ID of the inference entity
+     * @param errorResponse     the error response extracted from the message
+     * @return a {@link UnifiedChatCompletionException} representing the default mid-stream error
+     */
+    protected static UnifiedChatCompletionException buildDefaultMidStreamChatCompletionError(
+        String inferenceEntityId,
+        ErrorResponse errorResponse
+    ) {
+        return new UnifiedChatCompletionException(
+            RestStatus.INTERNAL_SERVER_ERROR,
+            format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, inferenceEntityId),
+            createErrorType(errorResponse),
+            STREAM_ERROR
+        );
+    }
+
+    /**
+     * Creates a string representation of the error type based on the provided ErrorResponse.
+     * This method is used to generate a human-readable error type for logging or exception messages.
+     *
+     * @param errorResponse the ErrorResponse object
+     * @return a string representing the error type
+     */
+    private static String createErrorType(ErrorResponse errorResponse) {
+        return errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown";
+    }
+
+    protected static String extractErrorMessage(String message, Request request, ErrorResponse errorResponse, int statusCode) {
         return (errorResponse == null
             || errorResponse.errorStructureFound() == false
             || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))
@@ -135,7 +259,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
                 );
     }
 
-    public static RestStatus toRestStatus(int statusCode) {
+    protected static RestStatus toRestStatus(int statusCode) {
         RestStatus code = null;
         if (statusCode < 500) {
             code = RestStatus.fromCode(statusCode);

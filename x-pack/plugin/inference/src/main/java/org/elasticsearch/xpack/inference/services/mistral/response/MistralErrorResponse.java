@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.mistral.response;
 
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionExceptionConvertible;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /**
  * Represents an error response entity for Mistral inference services.
@@ -65,10 +69,17 @@ import java.nio.charset.StandardCharsets;
  * }
  * </code></pre>
  */
-public class MistralErrorResponse extends ErrorResponse {
+public class MistralErrorResponse extends ErrorResponse implements UnifiedChatCompletionExceptionConvertible {
+
+    private static final String MISTRAL_ERROR = "mistral_error";
 
     public MistralErrorResponse(String message) {
         super(message);
+    }
+
+    @Override
+    public UnifiedChatCompletionException toUnifiedChatCompletionException(String errorMessage, RestStatus restStatus) {
+        return new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
 
     /**

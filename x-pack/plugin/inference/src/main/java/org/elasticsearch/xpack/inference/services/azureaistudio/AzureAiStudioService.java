@@ -84,7 +84,11 @@ public class AzureAiStudioService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public AzureAiStudioService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

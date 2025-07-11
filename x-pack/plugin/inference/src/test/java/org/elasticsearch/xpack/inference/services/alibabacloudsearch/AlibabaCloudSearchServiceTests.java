@@ -85,7 +85,12 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -95,7 +100,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
@@ -120,7 +127,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
@@ -147,7 +156,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
@@ -173,7 +184,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
@@ -194,7 +207,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
@@ -214,7 +229,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             var persistedConfig = getPersistedConfigMap(
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
@@ -239,7 +256,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             var persistedConfig = getPersistedConfigMap(
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
@@ -486,7 +505,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
+        try (
+            var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)
+        ) {
             String content = XContentHelper.stripWhitespace(
                 """
                     {

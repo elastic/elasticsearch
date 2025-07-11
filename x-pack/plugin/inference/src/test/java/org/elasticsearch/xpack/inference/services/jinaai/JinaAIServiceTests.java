@@ -100,7 +100,12 @@ public class JinaAIServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -1479,7 +1484,7 @@ public class JinaAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1544,7 +1549,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -1804,7 +1809,7 @@ public class JinaAIServiceTests extends ESTestCase {
     }
 
     public void testDoesNotSupportsStreaming() throws IOException {
-        try (var service = new JinaAIService(mock(), createWithEmptySettings(mock()),context)) {
+        try (var service = new JinaAIService(mock(), createWithEmptySettings(mock()), context)) {
             assertFalse(service.canStream(TaskType.COMPLETION));
             assertFalse(service.canStream(TaskType.ANY));
         }

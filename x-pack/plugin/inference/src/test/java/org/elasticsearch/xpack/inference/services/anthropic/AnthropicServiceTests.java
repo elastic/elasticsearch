@@ -90,7 +90,12 @@ public class AnthropicServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -490,7 +495,7 @@ public class AnthropicServiceTests extends ESTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), context)) {
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -681,6 +686,6 @@ public class AnthropicServiceTests extends ESTestCase {
     }
 
     private AnthropicService createServiceWithMockSender() {
-        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool),context);
+        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context);
     }
 }

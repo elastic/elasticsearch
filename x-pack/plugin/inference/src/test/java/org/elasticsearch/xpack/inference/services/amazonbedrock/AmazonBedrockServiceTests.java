@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
-import org.elasticsearch.cluster.service.ClusterService;
-
-import org.elasticsearch.inference.InferenceServiceExtension;
-
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 
 import org.elasticsearch.ElasticsearchException;
@@ -18,6 +14,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,6 +25,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -104,7 +102,12 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -1351,7 +1354,12 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
             mockClusterServiceEmpty()
         );
-        return new AmazonBedrockService(mock(HttpRequestSender.Factory.class), amazonBedrockFactory, createWithEmptySettings(threadPool), context);
+        return new AmazonBedrockService(
+            mock(HttpRequestSender.Factory.class),
+            amazonBedrockFactory,
+            createWithEmptySettings(threadPool),
+            context
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(

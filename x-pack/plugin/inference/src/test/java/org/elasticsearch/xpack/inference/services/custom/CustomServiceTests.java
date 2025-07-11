@@ -153,7 +153,11 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool), new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY));
+        return new CustomService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY)
+        );
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {

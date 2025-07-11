@@ -49,7 +49,12 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -96,7 +101,11 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
     }
 
     private static final class TestService extends HuggingFaceService {
-        TestService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+        TestService(
+            HttpRequestSender.Factory factory,
+            ServiceComponents serviceComponents,
+            InferenceServiceExtension.InferenceServiceFactoryContext context
+        ) {
             super(factory, serviceComponents, context);
         }
 

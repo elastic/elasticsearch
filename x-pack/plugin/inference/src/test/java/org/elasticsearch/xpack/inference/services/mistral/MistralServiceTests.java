@@ -115,7 +115,12 @@ public class MistralServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -312,7 +317,7 @@ public class MistralServiceTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -946,7 +951,7 @@ public class MistralServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = new Model(ModelConfigurationsTests.createRandomInstance());
 
             assertThrows(

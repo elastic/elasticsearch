@@ -105,7 +105,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -960,7 +965,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -1191,7 +1196,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {

@@ -46,7 +46,11 @@ public abstract class HuggingFaceBaseService extends SenderService {
      */
     static final int EMBEDDING_MAX_BATCH_SIZE = 20;
 
-    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public HuggingFaceBaseService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

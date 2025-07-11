@@ -55,7 +55,12 @@ public class SenderServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -107,7 +112,11 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     private static final class TestSenderService extends SenderService {
-        TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+        TestSenderService(
+            HttpRequestSender.Factory factory,
+            ServiceComponents serviceComponents,
+            InferenceServiceExtension.InferenceServiceFactoryContext context
+        ) {
             super(factory, serviceComponents, context);
         }
 

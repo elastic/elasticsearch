@@ -113,7 +113,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -639,7 +644,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool),context)) {
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             var thrownException = expectThrows(
@@ -1022,7 +1027,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     }
 
     private IbmWatsonxService createIbmWatsonxService() {
-        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool),context);
+        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context);
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {

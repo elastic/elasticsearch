@@ -301,7 +301,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         if ("semantic".equals(queryBuilder.getWriteableName())) {
             containsSemanticQuery = true;
         } else if (queryBuilder instanceof BoolQueryBuilder boolQuery) {
-            return boolQuery.must().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
+            containsSemanticQuery = boolQuery.must().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
                 || boolQuery.mustNot().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
                 || boolQuery.should().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery)
                 || boolQuery.filter().stream().anyMatch(FieldCapabilitiesRequest::containsSemanticQuery);

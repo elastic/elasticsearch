@@ -229,7 +229,8 @@ public abstract class FullTextFunction extends Function
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
             plan.forEachExpression(Score.class, scoreFunction -> {
                 checkScoreFunction(plan, failures, scoreFunction);
-                plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); });
+                plan.forEachExpression(FullTextFunction.class, scoredFTFs::add);
+            });
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 if (scoredFTFs.remove(ftf) == false) {
                     failures.add(

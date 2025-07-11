@@ -81,10 +81,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
     }
 
+    private abstract static class ChildCentroidQueryScorer extends BaseCentroidQueryScorer implements CentroidWClusterOffsetQueryScorer {}
+
     private abstract static class ParentCentroidQueryScorer extends BaseCentroidQueryScorer implements CentroidWChildrenQueryScorer {}
 
     @Override
-    CentroidQueryScorer getCentroidScorer(
+    ChildCentroidQueryScorer getChildCentroidScorer(
         FieldInfo fieldInfo,
         int numParentCentroids,
         int numCentroids,
@@ -106,14 +108,16 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             quantized[i] = (byte) scratch[i];
         }
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
-        return new BaseCentroidQueryScorer() {
+        return new ChildCentroidQueryScorer() {
             int currentCentroid = -1;
             private final float[] centroid = new float[fieldInfo.getVectorDimension()];
             private final float[] centroidCorrectiveValues = new float[3];
+            private int clusterOrdinal;
             private final long quantizedVectorByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+            private final long quantizedVectorNodeByteSize = quantizedVectorByteSize + Integer.BYTES;
             private final long parentNodeByteSize = quantizedVectorByteSize + 2 * Integer.BYTES;
             private final long quantizedCentroidsOffset = numParentCentroids * parentNodeByteSize;
-            private final long rawCentroidsOffset = numParentCentroids * parentNodeByteSize + numCentroids * quantizedVectorByteSize;
+            private final long rawCentroidsOffset = numParentCentroids * parentNodeByteSize + numCentroids * quantizedVectorNodeByteSize;
             private final long rawCentroidsByteSize = (long) Float.BYTES * fieldInfo.getVectorDimension();
 
             @Override
@@ -137,16 +141,30 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 assert start >= 0;
                 assert end > 0;
                 assert start + end <= numCentroids;
-                centroids.seek(quantizedCentroidsOffset + quantizedVectorByteSize * start);
+                centroids.seek(quantizedCentroidsOffset + quantizedVectorNodeByteSize * start);
                 for (int i = start; i < end; i++) {
                     queue.add(i, score());
                 }
+            }
+
+            // TODO: this causes seeks refactor to move this to the end of the block in this file
+            @Override
+            public int getClusterOrdinal(int centroidOrdinal) throws IOException {
+                if (centroidOrdinal != currentCentroid) {
+                    centroids.seek(quantizedCentroidsOffset + quantizedVectorNodeByteSize * centroidOrdinal + quantizedVectorByteSize);
+                    clusterOrdinal = centroids.readInt();
+                }
+                return clusterOrdinal;
             }
 
             private float score() throws IOException {
                 final float qcDist = scorer.int4DotProduct(quantized);
                 centroids.readFloats(centroidCorrectiveValues, 0, 3);
                 final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
+
+                // TODO: should we consider a different format such as moving these to the beginning of the file to benefit bulk read
+                centroids.skipBytes(Integer.BYTES);
+
                 return int4QuantizedScore(
                     qcDist,
                     queryParams,
@@ -198,7 +216,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             @Override
             public float[] centroid(int centroidOrdinal) throws IOException {
-                throw new UnsupportedOperationException("can't score at the parent level");
+                throw new IllegalStateException("can't score at the parent level");
             }
 
             private void readChildDetails(int centroidOrdinal) throws IOException {

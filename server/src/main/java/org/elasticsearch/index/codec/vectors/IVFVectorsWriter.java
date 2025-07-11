@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import com.carrotsearch.hppc.IntIntMap;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
@@ -144,8 +146,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         IndexInput centroidsInput,
         int numParentCentroids,
         int numCentroids,
+        int numClusters,
         FieldInfo fieldInfo,
-        float[] globalCentroid
+        float[] globalCentroid,
+        IntIntMap clusterToCentroidMap
     ) throws IOException;
 
     @Override
@@ -179,6 +183,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             writeMeta(
                 fieldWriter.fieldInfo,
                 centroidAssignments.numParentCentroids(),
+                centroidAssignments.numCentroids(),
                 centroidOffset,
                 centroidLength,
                 offsets,
@@ -291,8 +296,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final long centroidLength;
             final int numParentCentroids;
             final int numCentroids;
+            final int numClusters;
             final int[][] assignmentsByCluster;
             final float[] calculatedGlobalCentroid = new float[fieldInfo.getVectorDimension()];
+            IntIntMap clusterToCentroidMap;
             String centroidTempName = null;
             IndexOutput centroidTemp = null;
             success = false;
@@ -308,7 +315,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 );
                 numParentCentroids = centroidAssignments.numParentCentroids();
                 numCentroids = centroidAssignments.numCentroids();
+                numClusters = centroidAssignments.centroids().length;
                 assignmentsByCluster = centroidAssignments.assignmentsByCluster();
+                assert centroidAssignments.clusterToCentroidMap() != null;
+                clusterToCentroidMap = centroidAssignments.clusterToCentroidMap();
                 success = true;
             } finally {
                 if (success == false && centroidTempName != null) {
@@ -319,7 +329,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try {
                 if (numCentroids == 0) {
                     centroidOffset = ivfCentroids.getFilePointer();
-                    writeMeta(fieldInfo, numParentCentroids, centroidOffset, 0, new long[0], null);
+                    writeMeta(fieldInfo, numParentCentroids, numCentroids, centroidOffset, 0, new long[0], null);
                     CodecUtil.writeFooter(centroidTemp);
                     IOUtils.close(centroidTemp);
                     return;
@@ -335,8 +345,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         centroidsInput,
                         numParentCentroids,
                         numCentroids,
+                        numClusters,
                         fieldInfo,
-                        calculatedGlobalCentroid
+                        calculatedGlobalCentroid,
+                        clusterToCentroidMap
                     );
 
                     // build a float vector values with random access
@@ -349,7 +361,15 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         assignmentsByCluster
                     );
                     assert offsets.length == centroidSupplier.size();
-                    writeMeta(fieldInfo, numParentCentroids, centroidOffset, centroidLength, offsets, calculatedGlobalCentroid);
+                    writeMeta(
+                        fieldInfo,
+                        numParentCentroids,
+                        numCentroids,
+                        centroidOffset,
+                        centroidLength,
+                        offsets,
+                        calculatedGlobalCentroid
+                    );
                 }
             } finally {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, centroidTempName);
@@ -435,6 +455,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private void writeMeta(
         FieldInfo field,
         int parentCentroidCount,
+        int childCentroidCount,
         long centroidOffset,
         long centroidLength,
         long[] offsets,
@@ -444,6 +465,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
         ivfMeta.writeInt(parentCentroidCount);
+        ivfMeta.writeInt(childCentroidCount);
         ivfMeta.writeLong(centroidOffset);
         ivfMeta.writeLong(centroidLength);
         ivfMeta.writeVInt(offsets.length);
@@ -531,4 +553,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             return centroids[centroidOrdinal];
         }
     }
+
+    record CentroidAssignments(
+        int numParentCentroids,
+        int numCentroids,
+        float[][] centroids,
+        int[][] assignmentsByCluster,
+        IntIntMap clusterToCentroidMap
+    ) {}
 }

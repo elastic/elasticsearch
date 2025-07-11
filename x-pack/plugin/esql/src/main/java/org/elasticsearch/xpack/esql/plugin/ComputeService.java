@@ -137,6 +137,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
+    private final PhysicalSettings physicalSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -175,6 +176,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
+        this.physicalSettings = new PhysicalSettings(clusterService);
     }
 
     public void execute(
@@ -558,7 +560,7 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            new PhysicalSettings(clusterService)
+            physicalSettings
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

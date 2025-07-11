@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 /**
  * Values for cluster level settings used in physical planning.
@@ -24,9 +27,11 @@ public class PhysicalSettings {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<ByteSizeValue> VALUES_LOADING_JUMBO_SIZE = Setting.byteSizeSetting(
-        "esql.values_loading_jumbo_size",
-        ByteSizeValue.ofMb(1),
+    public static final Setting<ByteSizeValue> VALUES_LOADING_JUMBO_SIZE = new Setting<>("esql.values_loading_jumbo_size", settings -> {
+        long proportional = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 1024;
+        return ByteSizeValue.ofBytes(Math.max(proportional, ByteSizeValue.ofMb(1).getBytes())).getStringRep();
+    },
+        s -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, "esql.values_loading_jumbo_size"),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

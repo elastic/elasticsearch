@@ -533,6 +533,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                                 queryPhaseResultConsumer.failure.compareAndSet(null, cause);
                             }
+                            logger.debug("Raising phase failure for " + cause + " while executing search on node " + routing.nodeId());
                             onPhaseFailure(getName(), "", cause);
                         }
                     }

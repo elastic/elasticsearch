@@ -58,7 +58,7 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
             case Knn knn:
                 // Create a copy of the filters, and check the number of existing filters. We don't check for equality
                 // as having two knn functions on opposite sides of the And is valid, but could lead to infinite number
-                // of changes as the knn functions would recveive the other knn functions as filters and would be constantly
+                // of changes as the knn functions would receive the other knn functions as filters and would be constantly
                 // updating
                 List<Expression> newFilters = new ArrayList<>(filters);
                 if (newFilters.size() == knn.filterExpressions().size()) {

@@ -199,9 +199,7 @@ public abstract class FullTextFunction extends Function
             Expression condition = f.condition();
 
             if (condition instanceof Score) {
-                failures.add(
-                    fail(condition, "[SCORE] function can't be used in WHERE")
-                );
+                failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
             }
 
             List.of(QueryString.class, Kql.class).forEach(functionClass -> {

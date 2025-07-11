@@ -10,12 +10,12 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
@@ -53,7 +53,6 @@ public class TestPolicyManager extends PolicyManager {
     ) {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
-        ;
         this.testOnlyClasspath = testOnlyClasspath;
         reset();
     }
@@ -191,7 +190,8 @@ public class TestPolicyManager extends PolicyManager {
             if (uri.getScheme().equals("jrt")) {
                 return false; // won't be on testOnlyClasspath
             }
-            needle = PathUtils.get(uri);
+            // this MUST use the default filesystem rather than the mock filesystem used in tests
+            needle = FileSystems.getDefault().provider().getPath(uri);
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

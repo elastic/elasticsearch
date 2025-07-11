@@ -242,12 +242,17 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ElementType elementType,
         BlockLoader loader
     ) {
-        return new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1),List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
-            if (shardIdx < 0 || shardIdx >= INDICES.size()) {
-                fail("unexpected shardIdx [" + shardIdx + "]");
-            }
-            return loader;
-        })), shardContexts, 0);
+        return new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
+                if (shardIdx < 0 || shardIdx >= INDICES.size()) {
+                    fail("unexpected shardIdx [" + shardIdx + "]");
+                }
+                return loader;
+            })),
+            shardContexts,
+            0
+        );
     }
 
     protected SourceOperator simpleInput(DriverContext context, int size) {
@@ -617,7 +622,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             cases.removeAll(b);
             tests.addAll(b);
             operators.add(
-                new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1),b.stream().map(i -> i.info).toList(), shardContexts, 0).get(driverContext)
+                new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1), b.stream().map(i -> i.info).toList(), shardContexts, 0).get(
+                    driverContext
+                )
             );
         }
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -721,7 +728,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
         List<Operator> operators = cases.stream()
-            .map(i -> new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1),List.of(i.info), shardContexts, 0).get(driverContext))
+            .map(i -> new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1), List.of(i.info), shardContexts, 0).get(driverContext))
             .toList();
         if (allInOnePage) {
             input = List.of(CannedSourceOperator.mergePages(input));
@@ -1392,7 +1399,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 driverContext,
                 simpleInput(driverContext, 10),
                 List.of(
-                    new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1),
+                    new ValuesSourceReaderOperator.Factory(
+                        ByteSizeValue.ofGb(1),
                         List.of(
                             new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
                             new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
@@ -1426,7 +1434,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         Block.MvOrdering ordering = randomFrom(Block.MvOrdering.values());
         List<FieldCase> cases = infoAndChecksForEachType(ordering, ordering);
 
-        ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1),
+        ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
             0
@@ -1471,7 +1480,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             );
             // TODO add index2
             MappedFieldType ft = mapperService(indexKey).fieldType("key");
-            var readerFactory = new ValuesSourceReaderOperator.Factory(ByteSizeValue.ofGb(1),
+            var readerFactory = new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, shardIdx -> {
                     seenShards.add(shardIdx);
                     return ft.blockLoader(blContext());

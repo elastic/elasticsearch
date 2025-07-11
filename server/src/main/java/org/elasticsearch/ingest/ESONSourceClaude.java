@@ -17,9 +17,12 @@ import org.elasticsearch.xcontent.XContentString;
 import java.io.IOException;
 import org.elasticsearch.common.bytes.BytesReference;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 public class ESONSourceClaude {
 
@@ -28,27 +31,40 @@ public class ESONSourceClaude {
     public static class Builder {
 
         private final BytesStreamOutput bytes = new BytesStreamOutput();
+        // TODO: Implement key cache when makes sense
         private final Map<BytesRef, String> keyCache;
+        // TODO: Implement ordered
+        private final boolean ordered;
 
-        public Builder() {
-            this(new HashMap<>());
+        public Builder(boolean ordered) {
+            this(new HashMap<>(), ordered);
         }
 
-        public Builder(Map<BytesRef, String> keyCache) {
+        public Builder(Map<BytesRef, String> keyCache, boolean ordered) {
             this.keyCache = keyCache;
+            this.ordered = ordered;
         }
 
-        public ESONObject parse(XContentParser parser) throws IOException {
+        public ESONSourceClaude parse(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Expected START_OBJECT but got " + token);
             }
-            ESONObject result = (ESONObject) parseObject(parser);
-            return result;
+
+            // Parse into intermediate structure
+            ParsedObject rootObject = parseObject(parser);
+
+            // Build final structure with access to bytes
+            BytesReference finalBytes = bytes.bytes();
+            Values values = new Values(finalBytes);
+
+            ESONObject finalRoot = buildESONObject(rootObject, values);
+            return new ESONSourceClaude(finalRoot, finalBytes);
         }
 
-        private Type parseObject(XContentParser parser) throws IOException {
-            Map<String, Type> map = new HashMap<>();
+        // Intermediate parsing structures (no access to final bytes yet)
+        private ParsedObject parseObject(XContentParser parser) throws IOException {
+            Map<String, ParsedType> map = new HashMap<>();
             XContentParser.Token token;
             String currentFieldName = null;
 
@@ -72,11 +88,11 @@ public class ESONSourceClaude {
                         }
                 }
             }
-            return new ESONObject(map);
+            return new ParsedObject(map);
         }
 
-        private ESONArray parseArray(XContentParser parser) throws IOException {
-            List<Type> elements = new ArrayList<>();
+        private ParsedArray parseArray(XContentParser parser) throws IOException {
+            List<ParsedType> elements = new ArrayList<>();
             XContentParser.Token token;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -96,17 +112,15 @@ public class ESONSourceClaude {
                         }
                 }
             }
-            return new ESONArray(elements);
+            return new ParsedArray(elements);
         }
 
-        private Value parseValue(XContentParser parser, XContentParser.Token token) throws IOException {
+        private ParsedValue parseValue(XContentParser parser, XContentParser.Token token) throws IOException {
             long position = bytes.position();
             ValueType valueType;
 
             switch (token) {
-                case VALUE_NUMBER -> {
-                    valueType = handleNumber(parser);
-                }
+                case VALUE_NUMBER -> valueType = handleNumber(parser);
                 case VALUE_STRING -> {
                     XContentString xContentString = parser.optimizedText();
                     XContentString.UTF8Bytes utf8Bytes = xContentString.bytes();
@@ -126,7 +140,7 @@ public class ESONSourceClaude {
                 default -> throw new IllegalStateException("Unexpected token [" + token + "]");
             }
 
-            return new Value(Math.toIntExact(position), valueType);
+            return new ParsedValue(Math.toIntExact(position), valueType);
         }
 
         private ValueType handleNumber(XContentParser parser) throws IOException {
@@ -191,50 +205,53 @@ public class ESONSourceClaude {
             writeByteArray(utf8Bytes, 0, utf8Bytes.length);
         }
 
-        public ESONSourceClaude build() {
-            return new ESONSourceClaude(bytes.bytes());
+        // Convert intermediate structures to final structures with Values access
+        private ESONObject buildESONObject(ParsedObject parsed, Values values) {
+            Map<String, Type> finalMap = new HashMap<>();
+            for (Map.Entry<String, ParsedType> entry : parsed.map.entrySet()) {
+                finalMap.put(entry.getKey(), buildType(entry.getValue(), values));
+            }
+            return new ESONObject(finalMap, () -> values);
+        }
+
+        private ESONArray buildESONArray(ParsedArray parsed, Values values) {
+            List<Type> finalElements = new ArrayList<>();
+            for (ParsedType element : parsed.elements) {
+                finalElements.add(buildType(element, values));
+            }
+            return new ESONArray(finalElements);
+        }
+
+        private Type buildType(ParsedType parsed, Values values) {
+            return switch (parsed) {
+                case ParsedObject obj -> buildESONObject(obj, values);
+                case ParsedArray arr -> buildESONArray(arr, values);
+                case ParsedValue val -> new Value(val.position, val.valueType);
+                case NullValue nullVal -> nullVal;
+                default -> throw new IllegalStateException("Unknown parsed type: " + parsed);
+            };
         }
     }
 
+    // Intermediate parsing types (no Values access)
+    private interface ParsedType {}
+
+    private record ParsedObject(Map<String, ParsedType> map) implements ParsedType {}
+
+    private record ParsedArray(List<ParsedType> elements) implements ParsedType {}
+
+    private record ParsedValue(int position, ValueType valueType) implements ParsedType {}
+
+    private final ESONObject rootObject;
     private final BytesReference data;
 
-    private ESONSourceClaude(BytesReference data) {
+    private ESONSourceClaude(ESONObject rootObject, BytesReference data) {
+        this.rootObject = rootObject;
         this.data = data;
     }
 
-    public int readInt(int position) {
-        return data.getInt(position);
-    }
-
-    public long readLong(int position) {
-        // TODO: Not LE
-        return data.getLongLE(position);
-    }
-
-    public float readFloat(int position) {
-        return Float.intBitsToFloat(data.getInt(position));
-    }
-
-    public double readDouble(int position) {
-        return Double.longBitsToDouble(readLong(position));
-    }
-
-    public boolean readBoolean(int position) {
-        return data.get(position) != 0;
-    }
-
-    public byte[] readByteArray(int position) {
-        int length = data.getInt(position);
-        byte[] result = new byte[length];
-        for (int i = 0; i < length; i++) {
-            result[i] = data.get(position + 4 + i);
-        }
-        return result;
-    }
-
-    public String readString(int position) {
-        byte[] utf8Bytes = readByteArray(position);
-        return new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8);
+    public ESONObject root() {
+        return rootObject;
     }
 
     public enum ValueType {
@@ -249,9 +266,89 @@ public class ESONSourceClaude {
 
     public interface Type {}
 
-    public record ESONObject(Map<String, Type> map) implements Type {
+    public record ESONObject(Map<String, Type> map, Supplier<Values> valuesSupplier) implements Type, Map<String, Object> {
 
-        public Type get(String key) {
+        // Map interface implementation
+        @Override
+        public int size() {
+            return map.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return map.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return map.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            // This would be expensive to implement efficiently
+            throw new UnsupportedOperationException("containsValue not supported");
+        }
+
+        @Override
+        public Object get(Object key) {
+            Type type = map.get(key);
+            if (type == null) {
+                return null;
+            }
+            return convertTypeToValue(type);
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            throw new UnsupportedOperationException("ESONObject is read-only");
+        }
+
+        @Override
+        public Object remove(Object key) {
+            throw new UnsupportedOperationException("ESONObject is read-only");
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ?> m) {
+            throw new UnsupportedOperationException("ESONObject is read-only");
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("ESONObject is read-only");
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return map.keySet();
+        }
+
+        @Override
+        public Collection<Object> values() {
+            return map.values().stream().map(this::convertTypeToValue).toList();
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            return map.entrySet()
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> convertTypeToValue(entry.getValue())))
+                .entrySet();
+        }
+
+        private Object convertTypeToValue(Type type) {
+            return switch (type) {
+                case ESONObject obj -> obj;
+                case ESONArray arr -> arr;
+                case NullValue nullVal -> null;
+                case Value val -> val.getValue(valuesSupplier.get());
+                default -> throw new IllegalStateException("Unknown type: " + type);
+            };
+        }
+
+        // Direct access methods for better performance
+        public Type getType(String key) {
             return map.get(key);
         }
 
@@ -274,7 +371,7 @@ public class ESONSourceClaude {
     public record Value(int position, ValueType valueType) implements Type {
 
         // Convenience methods to read values
-        public Object getValue(ESONSourceClaude source) {
+        public Object getValue(Values source) {
             return switch (valueType) {
                 case INT -> source.readInt(position);
                 case LONG -> source.readLong(position);
@@ -287,5 +384,44 @@ public class ESONSourceClaude {
         }
     }
 
-    public static class NullValue implements Type {}
+    public static class NullValue implements Type, ParsedType {}
+
+    record Values(BytesReference data) {
+
+        public int readInt(int position) {
+            return data.getInt(position);
+        }
+
+        public long readLong(int position) {
+            long high = readInt(position) & 0xFFFFFFFFL;
+            long low = readInt(position + 4) & 0xFFFFFFFFL;
+            return (high << 32) | low;
+        }
+
+        public float readFloat(int position) {
+            return Float.intBitsToFloat(data.getInt(position));
+        }
+
+        public double readDouble(int position) {
+            return Double.longBitsToDouble(readLong(position));
+        }
+
+        public boolean readBoolean(int position) {
+            return data.get(position) != 0;
+        }
+
+        public byte[] readByteArray(int position) {
+            int length = data.getInt(position);
+            byte[] result = new byte[length];
+            for (int i = 0; i < length; i++) {
+                result[i] = data.get(position + 4 + i);
+            }
+            return result;
+        }
+
+        public String readString(int position) {
+            byte[] utf8Bytes = readByteArray(position);
+            return new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
 }

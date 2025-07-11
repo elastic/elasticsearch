@@ -95,7 +95,7 @@ public final class SortedSetOrdinalsBuilder implements BlockLoader.OrdinalsBuild
             } catch (IOException e) {
                 throw new UncheckedIOException("error resolving ordinals", e);
             }
-            mappedOrds = shiftOrdinals(ordinals, newOrds, minOrd);
+            mappedOrds = remapOrdinals(ordinals, newOrds, minOrd);
             final OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(mappedOrds, dict);
             dict = null;
             mappedOrds = null;
@@ -105,7 +105,7 @@ public final class SortedSetOrdinalsBuilder implements BlockLoader.OrdinalsBuild
         }
     }
 
-    private IntBlock shiftOrdinals(IntBlock ordinals, int[] newOrds, int shiftOrd) {
+    private IntBlock remapOrdinals(IntBlock ordinals, int[] newOrds, int shiftOrd) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(totalValueCount)) {
             for (int p = 0; p < ordinals.getPositionCount(); p++) {
                 int valueCount = ordinals.getValueCount(p);

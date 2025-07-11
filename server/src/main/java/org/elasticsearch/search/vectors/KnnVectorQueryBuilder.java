@@ -522,7 +522,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
-        ArrayList<Query> filtersInitial = new ArrayList<>(filterQueries.size());
+        List<Query> filtersInitial = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : this.filterQueries) {
             filtersInitial.add(query.toQuery(context));
         }
@@ -534,7 +534,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         BitSetProducer parentBitSet = null;
         Query filterQuery;
         if (parentPath == null) {
-            filterQuery = builFilterQuery(filtersInitial);
+            filterQuery = buildFilterQuery(filtersInitial);
         } else {
             final Query parentFilter;
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
@@ -565,7 +565,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 }
                 filterAdjusted.add(f);
             }
-            filterQuery = builFilterQuery(filterAdjusted);
+            filterQuery = buildFilterQuery(filterAdjusted);
         }
 
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
@@ -584,7 +584,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
     }
 
-    private static Query builFilterQuery(ArrayList<Query> filters) {
+    private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
             builder.add(f, BooleanClause.Occur.FILTER);

@@ -21,6 +21,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetDesiredBalanceAction extends BaseRestHandler {
@@ -43,5 +44,10 @@ public class RestGetDesiredBalanceAction extends BaseRestHandler {
             req,
             new RestRefCountedChunkedToXContentListener<>(restChannel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("cluster_balance-node_balance_stats-node_weights_returned");
     }
 }

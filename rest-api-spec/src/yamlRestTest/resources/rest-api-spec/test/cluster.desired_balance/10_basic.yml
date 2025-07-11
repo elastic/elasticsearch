@@ -6,6 +6,13 @@ setup:
 
 ---
 "Test get empty desired balance":
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
 
   - do:
       _internal.get_desired_balance: { }
@@ -21,6 +28,14 @@ setup:
 
 ---
 "Test get desired balance for a single shard":
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
+
   - do:
       indices.create:
         index: test
@@ -64,6 +79,14 @@ setup:
   - requires:
       cluster_features: ["gte_v8.7.0"]
       reason: "cluster_balance_stats added in in 8.7.0"
+
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
 
   - do:
       cluster.state: {}
@@ -113,6 +136,14 @@ setup:
       cluster_features: [gte_v8.8.0]
       reason: "cluster_info added in in 8.8.0"
 
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
+
   - do:
       _internal.get_desired_balance: { }
 
@@ -124,6 +155,14 @@ setup:
   - requires:
       cluster_features: ["gte_v8.8.0"]
       reason: "node_id and roles added in in 8.8.0"
+
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
 
   - do:
       cluster.state: {}
@@ -143,6 +182,14 @@ setup:
   - requires:
       cluster_features: ["gte_v8.8.0"]
       reason: "tier_preference added in in 8.8.0"
+
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -169,6 +216,14 @@ setup:
       cluster_features: ["gte_v8.8.0"]
       reason: "computed_shard_movements added in in 8.8.0"
 
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
+
   - do:
       _internal.get_desired_balance: { }
 
@@ -186,6 +241,14 @@ setup:
           path: /_internal/desired_balance
           capabilities: [ plain_text_empty_response ]
 
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
+
   - do:
       _internal.delete_desired_balance: { }
 
@@ -195,6 +258,14 @@ setup:
   - requires:
       cluster_features: ["gte_v8.12.0"]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
+
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
 
   - do:
       indices.create:
@@ -233,6 +304,14 @@ setup:
   - requires:
       cluster_features: [ "gte_v8.12.0" ]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
+
+  - requires:
+      capabilities:
+        - method: GET
+          path: _internal/desired_balance
+          capabilities: [ cluster_balance-node_balance_stats-node_weights_returned ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights returned in the node balance stats was added in version 9.2.0"
 
   - do:
       _internal.get_desired_balance: { }

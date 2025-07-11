@@ -276,9 +276,9 @@ public enum DataType {
     // wild estimate for size, based on some test data (airport_city_boundaries)
     CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
     GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
-    GEOHASH(builder().typeName("GEOHASH").estimatedSize(Long.BYTES)),
-    GEOTILE(builder().typeName("GEOTILE").estimatedSize(Long.BYTES)),
-    GEOHEX(builder().typeName("GEOHEX").estimatedSize(Long.BYTES)),
+    GEOHASH(builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES)),
+    GEOTILE(builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES)),
+    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES)),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:

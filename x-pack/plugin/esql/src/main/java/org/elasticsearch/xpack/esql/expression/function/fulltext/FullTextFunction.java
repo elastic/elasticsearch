@@ -409,7 +409,7 @@ public abstract class FullTextFunction extends Function
         return new LuceneQueryScoreEvaluator.Factory(shardConfigs);
     }
 
-    protected static void populateOptionsMap(
+    public static void populateOptionsMap(
         final MapExpression options,
         final Map<String, Object> optionsMap,
         final TypeResolutions.ParamOrdinal paramOrdinal,

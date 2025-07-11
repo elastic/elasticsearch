@@ -739,15 +739,26 @@ public class Lucene {
      * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
      */
     public static SegmentReader segmentReader(LeafReader reader) {
+        SegmentReader segmentReader = tryUnwrapSegmentReader(reader);
+        if (segmentReader == null) {
+            throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        }
+        return segmentReader;
+    }
+
+    /**
+     * Tries to extract a segment reader from the given index reader. Unlike {@link #segmentReader(LeafReader)} this method returns
+     * null if no SegmentReader can be unwrapped instead of throwing an exception.
+     */
+    public static SegmentReader tryUnwrapSegmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
             return (SegmentReader) reader;
         } else if (reader instanceof final FilterLeafReader fReader) {
-            return segmentReader(FilterLeafReader.unwrap(fReader));
+            return tryUnwrapSegmentReader(FilterLeafReader.unwrap(fReader));
         } else if (reader instanceof final FilterCodecReader fReader) {
-            return segmentReader(FilterCodecReader.unwrap(fReader));
+            return tryUnwrapSegmentReader(FilterCodecReader.unwrap(fReader));
         }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        return null;
     }
 
     @SuppressForbidden(reason = "Version#parseLeniently() used in a central place")

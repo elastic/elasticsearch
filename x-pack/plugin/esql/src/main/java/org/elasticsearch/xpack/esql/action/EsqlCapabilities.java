@@ -1276,9 +1276,9 @@ public class EsqlCapabilities {
         TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         /**
-         * Support for the {@code EMBED_TEXT} function for generating dense vector embeddings.
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
          */
-        EMBED_TEXT_FUNCTION(Build.current().isSnapshot()),
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Forbid usage of brackets in unquoted index and enrich policy names

@@ -42,7 +42,7 @@ public class KeywordEsField extends EsField {
         boolean normalized,
         boolean isAlias
     ) {
-        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
+        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, TimeSeriesFieldType.UNKNOWN);
     }
 
     protected KeywordEsField(
@@ -52,9 +52,10 @@ public class KeywordEsField extends EsField {
         boolean hasDocValues,
         int precision,
         boolean normalized,
-        boolean isAlias
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        super(name, esDataType, properties, hasDocValues, isAlias);
+        super(name, esDataType, properties, hasDocValues, isAlias, timeSeriesFieldType);
         this.precision = precision;
         this.normalized = normalized;
     }
@@ -67,7 +68,8 @@ public class KeywordEsField extends EsField {
             in.readBoolean(),
             in.readInt(),
             in.readBoolean(),
-            in.readBoolean()
+            in.readBoolean(),
+            readTimeSeriesFieldType(in)
         );
     }
 
@@ -79,6 +81,7 @@ public class KeywordEsField extends EsField {
         out.writeInt(precision);
         out.writeBoolean(normalized);
         out.writeBoolean(isAlias());
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

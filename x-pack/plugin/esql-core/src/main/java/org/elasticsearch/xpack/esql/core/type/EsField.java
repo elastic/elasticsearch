@@ -26,7 +26,40 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  */
 public class EsField implements Writeable {
 
-    private static Map<String, Writeable.Reader<? extends EsField>> readers = Map.ofEntries(
+    /**
+     * Fields in a TSDB can be either dimensions or metrics.  This enum provides a way to store, serialize, and operate on those field
+     * roles within the ESQL query processing pipeline.
+     */
+    public enum TimeSeriesFieldType implements Writeable {
+        UNKNOWN(0),
+        NONE(1),
+        METRIC(2),
+        DIMENSION(3);
+
+        private final int id;
+
+        TimeSeriesFieldType(int id) {
+            this.id = id;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(id);
+        }
+
+        public static TimeSeriesFieldType readFromStream(StreamInput in) throws IOException {
+            int id = in.readVInt();
+            return switch (id) {
+                case 0 -> UNKNOWN;
+                case 1 -> NONE;
+                case 2 -> METRIC;
+                case 3 -> DIMENSION;
+                default -> throw new IOException("Unexpected value for TimeSeriesFieldType: " + id);
+            };
+        }
+    }
+
+    private static Map<String, Reader<? extends EsField>> readers = Map.ofEntries(
         Map.entry("DateEsField", DateEsField::new),
         Map.entry("EsField", EsField::new),
         Map.entry("InvalidMappedField", InvalidMappedField::new),
@@ -37,7 +70,7 @@ public class EsField implements Writeable {
         Map.entry("UnsupportedEsField", UnsupportedEsField::new)
     );
 
-    public static Writeable.Reader<? extends EsField> getReader(String name) {
+    public static Reader<? extends EsField> getReader(String name) {
         Reader<? extends EsField> result = readers.get(name);
         if (result == null) {
             throw new IllegalArgumentException("Invalid EsField type [" + name + "]");
@@ -50,17 +83,41 @@ public class EsField implements Writeable {
     private final Map<String, EsField> properties;
     private final String name;
     private final boolean isAlias;
+    // Because the subclasses all reimplement serialization, this needs to be writeable from subclass constructors
+    private final TimeSeriesFieldType timeSeriesFieldType;
 
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
-        this(name, esDataType, properties, aggregatable, false);
+        this(name, esDataType, properties, aggregatable, false, TimeSeriesFieldType.UNKNOWN);
+    }
+
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        this(name, esDataType, properties, aggregatable, false, timeSeriesFieldType);
     }
 
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
+        this(name, esDataType, properties, aggregatable, isAlias, TimeSeriesFieldType.UNKNOWN);
+    }
+
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
         this.properties = properties;
         this.isAlias = isAlias;
+        this.timeSeriesFieldType = timeSeriesFieldType;
     }
 
     public EsField(StreamInput in) throws IOException {
@@ -69,6 +126,7 @@ public class EsField implements Writeable {
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
+        this.timeSeriesFieldType = readTimeSeriesFieldType(in);
     }
 
     private DataType readDataType(StreamInput in) throws IOException {
@@ -107,6 +165,21 @@ public class EsField implements Writeable {
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);
+        writeTimeSeriesFieldType(out);
+    }
+
+    protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+            this.timeSeriesFieldType.writeTo(out);
+        }
+    }
+
+    protected static TimeSeriesFieldType readTimeSeriesFieldType(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+            return TimeSeriesFieldType.readFromStream(in);
+        } else {
+            return TimeSeriesFieldType.UNKNOWN;
+        }
     }
 
     /**

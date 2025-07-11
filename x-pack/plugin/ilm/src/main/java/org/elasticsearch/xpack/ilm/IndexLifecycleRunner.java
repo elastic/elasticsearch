@@ -371,7 +371,7 @@ class IndexLifecycleRunner {
                             // Delete needs special handling, because after this step we
                             // will no longer have access to any information about the
                             // index since it will be... deleted.
-                            registerDeleteOperation(indexMetadata);
+                            registerDeleteOperation(projectId, indexMetadata);
                         }
                     }
 
@@ -479,7 +479,7 @@ class IndexLifecycleRunner {
             ),
             new MoveToNextStepUpdateTask(projectId, index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, state -> {
                 IndexMetadata indexMetadata = state.metadata().index(index);
-                registerSuccessfulOperation(indexMetadata);
+                registerSuccessfulOperation(projectId, indexMetadata);
                 if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetadata != null) {
                     maybeRunAsyncAction(state, indexMetadata, policy, newStepKey);
                 }
@@ -499,7 +499,7 @@ class IndexLifecycleRunner {
             Strings.format("ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
             new MoveToErrorStepUpdateTask(projectId, index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, state -> {
                 IndexMetadata indexMetadata = state.metadata().index(index);
-                registerFailedOperation(indexMetadata, e);
+                registerFailedOperation(projectId, indexMetadata, e);
             })
         );
     }
@@ -556,13 +556,14 @@ class IndexLifecycleRunner {
      * For the given index metadata, register (index a document) that the index has transitioned
      * successfully into this new state using the {@link ILMHistoryStore}
      */
-    void registerSuccessfulOperation(IndexMetadata indexMetadata) {
+    void registerSuccessfulOperation(ProjectId projectId, IndexMetadata indexMetadata) {
         if (indexMetadata == null) {
             // This index may have been deleted and has no metadata, so ignore it
             return;
         }
         Long origination = calculateOriginationMillis(indexMetadata);
         ilmHistoryStore.putAsync(
+            projectId,
             ILMHistoryItem.success(
                 indexMetadata.getIndex().getName(),
                 indexMetadata.getLifecyclePolicyName(),
@@ -577,12 +578,13 @@ class IndexLifecycleRunner {
      * For the given index metadata, register (index a document) that the index
      * has been deleted by ILM using the {@link ILMHistoryStore}
      */
-    void registerDeleteOperation(IndexMetadata metadataBeforeDeletion) {
+    void registerDeleteOperation(ProjectId projectId, IndexMetadata metadataBeforeDeletion) {
         if (metadataBeforeDeletion == null) {
             throw new IllegalStateException("cannot register deletion of an index that did not previously exist");
         }
         Long origination = calculateOriginationMillis(metadataBeforeDeletion);
         ilmHistoryStore.putAsync(
+            projectId,
             ILMHistoryItem.success(
                 metadataBeforeDeletion.getIndex().getName(),
                 metadataBeforeDeletion.getLifecyclePolicyName(),
@@ -600,13 +602,14 @@ class IndexLifecycleRunner {
      * For the given index metadata, register (index a document) that the index has transitioned
      * into the ERROR state using the {@link ILMHistoryStore}
      */
-    void registerFailedOperation(IndexMetadata indexMetadata, Exception failure) {
+    void registerFailedOperation(ProjectId projectId, IndexMetadata indexMetadata, Exception failure) {
         if (indexMetadata == null) {
             // This index may have been deleted and has no metadata, so ignore it
             return;
         }
         Long origination = calculateOriginationMillis(indexMetadata);
         ilmHistoryStore.putAsync(
+            projectId,
             ILMHistoryItem.failure(
                 indexMetadata.getIndex().getName(),
                 indexMetadata.getLifecyclePolicyName(),

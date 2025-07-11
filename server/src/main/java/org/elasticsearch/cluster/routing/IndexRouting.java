@@ -32,6 +32,7 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -403,7 +404,8 @@ public abstract class IndexRouting {
                     case VALUE_STRING:
                     case VALUE_NUMBER:
                     case VALUE_BOOLEAN:
-                        addHash(path, new BytesRef(source.text()));
+                        XContentString.UTF8Bytes utf8Bytes = source.optimizedText().bytes();
+                        addHash(path, new BytesRef(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length()));
                         source.nextToken();
                         break;
                     case START_ARRAY:

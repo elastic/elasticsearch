@@ -49,6 +49,37 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testScoreWithLimit() {
+        var query = """
+            FROM test
+            | WHERE match(content, "fox") AND match(content, "brown")
+            | EVAL first_score = score(match(content, "fox"))
+            | KEEP id, first_score
+            | SORT id
+            | LIMIT 1
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226)));
+        }
+    }
+
+    public void testScoreAfterLimit() {
+        var query = """
+            FROM test
+            | WHERE match(content, "fox") AND match(content, "brown")
+            | LIMIT 1
+            | EVAL first_score = score(match(content, "fox"))
+            | KEEP id, first_score
+            | SORT id
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[SCORE] function cannot be used after LIMIT"));
+    }
+
     public void testScoreQueryExpressions() {
         var query = """
             FROM test METADATA _score

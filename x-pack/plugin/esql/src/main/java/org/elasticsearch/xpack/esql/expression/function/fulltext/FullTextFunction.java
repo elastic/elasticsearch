@@ -229,7 +229,9 @@ public abstract class FullTextFunction extends Function
             checkFullTextFunctionsInAggs(agg, failures);
         } else {
             List<FullTextFunction> scoredFTFs = new ArrayList<>();
-            plan.forEachExpression(Score.class, scoreFunction -> { plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); });
+            plan.forEachExpression(Score.class, scoreFunction -> {
+                checkScoreFunction(plan, failures, scoreFunction);
+                plan.forEachExpression(FullTextFunction.class, scoredFTFs::add); });
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 if (scoredFTFs.remove(ftf) == false) {
                     failures.add(
@@ -244,6 +246,17 @@ public abstract class FullTextFunction extends Function
                 }
             });
         }
+    }
+
+    private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
+        checkCommandsBeforeExpression(
+            plan,
+            scoreFunction.canonical(),
+            Score.class,
+            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+            m -> "[" + m.functionName() + "] function",
+            failures
+        );
     }
 
     private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {

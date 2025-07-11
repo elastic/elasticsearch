@@ -143,7 +143,7 @@ public abstract class Attribute extends NamedExpression {
             return false;
         }
         for (int i = 0; i < left.size(); i++) {
-            if (left.get(i).dataType().equals(right.get(i).dataType()) == false) {
+            if (left.get(i).dataType() != right.get(i).dataType()) {
                 return false;
             }
         }

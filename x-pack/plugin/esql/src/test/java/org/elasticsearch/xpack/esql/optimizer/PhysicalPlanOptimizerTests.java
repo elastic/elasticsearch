@@ -2866,7 +2866,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan, verifiedPlan));
+        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan, verifiedPlan.output()));
         assertThat(
             e.getMessage(),
             containsString(
@@ -2895,7 +2895,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         final var finalPlan = plan;
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification.output()));
         assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
     }
 
@@ -2913,7 +2913,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide, plan));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide, plan.output()));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var planWithInvalidJoinRightSide = plan.transformUp(
@@ -2930,7 +2930,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide, plan));
+        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide, plan.output()));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
@@ -2955,7 +2955,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             );
         });
         final var finalPlan = plan;
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification.output()));
         assertThat(
             e.getMessage(),
             containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")

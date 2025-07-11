@@ -293,6 +293,7 @@ public record ClusterBalanceStats(
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);
+            out.writeDouble(nodeWeight);
         }
 
         @Override
@@ -307,6 +308,7 @@ public record ClusterBalanceStats(
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
                 .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))
+                .field("node_weight", nodeWeight)
                 .endObject();
         }
     }

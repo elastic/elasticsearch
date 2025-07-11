@@ -564,18 +564,18 @@ tests:
 - class: org.elasticsearch.cluster.ClusterStateSerializationTests
   method: testSerializationPreMultiProject
   issue: https://github.com/elastic/elasticsearch/issues/130872
-- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
-  method: testPreferFullMasterOverVotingOnlyNodes
-  issue: https://github.com/elastic/elasticsearch/issues/130883
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
-- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
-  method: testVotingOnlyNodesCannotBeMasterWithoutFullMasterNodes
-  issue: https://github.com/elastic/elasticsearch/issues/130979
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test082CannotUseEnvVarsAndFiles
   issue: https://github.com/elastic/elasticsearch/issues/129808
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testExtractFields
+  issue: https://github.com/elastic/elasticsearch/issues/130501
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testRowStatsProjectGroupByInt
+  issue: https://github.com/elastic/elasticsearch/issues/131024
 
 # Examples:
 #

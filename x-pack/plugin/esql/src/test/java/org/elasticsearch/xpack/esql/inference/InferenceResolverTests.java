@@ -22,13 +22,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,8 +66,71 @@ public class InferenceResolverTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testCollectInferenceIds() {
+        // Rerank inference plan
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`rerank-inference-id`",
+            List.of("rerank-inference-id")
+        );
+
+        // Completion inference plan
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | COMPLETION \"italian food recipe\" WITH `completion-inference-id`",
+            List.of("completion-inference-id")
+        );
+
+        // Multiple inference plans
+        assertCollectInferenceIds("""
+            FROM books METADATA _score
+            | RERANK \"italian food recipe\" ON title WITH inferenceId=`rerank-inference-id`
+            | COMPLETION \"italian food recipe\" WITH `completion-inference-id`
+            """, List.of("rerank-inference-id", "completion-inference-id")
+        );
+
+        // From an inference function (EMBED_TEXT)
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = EMBED_TEXT(\"italian food recipe\", \"embedding-inference-id\")",
+            List.of("embedding-inference-id")
+        );
+
+        // From an inference function nested in another function
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | WHERE KNN(field, EMBED_TEXT(\"italian food recipe\", \"embedding-inference-id\"))",
+            List.of("embedding-inference-id")
+        );
+
+        // Multiples functions
+        assertCollectInferenceIds("""
+            FROM books METADATA _score
+            | WHERE KNN(fieldA, EMBED_TEXT("italian food recipe", "embedding-inference-id-a"))
+            | WHERE KNN(fieldB, EMBED_TEXT("italian food recipe", "embedding-inference-id-b"))
+            """, List.of("embedding-inference-id-a", "embedding-inference-id-b")
+        );
+
+        // All the way
+        assertCollectInferenceIds("""
+            FROM books METADATA _score
+            | RERANK "italian food recipe" ON title WITH inferenceId=`rerank-inference-id`
+            | COMPLETION "italian food recipe" WITH `completion-inference-id`
+            | WHERE KNN(fieldA, EMBED_TEXT("italian food recipe", "embedding-inference-id-a"))
+            | WHERE KNN(fieldB, EMBED_TEXT("italian food recipe", "embedding-inference-id-b"))
+            """, List.of("rerank-inference-id", "completion-inference-id", "embedding-inference-id-a", "embedding-inference-id-b")
+        );
+
+        // No inference operations
+        assertCollectInferenceIds("FROM books | WHERE title:\"test\"", List.of());
+    }
+
+    private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
+        Set<String> inferenceIds = new HashSet<>();
+        InferenceResolver inferenceResolver = inferenceResolver();
+        inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query, configuration(query)), inferenceIds::add);
+        assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
+    }
+
+
     public void testResolveInferenceIds() throws Exception {
-        InferenceResolver inferenceResolver = new InferenceResolver(mockClient(), threadPool);
+        InferenceResolver inferenceResolver = inferenceResolver();
         List<String> inferenceIds = List.of("rerank-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
@@ -78,7 +147,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     public void testResolveMultipleInferenceIds() throws Exception {
-        InferenceResolver inferenceResolver = new InferenceResolver(mockClient(), threadPool);
+        InferenceResolver inferenceResolver = inferenceResolver();
         List<String> inferenceIds = List.of("rerank-plan", "rerank-plan", "completion-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
@@ -102,7 +171,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     public void testResolveMissingInferenceIds() throws Exception {
-        InferenceResolver inferenceResolver = new InferenceResolver(mockClient(), threadPool);
+        InferenceResolver inferenceResolver = inferenceResolver();
         List<String> inferenceIds = List.of("missing-plan");
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
@@ -166,6 +235,10 @@ public class InferenceResolverTests extends ESTestCase {
         }
 
         return null;
+    }
+
+    private InferenceResolver inferenceResolver() {
+        return new InferenceResolver(new EsqlFunctionRegistry(), mockClient());
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.inference.InferenceServices;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
@@ -101,7 +102,6 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
@@ -134,6 +134,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  * CSV-based unit testing.
@@ -524,7 +525,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
-        var preAnalysis = new PreAnalyzer().preAnalyze(parsed, new PreAnalyzerContext(null));
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed, new PreAnalyzerContext(mock(InferenceResolver.class)));
         var indices = preAnalysis.indices;
         if (indices.isEmpty()) {
             /*
@@ -592,7 +593,8 @@ public class CsvTests extends ESTestCase {
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
             null,
-            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
+            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES.inferenceServices().inferenceResolver(functionRegistry)
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
@@ -706,9 +708,9 @@ public class CsvTests extends ESTestCase {
             configuration,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),
-            Mockito.mock(EnrichLookupService.class),
-            Mockito.mock(LookupFromIndexService.class),
-            Mockito.mock(InferenceServices.class),
+            mock(EnrichLookupService.class),
+            mock(LookupFromIndexService.class),
+            mock(InferenceServices.class),
             physicalOperationProviders,
             List.of()
         );

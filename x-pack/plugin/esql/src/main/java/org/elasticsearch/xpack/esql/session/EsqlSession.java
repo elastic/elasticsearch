@@ -177,7 +177,8 @@ public class EsqlSession {
         Verifier verifier,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        TransportActionServices services
+        TransportActionServices services,
+        InferenceResolver inferenceResolver
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -192,7 +193,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.inferenceResolver = services.inferenceServices().inferenceResolver();
+        this.inferenceResolver = inferenceResolver;
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
     }

@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
 
 public class InferenceServices {
-    private final InferenceResolver inferenceResolver;
+    private final Client client;
     private final BulkInferenceExecutor.Factory bulkInferenceExecutorFactory;
 
     public InferenceServices(Client client, ThreadPool threadPool) {
-        this.inferenceResolver = new InferenceResolver(client, threadPool);
+        this.client = client;
         this.bulkInferenceExecutorFactory = new BulkInferenceExecutor.Factory(client, threadPool);
     }
 
@@ -29,7 +30,7 @@ public class InferenceServices {
         return bulkInferenceExecutorFactory;
     }
 
-    public InferenceResolver inferenceResolver() {
-        return inferenceResolver;
+    public InferenceResolver inferenceResolver(EsqlFunctionRegistry functionRegistry) {
+        return new InferenceResolver(functionRegistry, client);
     }
 }

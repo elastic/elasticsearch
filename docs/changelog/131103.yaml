@@ -1,0 +1,6 @@
+pr: 131103
+summary: Adding merging logic to recursive chunking and renaming `SeparatorSet` to
+  `SeparatorGroup`
+area: Machine Learning
+type: bug
+issues: []

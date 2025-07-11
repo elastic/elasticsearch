@@ -24,21 +24,21 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EmbedTextErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class TextEmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("EMBED_TEXT is not enabled", EsqlCapabilities.Cap.EMBED_TEXT_FUNCTION.isEnabled());
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
     }
 
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(EmbedTextTests.parameters());
+        return paramsToSuppliers(TextEmbeddingTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new EmbedText(source, args.get(0), args.get(1));
+        return new TextEmbedding(source, args.get(0), args.get(1));
     }
 
     @Override

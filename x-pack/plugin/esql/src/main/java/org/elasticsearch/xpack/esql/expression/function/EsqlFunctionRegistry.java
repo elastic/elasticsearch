@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
-import org.elasticsearch.xpack.esql.expression.function.inference.EmbedText;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -483,7 +483,7 @@ public class EsqlFunctionRegistry {
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(Term.class, bi(Term::new), "term"),
                 def(Knn.class, quad(Knn::new), "knn"),
-                def(EmbedText.class, EmbedText::new, "embed_text"),
+                def(TextEmbedding.class, TextEmbedding::new, "text_embedding"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
                 def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),

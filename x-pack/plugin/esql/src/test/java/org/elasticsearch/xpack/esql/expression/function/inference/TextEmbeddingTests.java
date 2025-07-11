@@ -27,14 +27,14 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.hamcrest.Matchers.equalTo;
 
-@FunctionName("embed_text")
-public class EmbedTextTests extends AbstractFunctionTestCase {
+@FunctionName("text_embedding")
+public class TextEmbeddingTests extends AbstractFunctionTestCase {
     @Before
     public void checkCapability() {
-        assumeTrue("EMBED_TEXT is not enabled", EsqlCapabilities.Cap.EMBED_TEXT_FUNCTION.isEnabled());
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
     }
 
-    public EmbedTextTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public TextEmbeddingTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -67,6 +67,6 @@ public class EmbedTextTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new EmbedText(source, args.get(0), args.get(1));
+        return new TextEmbedding(source, args.get(0), args.get(1));
     }
 }

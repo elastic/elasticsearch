@@ -15,21 +15,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,15 +33,14 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SortedSetOrdinalsBuilderTests extends ESTestCase {
+public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
 
     public void testReader() throws IOException {
-        testRead(breakingDriverContext().blockFactory());
+        testRead(blockFactory());
     }
 
     public void testReadWithCranky() throws IOException {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory factory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory factory = crankyBlockFactory();
         try {
             testRead(factory);
             // If we made it this far cranky didn't fail us!
@@ -126,23 +117,8 @@ public class SortedSetOrdinalsBuilderTests extends ESTestCase {
         }
     }
 
-    private final List<CircuitBreaker> breakers = new ArrayList<>();
-    private final List<BlockFactory> blockFactories = new ArrayList<>();
-
-    /**
-     * A {@link DriverContext} with a breaking {@link BigArrays} and {@link BlockFactory}.
-     */
-    protected DriverContext breakingDriverContext() { // TODO move this to driverContext once everyone supports breaking
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
-        blockFactories.add(factory);
-        return new DriverContext(bigArrays, factory);
-    }
-
     public void testAllNull() throws IOException {
-        BlockFactory factory = breakingDriverContext().blockFactory();
+        BlockFactory factory = blockFactory();
         int numDocs = between(1, 100);
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             for (int i = 0; i < numDocs; i++) {
@@ -171,20 +147,4 @@ public class SortedSetOrdinalsBuilderTests extends ESTestCase {
             }
         }
     }
-
-    @After
-    public void allBreakersEmpty() throws Exception {
-        // first check that all big arrays are released, which can affect breakers
-        MockBigArrays.ensureAllArraysAreReleased();
-
-        for (CircuitBreaker breaker : breakers) {
-            for (var factory : blockFactories) {
-                if (factory instanceof MockBlockFactory mockBlockFactory) {
-                    mockBlockFactory.ensureAllBlocksAreReleased();
-                }
-            }
-            assertThat("Unexpected used in breaker: " + breaker, breaker.getUsed(), equalTo(0L));
-        }
-    }
-
 }

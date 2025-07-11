@@ -471,3 +471,21 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/126124
+- class: org.elasticsearch.xpack.restart.MlHiddenIndicesFullClusterRestartIT
+  method: testMlIndicesBecomeHidden {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/130766
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.xpack.restart.MlHiddenIndicesFullClusterRestartIT
+  method: testMlIndicesBecomeHidden {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131016
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/115528
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test20DockerAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/128113

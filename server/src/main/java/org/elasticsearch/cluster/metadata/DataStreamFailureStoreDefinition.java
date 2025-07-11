@@ -42,6 +42,7 @@ public class DataStreamFailureStoreDefinition {
         IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
         IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+        // Different recovery implementations may be provided on the index which need to be preserved.
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()
     );
     public static final Set<String> SUPPORTED_USER_SETTINGS_PREFIXES = Set.of(

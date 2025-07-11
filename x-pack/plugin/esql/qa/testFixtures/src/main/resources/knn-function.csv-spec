@@ -81,6 +81,29 @@ olive            | [128.0, 128.0, 0.0]
 green            | [0.0, 128.0, 0.0]
 ;
 
+knnWithNegatedPrefilter
+required_capability: knn_function_v3
+
+from colors metadata _score
+| where knn(rgb_vector, [128,128,0], 10) and not (match(color, "olive") or match(color, "chocolate")) 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| LIMIT 10
+;
+
+color:text | rgb_vector:dense_vector
+sienna     | [160.0, 82.0, 45.0]
+peru       | [205.0, 133.0, 63.0]
+golden rod | [218.0, 165.0, 32.0]
+brown      | [165.0, 42.0, 42.0]
+firebrick  | [178.0, 34.0, 34.0]
+chartreuse | [127.0, 255.0, 0.0]
+gray       | [128.0, 128.0, 128.0]
+green      | [0.0, 128.0, 0.0]
+maroon     | [128.0, 0.0, 0.0]
+orange     | [255.0, 165.0, 0.0]
+;
+
 knnAfterKeep
 required_capability: knn_function_v3
 
@@ -141,12 +164,10 @@ golden rod | true
 knnWithConjunction
 required_capability: knn_function_v3
 
-# TODO We need kNN prefiltering here so we get more candidates that pass the filter
 from colors metadata _score 
-| where knn(rgb_vector, [255,255,238], 140) and hex_code like "#FFF*" 
+| where knn(rgb_vector, [255,255,238], 10) and hex_code like "#FFF*" 
 | sort _score desc, color asc
 | keep color, hex_code, rgb_vector
-| limit 10
 ;
 
 color:text    | hex_code:keyword | rgb_vector:dense_vector
@@ -180,6 +201,29 @@ green      | [0.0, 128.0, 0.0]
 black      | [0.0, 0.0, 0.0]
 red        | [255.0, 0.0, 0.0]
 yellow     | [255.0, 255.0, 0.0]
+;
+
+knnWithNegationsAndFiltersConjunction
+required_capability: knn_function_v3
+
+from colors metadata _score 
+| where (knn(rgb_vector, [0,255,255], 140) and not(primary == true and match(color, "blue"))) 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| limit 10
+;
+
+color:text  | rgb_vector:dense_vector
+cyan        | [0.0, 255.0, 255.0]
+turquoise   | [64.0, 224.0, 208.0]
+aqua marine | [127.0, 255.0, 212.0]
+teal        | [0.0, 128.0, 128.0]
+silver      | [192.0, 192.0, 192.0]
+gray        | [128.0, 128.0, 128.0]
+gainsboro   | [220.0, 220.0, 220.0]
+thistle     | [216.0, 191.0, 216.0]
+lavender    | [230.0, 230.0, 250.0]
+azure       | [240.0, 255.0, 255.0]
 ;
 
 knnWithNonPushableConjunction

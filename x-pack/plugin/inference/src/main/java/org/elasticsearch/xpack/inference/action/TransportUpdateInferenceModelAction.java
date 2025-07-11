@@ -282,6 +282,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                             deploymentId
                         )
                     );
+                    return;
                 }
                 listener.onFailure(e);
             }));

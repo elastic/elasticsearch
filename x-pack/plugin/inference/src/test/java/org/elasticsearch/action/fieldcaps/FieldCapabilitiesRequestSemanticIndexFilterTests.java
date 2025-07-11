@@ -7,6 +7,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -19,7 +20,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.apache.lucene.search.join.ScoreMode;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -70,10 +70,7 @@ public class FieldCapabilitiesRequestSemanticIndexFilterTests extends ESTestCase
     }
 
     private static SemanticQueryBuilder randomSemanticQuery() {
-        return new SemanticQueryBuilder(
-            randomAlphaOfLength(5),
-            randomAlphaOfLength(10)
-        );
+        return new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(10));
     }
 
     private static QueryBuilder randomNonSemanticQuery() {
@@ -120,11 +117,7 @@ public class FieldCapabilitiesRequestSemanticIndexFilterTests extends ESTestCase
                 }
                 yield disMax;
             }
-            case 2 -> new NestedQueryBuilder(
-                randomAlphaOfLength(5),
-                randomCompoundQueryWithSemantic(depth - 1),
-                ScoreMode.Max
-            );
+            case 2 -> new NestedQueryBuilder(randomAlphaOfLength(5), randomCompoundQueryWithSemantic(depth - 1), ScoreMode.Max);
             case 3 -> {
                 boolean positiveSemanticQuery = randomBoolean();
                 QueryBuilder semanticQuery = randomCompoundQueryWithSemantic(depth - 1);

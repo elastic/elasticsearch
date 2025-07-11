@@ -430,15 +430,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private TypeResolution checkArgsCount(int expectedCount) {
         String expected = null;
-        /*
-        if (expectedCount == 2 && (from != null || to != null)) {
-            expected = "two";
-        } else if (expectedCount == 4 && (from == null || to == null)) {
+
+        if (expectedCount == 4 && (from == null || to == null)) {
             expected = "four";
         } else if ((from == null && to != null) || (from != null && to == null)) {
             expected = "two or four";
         }
-        */
 
         return expected == null
             ? TypeResolution.TYPE_RESOLVED

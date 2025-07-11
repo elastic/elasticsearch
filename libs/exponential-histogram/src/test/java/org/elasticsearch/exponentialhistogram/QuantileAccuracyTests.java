@@ -28,15 +28,11 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notANumber;
 
 public class QuantileAccuracyTests extends ESTestCase {
 
     public static final double[] QUANTILES_TO_TEST = { 0, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0 };
-
-    public void testBasicSmall() {
-        DoubleStream values = IntStream.range(1,10).mapToDouble(Double::valueOf);
-        testQuantileAccuracy(values.toArray(), 100);
-    }
 
     public void testUniformDistribution() {
         testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(42), 0, 100), 50000, 500);
@@ -66,13 +62,69 @@ public class QuantileAccuracyTests extends ESTestCase {
         testDistributionQuantileAccuracy(new WeibullDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
-    public void testBigJump() {
-        double[] values = DoubleStream.concat(
-            IntStream.range(0,18).mapToDouble(Double::valueOf),
-            DoubleStream.of(1_000_000.0)
-        ).toArray();
+    public void testBasicSmall() {
+        DoubleStream values = IntStream.range(1, 10).mapToDouble(Double::valueOf);
+        double maxError = testQuantileAccuracy(values.toArray(), 100);
+        assertThat(maxError, lessThan(0.000001));
+    }
 
-        testQuantileAccuracy(values, 500);
+    public void testBigJump() {
+        double[] values = DoubleStream.concat(IntStream.range(0, 18).mapToDouble(Double::valueOf), DoubleStream.of(1_000_000.0)).toArray();
+
+        double maxError = testQuantileAccuracy(values, 500);
+        assertThat(maxError, lessThan(0.000001));
+    }
+
+    public void testExplicitSkewedData() {
+        double[] data = new double[] {
+            245,
+            246,
+            247.249,
+            240,
+            243,
+            248,
+            250,
+            241,
+            244,
+            245,
+            245,
+            247,
+            243,
+            242,
+            241,
+            50100,
+            51246,
+            52247,
+            52249,
+            51240,
+            53243,
+            59248,
+            59250,
+            57241,
+            56244,
+            55245,
+            56245,
+            575247,
+            58243,
+            51242,
+            54241 };
+
+        double maxError = testQuantileAccuracy(data, data.length / 2);
+        assertThat(maxError, lessThan(0.007));
+    }
+
+    public void testEmptyHistogram() {
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor();
+        for (double q : QUANTILES_TO_TEST) {
+            assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), notANumber());
+        }
+    }
+
+    public void testSingleValueHistogram() {
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(42);
+        for (double q : QUANTILES_TO_TEST) {
+            assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), closeTo(42, 0.0000001));
+        }
     }
 
     public void testBucketCountImpact() {

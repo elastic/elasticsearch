@@ -317,7 +317,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 numCentroids = centroidAssignments.numCentroids();
                 numClusters = centroidAssignments.centroids().length;
                 assignmentsByCluster = centroidAssignments.assignmentsByCluster();
-                assert centroidAssignments.clusterToCentroidMap() != null;
                 clusterToCentroidMap = centroidAssignments.clusterToCentroidMap();
                 success = true;
             } finally {

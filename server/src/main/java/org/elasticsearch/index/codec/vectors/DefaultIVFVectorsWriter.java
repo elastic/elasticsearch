@@ -381,7 +381,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
         HierarchicalKMeans hierarchicalKMeans = new HierarchicalKMeans(fieldInfo.getVectorDimension());
         // TODO: evaluate further whether 512 is better than other sizes like 32 or sqrt(centroids.length)
-        return hierarchicalKMeans.cluster(centroidsAsFVV, 512); // centroids.length / (int) Math.sqrt(centroids.length));
+        return hierarchicalKMeans.cluster(centroidsAsFVV, 8); // centroids.length / (int) Math.sqrt(centroids.length));
     }
 
     static int[][] buildCentroidAssignments(int centroidCount, int[] assignments, int[] soarAssignments) {

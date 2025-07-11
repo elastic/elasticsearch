@@ -58,7 +58,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 false,
-                ScoreMode.COMPLETE_NO_SCORES
+                shardContext -> ScoreMode.COMPLETE_NO_SCORES
             );
             this.shardRefCounters = contexts;
         }

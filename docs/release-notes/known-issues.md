@@ -15,7 +15,7 @@ To mitigate this issue, the disk space checker is disabled by default in 9.0.3 b
 
 * A bug in the ES|QL STATS command may yield incorrect results. The bug only happens in very specific cases that follow this pattern: `STATS ... BY keyword1, keyword2`, i.e. the command must have exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
 
-  The issue is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
+  The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
   The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
 
   Possible work-arounds are:

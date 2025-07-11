@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
@@ -25,9 +26,13 @@ import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommit
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
+import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.common.CheckedSupplier;
@@ -42,7 +47,9 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -55,6 +62,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toPageAlignedSize;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
@@ -78,6 +86,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStatelessNoRecoveryPrewarming.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
@@ -389,6 +399,58 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         assertThat(findSearchShard(indexName).commitStats().getGeneration(), is(greaterThan(initialCommitGeneration)));
     }
 
+    public void testForceCommitPrefetch() throws Exception {
+        var forcePrefetch = randomBoolean();
+        var nodeSettings = Settings.builder()
+            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcher.FORCE_PREFETCH_SETTING.getKey(), forcePrefetch)
+            // There's a single region in the cache to force evictions (if force = true) in each flush
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
+            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        var initialCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+
+        // Upon recovery, the search shard would use the first region. Clear the cache to start from scratch.
+        client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
+        var numberOfCommits = randomIntBetween(2, 10);
+        for (int j = 0; j < numberOfCommits; j++) {
+            indexDocs(indexName, 10);
+            flush(indexName);
+        }
+
+        var bccBlobs = IndexDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
+            .getBlobStoreCacheDirectory()
+            .getBlobContainer(findIndexShard(indexName).getOperationPrimaryTerm())
+            .listBlobs(OperationPurpose.INDICES);
+
+        var bccBlobsTotalSizeInBytes = bccBlobs.entrySet()
+            .stream()
+            // We have to exclude the first BCC (empty) because that one is not a candidate for prefetching,
+            // it's the base commit for recovery.
+            .filter(entry -> entry.getKey().equals(BatchedCompoundCommit.blobNameFromGeneration(initialCommitGeneration)) == false)
+            // We prefetch data from the indexing node and we prefetch page aligned chunks, that's why we need to get the page aligned size.
+            .mapToLong(entry -> toPageAlignedSize(entry.getValue().length()))
+            .sum();
+
+        if (forcePrefetch) {
+            assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(bccBlobsTotalSizeInBytes))));
+        } else {
+            assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(lessThan(bccBlobsTotalSizeInBytes))));
+        }
+    }
+
     private AtomicLong meterIndexingNodeReadsForBCC(String indexNode, ShardId shardId, long vBCCGenToMeter) {
         var bytesReadFromIndexingNode = new AtomicLong();
         MockTransportService.getInstance(indexNode)
@@ -450,5 +512,31 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
             }
         });
         return bytesReadFromBlobStore;
+    }
+
+    public static final class TestStatelessNoRecoveryPrewarming extends Stateless {
+
+        public TestStatelessNoRecoveryPrewarming(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            TelemetryProvider telemetryProvider,
+            Settings settings
+        ) {
+            // no-op the warming on shard recovery so we do not introduce noise in the testing
+            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
+                @Override
+                public void warmCacheForShardRecovery(
+                    Type type,
+                    IndexShard indexShard,
+                    StatelessCompoundCommit commit,
+                    BlobStoreCacheDirectory directory
+                ) {}
+            };
+        }
     }
 }

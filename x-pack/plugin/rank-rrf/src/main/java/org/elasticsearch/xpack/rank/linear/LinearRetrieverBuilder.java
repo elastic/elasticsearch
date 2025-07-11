@@ -406,27 +406,32 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
+        if (rewritten instanceof LinearRetrieverBuilder == false) {
+            return rewritten;
+        }
+        LinearRetrieverBuilder linearRewritten = (LinearRetrieverBuilder) rewritten;
+
         if (normalizer != null) {
-            ScoreNormalizer[] newNormalizers = new ScoreNormalizer[normalizers.length];
+            ScoreNormalizer[] newNormalizers = new ScoreNormalizer[linearRewritten.normalizers.length];
             Arrays.fill(newNormalizers, normalizer);
             rewritten = new LinearRetrieverBuilder(
-                rewritten.innerRetrievers,
-                rewritten.fields,
-                rewritten.query,
+                linearRewritten.innerRetrievers,
+                linearRewritten.fields,
+                linearRewritten.query,
                 null,
-                rewritten.rankWindowSize,
-                rewritten.weights,
+                linearRewritten.rankWindowSize,
+                linearRewritten.weights,
                 newNormalizers
             );
         } else {
             rewritten = new LinearRetrieverBuilder(
-                rewritten.innerRetrievers,
-                rewritten.fields,
-                rewritten.query,
-                rewritten.normalizer,
-                rewritten.rankWindowSize,
-                rewritten.weights,
-                rewritten.normalizers
+                linearRewritten.innerRetrievers,
+                linearRewritten.fields,
+                linearRewritten.query,
+                linearRewritten.normalizer,
+                linearRewritten.rankWindowSize,
+                linearRewritten.weights,
+                linearRewritten.normalizers
             );
         }
 

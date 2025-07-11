@@ -1,5 +1,5 @@
 pr: 131111
 summary: Don't allow field caps to use semantic queries as index filters
-area: "Relevance, Search"
+area: Search
 type: bug
 issues: []

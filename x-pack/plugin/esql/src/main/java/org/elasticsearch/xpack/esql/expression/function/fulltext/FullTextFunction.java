@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -197,6 +198,12 @@ public abstract class FullTextFunction extends Function
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
 
+            if (condition instanceof Score) {
+                failures.add(
+                    fail(condition, "[SCORE] function can't be used in WHERE")
+                );
+            }
+
             List.of(QueryString.class, Kql.class).forEach(functionClass -> {
                 // Check for limitations of QSTR and KQL function.
                 checkCommandsBeforeExpression(
@@ -228,7 +235,8 @@ public abstract class FullTextFunction extends Function
                     failures.add(
                         fail(
                             ftf,
-                            "[{}] {} is only supported in WHERE and STATS commands, or in EVAL within score(.) function",
+                            "[{}] {} is only supported in WHERE and STATS commands"
+                                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : ""),
                             ftf.functionName(),
                             ftf.functionType()
                         )

@@ -329,25 +329,21 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     private ClusterInfo createClusterInfo(List<Tuple<String, long[]>> shardSizes) {
-        return new ClusterInfo(
-            Map.of(),
-            Map.of(),
-            shardSizes.stream()
-                .flatMap(
-                    entry -> IntStream.range(0, entry.v2().length)
-                        .mapToObj(
-                            index -> Map.entry(
-                                ClusterInfo.shardIdentifierFromRouting(new ShardId(entry.v1(), "_na_", index), true),
-                                entry.v2()[index]
+        return ClusterInfo.builder()
+            .shardSizes(
+                shardSizes.stream()
+                    .flatMap(
+                        entry -> IntStream.range(0, entry.v2().length)
+                            .mapToObj(
+                                index -> Map.entry(
+                                    ClusterInfo.shardIdentifierFromRouting(new ShardId(entry.v1(), "_na_", index), true),
+                                    entry.v2()[index]
+                                )
                             )
-                        )
-                )
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+                    )
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
+            .build();
     }
 
     private static Tuple<String, long[]> indexSizes(String name, long... sizes) {

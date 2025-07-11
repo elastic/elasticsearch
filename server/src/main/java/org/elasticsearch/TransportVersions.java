@@ -25,7 +25,7 @@ import java.util.function.IntFunction;
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
  * and supersedes the old Version constants.</p>
- *
+ * This is a test comment.
  * <p>Before adding a new version constant, please read the block comment at the end of the list of constants.</p>
  */
 public class TransportVersions {

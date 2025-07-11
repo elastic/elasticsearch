@@ -84,11 +84,6 @@ public class GoogleAiStudioService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    // for testing
-    public GoogleAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
-    }
-
     public GoogleAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(factory, serviceComponents, context);
     }

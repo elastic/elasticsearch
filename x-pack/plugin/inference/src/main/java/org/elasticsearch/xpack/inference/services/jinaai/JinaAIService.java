@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -77,11 +76,6 @@ public class JinaAIService extends SenderService {
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-
-    // for testing
-    public JinaAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
-    }
 
     public JinaAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(factory, serviceComponents, context);

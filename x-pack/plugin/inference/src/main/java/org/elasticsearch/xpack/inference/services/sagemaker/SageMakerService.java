@@ -84,29 +84,6 @@ public class SageMakerService implements InferenceService {
         this.clusterService = Objects.requireNonNull(context.clusterService());
     }
 
-    // for testing
-    public SageMakerService(
-        SageMakerModelBuilder modelBuilder,
-        SageMakerClient client,
-        SageMakerSchemas schemas,
-        ThreadPool threadPool,
-        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
-       ClusterService clusterService
-    ) {
-        this.modelBuilder = modelBuilder;
-        this.client = client;
-        this.schemas = schemas;
-        this.threadPool = threadPool;
-        this.configuration = new LazyInitializable<>(
-            () -> new InferenceServiceConfiguration.Builder().setService(NAME)
-                .setName(DISPLAY_NAME)
-                .setTaskTypes(supportedTaskTypes())
-                .setConfigurations(configurationMap.get())
-                .build()
-        );
-        this.clusterService = clusterService;
-    }
-
     @Override
     public String name() {
         return NAME;

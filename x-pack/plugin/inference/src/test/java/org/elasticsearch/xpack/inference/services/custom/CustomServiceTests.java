@@ -13,11 +13,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -151,7 +153,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool), mock(ClusterService.class));
+        return new CustomService(senderFactory, createWithEmptySettings(threadPool), new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY));
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {

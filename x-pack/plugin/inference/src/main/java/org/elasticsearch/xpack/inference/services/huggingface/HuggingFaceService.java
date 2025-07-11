@@ -77,10 +77,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         super(factory, serviceComponents, context);
     }
 
-    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
-    }
-
     @Override
     protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
         return switch (params.taskType()) {

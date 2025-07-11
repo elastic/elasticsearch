@@ -21,6 +21,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -78,13 +79,13 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
-    private ClusterService clusterService;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        clusterService = mock(ClusterService.class);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
     }
 
     @After
@@ -94,7 +95,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
@@ -119,7 +120,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
@@ -146,7 +147,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AlibabaCloudSearchEmbeddingsModel.class));
 
@@ -172,7 +173,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
@@ -193,7 +194,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             var model = service.parsePersistedConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
@@ -213,7 +214,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             var persistedConfig = getPersistedConfigMap(
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
@@ -238,7 +239,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             var persistedConfig = getPersistedConfigMap(
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("service_id", "host", "default"),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
@@ -265,7 +266,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = OpenAiChatCompletionModelTests.createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -282,7 +283,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_UpdatesEmbeddingSizeAndSimilarity() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var embeddingSize = randomNonNegativeInt();
             var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -319,7 +320,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             taskSettingsMap,
             secretSettingsMap
         );
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 ValidationException.class,
@@ -363,7 +364,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             taskSettingsMap,
             secretSettingsMap
         );
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 ValidationException.class,
@@ -407,7 +408,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             taskSettingsMap,
             secretSettingsMap
         );
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 ValidationException.class,
@@ -455,7 +456,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
@@ -485,7 +486,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
-        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context)) {
             String content = XContentHelper.stripWhitespace(
                 """
                     {

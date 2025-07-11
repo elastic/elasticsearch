@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -72,14 +73,14 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
     private HttpClientManager clientManager;
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private ClusterService clusterService;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        clusterService = mock(ClusterService.class);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
     }
 
     @After
@@ -1046,7 +1047,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     private GoogleVertexAiService createGoogleVertexAiService() {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool), clusterService);
+        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool), context);
     }
 
     private Map<String, Object> getRequestConfigMap(

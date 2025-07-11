@@ -63,11 +63,6 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         super(factory, serviceComponents, context);
     }
 
-    // for testing
-    public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
-    }
-
     @Override
     public String name() {
         return NAME;

@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -80,7 +81,7 @@ public class AnthropicServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
-    private ClusterService clusterService;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     private HttpClientManager clientManager;
 
@@ -89,7 +90,7 @@ public class AnthropicServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        clusterService = mock(ClusterService.class);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
     }
 
     @After
@@ -456,7 +457,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -489,7 +490,7 @@ public class AnthropicServiceTests extends ESTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool),clusterService)) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool),context)) {
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -582,7 +583,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
                 "secret",
@@ -673,13 +674,13 @@ public class AnthropicServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), clusterService)) {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), context)) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }
 
     private AnthropicService createServiceWithMockSender() {
-        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool),clusterService);
+        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool),context);
     }
 }

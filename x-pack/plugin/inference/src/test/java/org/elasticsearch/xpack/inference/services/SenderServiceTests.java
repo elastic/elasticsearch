@@ -12,9 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -48,10 +50,12 @@ public class SenderServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private ThreadPool threadPool;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
     }
 
     @After
@@ -65,7 +69,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
 
@@ -85,7 +89,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
@@ -103,8 +107,8 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     private static final class TestSenderService extends SenderService {
-        TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents, mock(ClusterService.class));
+        TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+            super(factory, serviceComponents, context);
         }
 
         @Override

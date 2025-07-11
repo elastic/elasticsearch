@@ -93,11 +93,6 @@ public class OpenAiService extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    // for testing
-    public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
-    }
-
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(factory, serviceComponents, context);
     }

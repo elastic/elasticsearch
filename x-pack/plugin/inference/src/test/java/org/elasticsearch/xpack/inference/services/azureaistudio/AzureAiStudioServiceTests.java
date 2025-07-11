@@ -24,6 +24,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -97,14 +98,14 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
-    private ClusterService clusterService;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        clusterService = mock(ClusterService.class);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
     }
 
     @After
@@ -847,7 +848,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -872,7 +873,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var embeddingSize = randomNonNegativeInt();
             var model = AzureAiStudioEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -898,7 +899,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testUpdateModelWithChatCompletionDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = AzureAiStudioEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -926,7 +927,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     private void testUpdateModelWithChatCompletionDetails_Successful(Integer maxNewTokens) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -959,7 +960,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool),clusterService)) {
+        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool),context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -997,7 +998,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 ValidationException.class,
@@ -1067,7 +1068,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     private void testChunkedInfer(AzureAiStudioEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -1153,7 +1154,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testInfer_WithChatCompletionModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
 
             var model = AzureAiStudioChatCompletionModelTests.createModel(
@@ -1190,7 +1191,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool),clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool),context)) {
 
             String responseJson = """
                 {
@@ -1267,7 +1268,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
                 "id",
                 getUrl(webServer),
@@ -1399,7 +1400,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new AzureAiStudioService(mock(), createWithEmptySettings(mock()), clusterService)) {
+        try (var service = new AzureAiStudioService(mock(), createWithEmptySettings(mock()), context)) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1408,7 +1409,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     // ----------------------------------------------------------------
 
     private AzureAiStudioService createService() {
-        return new AzureAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService);
+        return new AzureAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context);
     }
 
     private Map<String, Object> getRequestConfigMap(

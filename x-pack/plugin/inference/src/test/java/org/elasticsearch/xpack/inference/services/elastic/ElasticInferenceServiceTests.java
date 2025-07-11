@@ -24,6 +24,7 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -114,7 +115,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     private ThreadPool threadPool;
 
     private HttpClientManager clientManager;
-    private ClusterService clusterService;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -127,7 +128,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        clusterService = mock(ClusterService.class);
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY);
     }
 
     @After
@@ -1463,7 +1464,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             new ElasticInferenceServiceSettings(Settings.EMPTY),
             modelRegistry,
             mockAuthHandler,
-            clusterService
+            context
         );
     }
 
@@ -1493,7 +1494,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             modelRegistry,
             mockAuthHandler,
-            clusterService
+            context
         );
     }
 
@@ -1507,7 +1508,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             modelRegistry,
             new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool),
-            clusterService
+            context
         );
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -90,12 +92,24 @@ public class AmazonBedrockService extends SenderService {
         InputType.UNSPECIFIED
     );
 
+    // for testing
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
         AmazonBedrockRequestSender.Factory amazonBedrockFactory,
-        ServiceComponents serviceComponents
+        ServiceComponents serviceComponents,
+        ClusterService clusterService
     ) {
-        super(httpSenderFactory, serviceComponents);
+        super(httpSenderFactory, serviceComponents, clusterService);
+        this.amazonBedrockSender = amazonBedrockFactory.createSender();
+    }
+
+    public AmazonBedrockService(
+        HttpRequestSender.Factory httpSenderFactory,
+        AmazonBedrockRequestSender.Factory amazonBedrockFactory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        super(httpSenderFactory, serviceComponents, context);
         this.amazonBedrockSender = amazonBedrockFactory.createSender();
     }
 

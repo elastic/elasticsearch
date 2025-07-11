@@ -20,6 +20,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -117,9 +118,10 @@ public class ElasticInferenceService extends SenderService {
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents);
+        super(factory, serviceComponents, context);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );

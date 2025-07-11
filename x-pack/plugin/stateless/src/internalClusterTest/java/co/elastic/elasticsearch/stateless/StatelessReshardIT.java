@@ -56,13 +56,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
@@ -92,7 +88,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -474,8 +469,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testDeleteByQueryAfterReshard() throws Exception {
+        final int NUM_DOCS = 100;
+
         String indexNode = startMasterAndIndexNode();
-        String searchNode = startSearchNode();
+        startSearchNode();
 
         ensureStableCluster(2);
 
@@ -485,9 +482,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        indexDocs(indexName, 100);
+        indexDocs(indexName, NUM_DOCS);
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
+
+        // We currently need to flush all indexed data in order for copy logic to see it.
+        // This will be included in later stages of resharding that currently don't exist.
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
 
         logger.info("starting reshard");
         var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2));
@@ -495,38 +497,13 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
 
         checkNumberOfShardsSetting(indexNode, indexName, 2);
+        ensureGreen(indexName);
 
-        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-
-        // when deletion is wired into the split process we can remove this code to trigger it manually
-        ReshardIndexService reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
-        var deleteListener = new PlainActionFuture<Void>();
-        reshardIndexService.deleteUnownedDocuments(shardId, deleteListener);
-        deleteListener.actionGet();
-
-        IndexService indexService = internalCluster().getInstance(IndicesService.class).indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        var refreshFuture = new PlainActionFuture<Engine.RefreshResult>();
-        indexShard.externalRefresh(indexName, refreshFuture);
-        refreshFuture.actionGet(TimeValue.ONE_MINUTE);
-
-        // Expecting this to be less that 100
+        // doc count should not have increased since both shards will have deleted unowned documents
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value(), lessThanOrEqualTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) NUM_DOCS));
         });
-
-        /*
-        int numDocs = (int) prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits()
-            .value();
-        // System.out.println(numDocs);
-        assertThat(numDocs, lessThanOrEqualTo(100));
-
-         */
     }
 
     public void testReshardWithConcurrentIndexClose() throws Exception {

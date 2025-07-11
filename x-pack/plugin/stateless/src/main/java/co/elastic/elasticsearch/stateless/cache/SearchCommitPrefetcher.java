@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -103,7 +104,11 @@ public class SearchCommitPrefetcher {
         SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING,
         Setting.Property.NodeScope
     );
-
+    public static final Setting<Boolean> FORCE_PREFETCH_SETTING = Setting.boolSetting(
+        "stateless.search.prefetch_commits.force",
+        false,
+        Setting.Property.NodeScope
+    );
     // TODO: add a setting to enable pre-fetching only for write indices?
 
     private final Logger logger = LogManager.getLogger(SearchCommitPrefetcher.class);
@@ -118,6 +123,7 @@ public class SearchCommitPrefetcher {
     private final boolean prefetchNonUploadedCommits;
     private final long prefetchSearchIdleTimeInMillis;
     private final long maxBytesToFetchFromIndexingNode;
+    private final boolean forcePrefetch;
     private final AtomicLong totalPrefetchedBytes = new AtomicLong();
 
     private final AtomicReference<BCCPreFetchedOffset> maxPrefetchedOffset = new AtomicReference<>(BCCPreFetchedOffset.ZERO);
@@ -140,6 +146,7 @@ public class SearchCommitPrefetcher {
         this.prefetchNonUploadedCommits = clusterSettings.get(PREFETCH_NON_UPLOADED_COMMITS_SETTING);
         this.prefetchSearchIdleTimeInMillis = clusterSettings.get(PREFETCH_SEARCH_IDLE_TIME_SETTING).millis();
         this.maxBytesToFetchFromIndexingNode = clusterSettings.get(PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING).getBytes();
+        this.forcePrefetch = clusterSettings.get(FORCE_PREFETCH_SETTING);
     }
 
     public void maybePrefetchLatestCommit(
@@ -164,15 +171,20 @@ public class SearchCommitPrefetcher {
             listener.onResponse(null);
             return;
         }
-        // If we prefetch in the background the new commit notification would go through and the refresh
-        // will be executed concurrently with the prefetching. Otherwise, the refresh won't be executed
-        // until the prefetching finishes.
-        ActionListener<Void> prefetchListener = prefetchInBackground ? ActionListener.noop() : listener;
-        prefetchLatestCommit(notification, prefetchListener);
 
-        if (prefetchInBackground) {
-            listener.onResponse(null);
-        }
+        // This gets executed in a transport thread and if the cache needs to evict regions it acquires a lock,
+        // just to be on the safe side, we dispatch it into a different thread pool.
+        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+            // If we prefetch in the background the new commit notification would go through and the refresh
+            // will be executed concurrently with the prefetching. Otherwise, the refresh won't be executed
+            // until the prefetching finishes.
+            ActionListener<Void> prefetchListener = prefetchInBackground ? ActionListener.noop() : l;
+            prefetchLatestCommit(notification, prefetchListener);
+
+            if (prefetchInBackground) {
+                l.onResponse(null);
+            }
+        }));
     }
 
     private void prefetchLatestCommit(NewCommitNotification notification, ActionListener<Void> listener) {
@@ -279,7 +291,7 @@ public class SearchCommitPrefetcher {
                     // - If new commits are appended to the VBCC afterward, this assumption becomes invalid.
                     // 2. If the missing gaps extend beyond the current VBCC size:
                     // - The get VBCC chunk action would fail, as the request exceeds the current VBCC boundary.
-                    cacheService.maybeFetchRange(
+                    cacheService.fetchRange(
                         cacheKey,
                         region,
                         adjustedRangeToPrefetch,
@@ -301,6 +313,7 @@ public class SearchCommitPrefetcher {
                             Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                         ),
                         executor,
+                        forcePrefetch,
                         refCountingListener.acquire().map(populated -> {
                             if (populated) {
                                 var offsetAfterPopulation = maxPrefetchedOffset.accumulateAndGet(

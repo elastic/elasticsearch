@@ -391,7 +391,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                     SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
                     SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING
+                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+                    SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
                 )
             ),
             DIRECT_EXECUTOR_SERVICE
@@ -479,7 +480,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                     SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
                     SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
-                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING
+                    SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+                    SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
                 )
             ),
             DIRECT_EXECUTOR_SERVICE

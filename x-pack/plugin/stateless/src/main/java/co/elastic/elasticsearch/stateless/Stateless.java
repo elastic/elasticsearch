@@ -1166,7 +1166,8 @@ public class Stateless extends Plugin
             SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
             SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING,
-            SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING
+            SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
+            SearchCommitPrefetcher.FORCE_PREFETCH_SETTING
         );
     }
 

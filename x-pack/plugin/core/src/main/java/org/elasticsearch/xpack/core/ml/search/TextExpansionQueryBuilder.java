@@ -162,7 +162,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             List.of(modelText),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            null
         );
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);

@@ -258,7 +258,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             List.of(query),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            null
         );
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);

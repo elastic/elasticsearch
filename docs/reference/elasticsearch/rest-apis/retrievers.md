@@ -291,7 +291,10 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+    This value determines the size of the individual result sets per query.
+    A higher value will improve result relevance at the cost of performance.
+    The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+    Defaults to 10.
 
 
 `filter`
@@ -323,7 +326,10 @@ An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+    This value determines the size of the individual result sets per query.
+    A higher value will improve result relevance at the cost of performance.
+    The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+    Defaults to 10.
 
 
 `filter`

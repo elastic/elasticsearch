@@ -54,11 +54,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
         super(factory, serviceComponents, context);
     }
 
-    // for testing
-    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
-    }
-
     @Override
     public void parseRequestConfig(
         String inferenceEntityId,

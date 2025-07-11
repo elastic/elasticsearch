@@ -54,7 +54,11 @@ public class EmbedText extends Function implements InferenceFunction {
     public EmbedText(
         Source source,
         @Param(name = "text", type = { "keyword", "text" }, description = "Text to embed") Expression inputText,
-        @Param(name = "inference_id", type = { "keyword", "text" }, description = "Inference deployment ID") Expression inferenceId
+        @Param(
+            name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
+            type = { "keyword", "text" },
+            description = "Inference deployment ID"
+        ) Expression inferenceId
     ) {
         super(source, List.of(inputText, inferenceId));
         this.inferenceId = inferenceId;

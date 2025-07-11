@@ -409,7 +409,7 @@ public final class EsqlTestUtils {
     private static InferenceServices mockInferenceServices() {
         InferenceServices inferenceServices = mock(InferenceServices.class);
         InferenceResolver inferenceResolver = mockInferenceRunner();
-        when(inferenceServices.inferenceResolver()).thenReturn(inferenceResolver);
+        when(inferenceServices.inferenceResolver(any())).thenReturn(inferenceResolver);
 
         return inferenceServices;
     }

@@ -452,4 +452,72 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             }
         }
     }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Map<String, DiskUsage> leastAvailableSpaceUsage = Map.of();
+        private Map<String, DiskUsage> mostAvailableSpaceUsage = Map.of();
+        private Map<String, Long> shardSizes = Map.of();
+        private Map<ShardId, Long> shardDataSetSizes = Map.of();
+        private Map<NodeAndShard, String> dataPath = Map.of();
+        private Map<NodeAndPath, ReservedSpace> reservedSpace = Map.of();
+        private Map<String, EstimatedHeapUsage> estimatedHeapUsages = Map.of();
+        private Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = Map.of();
+
+        public ClusterInfo build() {
+            return new ClusterInfo(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                shardDataSetSizes,
+                dataPath,
+                reservedSpace,
+                estimatedHeapUsages,
+                nodeUsageStatsForThreadPools
+            );
+        }
+
+        public Builder leastAvailableSpaceUsage(Map<String, DiskUsage> leastAvailableSpaceUsage) {
+            this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
+            return this;
+        }
+
+        public Builder mostAvailableSpaceUsage(Map<String, DiskUsage> mostAvailableSpaceUsage) {
+            this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
+            return this;
+        }
+
+        public Builder shardSizes(Map<String, Long> shardSizes) {
+            this.shardSizes = shardSizes;
+            return this;
+        }
+
+        public Builder shardDataSetSizes(Map<ShardId, Long> shardDataSetSizes) {
+            this.shardDataSetSizes = shardDataSetSizes;
+            return this;
+        }
+
+        public Builder dataPath(Map<NodeAndShard, String> dataPath) {
+            this.dataPath = dataPath;
+            return this;
+        }
+
+        public Builder reservedSpace(Map<NodeAndPath, ReservedSpace> reservedSpace) {
+            this.reservedSpace = reservedSpace;
+            return this;
+        }
+
+        public Builder estimatedHeapUsages(Map<String, EstimatedHeapUsage> estimatedHeapUsages) {
+            this.estimatedHeapUsages = estimatedHeapUsages;
+            return this;
+        }
+
+        public Builder nodeUsageStatsForThreadPools(Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools) {
+            this.nodeUsageStatsForThreadPools = nodeUsageStatsForThreadPools;
+            return this;
+        }
+    }
 }

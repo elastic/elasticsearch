@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -30,12 +31,13 @@ public class DotPrefixValidationPlugin extends Plugin implements ActionPlugin {
     public Collection<?> createComponents(PluginServices services) {
         ThreadContext context = services.threadPool().getThreadContext();
         ClusterService clusterService = services.clusterService();
+        SystemIndices systemIndices = services.systemIndices();
 
         actionFilters.set(
             List.of(
-                new CreateIndexDotValidator(context, clusterService),
-                new AutoCreateDotValidator(context, clusterService),
-                new IndexTemplateDotValidator(context, clusterService)
+                new CreateIndexDotValidator(context, clusterService, systemIndices),
+                new AutoCreateDotValidator(context, clusterService, systemIndices),
+                new IndexTemplateDotValidator(context, clusterService, systemIndices)
             )
         );
 

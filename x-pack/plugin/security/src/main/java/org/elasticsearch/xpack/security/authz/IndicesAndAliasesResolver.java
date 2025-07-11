@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.FlatIndicesRequest;
+import org.elasticsearch.RewritableIndicesRequest;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -34,13 +32,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
@@ -58,20 +56,23 @@ import java.util.function.BiPredicate;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
-class IndicesAndAliasesResolver {
-
-    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
+public class IndicesAndAliasesResolver {
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
-    private final boolean flatWorldEnabled;
+    private final CustomIndicesRequestRewriter customIndicesRequestRewriter;
 
-    IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
+    IndicesAndAliasesResolver(
+        Settings settings,
+        ClusterService clusterService,
+        IndexNameExpressionResolver resolver,
+        CustomIndicesRequestRewriter customIndicesRequestRewriter
+    ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-        this.flatWorldEnabled = SearchService.FLAT_WORLD_ENABLED.get(settings);
+        this.customIndicesRequestRewriter = customIndicesRequestRewriter;
     }
 
     /**
@@ -133,64 +134,11 @@ class IndicesAndAliasesResolver {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
-        if (flatWorldEnabled && request instanceof FlatIndicesRequest flatIndicesRequest && flatIndicesRequest.requiresRewrite()) {
-            rewriteFlatIndexExpression(flatIndicesRequest, authorizedIndices);
+        if (request instanceof RewritableIndicesRequest rewritableIndicesRequest) {
+            customIndicesRequestRewriter.rewrite(rewritableIndicesRequest);
         }
 
         return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
-    }
-
-    void rewriteFlatIndexExpression(FlatIndicesRequest request, AuthorizationEngine.AuthorizedIndices authorizedIndices) {
-        assert flatWorldEnabled && request.requiresRewrite();
-
-        Set<String> remotes = remoteClusterResolver.clusters();
-        Map<String, List<RemoteClusterService.RemoteTag>> tags = remoteClusterResolver.tags();
-
-        logger.info("Remote available: {} with tags {}", remotes, tags);
-        // no remotes, nothing to rewrite...
-        if (remotes.isEmpty()) {
-            logger.info("No remotes, skipping...");
-            return;
-        }
-
-        var indices = request.indices();
-        // empty indices actually means search everything so would need to also rewrite that
-
-        var targetRemotes = new HashSet<String>();
-        for (var remote : remotes) {
-            List<RemoteClusterService.RemoteTag> tagsForRemote = tags.get(remote);
-            logger.info("Remote [{}] has tags [{}]", remote, tagsForRemote);
-            // TODO routing also needs to apply to local
-            if (authorizedIndices.checkRemote(remote) && request.checkRemote(tagsForRemote)) {
-                logger.info("Remote [{}] authorized and matches routing", remote);
-                targetRemotes.add(remote);
-            }
-        }
-
-        if (targetRemotes.isEmpty()) {
-            logger.info("No target remotes, skipping...");
-            return;
-        }
-
-        ResolvedIndices resolved = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
-        // skip handling searches where there's both qualified and flat expressions to simplify POC
-        // in the real thing, we'd also rewrite these
-        if (resolved.getRemote().isEmpty() == false) {
-            return;
-        }
-
-        List<FlatIndicesRequest.IndexExpression> indexExpressions = new ArrayList<>(indices.length);
-        for (var local : resolved.getLocal()) {
-            List<String> rewritten = new ArrayList<>();
-            rewritten.add(local);
-            for (var cluster : targetRemotes) {
-                rewritten.add(RemoteClusterAware.buildRemoteIndexName(cluster, local));
-                indexExpressions.add(new FlatIndicesRequest.IndexExpression(local, rewritten));
-            }
-            logger.info("Rewrote [{}] to [{}]", local, rewritten);
-        }
-
-        request.indexExpressions(indexExpressions);
     }
 
     /**
@@ -607,13 +555,14 @@ class IndicesAndAliasesResolver {
         return (list == null) ? null : Arrays.asList(list);
     }
 
-    private static class RemoteClusterResolver extends RemoteClusterAware {
+    public static class RemoteClusterResolver extends RemoteClusterAware {
 
         private final CopyOnWriteArraySet<String> clusters;
         // TODO consolidate
         private final Map<String, List<RemoteClusterService.RemoteTag>> tags;
 
-        private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+        @SuppressWarnings("this-escape")
+        public RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
             clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
             tags = RemoteClusterService.getEnabledRemoteClustersWithTags(settings);
@@ -629,7 +578,7 @@ class IndicesAndAliasesResolver {
             }
         }
 
-        ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
+        public ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
             final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet()
@@ -639,11 +588,11 @@ class IndicesAndAliasesResolver {
             return new ResolvedIndices(local == null ? List.of() : local, remote);
         }
 
-        Set<String> clusters() {
+        public Set<String> clusters() {
             return Collections.unmodifiableSet(clusters);
         }
 
-        Map<String, List<RemoteClusterService.RemoteTag>> tags() {
+        public Map<String, List<RemoteClusterService.RemoteTag>> tags() {
             return Collections.unmodifiableMap(tags);
         }
     }

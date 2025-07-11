@@ -213,6 +213,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1146,6 +1147,7 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1162,7 +1164,8 @@ public class Security extends Plugin
             operatorPrivilegesService.get(),
             restrictedIndices,
             authorizationDenialMessages.get(),
-            projectResolver
+            projectResolver,
+            createCustomIndicesRequestRewriter(extensionComponents)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1250,6 +1253,46 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private CustomIndicesRequestRewriter createCustomIndicesRequestRewriter(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, CustomIndicesRequestRewriter> customByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
+            final CustomIndicesRequestRewriter custom = extension.getCustomIndicesRequestRewriter(extensionComponents);
+            if (custom != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CustomIndicesRequestRewriter. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                customByExtension.put(extension.extensionName(), custom);
+            }
+        }
+
+        if (customByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to default implementation.",
+                CustomIndicesRequestRewriter.class.getCanonicalName()
+            );
+            return new CustomIndicesRequestRewriter.Default();
+        } else if (customByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CustomIndicesRequestRewriter: " + customByExtension.keySet()
+            );
+        } else {
+            final var byExtensionEntry = customByExtension.entrySet().iterator().next();
+            final CustomIndicesRequestRewriter custom = byExtensionEntry.getValue();
+            final String extensionName = byExtensionEntry.getKey();
+            logger.debug(
+                "CustomIndicesRequestRewriter implementation [{}] provided by extension [{}]",
+                custom.getClass().getCanonicalName(),
+                extensionName
+            );
+            return custom;
+        }
     }
 
     private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {

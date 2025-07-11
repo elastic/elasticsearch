@@ -14,12 +14,12 @@ import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.List;
 
-public interface FlatIndicesRequest extends IndicesRequest {
-    boolean requiresRewrite();
+public interface RewritableIndicesRequest extends IndicesRequest {
+    boolean rewritten();
 
-    void indexExpressions(List<IndexExpression> indexExpressions);
+    void rewritten(List<RewrittenIndexExpression> indexExpressions);
 
     boolean checkRemote(List<RemoteClusterService.RemoteTag> tags);
 
-    record IndexExpression(String original, List<String> rewritten) {}
+    record RewrittenIndexExpression(String original, List<String> rewritten) {}
 }

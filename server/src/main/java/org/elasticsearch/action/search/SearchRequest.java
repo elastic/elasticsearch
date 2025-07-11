@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.FlatIndicesRequest;
+import org.elasticsearch.RewritableIndicesRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -57,7 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SearchRequest extends LegacyActionRequest
     implements
-        FlatIndicesRequest,
+        RewritableIndicesRequest,
         IndicesRequest.Replaceable,
         Rewriteable<SearchRequest> {
 
@@ -79,7 +79,7 @@ public class SearchRequest extends LegacyActionRequest
     private List<RemoteClusterService.RemoteTag> routingTags = List.of();
 
     @Nullable
-    private List<IndexExpression> indexExpressions;
+    private List<RewrittenIndexExpression> indexExpressions;
 
     @Nullable
     private String routing;
@@ -871,13 +871,13 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean requiresRewrite() {
-        return indexExpressions == null;
+    public boolean rewritten() {
+        return indexExpressions != null;
     }
 
     @Override
-    public void indexExpressions(List<IndexExpression> indexExpressions) {
-        assert requiresRewrite();
+    public void rewritten(List<RewrittenIndexExpression> indexExpressions) {
+        assert false == rewritten();
         this.indexExpressions = indexExpressions;
         indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
     }

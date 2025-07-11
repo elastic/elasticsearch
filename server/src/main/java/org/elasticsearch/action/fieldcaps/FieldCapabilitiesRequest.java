@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.FlatIndicesRequest;
+import org.elasticsearch.RewritableIndicesRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -40,7 +40,7 @@ import java.util.Set;
 
 public final class FieldCapabilitiesRequest extends LegacyActionRequest
     implements
-        FlatIndicesRequest,
+        RewritableIndicesRequest,
         IndicesRequest.Replaceable,
         ToXContentObject {
     public static final String NAME = "field_caps_request";
@@ -61,7 +61,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
     @Nullable
-    private List<IndexExpression> indexExpressions;
+    private List<RewrittenIndexExpression> indexExpressions;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -335,13 +335,13 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean requiresRewrite() {
-        return indexExpressions == null;
+    public boolean rewritten() {
+        return indexExpressions != null;
     }
 
     @Override
-    public void indexExpressions(List<IndexExpression> indexExpressions) {
-        assert requiresRewrite();
+    public void rewritten(List<RewrittenIndexExpression> indexExpressions) {
+        assert false == rewritten();
         this.indexExpressions = indexExpressions;
         indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
     }

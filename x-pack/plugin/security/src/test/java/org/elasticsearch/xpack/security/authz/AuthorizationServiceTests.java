@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureH
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -336,7 +337,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            new CustomIndicesRequestRewriter.Default()
         );
     }
 
@@ -1769,7 +1771,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            new CustomIndicesRequestRewriter.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1819,7 +1822,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            new CustomIndicesRequestRewriter.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3357,7 +3361,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            new CustomIndicesRequestRewriter.Default()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3513,7 +3518,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            projectResolver
+            projectResolver,
+            new CustomIndicesRequestRewriter.Default()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

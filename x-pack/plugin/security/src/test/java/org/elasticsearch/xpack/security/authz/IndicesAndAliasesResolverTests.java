@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
+import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -417,7 +418,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        defaultIndicesResolver = new IndicesAndAliasesResolver(settings, clusterService, indexNameExpressionResolver);
+        defaultIndicesResolver = new IndicesAndAliasesResolver(
+            settings,
+            clusterService,
+            indexNameExpressionResolver,
+            new CustomIndicesRequestRewriter.Default()
+        );
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {

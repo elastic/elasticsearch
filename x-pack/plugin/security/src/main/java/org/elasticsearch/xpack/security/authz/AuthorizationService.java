@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -164,12 +165,13 @@ public class AuthorizationService {
         OperatorPrivilegesService operatorPrivilegesService,
         RestrictedIndices restrictedIndices,
         AuthorizationDenialMessages authorizationDenialMessages,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        CustomIndicesRequestRewriter customIndicesRequestRewriter
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, customIndicesRequestRewriter);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);

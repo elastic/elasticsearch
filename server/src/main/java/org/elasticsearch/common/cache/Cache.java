@@ -119,7 +119,7 @@ public interface Cache<Key, Value> {
      *
      * @return the current cache statistics
      */
-    CacheStats stats();
+    Stats stats();
 
     /**
      * Performs an action for each cache entry in the cache. While iterating over the cache entries this method might use locks. As such,
@@ -135,7 +135,7 @@ public interface Cache<Key, Value> {
      * @param misses number of times no cached value could be found
      * @param evictions number of entries that have been evicted
      */
-    record CacheStats(long hits, long misses, long evictions) {
+    record Stats(long hits, long misses, long evictions) {
 
         public long getHits() {
             return hits;

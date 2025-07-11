@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -372,7 +373,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         } catch (NumberFormatException ex) {}
         Instant from = Instant.parse(matcher.group(3));
         Instant to = Instant.parse(matcher.group(4));
-        boolean emitEmptyBuckets = Boolean.parseBoolean(matcher.group(5));
+        Boolean emitEmptyBuckets = Booleans.parseBoolean(matcher.group(5));
         return new Bucket(
             unwrappedExpression.source(),
             new Literal(Source.EMPTY, field, DataType.DATETIME),

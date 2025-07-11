@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;

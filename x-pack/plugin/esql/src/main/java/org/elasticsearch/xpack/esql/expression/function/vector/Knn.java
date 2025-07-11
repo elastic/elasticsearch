@@ -146,7 +146,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         this(source, field, query, k, options, null, List.of());
     }
 
-    private Knn(
+    public Knn(
         Source source,
         Expression field,
         Expression query,

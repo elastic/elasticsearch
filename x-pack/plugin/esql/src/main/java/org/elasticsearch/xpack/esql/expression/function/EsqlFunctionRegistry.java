@@ -478,7 +478,7 @@ public class EsqlFunctionRegistry {
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(Knn.class, Knn::new, "knn"),
+                def(Knn.class, quad(Knn::new), "knn"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
                 def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
@@ -1201,6 +1201,10 @@ public class EsqlFunctionRegistry {
     }
 
     private static <T extends Function> TernaryBuilder<T> tri(TernaryBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> QuaternaryBuilder<T> quad(QuaternaryBuilder<T> function) {
         return function;
     }
 

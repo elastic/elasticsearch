@@ -225,7 +225,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ no_brackets_in_unquoted_index_names ]
+          capabilities: [ no_brackets_in_unquoted_index_names, fork_v9 ]
       reason: "Change in the grammar"
 
   - do:

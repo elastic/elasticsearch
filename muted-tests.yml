@@ -176,9 +176,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
-  method: testHTTPExporterWithSSL
-  issue: https://github.com/elastic/elasticsearch/issues/122220
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
@@ -344,9 +341,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
-  issue: https://github.com/elastic/elasticsearch/issues/127096
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
@@ -461,9 +455,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader
   issue: https://github.com/elastic/elasticsearch/issues/98560
-- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
-  method: testBuiltInRolesSyncedOnClusterUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/129534
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
@@ -495,9 +486,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
   method: testSuccessfulExecution
   issue: https://github.com/elastic/elasticsearch/issues/130306
-- class: org.elasticsearch.ingest.PipelineFactoryTests
-  method: testCreateUnsupportedFieldAccessPattern
-  issue: https://github.com/elastic/elasticsearch/issues/130422
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
   issue: https://github.com/elastic/elasticsearch/issues/130472
@@ -525,12 +513,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/130505
-- class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
-  method: testExporterWithHostOnly
-  issue: https://github.com/elastic/elasticsearch/issues/130599
-- class: org.elasticsearch.xpack.monitoring.exporter.http.HttpExporterTests
-  method: testCreateRestClient
-  issue: https://github.com/elastic/elasticsearch/issues/130600
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {match-operator.MatchWithMoreComplexDisjunctionAndConjunction SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130640
@@ -549,18 +531,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
-- class: org.elasticsearch.xpack.esql.action.EsqlRemoteErrorWrapIT
-  method: testThatRemoteErrorsAreWrapped
-  issue: https://github.com/elastic/elasticsearch/issues/130794
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {ints.InCast SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/130796
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
@@ -570,9 +540,21 @@ tests:
 - class: org.elasticsearch.cluster.ClusterStateSerializationTests
   method: testSerializationPreMultiProject
   issue: https://github.com/elastic/elasticsearch/issues/130872
-- class: org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePluginTests
-  method: testPreferFullMasterOverVotingOnlyNodes
-  issue: https://github.com/elastic/elasticsearch/issues/130883
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testOpenContextsAfterRejections
+  issue: https://github.com/elastic/elasticsearch/issues/130821
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test082CannotUseEnvVarsAndFiles
+  issue: https://github.com/elastic/elasticsearch/issues/129808
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testExtractFields
+  issue: https://github.com/elastic/elasticsearch/issues/130501
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testRowStatsProjectGroupByInt
+  issue: https://github.com/elastic/elasticsearch/issues/131024
+- class: org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutorTests
+  method: testMaxQueueLatency
+  issue: https://github.com/elastic/elasticsearch/issues/131093
 
 # Examples:
 #

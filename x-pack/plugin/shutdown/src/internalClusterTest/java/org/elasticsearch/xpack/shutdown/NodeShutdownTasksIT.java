@@ -174,7 +174,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             ProjectId projectId
         ) {
             candidates.set(candidateNodes);
-            return super.getAssignment(params, candidateNodes, clusterState, projectId);
+            return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
         }
 
         @Override

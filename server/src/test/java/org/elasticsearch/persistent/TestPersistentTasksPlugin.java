@@ -337,7 +337,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {
-                return super.getAssignment(params, candidateNodes, clusterState, projectId);
+                return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
             } else {
                 DiscoveryNode executorNode = selectLeastLoadedNode(
                     clusterState,

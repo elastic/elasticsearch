@@ -15,23 +15,23 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class EmbedTextSerializationTests extends AbstractExpressionSerializationTests<EmbedText> {
+public class TextEmbeddingSerializationTests extends AbstractExpressionSerializationTests<TextEmbedding> {
 
     @Before
     public void checkCapability() {
-        assumeTrue("EMBED_TEXT is not enabled", EsqlCapabilities.Cap.EMBED_TEXT_FUNCTION.isEnabled());
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
     }
 
     @Override
-    protected EmbedText createTestInstance() {
+    protected TextEmbedding createTestInstance() {
         Source source = randomSource();
         Expression inputText = randomChild();
         Expression inferenceId = randomChild();
-        return new EmbedText(source, inputText, inferenceId);
+        return new TextEmbedding(source, inputText, inferenceId);
     }
 
     @Override
-    protected EmbedText mutateInstance(EmbedText instance) throws IOException {
+    protected TextEmbedding mutateInstance(TextEmbedding instance) throws IOException {
         Source source = instance.source();
         Expression inputText = instance.inputText();
         Expression inferenceId = instance.inferenceId();
@@ -40,6 +40,6 @@ public class EmbedTextSerializationTests extends AbstractExpressionSerialization
         } else {
             inferenceId = randomValueOtherThan(inferenceId, AbstractExpressionSerializationTests::randomChild);
         }
-        return new EmbedText(source, inputText, inferenceId);
+        return new TextEmbedding(source, inputText, inferenceId);
     }
 }

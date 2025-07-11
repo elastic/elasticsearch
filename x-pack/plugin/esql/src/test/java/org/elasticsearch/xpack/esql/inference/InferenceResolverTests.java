@@ -86,23 +86,23 @@ public class InferenceResolverTests extends ESTestCase {
             | COMPLETION \"italian food recipe\" WITH `completion-inference-id`
             """, List.of("rerank-inference-id", "completion-inference-id"));
 
-        // From an inference function (EMBED_TEXT)
+        // From an inference function (TEXT_EMBEDDING)
         assertCollectInferenceIds(
-            "FROM books METADATA _score | EVAL embedding = EMBED_TEXT(\"italian food recipe\", \"text-embedding-inference-id\")",
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"italian food recipe\", \"text-embedding-inference-id\")",
             List.of("text-embedding-inference-id")
         );
 
         // From an inference function nested in another function
         assertCollectInferenceIds(
-            "FROM books METADATA _score | WHERE KNN(field, EMBED_TEXT(\"italian food recipe\", \"text-embedding-inference-id\"))",
+            "FROM books METADATA _score | WHERE KNN(field, TEXT_EMBEDDING(\"italian food recipe\", \"text-embedding-inference-id\"))",
             List.of("text-embedding-inference-id")
         );
 
         // Multiples functions
         assertCollectInferenceIds("""
             FROM books METADATA _score
-            | WHERE KNN(fieldA, EMBED_TEXT("italian food recipe", "text-embedding-inference-id-a"))
-            | WHERE KNN(fieldB, EMBED_TEXT("italian food recipe", "text-embedding-inference-id-b"))
+            | WHERE KNN(fieldA, TEXT_EMBEDDING("italian food recipe", "text-embedding-inference-id-a"))
+            | WHERE KNN(fieldB, TEXT_EMBEDDING("italian food recipe", "text-embedding-inference-id-b"))
             """, List.of("text-embedding-inference-id-a", "text-embedding-inference-id-b"));
 
         // All the way
@@ -111,8 +111,8 @@ public class InferenceResolverTests extends ESTestCase {
                 FROM books METADATA _score
                 | RERANK "italian food recipe" ON title WITH inferenceId=`rerank-inference-id`
                 | COMPLETION "italian food recipe" WITH `completion-inference-id`
-                | WHERE KNN(fieldA, EMBED_TEXT("italian food recipe", "text-embedding-inference-id-a"))
-                | WHERE KNN(fieldB, EMBED_TEXT("italian food recipe", "text-embedding-inference-id-b"))
+                | WHERE KNN(fieldA, TEXT_EMBEDDING("italian food recipe", "text-embedding-inference-id-a"))
+                | WHERE KNN(fieldB, TEXT_EMBEDDING("italian food recipe", "text-embedding-inference-id-b"))
                 """,
             List.of("rerank-inference-id", "completion-inference-id", "text-embedding-inference-id-a", "text-embedding-inference-id-b")
         );

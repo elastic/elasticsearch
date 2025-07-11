@@ -51,7 +51,7 @@ public class InferenceResolver {
      * extracting their deployment IDs for subsequent validation. Currently, supports:
      * <ul>
      *   <li>{@link InferencePlan} objects (Completion, etc.)</li>
-     *   <li>{@link InferenceFunction} objects (EmbedText, etc.)</li>
+     *   <li>{@link InferenceFunction} objects (TextEmbedding, etc.)</li>
      * </ul>
      *
      * @param plan The logical plan to scan for inference operations
@@ -113,9 +113,9 @@ public class InferenceResolver {
      * Collects inference IDs from inference function calls within the logical plan.
      * <p>
      * This method scans the logical plan for {@link UnresolvedFunction} instances that represent
-     * inference functions (e.g., EMBED_TEXT). For each inference function found:
+     * inference functions (e.g., TEXT_EMBEDDING). For each inference function found:
      * <ol>
-     *   <li>Resolves the function definition through the function registry and checks if the function implements {@link InferenceFunction}</li>
+     *   <li>Resolves the function definition through the registry and checks if the function implements {@link InferenceFunction}</li>
      *   <li>Extracts the inference deployment ID from the function arguments</li>
      * </ol>
      * <p>

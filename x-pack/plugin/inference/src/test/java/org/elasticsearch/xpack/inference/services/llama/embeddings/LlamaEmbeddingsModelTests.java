@@ -13,6 +13,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+
 public class LlamaEmbeddingsModelTests extends ESTestCase {
     public static LlamaEmbeddingsModel createEmbeddingsModel(String modelId, String url, String apiKey) {
         return new LlamaEmbeddingsModel(
@@ -21,6 +23,17 @@ public class LlamaEmbeddingsModelTests extends ESTestCase {
             "llama",
             new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, null),
             null,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static LlamaEmbeddingsModel createEmbeddingsModelWithChunkingSettings(String modelId, String url, String apiKey) {
+        return new LlamaEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "llama",
+            new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, null),
+            createRandomChunkingSettings(),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

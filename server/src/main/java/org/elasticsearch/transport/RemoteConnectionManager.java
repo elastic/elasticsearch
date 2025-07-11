@@ -239,6 +239,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         return Optional.empty();
     }
 
+    public static boolean isRemoteConnection(Transport.Connection connection) {
+        Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
+        return unwrapped instanceof InternalRemoteConnection;
+    }
+
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
         return wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager);

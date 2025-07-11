@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -99,6 +100,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final XPackLicenseState licenseState;
+    private final CustomIndicesRequestRewriter customIndicesRequestRewriter;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -120,6 +122,33 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
+            new CustomIndicesRequestRewriter.Default(),
+            licenseState
+        );
+    }
+
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CustomIndicesRequestRewriter customIndicesRequestRewriter,
+        XPackLicenseState licenseState
+    ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            crossClusterAccessAuthcService,
+            customIndicesRequestRewriter,
             licenseState,
             RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
         );
@@ -138,6 +167,35 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         // Inject for simplified testing
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
     ) {
+        this(
+            settings,
+            threadPool,
+            authcService,
+            authzService,
+            sslService,
+            securityContext,
+            destructiveOperations,
+            crossClusterAccessAuthcService,
+            new CustomIndicesRequestRewriter.Default(),
+            licenseState,
+            remoteClusterCredentialsResolver
+        );
+    }
+
+    SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CustomIndicesRequestRewriter customIndicesRequestRewriter,
+        XPackLicenseState licenseState,
+        // Inject for simplified testing
+        Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -147,6 +205,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
+        this.customIndicesRequestRewriter = customIndicesRequestRewriter;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
@@ -272,6 +331,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
                 if (remoteClusterCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
+                } else if (customIndicesRequestRewriter.enabled() && RemoteConnectionManager.isRemoteConnection(connection)) {
+                    customIndicesRequestRewriter.sendRequest(sender, connection, action, request, options, handler);
                 } else {
                     // Send regular request, without cross cluster access headers
                     try {

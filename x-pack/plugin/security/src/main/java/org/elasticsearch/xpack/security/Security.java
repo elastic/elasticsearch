@@ -1148,6 +1148,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
+        CustomIndicesRequestRewriter customIndicesRequestRewriter = createCustomIndicesRequestRewriter(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1165,7 +1166,7 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             projectResolver,
-            createCustomIndicesRequestRewriter(extensionComponents)
+            customIndicesRequestRewriter
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1197,6 +1198,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
+                customIndicesRequestRewriter,
                 getLicenseState()
             )
         );

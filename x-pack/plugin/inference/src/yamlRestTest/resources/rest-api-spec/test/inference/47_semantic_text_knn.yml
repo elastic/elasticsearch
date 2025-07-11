@@ -452,7 +452,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.9984111, error: 1e15 } }
+  - close_to: { hits.hits.0._score: { value: 0.9981499, error: 1e-7 } }
   - not_exists: hits.hits.0.matched_queries
 
   - do:

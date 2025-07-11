@@ -10,7 +10,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -60,26 +60,16 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
 
     /**
-     * Returns the node id where the params has to be executed based on the Project scope,
+     * Returns the node id where the params has to be executed,
      * <p>
-     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes.
-     * <p>
-     * Implement this method if your {@link #scope()} returns PROJECT, or {@link #getClusterScopedAssignment} if your {@link #scope()}
-     * returns CLUSTER.
+     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes
      */
-    public Assignment getProjectScopedAssignment(Params params, Collection<DiscoveryNode> candidateNodes, ProjectState projectState) {
-        return getClusterScopedAssignment(params, candidateNodes, projectState.cluster());
-    }
-
-    /**
-     * Returns the node id where the params has to be executed based on the Cluster scope,
-     * <p>
-     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes.
-     * <p>
-     * Implement this method if your {@link #scope()} returns CLUSTER, or {@link #getProjectScopedAssignment} if your {@link #scope()}
-     * returns PROJECT.
-     */
-    public Assignment getClusterScopedAssignment(Params params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+    public Assignment getAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
@@ -120,19 +110,8 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * Checks the current cluster state for compatibility with the params
      * <p>
      * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
-     * <p>
-     * Implement this method if your {@link #scope()} returns CLUSTER, or {@link #validateProject} if your {@link #scope()} returns PROJECT.
      */
-    public void validateCluster(Params params, ClusterState clusterState) {}
-
-    /**
-     * Checks the current project state for compatibility with the params
-     * <p>
-     * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
-     * <p>
-     * Implement this method if your {@link #scope()} returns PROJECT, or {@link #validateCluster} if your {@link #scope()} returns CLUSTER.
-     */
-    public void validateProject(Params params, ProjectState projectState) {}
+    public void validate(Params params, ClusterState clusterState, @Nullable ProjectId projectId) {}
 
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager

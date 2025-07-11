@@ -22,7 +22,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -117,20 +118,21 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public void validateProject(DownsampleShardTaskParams params, ProjectState projectState) {
+    public void validate(DownsampleShardTaskParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
         // This is just a pre-check, but doesn't prevent from avoiding from aborting the task when source index disappeared
         // after initial creation of the persistent task.
-        var indexShardRouting = findShardRoutingTable(params.shardId(), projectState.cluster());
+        var indexShardRouting = findShardRoutingTable(params.shardId(), clusterState);
         if (indexShardRouting == null) {
             throw new ShardNotFoundException(params.shardId());
         }
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getProjectScopedAssignment(
+    public PersistentTasksCustomMetadata.Assignment getAssignment(
         final DownsampleShardTaskParams params,
         final Collection<DiscoveryNode> candidateNodes,
-        final ProjectState projectState
+        final ClusterState clusterState,
+        @Nullable final ProjectId projectId
     ) {
         // NOTE: downsampling works by running a task per each shard of the source index.
         // Here we make sure we assign the task to the actual node holding the shard identified by
@@ -140,9 +142,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         // If during re-assignment the source index was deleted, then we need to break out.
         // Returning NO_NODE_FOUND just keeps the persistent task until the source index appears again (which would never happen)
         // So let's return a node and then in the node operation we would just fail and stop this persistent task
-        var indexShardRouting = findShardRoutingTable(shardId, projectState.cluster());
+        var indexShardRouting = findShardRoutingTable(shardId, clusterState);
         if (indexShardRouting == null) {
-            var node = selectLeastLoadedNode(projectState.cluster(), candidateNodes, DiscoveryNode::canContainData);
+            var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
         }
 

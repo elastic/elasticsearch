@@ -28,10 +28,11 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
-import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -118,8 +120,8 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     }
 
     @Override
-    public void validateProject(ShardFollowTask params, ProjectState projectState) {
-        final IndexRoutingTable routingTable = projectState.cluster().getRoutingTable().index(params.getFollowShardId().getIndex());
+    public void validate(ShardFollowTask params, ClusterState clusterState, @Nullable ProjectId projectId) {
+        final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
         final ShardRouting primaryShard = routingTable.shard(params.getFollowShardId().id()).primaryShard();
         if (primaryShard.active() == false) {
             throw new IllegalArgumentException("The primary shard of a follower index " + primaryShard + " is not active");
@@ -129,13 +131,14 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
 
     @Override
-    public Assignment getProjectScopedAssignment(
+    public Assignment getAssignment(
         final ShardFollowTask params,
         final Collection<DiscoveryNode> candidateNodes,
-        final ProjectState projectState
+        final ClusterState clusterState,
+        @Nullable final ProjectId projectId
     ) {
         final DiscoveryNode node = selectLeastLoadedNode(
-            projectState.cluster(),
+            clusterState,
             candidateNodes,
             ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );

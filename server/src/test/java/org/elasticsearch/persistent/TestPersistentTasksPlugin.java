@@ -24,8 +24,8 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -327,25 +327,17 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Assignment getProjectScopedAssignment(
+        public Assignment getAssignment(
             TestParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ProjectState projectState
-        ) {
-            return getClusterScopedAssignment(params, candidateNodes, projectState.cluster());
-        }
-
-        @Override
-        public Assignment getClusterScopedAssignment(
-            TestParams params,
-            Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            ProjectId projectId
         ) {
             if (nonClusterStateCondition == false) {
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {
-                return super.getClusterScopedAssignment(params, candidateNodes, clusterState);
+                return super.getAssignment(params, candidateNodes, clusterState, projectId);
             } else {
                 DiscoveryNode executorNode = selectLeastLoadedNode(
                     clusterState,

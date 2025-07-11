@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -138,7 +139,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
-            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any());
+            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any());
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -169,7 +170,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
      */
     private static class StubNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
         @Override
-        public void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
+        public void collectUsageStats(Client client, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
             listener.onResponse(Map.of());
         }
     }

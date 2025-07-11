@@ -10,11 +10,12 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 
 import java.util.Map;
 
 /**
- * Collects the usage stats (like write thread pool load) estimations for each node in the cluster.
+ * Collects the thread pool usage stats for each node in the cluster.
  * <p>
  * Results are returned as a map of node ID to node usage stats.
  */
@@ -22,12 +23,12 @@ public interface NodeUsageStatsForThreadPoolsCollector {
     /**
      * This will be used when there is no NodeUsageLoadCollector available.
      */
-    NodeUsageStatsForThreadPoolsCollector EMPTY = listener -> listener.onResponse(Map.of());
+    NodeUsageStatsForThreadPoolsCollector EMPTY = (client, listener) -> listener.onResponse(Map.of());
 
     /**
-     * Collects the write load estimates from the cluster.
+     * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
      *
-     * @param listener The listener to receive the write load results.
+     * @param listener The listener to receive the usage results.
      */
-    void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
+    void collectUsageStats(Client client, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
 }

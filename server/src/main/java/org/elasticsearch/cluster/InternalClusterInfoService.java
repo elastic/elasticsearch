@@ -269,7 +269,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private void fetchNodesUsageStatsForThreadPools() {
-            nodeUsageStatsForThreadPoolsCollector.collectUsageStats(ActionListener.releaseAfter(new ActionListener<>() {
+            nodeUsageStatsForThreadPoolsCollector.collectUsageStats(client, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, NodeUsageStatsForThreadPools> writeLoads) {
                     nodeThreadPoolUsageStatsPerNode = writeLoads;

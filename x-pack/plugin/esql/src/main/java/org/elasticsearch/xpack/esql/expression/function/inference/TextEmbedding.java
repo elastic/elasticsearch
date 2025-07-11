@@ -26,19 +26,21 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.*;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * EMBED_TEXT function that generates dense vector embeddings for text using a specified inference deployment.
+ * TEXT_EMBEDDING function that generates dense vector embeddings for text using a specified inference deployment.
  */
-public class EmbedText extends InferenceFunction<EmbedText> {
+public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "EmbedText",
-        EmbedText::new
+        "TextEmbedding",
+        TextEmbedding::new
     );
 
     private final Expression inferenceId;
@@ -50,7 +52,7 @@ public class EmbedText extends InferenceFunction<EmbedText> {
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
         preview = true
     )
-    public EmbedText(
+    public TextEmbedding(
         Source source,
         @Param(name = "text", type = { "keyword", "text" }, description = "Text to embed") Expression inputText,
         @Param(
@@ -64,7 +66,7 @@ public class EmbedText extends InferenceFunction<EmbedText> {
         this.inputText = inputText;
     }
 
-    private EmbedText(StreamInput in) throws IOException {
+    private TextEmbedding(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
@@ -129,31 +131,31 @@ public class EmbedText extends InferenceFunction<EmbedText> {
     }
 
     @Override
-    public EmbedText withInferenceResolutionError(String inferenceId, String error) {
-        return new EmbedText(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+    public TextEmbedding withInferenceResolutionError(String inferenceId, String error) {
+        return new TextEmbedding(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new EmbedText(source(), newChildren.get(0), newChildren.get(1));
+        return new TextEmbedding(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, EmbedText::new, inputText, inferenceId);
+        return NodeInfo.create(this, TextEmbedding::new, inputText, inferenceId);
     }
 
     @Override
     public String toString() {
-        return "EMBED_TEXT(" + inputText + ", " + inferenceId + ")";
+        return "TEXT_EMBEDDING(" + inputText + ", " + inferenceId + ")";
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        EmbedText embedText = (EmbedText) o;
-        return Objects.equals(inferenceId, embedText.inferenceId) && Objects.equals(inputText, embedText.inputText);
+        TextEmbedding textEmbedding = (TextEmbedding) o;
+        return Objects.equals(inferenceId, textEmbedding.inferenceId) && Objects.equals(inputText, textEmbedding.inputText);
     }
 
     @Override

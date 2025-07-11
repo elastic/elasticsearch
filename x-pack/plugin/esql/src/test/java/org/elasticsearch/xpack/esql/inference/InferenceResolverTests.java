@@ -22,9 +22,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +37,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class InferenceRunnerTests extends ESTestCase {
+public class InferenceResolverTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     @Before
@@ -64,11 +61,11 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
+        InferenceResolver inferenceResolver = new InferenceResolver(mockClient(), threadPool);
+        List<String> inferenceIds = List.of("rerank-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -81,15 +78,11 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMultipleInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(
-            mockInferencePlan("rerank-plan"),
-            mockInferencePlan("rerank-plan"),
-            mockInferencePlan("completion-plan")
-        );
+        InferenceResolver inferenceResolver = new InferenceResolver(mockClient(), threadPool);
+        List<String> inferenceIds = List.of("rerank-plan", "rerank-plan", "completion-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -109,12 +102,12 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMissingInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("missing-plan"));
+        InferenceResolver inferenceResolver = new InferenceResolver(mockClient(), threadPool);
+        List<String> inferenceIds = List.of("missing-plan");
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -177,11 +170,5 @@ public class InferenceRunnerTests extends ESTestCase {
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {
         return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), mock(ServiceSettings.class));
-    }
-
-    private static InferencePlan<?> mockInferencePlan(String inferenceId) {
-        InferencePlan<?> plan = mock(InferencePlan.class);
-        when(plan.inferenceId()).thenReturn(Literal.keyword(Source.EMPTY, inferenceId));
-        return plan;
     }
 }

@@ -90,7 +90,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksCustomMetadata.Assignment doGetAssignment(
         SnapshotUpgradeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

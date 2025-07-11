@@ -88,7 +88,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    public PersistentTasksCustomMetadata.Assignment doGetAssignment(
         SystemIndexMigrationTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

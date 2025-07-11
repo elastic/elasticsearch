@@ -131,7 +131,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
 
     @Override
-    public Assignment getAssignment(
+    public Assignment doGetAssignment(
         final ShardFollowTask params,
         final Collection<DiscoveryNode> candidateNodes,
         final ClusterState clusterState,

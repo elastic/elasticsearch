@@ -1088,7 +1088,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Assignment getAssignment(
+                public Assignment doGetAssignment(
                     P params,
                     Collection<DiscoveryNode> candidateNodes,
                     ClusterState clusterState,

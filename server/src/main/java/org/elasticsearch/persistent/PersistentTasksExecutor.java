@@ -64,7 +64,26 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * <p>
      * The default implementation returns the least loaded data node from amongst the collection of candidate nodes
      */
-    public Assignment getAssignment(
+    public final Assignment getAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
+        assert (scope() == Scope.PROJECT && projectId != null) || (scope() == Scope.CLUSTER && projectId == null)
+            : "inconsistent project-id [" + projectId + "] and task scope [" + scope() + "]";
+        return doGetAssignment(params, candidateNodes, clusterState, projectId);
+    }
+
+    /**
+     * Returns the node id where the params has to be executed,
+     * <p>
+     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes.
+     * <p>
+     * If {@link #scope()} returns CLUSTER, then {@link ProjectId} will be null.
+     * If {@link #scope()} returns PROJECT, then {@link ProjectId} will not be null.
+     */
+    public Assignment doGetAssignment(
         Params params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

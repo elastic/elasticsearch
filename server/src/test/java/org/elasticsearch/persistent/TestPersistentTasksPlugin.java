@@ -327,7 +327,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Assignment getAssignment(
+        public Assignment doGetAssignment(
             TestParams params,
             Collection<DiscoveryNode> candidateNodes,
             ClusterState clusterState,

@@ -123,7 +123,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     @Override
-    public Assignment getAssignment(
+    public Assignment doGetAssignment(
         OpenJobAction.JobParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

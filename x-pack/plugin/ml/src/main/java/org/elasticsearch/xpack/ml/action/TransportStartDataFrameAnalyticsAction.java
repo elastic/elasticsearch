@@ -692,7 +692,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        public PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
             @SuppressWarnings("HiddenField") ClusterState clusterState,

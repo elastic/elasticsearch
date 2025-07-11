@@ -72,15 +72,9 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             )
             .build();
 
-        var clusterInfo = new ClusterInfo(
-            Map.of(),
-            Map.of(),
-            Map.of(ClusterInfo.shardIdentifierFromRouting(shardId, true), currentShardSize),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        var clusterInfo = ClusterInfo.builder()
+            .shardSizes(Map.of(ClusterInfo.shardIdentifierFromRouting(shardId, true), currentShardSize))
+            .build();
 
         var queue = new DeterministicTaskQueue();
         try (var clusterService = ClusterServiceUtils.createClusterService(state, queue.getThreadPool())) {

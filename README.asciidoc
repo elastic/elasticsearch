@@ -275,7 +275,7 @@ For the complete Elasticsearch documentation visit
 https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elastic.co].
 
 For information about our documentation processes, see the
-xref:docs/README.asciidoc[docs README].
+xref:https://github.com/elastic/elasticsearch/blob/main/docs/README.md[docs README].
 
 [[examples]]
 == Examples and guides

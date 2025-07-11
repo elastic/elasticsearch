@@ -7,12 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.compute.operator;
+package org.elasticsearch.synonyms;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
 
-public class ValuesSourceReaderBenchmarkTests extends ESTestCase {
-    public void test() {
-        ValuesSourceReaderBenchmark.selfTest();
+import java.util.Set;
+
+public class SynonymFeatures implements FeatureSpecification {
+    private static final NodeFeature RETURN_EMPTY_SYNONYM_SETS = new NodeFeature("synonyms_set.get.return_empty_synonym_sets");
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RETURN_EMPTY_SYNONYM_SETS);
     }
 }

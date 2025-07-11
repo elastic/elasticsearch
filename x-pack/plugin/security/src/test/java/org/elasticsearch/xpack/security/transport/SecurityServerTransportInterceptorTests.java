@@ -1118,7 +1118,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.REQUIRED,
                 List.of("TLS_AES_256_GCM_SHA384"),
-                List.of("TLSv1.3")
+                List.of("TLSv1.3"),
+                randomLongBetween(1, 100000)
             )
         );
 
@@ -1131,7 +1132,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.NONE,
                 List.of(Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_256_GCM_SHA384" : "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
-                List.of("TLSv1.2")
+                List.of("TLSv1.2"),
+                randomLongBetween(1, 100000)
             )
         );
         doThrow(new AssertionError("profile filters should not be configured for remote cluster client")).when(sslService)
@@ -1181,7 +1183,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.REQUIRED,
                 List.of("TLS_AES_256_GCM_SHA384"),
-                List.of("TLSv1.3")
+                List.of("TLSv1.3"),
+                randomLongBetween(1, 100000)
             )
         );
         doThrow(new AssertionError("profile filters should not be configured for remote cluster server when the port is disabled")).when(

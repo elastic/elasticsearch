@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -215,6 +216,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(
             new NullInsertingSourceOperator(simpleInput(driverContext.blockFactory(), end), blockFactory)
+        );
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(simple().get(driverContext), input.iterator(), driverContext);
+        assertSimpleOutput(origInput, results);
+    }
+
+    public final void testMixedMultivaluedNullGroupsAndValues() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        int end = between(50, 60);
+        List<Page> input = CannedSourceOperator.collectPages(
+            nullGroups(nullValues(mergeAll(simpleInput(blockFactory, end), blockFactory), blockFactory), blockFactory)
         );
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = drive(simple().get(driverContext), input.iterator(), driverContext);
@@ -550,11 +563,18 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     private SourceOperator mergeValues(SourceOperator orig, BlockFactory blockFactory) {
+        return merge(orig, blockFactory, blockIndex -> blockIndex != 0);
+    }
+
+    private SourceOperator mergeAll(SourceOperator orig, BlockFactory blockFactory) {
+        return merge(orig, blockFactory, blockIndex -> true);
+    }
+
+    private SourceOperator merge(SourceOperator orig, BlockFactory blockFactory, Predicate<Integer> shouldMergeBlockIndex) {
         return new PositionMergingSourceOperator(orig, blockFactory) {
             @Override
             protected Block merge(int blockIndex, Block block) {
-                // Merge positions for all blocks but the first. For the first just take the first position.
-                if (blockIndex != 0) {
+                if (shouldMergeBlockIndex.test(blockIndex)) {
                     return super.merge(blockIndex, block);
                 }
                 Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount() / 2, blockFactory);
@@ -661,9 +681,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override
-                    public AddInput prepareProcessPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
+                    public AddInput prepareProcessRawInputPage(SeenGroupIds ignoredSeenGroupIds, Page page) {
                         return new AddInput() {
-                            final AddInput delegateAddInput = delegate.prepareProcessPage(bigArrays -> {
+                            final AddInput delegateAddInput = delegate.prepareProcessRawInputPage(bigArrays -> {
                                 BitArray seen = new BitArray(0, bigArrays);
                                 seen.or(seenGroupIds);
                                 return seen;

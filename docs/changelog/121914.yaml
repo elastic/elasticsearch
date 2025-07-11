@@ -1,0 +1,5 @@
+pr: 121914
+summary: Support Fields API in conditional ingest processors
+area: Infra/Core
+type: feature
+issues: []

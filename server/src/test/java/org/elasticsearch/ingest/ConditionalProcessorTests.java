@@ -206,9 +206,9 @@ public class ConditionalProcessorTests extends ESTestCase {
             if (fail.get()) {
                 throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
             } else {
-                return params -> new IngestConditionalScript(params) {
+                return (params, ctxMap) -> new IngestConditionalScript(params, ctxMap) {
                     @Override
-                    public boolean execute(Map<String, Object> ctx) {
+                    public boolean execute() {
                         return false;
                     }
                 };
@@ -226,9 +226,9 @@ public class ConditionalProcessorTests extends ESTestCase {
     public void testRuntimeError() {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
-            code -> params -> new IngestConditionalScript(params) {
+            code -> (params, ctxMapWrapper) -> new IngestConditionalScript(params, ctxMapWrapper) {
                 @Override
-                public boolean execute(Map<String, Object> ctx) {
+                public boolean execute() {
                     throw new IllegalArgumentException("runtime problem");
                 }
             },

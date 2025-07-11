@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -52,9 +52,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
-public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression {
+public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
@@ -74,7 +75,6 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
     );
     private final Expression interval;
     private final Expression timestampField;
-    protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
@@ -287,22 +287,35 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
     }
 
     @Override
-    public Expression surrogate() { // there is no substitute without SearchStats
-        return null;
+    public Expression surrogate(SearchStats searchStats) {
+        // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
+        assert searchStats != null : "SearchStats cannot be null";
+        return maybeSubstituteWithRoundTo(
+            source(),
+            field(),
+            interval(),
+            searchStats,
+            (interval, minValue, maxValue) -> createRounding(interval, DEFAULT_TZ, minValue, maxValue)
+        );
     }
 
-    @Override
-    public Expression surrogate(SearchStats searchStats) {
-        if (field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
+    public static RoundTo maybeSubstituteWithRoundTo(
+        Source source,
+        Expression field,
+        Expression foldableTimeExpression,
+        SearchStats searchStats,
+        TriFunction<Object, Long, Long, Rounding.Prepared> roundingFunction
+    ) {
+        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
             // Extract min/max from SearchStats
             DataType fieldType = fa.dataType();
             FieldAttribute.FieldName fieldName = fa.fieldName();
             var min = searchStats.min(fieldName);
             var max = searchStats.max(fieldName);
             // If min/max is available create rounding with them
-            if (min instanceof Long minValue && max instanceof Long maxValue && interval().foldable()) {
-                Object foldedInterval = interval().fold(FoldContext.small() /* TODO remove me */);
-                Rounding.Prepared rounding = createRounding(foldedInterval, DEFAULT_TZ, minValue, maxValue);
+            if (min instanceof Long minValue && max instanceof Long maxValue && foldableTimeExpression.foldable()) {
+                Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
+                Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, minValue, maxValue);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
                 if (roundingPoints == null) {
                     logger.trace(
@@ -319,7 +332,7 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
                 List<Expression> points = Arrays.stream(roundingPoints)
                     .mapToObj(l -> new Literal(Source.EMPTY, l, fieldType))
                     .collect(Collectors.toList());
-                return new RoundTo(source(), field(), points);
+                return new RoundTo(source, field, points);
             }
         }
         return null;

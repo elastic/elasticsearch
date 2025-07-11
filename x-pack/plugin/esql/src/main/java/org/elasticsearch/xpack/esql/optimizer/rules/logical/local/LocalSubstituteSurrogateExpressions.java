@@ -9,31 +9,27 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public class SubstituteSurrogateExpressionsWithSearchStats extends ParameterizedRule<
-    LogicalPlan,
-    LogicalPlan,
-    LocalLogicalOptimizerContext> {
+public class LocalSubstituteSurrogateExpressions extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        return plan.transformUp(
-            Eval.class,
-            eval -> eval.transformExpressionsOnly(Function.class, f -> substituteDateTruncBucketWithRoundTo(f, context.searchStats()))
-        );
+        return context.searchStats() != null
+            ? plan.transformUp(Eval.class, eval -> eval.transformExpressionsOnly(Function.class, f -> substitute(f, context.searchStats())))
+            : plan;
     }
 
     /**
      * Perform the actual substitution.
      */
-    private static Expression substituteDateTruncBucketWithRoundTo(Expression e, SearchStats searchStats) {
-        if (e instanceof SurrogateExpression s && searchStats != null) {
+    private static Expression substitute(Expression e, SearchStats searchStats) {
+        if (e instanceof LocalSurrogateExpression s) {
             Expression surrogate = s.surrogate(searchStats);
             if (surrogate != null) {
                 return surrogate;

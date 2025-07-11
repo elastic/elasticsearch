@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
  * Interface signaling to the planner that the declaring expression
@@ -29,8 +28,4 @@ public interface SurrogateExpression {
      * be replaced.
      */
     Expression surrogate();
-
-    default Expression surrogate(SearchStats searchStats) {
-        return null;
-    }
 }

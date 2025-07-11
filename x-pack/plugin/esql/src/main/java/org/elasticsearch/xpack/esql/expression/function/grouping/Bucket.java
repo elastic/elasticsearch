@@ -14,13 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,8 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -37,19 +33,14 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -58,10 +49,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.maybeSubstituteWithRoundTo;
+import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
 /**
  * Splits dates and numbers into a given number of buckets. There are two ways to invoke
@@ -73,10 +64,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         PostOptimizationVerificationAware,
         TwoOptionalArguments,
-        SurrogateExpression {
+        LocalSurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
-
-    private static final Logger logger = LogManager.getLogger(Bucket.class);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
@@ -100,8 +89,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Rounding.builder(TimeValue.timeValueMillis(50)).build(),
         Rounding.builder(TimeValue.timeValueMillis(10)).build(),
         Rounding.builder(TimeValue.timeValueMillis(1)).build(), };
-
-    private static final ZoneId DEFAULT_TZ = ZoneOffset.UTC; // TODO: plug in the config
 
     private final Expression field;
     private final Expression buckets;
@@ -511,40 +498,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     @Override
-    public Expression surrogate() {
-        return null;
-    }
-
-    @Override
     public Expression surrogate(SearchStats searchStats) {
-        if (field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
-            // Extract min/max from SearchStats
-            DataType fieldType = fa.dataType();
-            FieldAttribute.FieldName fieldName = fa.fieldName();
-            var min = searchStats.min(fieldName);
-            var max = searchStats.max(fieldName);
-            // If min/max is available create rounding with them
-            if (min instanceof Long minValue && max instanceof Long maxValue && buckets().foldable()) {
-                Rounding.Prepared rounding = getDateRounding(FoldContext.small(), minValue, maxValue);
-                long[] roundingPoints = rounding.fixedRoundingPoints();
-                if (roundingPoints == null) {
-                    logger.trace(
-                        "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
-                        fieldName,
-                        minValue,
-                        dateWithTypeToString(minValue, fieldType),
-                        maxValue,
-                        dateWithTypeToString(maxValue, fieldType)
-                    );
-                    return null;
-                }
-                // Convert to round_to function with the roundings
-                List<Expression> points = Arrays.stream(roundingPoints)
-                    .mapToObj(l -> new Literal(Source.EMPTY, l, fieldType))
-                    .collect(Collectors.toList());
-                return new RoundTo(source(), field(), points);
-            }
-        }
-        return null;
+        // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
+        assert searchStats != null : "SearchStats cannot be null";
+        return maybeSubstituteWithRoundTo(
+            source(),
+            field(),
+            buckets(),
+            searchStats,
+            (interval, minValue, maxValue) -> getDateRounding(FoldContext.small(), minValue, maxValue)
+        );
     }
 }

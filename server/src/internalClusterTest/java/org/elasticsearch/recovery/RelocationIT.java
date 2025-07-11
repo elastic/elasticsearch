@@ -77,6 +77,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -206,6 +207,7 @@ public class RelocationIT extends ESIntegTestCase {
         // Verify that indexing is paused for the throttled shard
         Engine engine = shard.getEngineOrNull();
         assertThat(engine != null && engine.isThrottled(), equalTo(true));
+
         // Try to index a document into the "test" index which is currently throttled
         logger.info("--> Try to index a doc while indexing is paused");
         IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(20)).setSource("field", "value" + 20);
@@ -229,6 +231,12 @@ public class RelocationIT extends ESIntegTestCase {
             .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
+        logger.info("--> verifying shard primary has relocated ...");
+        indicesService = internalCluster().getInstance(IndicesService.class, node_2);
+        shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
+        assertThat(shard.routingEntry().primary(), equalTo(true));
+        engine = shard.getEngineOrNull();
+        assertThat(engine != null && engine.isThrottled(), equalTo(false));
         logger.info("--> verifying count after relocation ...");
         future.actionGet();
         indicesAdmin().prepareRefresh().get();
@@ -258,6 +266,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> creating test index ...");
         prepareCreate("test", indexSettings(1, numberOfReplicas)).get();
 
+        // Randomly use pause throttling vs lock throttling, to verify that relocations proceed regardless
         for (int i = 2; i <= numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i);
             nodes[i - 1] = internalCluster().startNode(
@@ -280,15 +289,21 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> {} docs indexed", numDocs);
 
             logger.info("--> starting relocations...");
-            int nodeShiftBased = numberOfReplicas; // if we have replicas shift those
+
+            // When we have a replica, the primary is on node 0 and replica is on node 1. We cannot move primary
+            // to a node containing the replica, so relocation of primary needs to happen between node 0 and 2.
+            // When there is no replica, we only have 2 nodes and primary relocates back and forth between node 0 and 1.
             for (int i = 0; i < numberOfRelocations; i++) {
                 int fromNode = (i % 2);
                 int toNode = fromNode == 0 ? 1 : 0;
-                fromNode += nodeShiftBased;
-                toNode += nodeShiftBased;
+                if (numberOfReplicas == 1) {
+                    fromNode = fromNode == 1 ? 2 : 0;
+                    toNode = toNode == 1 ? 2 : 0;
+                }
+
                 numDocs = scaledRandomIntBetween(200, 1000);
 
-                // Throttle indexing on source shard
+                // Throttle indexing on primary shard
                 if (throttleIndexing) {
                     IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodes[fromNode]);
                     IndexShard shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
@@ -303,8 +318,7 @@ public class RelocationIT extends ESIntegTestCase {
                 indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
 
-                updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", nodes[toNode]), "test");
-                ensureGreen(ACCEPTABLE_RELOCATION_TIME, "test");
+                ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode]));
 
                 if (rarely()) {
                     logger.debug("--> flushing");
@@ -314,18 +328,13 @@ public class RelocationIT extends ESIntegTestCase {
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNoRelocatingShards(true)
                     .setTimeout(ACCEPTABLE_RELOCATION_TIME)
+                    .setWaitForGreenStatus()
                     .get();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
-                // Deactivate throttle on source shard
-                if (throttleIndexing) {
-                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodes[fromNode]);
-                    IndexShard shard = indicesService.indexServiceSafe(resolveIndex("test")).getShard(0);
-                    logger.info("--> deactivate throttling for shard on node {}...", nodes[fromNode]);
-                    shard.deactivateThrottling();
-                }
             }
+
             logger.info("--> done relocations");
             logger.info("--> waiting for indexing threads to stop ...");
             indexer.stopAndAwaitStopped();

@@ -770,8 +770,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             );
         });
 
-        currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
-
         MockLog.assertThatLogger(() -> {
             // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
             // has
@@ -792,7 +790,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         // The primary term has synchronized with the source
-        assertThat(getCurrentPrimaryTerm(index, 1), equalTo(currentPrimaryTerm));
+        assertThat(getCurrentPrimaryTerm(index, 1), equalTo(getCurrentPrimaryTerm(index, 0)));
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.ReshardIndexService:DEBUG", reason = "logging assertions")

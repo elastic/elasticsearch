@@ -18,7 +18,7 @@ To mitigate this issue, the disk space checker is disabled by default in 9.0.3 b
   The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
   The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
 
-  Possible work-arounds are:
+  Possible workarounds include:
   * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
   * reducing the grouping key cardinality, by filtering out values before STATS
 

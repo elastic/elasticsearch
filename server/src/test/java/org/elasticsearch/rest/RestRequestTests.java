@@ -136,12 +136,12 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(123, value);
     }
 
-    public void testParamAsIntWithoutIntegerParameter() {
+    public void testParamAsIntWithNonIntegerParameter() {
         String parameterKey = randomIdentifier();
         RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
         int defaultValue = randomInt();
 
-        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInt(parameterKey, defaultValue); });
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInt(parameterKey, defaultValue));
     }
 
     public void testParamAsIntegerWithNoParameters() {
@@ -162,12 +162,12 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(123, value2.intValue());
     }
 
-    public void testParamAsIntegerWithoutIntegerParameter() {
+    public void testParamAsIntegerWithNonIntegerParameter() {
         String parameterKey = randomIdentifier();
         RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
         int defaultValue = randomInt();
 
-        assertThrows(IllegalArgumentException.class, () -> { restRequest.paramAsInteger(parameterKey, defaultValue); });
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInteger(parameterKey, defaultValue));
     }
 
     public void testContentOrSourceParam() throws IOException {

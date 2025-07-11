@@ -815,19 +815,25 @@
 
   - do:
       indices.create:
-        index: test
+        index: "0"
 
   - match: { acknowledged: true }
 
   - do:
-      catch: /index_not_found_exception/
       cluster.allocation_explain:
         index: 0
         shard: 0
         primary: true
-        include_disk_info: true
-        include_yes_decisions: true
-        master_timeout: 0
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "0" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
 
 ---
 "cluster shard allocation explanation test with incorrect index parameter passed in URL":
@@ -851,9 +857,6 @@
         index: "test2"
         shard: 0
         primary: true
-        include_disk_info: true
-        include_yes_decisions: true
-        master_timeout: 0
 
 ---
 "cluster shard allocation explanation test with an invalid, string shard parameter passed in URL":
@@ -1055,5 +1058,5 @@
       cluster.allocation_explain:
         index: "test"
         shard: 0
-        primary: 0
+        primary: true
         current_node: 1

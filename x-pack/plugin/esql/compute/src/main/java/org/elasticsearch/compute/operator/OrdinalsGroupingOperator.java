@@ -599,7 +599,15 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
+            assert false : "should never be called when supportsVersion is used";
             return TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS)
+                || version.isPatchFrom(TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS_9_1)
+                || version.isPatchFrom(TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS_8_19);
         }
     }
 

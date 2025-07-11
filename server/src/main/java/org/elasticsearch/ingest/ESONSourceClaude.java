@@ -16,13 +16,14 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import org.elasticsearch.common.bytes.BytesReference;
+
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class ESONSourceClaude {
 
@@ -59,7 +60,7 @@ public class ESONSourceClaude {
             Values values = new Values(finalBytes);
 
             ESONObject finalRoot = buildESONObject(rootObject, values);
-            return new ESONSourceClaude(finalRoot, finalBytes);
+            return new ESONSourceClaude(finalRoot);
         }
 
         // Intermediate parsing structures (no access to final bytes yet)
@@ -165,6 +166,7 @@ public class ESONSourceClaude {
                     bytes.writeDouble(value);
                     return ValueType.DOUBLE;
                 }
+                // TODO: Look at
                 case BIG_INTEGER -> {
                     // Convert to long or store as string for very large values
                     try {
@@ -178,6 +180,7 @@ public class ESONSourceClaude {
                         return ValueType.STRING;
                     }
                 }
+                // TODO: Look at
                 case BIG_DECIMAL -> {
                     // Convert to double or store as string for high precision
                     try {
@@ -211,7 +214,7 @@ public class ESONSourceClaude {
             for (Map.Entry<String, ParsedType> entry : parsed.map.entrySet()) {
                 finalMap.put(entry.getKey(), buildType(entry.getValue(), values));
             }
-            return new ESONObject(finalMap, () -> values);
+            return new ESONObject(finalMap, values);
         }
 
         private ESONArray buildESONArray(ParsedArray parsed, Values values) {
@@ -219,7 +222,7 @@ public class ESONSourceClaude {
             for (ParsedType element : parsed.elements) {
                 finalElements.add(buildType(element, values));
             }
-            return new ESONArray(finalElements);
+            return new ESONArray(finalElements, values);
         }
 
         private Type buildType(ParsedType parsed, Values values) {
@@ -231,23 +234,22 @@ public class ESONSourceClaude {
                 default -> throw new IllegalStateException("Unknown parsed type: " + parsed);
             };
         }
+
+        // Intermediate parsing types (no Values access)
+        private interface ParsedType {}
+
+        private record ParsedObject(Map<String, ParsedType> map) implements ParsedType {}
+
+        private record ParsedArray(List<ParsedType> elements) implements ParsedType {}
+
+        private record ParsedValue(int position, ValueType valueType) implements ParsedType {}
+
     }
 
-    // Intermediate parsing types (no Values access)
-    private interface ParsedType {}
-
-    private record ParsedObject(Map<String, ParsedType> map) implements ParsedType {}
-
-    private record ParsedArray(List<ParsedType> elements) implements ParsedType {}
-
-    private record ParsedValue(int position, ValueType valueType) implements ParsedType {}
-
     private final ESONObject rootObject;
-    private final BytesReference data;
 
-    private ESONSourceClaude(ESONObject rootObject, BytesReference data) {
+    private ESONSourceClaude(ESONObject rootObject) {
         this.rootObject = rootObject;
-        this.data = data;
     }
 
     public ESONObject root() {
@@ -266,7 +268,7 @@ public class ESONSourceClaude {
 
     public interface Type {}
 
-    public record ESONObject(Map<String, Type> map, Supplier<Values> valuesSupplier) implements Type, Map<String, Object> {
+    public record ESONObject(Map<String, Type> map, Values objectValues) implements Type, Map<String, Object> {
 
         // Map interface implementation
         @Override
@@ -286,8 +288,7 @@ public class ESONSourceClaude {
 
         @Override
         public boolean containsValue(Object value) {
-            // This would be expensive to implement efficiently
-            throw new UnsupportedOperationException("containsValue not supported");
+            return values().contains(value);
         }
 
         @Override
@@ -333,8 +334,53 @@ public class ESONSourceClaude {
         public Set<Entry<String, Object>> entrySet() {
             return map.entrySet()
                 .stream()
-                .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> convertTypeToValue(entry.getValue())))
-                .entrySet();
+                .map(entry -> new LazyEntry(entry.getKey(), entry.getValue()))
+                .collect(java.util.stream.Collectors.toSet());
+        }
+
+        private class LazyEntry implements Entry<String, Object> {
+            private final String key;
+            private final Type type;
+            private Object cachedValue;
+            private boolean valueComputed = false;
+
+            LazyEntry(String key, Type type) {
+                this.key = key;
+                this.type = type;
+            }
+
+            @Override
+            public String getKey() {
+                return key;
+            }
+
+            @Override
+            public Object getValue() {
+                if (valueComputed == false) {
+                    cachedValue = convertTypeToValue(type);
+                    valueComputed = true;
+                }
+                return cachedValue;
+            }
+
+            @Override
+            public Object setValue(Object value) {
+                throw new UnsupportedOperationException("ESONObject is read-only");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (this == obj) return true;
+                if (obj instanceof Entry<?, ?> other) {
+                    return java.util.Objects.equals(getKey(), other.getKey()) && java.util.Objects.equals(getValue(), other.getValue());
+                }
+                return false;
+            }
+
+            @Override
+            public int hashCode() {
+                return java.util.Objects.hash(getKey(), getValue());
+            }
         }
 
         private Object convertTypeToValue(Type type) {
@@ -342,25 +388,31 @@ public class ESONSourceClaude {
                 case ESONObject obj -> obj;
                 case ESONArray arr -> arr;
                 case NullValue nullVal -> null;
-                case Value val -> val.getValue(valuesSupplier.get());
+                case Value val -> val.getValue(objectValues);
                 default -> throw new IllegalStateException("Unknown type: " + type);
             };
         }
-
-        // Direct access methods for better performance
-        public Type getType(String key) {
-            return map.get(key);
-        }
-
-        public boolean containsKey(String key) {
-            return map.containsKey(key);
-        }
     }
 
-    public record ESONArray(List<Type> elements) implements Type {
+    public static class ESONArray extends AbstractList<Object> implements Type, List<Object> {
 
-        public Type get(int index) {
-            return elements.get(index);
+        private final List<Type> elements;
+        private final Values arrayValues;
+
+        public ESONArray(List<Type> elements, Values arrayValues) {
+            this.elements = elements;
+            this.arrayValues = arrayValues;
+        }
+
+        public Object get(int index) {
+            Type type = elements.get(index);
+            return switch (type) {
+                case ESONObject o -> o;
+                case ESONArray a -> a;
+                case NullValue n -> null;
+                case Value v -> v.getValue(arrayValues);
+                default -> throw new IllegalArgumentException("Unknown type: " + type);
+            };
         }
 
         public int size() {
@@ -384,7 +436,7 @@ public class ESONSourceClaude {
         }
     }
 
-    public static class NullValue implements Type, ParsedType {}
+    public static class NullValue implements Type, Builder.ParsedType {}
 
     record Values(BytesReference data) {
 

@@ -46,7 +46,7 @@ public class ESONSourceTests extends ESTestCase {
             assertThat(root.get("longField"), instanceOf(Long.class));
 
             // Test float
-            // Jackson parses as double without custom parser
+            // Jackson always parses as Double
             assertThat((Double) root.get("floatField"), equalTo(3.14));
             assertThat(root.get("floatField"), instanceOf(Double.class));
 
@@ -67,54 +67,51 @@ public class ESONSourceTests extends ESTestCase {
         }
     }
 
-//    public void testParseArray() throws Exception {
-//        String jsonString = """
-//            {
-//                "mixedArray": [1, "string", true, null, 3.14],
-//                "numberArray": [10, 20, 30],
-//                "stringArray": ["a", "b", "c"],
-//                "emptyArray": []
-//            }
-//            """;
-//
-//        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-//            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder(false);
-//            ESONSourceClaude source = builder.parse(parser);
-//            ESONSourceClaude.ESONObject root = source.root();
-//
-//            // Test mixed array
-//            ESONSourceClaude.ESONArray mixedArray = (ESONSourceClaude.ESONArray) root.get("mixedArray");
-//            assertThat(mixedArray.size(), equalTo(5));
-//
-//            // Access array elements through the type system for verification
-//            ESONSourceClaude.Value intVal = (ESONSourceClaude.Value) mixedArray.get(0);
-//            assertThat(intVal.getValue(new ESONSourceClaude.Values(source.data)), equalTo(1));
-//
-//            ESONSourceClaude.Value stringVal = (ESONSourceClaude.Value) mixedArray.get(1);
-//            assertThat(stringVal.getValue(new ESONSourceClaude.Values(source.data)), equalTo("string"));
-//
-//            ESONSourceClaude.Value boolVal = (ESONSourceClaude.Value) mixedArray.get(2);
-//            assertThat(boolVal.getValue(new ESONSourceClaude.Values(source.data)), equalTo(true));
-//
-//            ESONSourceClaude.NullValue nullVal = (ESONSourceClaude.NullValue) mixedArray.get(3);
-//            assertThat(nullVal, instanceOf(ESONSourceClaude.NullValue.class));
-//
-//            ESONSourceClaude.Value floatVal = (ESONSourceClaude.Value) mixedArray.get(4);
-//            assertThat((Float) floatVal.getValue(new ESONSourceClaude.Values(source.data)), equalTo(3.14f));
-//
-//            // Test number array
-//            ESONSourceClaude.ESONArray numberArray = (ESONSourceClaude.ESONArray) root.get("numberArray");
-//            assertThat(numberArray.size(), equalTo(3));
-//
-//            // Test string array
-//            ESONSourceClaude.ESONArray stringArray = (ESONSourceClaude.ESONArray) root.get("stringArray");
-//            assertThat(stringArray.size(), equalTo(3));
-//
-//            // Test empty array
-//            ESONSourceClaude.ESONArray emptyArray = (ESONSourceClaude.ESONArray) root.get("emptyArray");
-//            assertThat(emptyArray.size(), equalTo(0));
-//        }
-//    }
+    public void testParseArray() throws Exception {
+        String jsonString = """
+            {
+                "mixedArray": [1, "string", true, null, 3.14],
+                "numberArray": [10, 20, 30],
+                "stringArray": ["a", "b", "c"],
+                "emptyArray": []
+            }
+            """;
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder(false);
+            ESONSourceClaude source = builder.parse(parser);
+            ESONSourceClaude.ESONObject root = source.root();
+
+            // Test mixed array using List<Object> interface
+            ESONSourceClaude.ESONArray mixedArray = (ESONSourceClaude.ESONArray) root.get("mixedArray");
+            assertThat(mixedArray.size(), equalTo(5));
+            assertThat(mixedArray.get(0), equalTo(1));
+            assertThat(mixedArray.get(1), equalTo("string"));
+            assertThat(mixedArray.get(2), equalTo(true));
+            assertThat(mixedArray.get(3), nullValue());
+            // Jackson always parses as Double
+            assertThat((Double) mixedArray.get(4), equalTo(3.14));
+
+            // Test number array
+            ESONSourceClaude.ESONArray numberArray = (ESONSourceClaude.ESONArray) root.get("numberArray");
+            assertThat(numberArray.size(), equalTo(3));
+            assertThat(numberArray.get(0), equalTo(10));
+            assertThat(numberArray.get(1), equalTo(20));
+            assertThat(numberArray.get(2), equalTo(30));
+
+            // Test string array
+            ESONSourceClaude.ESONArray stringArray = (ESONSourceClaude.ESONArray) root.get("stringArray");
+            assertThat(stringArray.size(), equalTo(3));
+            assertThat(stringArray.get(0), equalTo("a"));
+            assertThat(stringArray.get(1), equalTo("b"));
+            assertThat(stringArray.get(2), equalTo("c"));
+
+            // Test empty array
+            ESONSourceClaude.ESONArray emptyArray = (ESONSourceClaude.ESONArray) root.get("emptyArray");
+            assertThat(emptyArray.size(), equalTo(0));
+            assertThat(emptyArray.isEmpty(), equalTo(true));
+        }
+    }
 
     public void testParseNestedObject() throws Exception {
         String jsonString = """
@@ -275,7 +272,7 @@ public class ESONSourceTests extends ESTestCase {
             assertThat(root.get("maxLong"), equalTo(Long.MAX_VALUE));
             assertThat(root.get("minLong"), equalTo(Long.MIN_VALUE));
             assertThat(root.get("zero"), equalTo(0));
-            // Jackson parses as double
+            // Jackson always parses as Double
             assertThat((Double) root.get("negativeFloat"), equalTo(-3.14));
             assertThat((Double) root.get("scientificNotation"), equalTo(1.23e-4));
         }
@@ -308,17 +305,15 @@ public class ESONSourceTests extends ESTestCase {
 
             ESONSourceClaude.ESONArray arrayWithNulls = (ESONSourceClaude.ESONArray) root.get("arrayWithNulls");
             assertThat(arrayWithNulls.size(), equalTo(3));
-            assertThat(arrayWithNulls.get(0), instanceOf(ESONSourceClaude.NullValue.class));
-            assertThat(arrayWithNulls.get(2), instanceOf(ESONSourceClaude.NullValue.class));
+            assertThat(arrayWithNulls.get(0), nullValue());
+            assertThat(arrayWithNulls.get(2), nullValue());
         }
     }
 
-    public void testUnicodeStrings() throws Exception {
+    public void testArrayListInterface() throws Exception {
         String jsonString = """
             {
-                "unicode": "Hello 世界! 🌍",
-                "emoji": "🚀✨🎉",
-                "accents": "café naïve résumé"
+                "testArray": [1, 2, 3, "hello", true, null]
             }
             """;
 
@@ -327,9 +322,236 @@ public class ESONSourceTests extends ESTestCase {
             ESONSourceClaude source = builder.parse(parser);
             ESONSourceClaude.ESONObject root = source.root();
 
-            assertThat(root.get("unicode"), equalTo("Hello 世界! 🌍"));
-            assertThat(root.get("emoji"), equalTo("🚀✨🎉"));
-            assertThat(root.get("accents"), equalTo("café naïve résumé"));
+            ESONSourceClaude.ESONArray array = (ESONSourceClaude.ESONArray) root.get("testArray");
+
+            // Test List interface methods
+            assertThat(array.size(), equalTo(6));
+            assertThat(array.isEmpty(), equalTo(false));
+            assertThat(array.contains(1), equalTo(true));
+            assertThat(array.contains("hello"), equalTo(true));
+            assertThat(array.contains(null), equalTo(true));
+            assertThat(array.contains("not found"), equalTo(false));
+
+            // Test indexOf
+            assertThat(array.indexOf(1), equalTo(0));
+            assertThat(array.indexOf("hello"), equalTo(3));
+            assertThat(array.indexOf(null), equalTo(5));
+            assertThat(array.indexOf("not found"), equalTo(-1));
+
+            // Test iteration
+            int count = 0;
+            for (Object item : array) {
+                count++;
+            }
+            assertThat(count, equalTo(6));
+
+            // Test toArray
+            Object[] arrayContents = array.toArray();
+            assertThat(arrayContents.length, equalTo(6));
+            assertThat(arrayContents[0], equalTo(1));
+            assertThat(arrayContents[3], equalTo("hello"));
+            assertThat(arrayContents[5], nullValue());
+        }
+    }
+
+    public void testNestedArrays() throws Exception {
+        String jsonString = """
+            {
+                "matrix": [
+                    [1, 2, 3],
+                    [4, 5, 6],
+                    [7, 8, 9]
+                ],
+                "jagged": [
+                    [1],
+                    [2, 3],
+                    [4, 5, 6, 7]
+                ]
+            }
+            """;
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder(false);
+            ESONSourceClaude source = builder.parse(parser);
+            ESONSourceClaude.ESONObject root = source.root();
+
+            // Test matrix (regular 2D array)
+            ESONSourceClaude.ESONArray matrix = (ESONSourceClaude.ESONArray) root.get("matrix");
+            assertThat(matrix.size(), equalTo(3));
+
+            ESONSourceClaude.ESONArray row1 = (ESONSourceClaude.ESONArray) matrix.get(0);
+            assertThat(row1.get(0), equalTo(1));
+            assertThat(row1.get(1), equalTo(2));
+            assertThat(row1.get(2), equalTo(3));
+
+            ESONSourceClaude.ESONArray row2 = (ESONSourceClaude.ESONArray) matrix.get(1);
+            assertThat(row2.get(0), equalTo(4));
+            assertThat(row2.get(1), equalTo(5));
+            assertThat(row2.get(2), equalTo(6));
+
+            // Test jagged array (different row sizes)
+            ESONSourceClaude.ESONArray jagged = (ESONSourceClaude.ESONArray) root.get("jagged");
+            assertThat(jagged.size(), equalTo(3));
+
+            ESONSourceClaude.ESONArray jaggedRow1 = (ESONSourceClaude.ESONArray) jagged.get(0);
+            assertThat(jaggedRow1.size(), equalTo(1));
+            assertThat(jaggedRow1.get(0), equalTo(1));
+
+            ESONSourceClaude.ESONArray jaggedRow2 = (ESONSourceClaude.ESONArray) jagged.get(1);
+            assertThat(jaggedRow2.size(), equalTo(2));
+            assertThat(jaggedRow2.get(0), equalTo(2));
+            assertThat(jaggedRow2.get(1), equalTo(3));
+
+            ESONSourceClaude.ESONArray jaggedRow3 = (ESONSourceClaude.ESONArray) jagged.get(2);
+            assertThat(jaggedRow3.size(), equalTo(4));
+            assertThat(jaggedRow3.get(3), equalTo(7));
+        }
+    }
+
+    public void testArrayOfObjects() throws Exception {
+        String jsonString = """
+            {
+                "items": [
+                    {"id": 1, "name": "item1"},
+                    {"id": 2, "name": "item2"},
+                    {"id": 3, "name": "item3"}
+                ]
+            }
+            """;
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder(false);
+            ESONSourceClaude source = builder.parse(parser);
+            ESONSourceClaude.ESONObject root = source.root();
+
+            ESONSourceClaude.ESONArray items = (ESONSourceClaude.ESONArray) root.get("items");
+            assertThat(items.size(), equalTo(3));
+
+            // Test first item
+            ESONSourceClaude.ESONObject item1 = (ESONSourceClaude.ESONObject) items.get(0);
+            assertThat(item1.get("id"), equalTo(1));
+            assertThat(item1.get("name"), equalTo("item1"));
+
+            // Test second item
+            ESONSourceClaude.ESONObject item2 = (ESONSourceClaude.ESONObject) items.get(1);
+            assertThat(item2.get("id"), equalTo(2));
+            assertThat(item2.get("name"), equalTo("item2"));
+
+            // Test third item
+            ESONSourceClaude.ESONObject item3 = (ESONSourceClaude.ESONObject) items.get(2);
+            assertThat(item3.get("id"), equalTo(3));
+            assertThat(item3.get("name"), equalTo("item3"));
+        }
+    }
+
+    public void testArrayWithMixedNesting() throws Exception {
+        String jsonString = """
+            {
+                "complex": [
+                    1,
+                    "string",
+                    [1, 2, 3],
+                    {"nested": "object"},
+                    [
+                        {"deep": "nesting"},
+                        [4, 5, 6]
+                    ],
+                    null
+                ]
+            }
+            """;
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder(false);
+            ESONSourceClaude source = builder.parse(parser);
+            ESONSourceClaude.ESONObject root = source.root();
+
+            ESONSourceClaude.ESONArray complex = (ESONSourceClaude.ESONArray) root.get("complex");
+            assertThat(complex.size(), equalTo(6));
+
+            // Test primitive values
+            assertThat(complex.get(0), equalTo(1));
+            assertThat(complex.get(1), equalTo("string"));
+
+            // Test nested array
+            ESONSourceClaude.ESONArray nestedArray = (ESONSourceClaude.ESONArray) complex.get(2);
+            assertThat(nestedArray.size(), equalTo(3));
+            assertThat(nestedArray.get(0), equalTo(1));
+            assertThat(nestedArray.get(1), equalTo(2));
+            assertThat(nestedArray.get(2), equalTo(3));
+
+            // Test nested object
+            ESONSourceClaude.ESONObject nestedObject = (ESONSourceClaude.ESONObject) complex.get(3);
+            assertThat(nestedObject.get("nested"), equalTo("object"));
+
+            // Test deeply nested array
+            ESONSourceClaude.ESONArray deepArray = (ESONSourceClaude.ESONArray) complex.get(4);
+            assertThat(deepArray.size(), equalTo(2));
+
+            ESONSourceClaude.ESONObject deepObject = (ESONSourceClaude.ESONObject) deepArray.get(0);
+            assertThat(deepObject.get("deep"), equalTo("nesting"));
+
+            ESONSourceClaude.ESONArray deepNestedArray = (ESONSourceClaude.ESONArray) deepArray.get(1);
+            assertThat(deepNestedArray.get(0), equalTo(4));
+            assertThat(deepNestedArray.get(1), equalTo(5));
+            assertThat(deepNestedArray.get(2), equalTo(6));
+
+            // Test null
+            assertThat(complex.get(5), nullValue());
+        }
+    }
+
+    public void testArrayEdgeCases() throws Exception {
+        String jsonString = """
+            {
+                "onlyNulls": [null, null, null],
+                "singleElement": [42],
+                "alternatingNulls": [1, null, 2, null, 3],
+                "emptyStrings": ["", "", ""],
+                "booleans": [true, false, true, false]
+            }
+            """;
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+            ESONSourceClaude.Builder builder = new ESONSourceClaude.Builder(false);
+            ESONSourceClaude source = builder.parse(parser);
+            ESONSourceClaude.ESONObject root = source.root();
+
+            // Test array of only nulls
+            ESONSourceClaude.ESONArray onlyNulls = (ESONSourceClaude.ESONArray) root.get("onlyNulls");
+            assertThat(onlyNulls.size(), equalTo(3));
+            assertThat(onlyNulls.get(0), nullValue());
+            assertThat(onlyNulls.get(1), nullValue());
+            assertThat(onlyNulls.get(2), nullValue());
+
+            // Test single element array
+            ESONSourceClaude.ESONArray singleElement = (ESONSourceClaude.ESONArray) root.get("singleElement");
+            assertThat(singleElement.size(), equalTo(1));
+            assertThat(singleElement.get(0), equalTo(42));
+
+            // Test alternating nulls
+            ESONSourceClaude.ESONArray alternating = (ESONSourceClaude.ESONArray) root.get("alternatingNulls");
+            assertThat(alternating.size(), equalTo(5));
+            assertThat(alternating.get(0), equalTo(1));
+            assertThat(alternating.get(1), nullValue());
+            assertThat(alternating.get(2), equalTo(2));
+            assertThat(alternating.get(3), nullValue());
+            assertThat(alternating.get(4), equalTo(3));
+
+            // Test empty strings
+            ESONSourceClaude.ESONArray emptyStrings = (ESONSourceClaude.ESONArray) root.get("emptyStrings");
+            assertThat(emptyStrings.size(), equalTo(3));
+            assertThat(emptyStrings.get(0), equalTo(""));
+            assertThat(emptyStrings.get(1), equalTo(""));
+            assertThat(emptyStrings.get(2), equalTo(""));
+
+            // Test booleans
+            ESONSourceClaude.ESONArray booleans = (ESONSourceClaude.ESONArray) root.get("booleans");
+            assertThat(booleans.size(), equalTo(4));
+            assertThat(booleans.get(0), equalTo(true));
+            assertThat(booleans.get(1), equalTo(false));
+            assertThat(booleans.get(2), equalTo(true));
+            assertThat(booleans.get(3), equalTo(false));
         }
     }
 }

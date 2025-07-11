@@ -13,10 +13,13 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -25,24 +28,30 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.SenderService;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -78,11 +87,148 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class LlamaServiceTests extends ESTestCase {
+public class LlamaServiceTests extends AbstractInferenceServiceTests {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+
+    public LlamaServiceTests() {
+        super(createTestConfiguration());
+    }
+
+    private static TestConfiguration createTestConfiguration() {
+        return new TestConfiguration.Builder(new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING) {
+
+            @Override
+            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                return LlamaServiceTests.createService(threadPool, clientManager);
+            }
+
+            @Override
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+                return LlamaServiceTests.createServiceSettingsMap(taskType);
+            }
+
+            @Override
+            protected Map<String, Object> createTaskSettingsMap() {
+                return new HashMap<>();
+            }
+
+            @Override
+            protected Map<String, Object> createSecretSettingsMap() {
+                return LlamaServiceTests.createSecretSettingsMap();
+            }
+
+            @Override
+            protected void assertModel(Model model, TaskType taskType) {
+                LlamaServiceTests.assertModel(model, taskType);
+            }
+
+            @Override
+            protected EnumSet<TaskType> supportedStreamingTasks() {
+                return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+            }
+        }).enableUpdateModelTests(new UpdateModelConfiguration() {
+            @Override
+            protected LlamaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+                return createInternalEmbeddingModel(similarityMeasure);
+            }
+        }).build();
+    }
+
+    private static void assertModel(Model model, TaskType taskType) {
+        switch (taskType) {
+            case TEXT_EMBEDDING -> assertTextEmbeddingModel(model);
+            case COMPLETION -> assertCompletionModel(model);
+            case CHAT_COMPLETION -> assertChatCompletionModel(model);
+            default -> fail("unexpected task type [" + taskType + "]");
+        }
+    }
+
+    private static void assertTextEmbeddingModel(Model model) {
+        var customModel = assertCommonModelFields(model);
+
+        assertThat(customModel.getTaskType(), Matchers.is(TaskType.TEXT_EMBEDDING));
+    }
+
+    private static LlamaModel assertCommonModelFields(Model model) {
+        assertThat(model, instanceOf(LlamaModel.class));
+
+        var customModel = (LlamaModel) model;
+        assertThat(customModel.uri.toString(), Matchers.is("http://www.abc.com"));
+        assertThat(customModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
+        assertThat(
+            ((DefaultSecretSettings) customModel.getSecretSettings()).apiKey(),
+            Matchers.is(new SecureString("secret".toCharArray()))
+        );
+
+        return customModel;
+    }
+
+    private static void assertCompletionModel(Model model) {
+        var customModel = assertCommonModelFields(model);
+        assertThat(customModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
+    }
+
+    private static void assertChatCompletionModel(Model model) {
+        var customModel = assertCommonModelFields(model);
+        assertThat(customModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
+    }
+
+    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        return new LlamaService(senderFactory, createWithEmptySettings(threadPool));
+    }
+
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+        Map<String, Object> settingsMap = new HashMap<>(
+            Map.of(ServiceFields.URL, "http://www.abc.com", ServiceFields.MODEL_ID, "model_id")
+        );
+
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            settingsMap.putAll(
+                Map.of(
+                    ServiceFields.SIMILARITY,
+                    SimilarityMeasure.COSINE.toString(),
+                    ServiceFields.DIMENSIONS,
+                    1536,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    512
+                )
+            );
+        }
+
+        return settingsMap;
+    }
+
+    private static Map<String, Object> createSecretSettingsMap() {
+        return new HashMap<>(Map.of("api_key", "secret"));
+    }
+
+    private static LlamaEmbeddingsModel createInternalEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
+        var inferenceId = "inference_id";
+
+        return new LlamaEmbeddingsModel(
+            inferenceId,
+            TaskType.TEXT_EMBEDDING,
+            LlamaService.NAME,
+            new LlamaEmbeddingsServiceSettings(
+                "model_id",
+                "http://www.abc.com",
+                1536,
+                similarityMeasure,
+                512,
+                new RateLimitSettings(10_000)
+            ),
+            ChunkingSettingsTests.createRandomChunkingSettings(),
+            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+        );
+    }
+
+    protected String fetchPersistedConfigTaskTypeParsingErrorMessageFormat() {
+        return "Failed to parse stored model [id] for [llama] service, please delete and add the service again";
+    }
 
     @Before
     public void init() throws Exception {

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -173,9 +174,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveTable(),
             new ResolveEnrich(),
-            new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
+            new ResolveInference(),
             new DateMillisToNanosInEsRelation(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled())
         ),
         new Batch<>(
@@ -394,34 +395,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
                 return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
-            }
-        }
-    }
-
-    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan<?>, AnalyzerContext> {
-        @Override
-        protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
-            assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
-
-            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
-            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
-
-            if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
-                return plan;
-            } else if (resolvedInference != null) {
-                String error = "cannot use inference endpoint ["
-                    + inferenceId
-                    + "] with task type ["
-                    + resolvedInference.taskType()
-                    + "] within a "
-                    + plan.nodeName()
-                    + " command. Only inference endpoints with the task type ["
-                    + plan.taskType()
-                    + "] are supported.";
-                return plan.withInferenceResolutionError(inferenceId, error);
-            } else {
-                String error = context.inferenceResolution().getError(inferenceId);
-                return plan.withInferenceResolutionError(inferenceId, error);
             }
         }
     }
@@ -1316,6 +1289,70 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return f;
+        }
+    }
+
+    private static class ResolveInference extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
+                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
+
+        }
+
+        private InferenceFunction<?> resolveInferenceFunction(InferenceFunction<?> inferenceFunction, AnalyzerContext context) {
+            assert inferenceFunction.inferenceId().resolved() && inferenceFunction.inferenceId().foldable();
+
+            String inferenceId = BytesRefs.toString(inferenceFunction.inferenceId().fold(FoldContext.small()));
+            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+            if (resolvedInference == null) {
+                String error = context.inferenceResolution().getError(inferenceId);
+                return inferenceFunction.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (resolvedInference.taskType() != inferenceFunction.taskType()) {
+                String error = "cannot use inference endpoint ["
+                    + inferenceId
+                    + "] with task type ["
+                    + resolvedInference.taskType()
+                    + "] within a "
+                    + context.functionRegistry().snapshotRegistry().functionName(inferenceFunction.getClass())
+                    + " function. Only inference endpoints with the task type ["
+                    + inferenceFunction.taskType()
+                    + "] are supported.";
+                return inferenceFunction.withInferenceResolutionError(inferenceId, error);
+            }
+
+            return inferenceFunction;
+        }
+
+        private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
+            assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
+
+            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+            if (resolvedInference == null) {
+                String error = context.inferenceResolution().getError(inferenceId);
+                return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (resolvedInference.taskType() != plan.taskType()) {
+                String error = "cannot use inference endpoint ["
+                    + inferenceId
+                    + "] with task type ["
+                    + resolvedInference.taskType()
+                    + "] within a "
+                    + plan.nodeName()
+                    + " command. Only inference endpoints with the task type ["
+                    + plan.taskType()
+                    + "] are supported.";
+                return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            return plan;
         }
     }
 

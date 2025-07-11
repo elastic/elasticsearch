@@ -199,6 +199,7 @@ public final class AnalyzerTestUtils {
         return InferenceResolution.builder()
             .withResolvedInference(new ResolvedInference("reranking-inference-id", TaskType.RERANK))
             .withResolvedInference(new ResolvedInference("completion-inference-id", TaskType.COMPLETION))
+            .withResolvedInference(new ResolvedInference("text-embedding-inference-id", TaskType.TEXT_EMBEDDING))
             .withError("error-inference-id", "error with inference resolution")
             .build();
     }

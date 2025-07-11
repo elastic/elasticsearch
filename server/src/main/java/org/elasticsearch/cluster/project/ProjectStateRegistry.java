@@ -146,6 +146,18 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     @Override
+    public String toString() {
+        return "ProjectStateRegistry["
+            + "projectsSettings="
+            + projectsSettings
+            + ", projectsMarkedForDeletion="
+            + projectsMarkedForDeletion
+            + ", projectsMarkedForDeletionGeneration="
+            + projectsMarkedForDeletionGeneration
+            + ']';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o instanceof ProjectStateRegistry == false) return false;

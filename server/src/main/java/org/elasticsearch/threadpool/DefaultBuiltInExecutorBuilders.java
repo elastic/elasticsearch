@@ -56,7 +56,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 allocatedProcessors,
                 // 10,000 for all nodes with 8 cores or fewer. Scale up once we have more than 8 cores.
                 Math.max(allocatedProcessors * 750, 10000),
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                new EsExecutors.TaskTrackingConfig(true, true, indexAutoscalingEWMA)
             )
         );
         int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);

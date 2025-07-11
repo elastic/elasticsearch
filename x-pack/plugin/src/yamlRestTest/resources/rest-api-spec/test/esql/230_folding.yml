@@ -202,3 +202,42 @@ Foldable query using PHRASE_MATCH on name but with non-foldable expression:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Query must be a valid string in [MATCH_PHRASE(name, CONCAT(\"Bob \", name))], found [CONCAT(\"Bob \", name)]" }
+
+---
+
+Foldable query using MULTI_MATCH on name:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MULTI_MATCH(CONCAT("Bob ", "Johnson"), name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.0: "2021-01-01T00:00:00.000Z" }
+  - match: { values.0.1: 60000 }
+  - match: { values.0.2: 200.5 }
+  - match: { values.0.3: 200 }
+  - match: { values.0.4: "Bob Johnson" }
+
+---
+
+Foldable query using MULTI_MATCH on name but with non-foldable expression:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MULTI_MATCH(CONCAT("Bob ", name), name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Query must be a valid string in [MULTI_MATCH(CONCAT(\"Bob \", name), name)], found [CONCAT(\"Bob \", name)]" }
+

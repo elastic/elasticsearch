@@ -428,7 +428,7 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
   - match: { hits.hits.1._id: "doc_2" }
-  - close_to: { hits.hits.0._score: { value: 5.5701804E19, error: 1e-6 } }
+  - close_to: { hits.hits.0._score: { value: 5.5701804E19, error: 1e-7 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
   - close_to: { hits.hits.1._score: { value: 1.4384103, error: 1e-7 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }

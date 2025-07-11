@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 

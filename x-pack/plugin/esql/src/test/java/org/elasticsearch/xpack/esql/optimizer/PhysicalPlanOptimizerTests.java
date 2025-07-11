@@ -773,7 +773,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
     }
 
-    public void testDoNotExtractGroupingFields() {
+    /**
+     * LimitExec[1000[INTEGER],58]
+     * \_AggregateExec[[first_name{f}#3520],[SUM(salary{f}#3524,true[BOOLEAN]) AS x#3518, first_name{f}#3520],FINAL,[first_name{f}#3520,
+     *  $$x$sum{r}#3530, $$x$seen{r}#3531],58]
+     *   \_ExchangeExec[[first_name{f}#3520, $$x$sum{r}#3530, $$x$seen{r}#3531],true]
+     *     \_AggregateExec[[first_name{f}#3520],[SUM(salary{f}#3524,true[BOOLEAN]) AS x#3518, first_name{f}#3520],INITIAL,[first_name{f}#352
+     * 0, $$x$sum{r}#3546, $$x$seen{r}#3547],58]
+     *       \_FieldExtractExec[first_name{f}#3520, salary{f}#3524]
+     *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#3548], limit[], sort[] estimatedRowSize[58]
+     */
+    public void testDoExtractGroupingFields() {
         var plan = physicalPlan("""
             from test
             | stats x = sum(salary) by first_name
@@ -791,12 +801,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggregate.groupings(), hasSize(1));
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), equalTo(List.of("salary")));
+        assertThat(names(extract.attributesToExtract()), equalTo(List.of("first_name", "salary")));
 
         var source = source(extract.child());
         // doc id and salary are ints. salary isn't extracted.
         // TODO salary kind of is extracted. At least sometimes it is. should it count?
-        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2));
+        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2 + 50));
     }
 
     public void testExtractGroupingFieldsIfAggd() {
@@ -4045,7 +4055,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *     \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],FINAL,58]
      *       \_ExchangeExec[[scalerank{f}#16, xVal{r}#19, xDel{r}#20, yVal{r}#21, yDel{r}#22, count{r}#23, count{r}#24, seen{r}#25],true]
      *         \_AggregateExec[[scalerank{f}#16],[SPATIALCENTROID(location{f}#18) AS centroid, COUNT([2a][KEYWORD]) AS count],PARTIAL,58]
-     *           \_FieldExtractExec[location{f}#18][location{f}#18]
+     *           \_FieldExtractExec[scalerank{f}#16][location{f}#18][location{f}#18]
      *             \_EsQueryExec[airports], query[][_doc{f}#42], limit[], sort[] estimatedRowSize[54]
      * </code>
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
@@ -5474,6 +5484,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_ExchangeExec[[country{f}#21, count{r}#24, seen{r}#25, xVal{r}#26, xDel{r}#27, yVal{r}#28, yDel{r}#29, count{r}#30],true]
      *     \_AggregateExec[[country{f}#21],[COUNT([2a][KEYWORD]) AS count, SPATIALCENTROID(location{f}#20) AS centroid, country{f}#21],INIT
      * IAL,[country{f}#21, count{r}#49, seen{r}#50, xVal{r}#51, xDel{r}#52, yVal{r}#53, yDel{r}#54, count{r}#55],79]
+     *      \_FieldExtractExec[country{f}#15254]
      *       \_EvalExec[[STDISTANCE(location{f}#20,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT])
      *         AS distance]]
      *         \_FieldExtractExec[location{f}#20][location{f}#20]
@@ -5550,7 +5561,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchangeExec = as(aggExec.child(), ExchangeExec.class);
         var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
         // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
-        var evalExec = as(aggExec2.child(), EvalExec.class);
+        var extract = as(aggExec2.child(), FieldExtractExec.class);
+        var evalExec = as(extract.child(), EvalExec.class);
         var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
         assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(true));
         var source = assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.DOC_VALUES);
@@ -8110,7 +8122,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "Expect field attribute to be extracted as " + fieldExtractPreference,
             extract.attributesToExtract()
                 .stream()
-                .allMatch(attr -> extract.fieldExtractPreference(attr) == fieldExtractPreference && attr.dataType() == dataType)
+                .filter(t -> t.dataType() == dataType)
+                .allMatch(attr -> extract.fieldExtractPreference(attr) == fieldExtractPreference)
         );
         return source(extract.child());
     }

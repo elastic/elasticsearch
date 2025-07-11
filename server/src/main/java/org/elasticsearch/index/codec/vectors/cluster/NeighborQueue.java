@@ -121,33 +121,6 @@ class NeighborQueue {
         return decodeNodeId(heap.pop());
     }
 
-    public void consumeNodes(int[] dest) {
-        if (dest.length < size()) {
-            throw new IllegalArgumentException("Destination array is too small. Expected at least " + size() + " elements.");
-        }
-        for (int i = 0; i < size(); i++) {
-            dest[i] = decodeNodeId(heap.get(i + 1));
-        }
-    }
-
-    public int consumeNodesAndScoresMin(int[] dest, float[] scores) {
-        if (dest.length < size() || scores.length < size()) {
-            throw new IllegalArgumentException("Destination array is too small. Expected at least " + size() + " elements.");
-        }
-        float bestScore = Float.POSITIVE_INFINITY;
-        int bestIdx = 0;
-        for (int i = 0; i < size(); i++) {
-            long heapValue = heap.get(i + 1);
-            scores[i] = decodeScore(heapValue);
-            dest[i] = decodeNodeId(heapValue);
-            if (scores[i] < bestScore) {
-                bestScore = scores[i];
-                bestIdx = i;
-            }
-        }
-        return bestIdx;
-    }
-
     public void clear() {
         heap.clear();
     }

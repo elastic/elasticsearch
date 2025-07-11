@@ -66,6 +66,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
@@ -95,7 +96,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -118,6 +118,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IngestService.class);
+
+    public static final NodeFeature FIELD_ACCESS_PATTERN = new NodeFeature("ingest.field_access_pattern", true);
+
+    /**
+     * Checks the locally supported node features without relying on cluster state or feature service.
+     * This is primarily to support the Logstash elastic_integration plugin which uses the IngestService
+     * internally and thus would not have access to cluster service or feature services. NodeFeatures that
+     * are accepted here should be currently and generally available in Elasticsearch.
+     * @param nodeFeature The node feature to check
+     * @return true if the node feature can be supported in the local library code, false if it is not supported
+     */
+    public static boolean locallySupportedIngestFeature(NodeFeature nodeFeature) {
+        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+            // logs_stream feature flag guard
+            return IngestService.FIELD_ACCESS_PATTERN.equals(nodeFeature);
+        }
+        // Default to unsupported if not contained here
+        return false;
+    }
 
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
@@ -374,6 +393,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public ProjectResolver getProjectResolver() {
         return projectResolver;
+    }
+
+    public FeatureService getFeatureService() {
+        return featureService;
     }
 
     /**
@@ -754,7 +777,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             deprecationLogger.critical(DeprecationCategory.API, "pipeline_name_special_chars", e.getMessage());
         }
 
-        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService, projectId);
+        Pipeline pipeline = Pipeline.create(
+            pipelineId,
+            pipelineConfig,
+            processorFactories,
+            scriptService,
+            projectId,
+            (n) -> featureService.clusterHasFeature(state, n)
+        );
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
 
@@ -823,10 +853,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param onFailure A callback executed when a document fails ingestion and does not need to be
      *                  persisted. Accepts the slot in the collection of requests that the document
      *                  occupies, and the exception that the document encountered.
-     * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
-     *                     that ingestion completed on or an exception in the event that the entire operation
-     *                     has failed.
-     * @param executor Which executor the bulk request should be executed on.
+     * @param listener A callback executed once all documents have been processed.
      */
     public void executeBulkRequest(
         final ProjectId projectId,
@@ -836,25 +863,23 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final Executor executor
+        final ActionListener<Void> listener
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         // Adapt handler to ensure node features during ingest logic
         final Function<String, Boolean> adaptedResolveFailureStore = wrapResolverWithFeatureCheck(resolveFailureStore);
 
-        executor.execute(new AbstractRunnable() {
+        new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
+                listener.onFailure(e);
             }
 
             @Override
             protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                try (var refs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                     int i = 0;
                     for (DocWriteRequest<?> actionRequest : actionRequests) {
                         IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
@@ -933,7 +958,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
                 }
             }
-        });
+        }.run();
     }
 
     /**
@@ -1428,7 +1453,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     newConfiguration.getConfig(false),
                     processorFactories,
                     scriptService,
-                    projectId
+                    projectId,
+                    (nodeFeature) -> featureService.clusterHasFeature(clusterService.state(), nodeFeature)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
@@ -1557,7 +1583,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public synchronized void reloadPipeline(ProjectId projectId, String id) throws Exception {
         var originalPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
         PipelineHolder holder = originalPipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService, projectId);
+        Pipeline updatedPipeline = Pipeline.create(
+            id,
+            holder.configuration.getConfig(false),
+            processorFactories,
+            scriptService,
+            projectId,
+            (nodeFeature) -> featureService.clusterHasFeature(state, nodeFeature)
+        );
         ImmutableOpenMap<String, PipelineHolder> updatedPipelines = ImmutableOpenMap.builder(originalPipelines)
             .fPut(id, new PipelineHolder(holder.configuration, updatedPipeline))
             .build();
@@ -1565,8 +1598,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {
-        String tag = e.getHeaderKeys().contains("processor_tag") ? e.getHeader("processor_tag").get(0) : null;
-        String type = e.getHeaderKeys().contains("processor_type") ? e.getHeader("processor_type").get(0) : "unknown";
+        String tag = e.getBodyHeaderKeys().contains("processor_tag") ? e.getBodyHeader("processor_tag").get(0) : null;
+        String type = e.getBodyHeaderKeys().contains("processor_type") ? e.getBodyHeader("processor_type").get(0) : "unknown";
         String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
         Processor failureProcessor = new AbstractProcessor(tag, "this is a placeholder processor") {
             @Override

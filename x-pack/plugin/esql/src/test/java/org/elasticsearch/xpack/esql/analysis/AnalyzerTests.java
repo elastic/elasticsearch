@@ -2006,7 +2006,7 @@ public class AnalyzerTests extends ESTestCase {
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
             Found 8 problems
-            line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:12: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
@@ -2028,7 +2028,7 @@ public class AnalyzerTests extends ESTestCase {
             | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
             """, """
             Found 5 problems
-            line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:10: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -2375,7 +2375,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""
-            from test | where knn(vector, [0.342, 0.164, 0.234])
+            from test | where knn(vector, [0.342, 0.164, 0.234], 10)
             """, "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
@@ -3382,28 +3382,19 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
     }
 
-    public void testValidRrf() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
              | fork ( where first_name:"foo" )
                     ( where first_name:"bar" )
-             | rrf
+             | fuse
             """);
 
         Limit limit = as(plan, Limit.class);
-        OrderBy orderBy = as(limit.child(), OrderBy.class);
 
-        assertThat(orderBy.order().size(), equalTo(3));
-        assertThat(orderBy.order().get(0).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(ReferenceAttribute.class));
-        assertThat(((ReferenceAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        Dedup dedup = as(orderBy.child(), Dedup.class);
+        Dedup dedup = as(limit.child(), Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.aggregates().size(), equalTo(15));
 
@@ -3416,37 +3407,21 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(rrf.child(), instanceOf(Fork.class));
     }
 
-    public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testFuseError() {
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | rrf
+            | fuse
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
         assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test metadata _score, _index, _id
-            | eval _fork = 1
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
-             from test metadata _id, _index, _score
-            | fork ( where first_name:"foo" )
-                   ( where first_name:"bar" )
-            | rrf
-            | rrf
-            """));
-        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_score]"));
 
@@ -3454,7 +3429,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _id
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_index]"));
 
@@ -3462,7 +3437,7 @@ public class AnalyzerTests extends ESTestCase {
             from test metadata _score, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
-            | RRF
+            | FUSE
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
@@ -4118,6 +4093,21 @@ public class AnalyzerTests extends ESTestCase {
         verifyNameAndTypeAndMultiTypeEsField(fa.name(), fa.dataType(), "$$date_and_date_nanos$converted_to$long", LONG, fa);
         EsRelation esRelation = as(eval.child(), EsRelation.class);
         assertEquals("test*", esRelation.indexPattern());
+    }
+
+    public void testGroupingOverridesInStats() {
+        verifyUnsupported("""
+            from test
+            | stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testGroupingOverridesInInlinestats() {
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inlinestats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
     }
 
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {

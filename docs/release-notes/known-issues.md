@@ -50,12 +50,11 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
      POST /_watcher/_start
      ```
 
-* A bug in ES|QL STATS command may lead to wrong results. The bug only happens in a very specific case, ie. with `STATS ... BY keyword1, keyword2`:
-  exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
+* A bug in the ES|QL STATS command may yield incorrect results. The bug only happens in very specific cases that follow this pattern: `STATS ... BY keyword1, keyword2`, i.e. the command must have exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
 
-  The issue is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
-  The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4,
+  The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
+  The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
 
-  Possible work-arounds are:
+  Possible workarounds include:
     * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
-    * reducing the grouping key cardinality, filtering out values before STATS.
+    * reducing the grouping key cardinality, by filtering out values before STATS

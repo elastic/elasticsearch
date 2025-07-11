@@ -64,12 +64,6 @@ public class KnnQuery extends Query {
         return queryBuilder;
     }
 
-    public KnnQuery withFilterQueries(List<QueryBuilder> newFilterQueries) {
-        List<QueryBuilder> combinedFilterQueries = new ArrayList<>(filterQueries);
-        combinedFilterQueries.addAll(newFilterQueries);
-        return new KnnQuery(source(), field, query, options, combinedFilterQueries);
-    }
-
     @Override
     protected String innerToString() {
         return "knn(" + field + ", " + Arrays.toString(query) + " options={" + options + "}))";

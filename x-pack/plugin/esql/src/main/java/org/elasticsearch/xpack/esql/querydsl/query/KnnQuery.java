@@ -81,4 +81,9 @@ public class KnnQuery extends Query {
     public boolean scorable() {
         return true;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

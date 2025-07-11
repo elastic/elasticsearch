@@ -50,6 +50,9 @@ import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -94,6 +97,8 @@ public class SynonymsManagementAPIService {
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
+    private static final String RULE_COUNT_AGG_NAME = "rule_count";
+    private static final String RULE_COUNT_FILTER_KEY = "synonym_rules";
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
@@ -185,15 +190,33 @@ public class SynonymsManagementAPIService {
         }
     }
 
+    /**
+     * Returns all synonym sets with their rule counts, including empty synonym sets.
+     * @param from The index of the first synonym set to return
+     * @param size The number of synonym sets to return
+     * @param listener The listener to return the synonym sets to
+     */
     public void getSynonymsSets(int from, int size, ActionListener<PagedResult<SynonymSetSummary>> listener) {
+        BoolQueryBuilder synonymSetQuery = QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_SET_OBJECT_TYPE))
+            .should(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+            .minimumShouldMatch(1);
+
+        // Aggregation query to count only synonym rules (excluding synonym set objects)
+        FiltersAggregationBuilder ruleCountAggregation = new FiltersAggregationBuilder(
+            RULE_COUNT_AGG_NAME,
+            new FiltersAggregator.KeyedFilter(RULE_COUNT_FILTER_KEY, QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+        );
+
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
             // Retrieves aggregated synonym rules for each synonym set, excluding the synonym set object type
-            .setQuery(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+            .setQuery(synonymSetQuery)
             .addAggregation(
                 new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
                     .order(BucketOrder.key(true))
                     .size(maxSynonymsSets)
+                    .subAggregation(ruleCountAggregation)
             )
             .setPreference(Preference.LOCAL.type())
             .execute(new ActionListener<>() {
@@ -201,11 +224,11 @@ public class SynonymsManagementAPIService {
                 public void onResponse(SearchResponse searchResponse) {
                     Terms termsAggregation = searchResponse.getAggregations().get(SYNONYM_SETS_AGG_NAME);
                     List<? extends Terms.Bucket> buckets = termsAggregation.getBuckets();
-                    SynonymSetSummary[] synonymSetSummaries = buckets.stream()
-                        .skip(from)
-                        .limit(size)
-                        .map(bucket -> new SynonymSetSummary(bucket.getDocCount(), bucket.getKeyAsString()))
-                        .toArray(SynonymSetSummary[]::new);
+                    SynonymSetSummary[] synonymSetSummaries = buckets.stream().skip(from).limit(size).map(bucket -> {
+                        Filters ruleCountFilters = bucket.getAggregations().get(RULE_COUNT_AGG_NAME);
+                        Filters.Bucket ruleCountBucket = ruleCountFilters.getBucketByKey(RULE_COUNT_FILTER_KEY);
+                        return new SynonymSetSummary(ruleCountBucket.getDocCount(), bucket.getKeyAsString());
+                    }).toArray(SynonymSetSummary[]::new);
 
                     listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
                 }

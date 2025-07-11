@@ -59,7 +59,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
+    public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
         if (countAll == false) {
             Vector valuesVector = valuesBlock.asVector();

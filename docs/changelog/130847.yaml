@@ -2,7 +2,7 @@ pr: 130847
 summary: "Pipelines: Add `created_date` and `modified_date`"
 area: Ingest Node
 type: enhancement
-issues: [108754]
+issues: []
 highlight:
   title: "Pipelines: Add `created_date` and `modified_date`"
   body: |-

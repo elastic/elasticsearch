@@ -867,7 +867,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("additionalAttribute"));
     }
 
-    public void testVerifierOnAttributeDatatypeChanged(){
+    public void testVerifierOnAttributeDatatypeChanged() {
         var plan = localPlan("""
             from test
             | stats a = min(salary) by emp_no

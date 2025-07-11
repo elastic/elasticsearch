@@ -170,19 +170,31 @@ public class TaskManager implements ClusterStateApplier {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
             if (traceRequest) {
-                startTrace(threadContext, task);
+                maybeStartTrace(threadContext, task);
             }
         }
         return task;
     }
 
-    // package private for testing
-    void startTrace(ThreadContext threadContext, Task task) {
+    /**
+     * Start a new trace span if a parent trace context already exists.
+     * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
+     */
+    void maybeStartTrace(ThreadContext threadContext, Task task) {
+        if (threadContext.hasParentTraceContext() == false) {
+            return;
+        }
         TaskId parentTask = task.getParentTaskId();
         Map<String, Object> attributes = parentTask.isSet()
             ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
         tracer.startTrace(threadContext, task, task.getAction(), attributes);
+    }
+
+    void maybeStopTrace(ThreadContext threadContext, Task task) {
+        if (threadContext.hasTraceContext()) {
+            tracer.stopTrace(task);
+        }
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -247,7 +259,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, requestId, holder);
         if (traceRequest) {
-            startTrace(threadPool.getThreadContext(), task);
+            maybeStartTrace(threadPool.getThreadContext(), task);
         }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {
@@ -346,7 +358,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.stopTrace(task);
+            maybeStopTrace(threadPool.getThreadContext(), task);
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }

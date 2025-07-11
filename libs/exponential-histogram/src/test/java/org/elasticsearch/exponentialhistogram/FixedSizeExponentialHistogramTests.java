@@ -38,9 +38,9 @@ public class FixedSizeExponentialHistogramTests extends ESTestCase {
             IntStream.range(-1_000_000, 2_000_000).mapToDouble(Double::valueOf)
         );
 
-        double smallPerc = ExpHistoPercentiles.getPercentile(result, 0.00001);
-        double highPerc = ExpHistoPercentiles.getPercentile(result, 0.9999);
-        double median = ExpHistoPercentiles.getPercentile(result, 0.5);
+        double smallPerc = ExponentialHistogramQuantile.getQuantile(result, 0.00001);
+        double highPerc = ExponentialHistogramQuantile.getQuantile(result, 0.9999);
+        double median = ExponentialHistogramQuantile.getQuantile(result, 0.5);
 
         printMidpoints(result);
     }

@@ -23,66 +23,58 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Random;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class PercentileAccuracyTests extends ESTestCase {
+public class QuantileAccuracyTests extends ESTestCase {
 
-    public static final double[] PERCENTILES_TO_TEST = { 0, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0 };
+    public static final double[] QUANTILES_TO_TEST = { 0, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0 };
 
-    /**
-     * Test percentile accuracy with uniform distribution
-     */
+    public void testBasicSmall() {
+        DoubleStream values = IntStream.range(1,10).mapToDouble(Double::valueOf);
+        testQuantileAccuracy(values.toArray(), 100);
+    }
+
     public void testUniformDistribution() {
-        testDistributionPercentileAccuracy(new UniformRealDistribution(new Well19937c(42), 0, 100), 50000, 500);
+        testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(42), 0, 100), 50000, 500);
     }
 
-    /**
-     * Test percentile accuracy with normal distribution
-     */
     public void testNormalDistribution() {
-        testDistributionPercentileAccuracy(new NormalDistribution(new Well19937c(42), 100, 15), 50000, 500);
+        testDistributionQuantileAccuracy(new NormalDistribution(new Well19937c(42), 100, 15), 50000, 500);
     }
 
-    /**
-     * Test percentile accuracy with exponential distribution
-     */
     public void testExponentialDistribution() {
-        testDistributionPercentileAccuracy(new ExponentialDistribution(new Well19937c(42), 10), 50000, 500);
+        testDistributionQuantileAccuracy(new ExponentialDistribution(new Well19937c(42), 10), 50000, 500);
     }
 
-    /**
-     * Test percentile accuracy with log-normal distribution
-     */
     public void testLogNormalDistribution() {
-        testDistributionPercentileAccuracy(new LogNormalDistribution(new Well19937c(42), 0, 1), 50000, 500);
+        testDistributionQuantileAccuracy(new LogNormalDistribution(new Well19937c(42), 0, 1), 50000, 500);
     }
 
-    /**
-     * Test percentile accuracy with gamma distribution
-     */
     public void testGammaDistribution() {
-        testDistributionPercentileAccuracy(new GammaDistribution(new Well19937c(42), 2, 5), 50000, 500);
+        testDistributionQuantileAccuracy(new GammaDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
-    /**
-     * Test percentile accuracy with beta distribution
-     */
     public void testBetaDistribution() {
-        testDistributionPercentileAccuracy(new BetaDistribution(new Well19937c(42), 2, 5), 50000, 500);
+        testDistributionQuantileAccuracy(new BetaDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
-    /**
-     * Test percentile accuracy with Weibull distribution
-     */
     public void testWeibullDistribution() {
-        testDistributionPercentileAccuracy(new WeibullDistribution(new Well19937c(42), 2, 5), 50000, 500);
+        testDistributionQuantileAccuracy(new WeibullDistribution(new Well19937c(42), 2, 5), 50000, 500);
     }
 
-    /**
-     * Test how bucket count affects percentile accuracy
-     */
+    public void testBigJump() {
+        double[] values = DoubleStream.concat(
+            IntStream.range(0,18).mapToDouble(Double::valueOf),
+            DoubleStream.of(1_000_000.0)
+        ).toArray();
+
+        testQuantileAccuracy(values, 500);
+    }
+
     public void testBucketCountImpact() {
         RealDistribution distribution = new LogNormalDistribution(new Well19937c(42), 0, 1);
         int sampleSize = 50000;
@@ -91,19 +83,16 @@ public class PercentileAccuracyTests extends ESTestCase {
         // Test with different bucket counts
         int[] bucketCounts = { 10, 50, 100, 200, 500 };
         for (int bucketCount : bucketCounts) {
-            double maxError = testPercentileAccuracy(values, bucketCount);
+            double maxError = testQuantileAccuracy(values, bucketCount);
             logger.info("Bucket count: " + bucketCount + ", Max relative error: " + maxError);
         }
 
         // Verify that more buckets generally means better accuracy
-        double errorWithFewBuckets = testPercentileAccuracy(values, 20);
-        double errorWithManyBuckets = testPercentileAccuracy(values, 200);
+        double errorWithFewBuckets = testQuantileAccuracy(values, 20);
+        double errorWithManyBuckets = testQuantileAccuracy(values, 200);
         assertThat("More buckets should improve accuracy", errorWithManyBuckets, lessThan(errorWithFewBuckets));
     }
 
-    /**
-     * Test percentile accuracy with mixed positive and negative values
-     */
     public void testMixedSignValues() {
         Random random = new Random(42);
         double[] values = new double[10000];
@@ -111,12 +100,9 @@ public class PercentileAccuracyTests extends ESTestCase {
             values[i] = (random.nextDouble() * 200) - 100; // Range from -100 to 100
         }
 
-        testPercentileAccuracy(values, 100);
+        testQuantileAccuracy(values, 100);
     }
 
-    /**
-     * Test percentile accuracy with skewed data
-     */
     public void testSkewedData() {
         // Create a highly skewed dataset
         Random random = new Random(42);
@@ -131,12 +117,9 @@ public class PercentileAccuracyTests extends ESTestCase {
             }
         }
 
-        testPercentileAccuracy(values, 100);
+        testQuantileAccuracy(values, 100);
     }
 
-    /**
-     * Test percentile accuracy with data containing zeros
-     */
     public void testDataWithZeros() {
         Random random = new Random(42);
         double[] values = new double[10000];
@@ -149,21 +132,15 @@ public class PercentileAccuracyTests extends ESTestCase {
             }
         }
 
-        testPercentileAccuracy(values, 100);
+        testQuantileAccuracy(values, 100);
     }
 
-    /**
-     * Helper method to test percentile accuracy for a given distribution
-     */
-    private void testDistributionPercentileAccuracy(RealDistribution distribution, int sampleSize, int bucketCount) {
+    private void testDistributionQuantileAccuracy(RealDistribution distribution, int sampleSize, int bucketCount) {
         double[] values = generateSamples(distribution, sampleSize);
-        testPercentileAccuracy(values, bucketCount);
+        testQuantileAccuracy(values, bucketCount);
     }
 
-    /**
-     * Helper method to generate samples from a distribution
-     */
-    private double[] generateSamples(RealDistribution distribution, int sampleSize) {
+    private static double[] generateSamples(RealDistribution distribution, int sampleSize) {
         double[] values = new double[sampleSize];
         for (int i = 0; i < sampleSize; i++) {
             values[i] = distribution.sample();
@@ -171,10 +148,7 @@ public class PercentileAccuracyTests extends ESTestCase {
         return values;
     }
 
-    /**
-     * Helper method to test percentile accuracy for a given dataset
-     */
-    private double testPercentileAccuracy(double[] values, int bucketCount) {
+    private double testQuantileAccuracy(double[] values, int bucketCount) {
         // Create histogram
         ExponentialHistogram histogram = ExponentialHistogramGenerator.createFor(bucketCount, Arrays.stream(values));
 
@@ -185,17 +159,17 @@ public class PercentileAccuracyTests extends ESTestCase {
         double allowedError = getMaximumRelativeError(values, bucketCount);
         double maxError = 0;
 
-        // Compare histogram percentiles with exact percentiles
-        for (double p : PERCENTILES_TO_TEST) {
+        // Compare histogram quantiles with exact quantiles
+        for (double q : QUANTILES_TO_TEST) {
             double exactValue;
-            if (p == 0) {
+            if (q == 0) {
                 exactValue = Arrays.stream(values).min().getAsDouble();
-            } else if (p == 1) {
+            } else if (q == 1) {
                 exactValue = Arrays.stream(values).max().getAsDouble();
             } else {
-                exactValue = exactPercentile.evaluate(p * 100);
+                exactValue = exactPercentile.evaluate(q * 100);
             }
-            double histoValue = ExpHistoPercentiles.getPercentile(histogram, p);
+            double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
 
             // Skip comparison if exact value is zero to avoid division by zero
             if (Math.abs(exactValue) < 1e-10) {
@@ -207,8 +181,8 @@ public class PercentileAccuracyTests extends ESTestCase {
 
             logger.info(
                 String.format(
-                    "Percentile %.2f: Exact=%.6f, Histogram=%.6f, Relative Error=%.8f, Allowed Relative Error=%.8f",
-                    p,
+                    "Quantile %.2f: Exact=%.6f, Histogram=%.6f, Relative Error=%.8f, Allowed Relative Error=%.8f",
+                    q,
                     exactValue,
                     histoValue,
                     relativeError,
@@ -217,7 +191,7 @@ public class PercentileAccuracyTests extends ESTestCase {
             );
 
             assertThat(
-                String.format("Percentile %.2f should be accurate within %.6f%% relative error", p, allowedError * 100),
+                String.format("Quantile %.2f should be accurate within %.6f%% relative error", q, allowedError * 100),
                 histoValue,
                 closeTo(exactValue, Math.abs(exactValue * allowedError))
             );
@@ -231,7 +205,7 @@ public class PercentileAccuracyTests extends ESTestCase {
      * The error depends on the raw values put into the histogram and the number of buckets allowed.
      * This is an implementation of the error bound computation proven by Theorem 3 in the <a href="https://arxiv.org/pdf/2004.08604">UDDSketch paper</a>
      */
-    private double getMaximumRelativeError(double[] values, int bucketCount) {
+    private static double getMaximumRelativeError(double[] values, int bucketCount) {
         double smallestAbsNegative = Double.MAX_VALUE;
         double largestAbsNegative = 0;
         double smallestPositive = Double.MAX_VALUE;

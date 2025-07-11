@@ -1944,7 +1944,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 
-
     public void testPushDownNegatedConjunctionsToKnnPrefilter() {
         assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
@@ -2048,10 +2047,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testPushDownComplexNegationsToKnnPrefilter() {
         assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
-        String query = """
-            from test
-            | where ((knn(dense_vector, [0, 1, 2], 10) or NOT integer > 10) and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
-            """;
+        String query =
+            """
+                from test
+                | where ((knn(dense_vector, [0, 1, 2], 10) or NOT integer > 10) and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
+                """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
         var limit = as(plan, LimitExec.class);
@@ -2079,17 +2079,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
         KnnVectorQueryBuilder secondKnnFilter = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 10, null, null, null);
 
-        firstKnn.addFilterQuery(boolQuery()
-            .must(notKeywordFilter)
-            .must(unscore(boolQuery().mustNot(secondKnnFilter))));
+        firstKnn.addFilterQuery(boolQuery().must(notKeywordFilter).must(unscore(boolQuery().mustNot(secondKnnFilter))));
 
-        secondKnn.addFilterQuery(boolQuery()
-            .should(firstKnnFilter)
-            .should(notIntegerGt10));
+        secondKnn.addFilterQuery(boolQuery().should(firstKnnFilter).should(notIntegerGt10));
 
         // Build the main boolean query structure
-        BoolQueryBuilder expectedQuery = boolQuery()
-            .must(notKeywordFilter)  // NOT (keyword == "test")
+        BoolQueryBuilder expectedQuery = boolQuery().must(notKeywordFilter)  // NOT (keyword == "test")
             .must(unscore(boolQuery().mustNot(secondKnn)))
             .must(boolQuery().should(firstKnn).should(notIntegerGt10));
 

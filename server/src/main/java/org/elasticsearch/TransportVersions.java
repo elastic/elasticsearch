@@ -337,7 +337,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
     public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
-    public static final TransportVersion ESQL_KNN_FUNCTION_PREFILTER = def(9_121_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

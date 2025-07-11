@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -349,10 +348,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        List<Expression> filterExpressions = List.of();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_KNN_FUNCTION_PREFILTER)) {
-            filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
-        }
+        List<Expression> filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
         return new Knn(source, field, query, null, null, queryBuilder, filterExpressions);
     }
 
@@ -362,9 +358,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_KNN_FUNCTION_PREFILTER)) {
-            out.writeNamedWriteableCollection(filterExpressions());
-        }
+        out.writeNamedWriteableCollection(filterExpressions());
     }
 
     @Override

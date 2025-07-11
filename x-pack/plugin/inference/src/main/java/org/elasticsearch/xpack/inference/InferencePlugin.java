@@ -267,7 +267,7 @@ public class InferencePlugin extends Plugin
 
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(
-            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, services.clusterService())
+            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator)
         );
         threadPoolSetOnce.set(services.threadPool());
 

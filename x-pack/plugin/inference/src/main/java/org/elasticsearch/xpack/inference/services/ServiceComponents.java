@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -20,6 +19,5 @@ public record ServiceComponents(
     ThreadPool threadPool,
     ThrottlerManager throttlerManager,
     Settings settings,
-    Truncator truncator,
-    ClusterService clusterService
+    Truncator truncator
 ) {}

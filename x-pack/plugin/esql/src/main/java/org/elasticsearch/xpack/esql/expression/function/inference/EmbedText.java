@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,16 +26,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.*;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * EMBED_TEXT function that generates dense vector embeddings for text using a specified inference deployment.
  */
-public class EmbedText extends Function implements InferenceFunction {
+public class EmbedText extends InferenceFunction<EmbedText> {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -97,7 +96,7 @@ public class EmbedText extends Function implements InferenceFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST).and(isFoldable(inferenceId, sourceText(), FIRST))
+        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST).and(isFoldable(inputText, sourceText(), FIRST))
             .and(isString(inputText, sourceText(), FIRST));
 
         if (textResolution.unresolved()) {
@@ -118,6 +117,16 @@ public class EmbedText extends Function implements InferenceFunction {
     public boolean foldable() {
         // The function is foldable only if both arguments are foldable
         return inputText.foldable() && inferenceId.foldable();
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TaskType.TEXT_EMBEDDING;
+    }
+
+    @Override
+    public EmbedText withInferenceResolutionError(String inferenceId, String error) {
+        return new EmbedText(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
     }
 
     @Override

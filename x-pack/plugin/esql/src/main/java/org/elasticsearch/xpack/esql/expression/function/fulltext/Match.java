@@ -312,7 +312,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     private TypeResolution resolveQuery() {
-        TypeResolution result =  isType(
+        TypeResolution result = isType(
             query(),
             QUERY_DATA_TYPES::contains,
             sourceText(),

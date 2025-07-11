@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -46,6 +50,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
@@ -56,13 +61,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostAnalysisPlanVerificationAware {
+    private final Logger log = LogManager.getLogger(getClass());
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -189,9 +195,16 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector").and(
-            isNotNullAndFoldable(query(), sourceText(), SECOND)
-        );
+        TypeResolution result = isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector")
+            .and(isNotNull(query(), sourceText(), SECOND));
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText());
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private TypeResolution resolveK() {
@@ -236,18 +249,58 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     @Override
+    public boolean partiallyFoldable() {
+        return true;
+    }
+
+    @Override
+    public Expression partiallyFold(FoldContext ctx) {
+        if (k instanceof Literal) {
+            // already folded, return self
+            return this;
+        }
+        Object foldedK = k.fold(ctx);
+        if (foldedK instanceof Number == false) {
+            throw new EsqlIllegalArgumentException(format(null, "K value must be a constant integer in [{}], found [{}]", source(), k()));
+        }
+        List<Expression> newChildren = new ArrayList<>(this.children());
+        newChildren.set(2, new Literal(source(), foldedK, INTEGER));
+        Expression replaced = this.replaceChildren(newChildren);
+        log.error("Partially folded knn function [{}] with k value [{}]", replaced, foldedK);
+        return replaced;
+    }
+
+    @Override
+    public List<Number> queryAsObject() {
+        // we need to check that we got a list and every element in the list is a number
+        Expression query = query();
+        if (query instanceof Literal literal) {
+            @SuppressWarnings("unchecked")
+            List<Number> result = ((List<Number>) literal.value());
+            return result;
+        }
+        throw new EsqlIllegalArgumentException(format(null, "Query value must be a list of numbers in [{}], found [{}]", source(), query));
+    }
+
+    int getKIntValue() {
+        if (k() instanceof Literal literal) {
+            return (int) (Number) literal.value();
+        }
+        throw new EsqlIllegalArgumentException(format(null, "K value must be a constant integer in [{}], found [{}]", source(), k()));
+    }
+
+    @Override
     protected Query translate(TranslatorHandler handler) {
         var fieldAttribute = Match.fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
-        @SuppressWarnings("unchecked")
-        List<Number> queryFolded = (List<Number>) query().fold(FoldContext.small() /* TODO remove me */);
+        List<Number> queryFolded = queryAsObject();
         float[] queryAsFloats = new float[queryFolded.size()];
         for (int i = 0; i < queryFolded.size(); i++) {
             queryAsFloats[i] = queryFolded.get(i).floatValue();
         }
-        int kValue = ((Number) k().fold(FoldContext.small())).intValue();
+        int kValue = getKIntValue();
 
         Map<String, Object> opts = queryOptions();
         opts.put(K_FIELD.getPreferredName(), kValue);
@@ -322,12 +375,13 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Knn knn = (Knn) o;
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
-            && Objects.equals(queryBuilder(), knn.queryBuilder());
+            && Objects.equals(queryBuilder(), knn.queryBuilder())
+            && Objects.equals(k(), knn.k());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), queryBuilder(), k());
     }
 
 }

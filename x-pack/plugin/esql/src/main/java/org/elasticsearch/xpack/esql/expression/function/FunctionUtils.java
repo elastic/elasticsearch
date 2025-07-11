@@ -32,7 +32,9 @@ public class FunctionUtils {
      */
     public static Expression.TypeResolution resolveTypeLimit(Expression limitField, String sourceText) {
         if (limitField == null) {
-            return new Expression.TypeResolution(format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
+            return new Expression.TypeResolution(
+                format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField)
+            );
         }
         if (limitField instanceof Literal literal) {
             if (literal.value() == null) {
@@ -47,6 +49,7 @@ public class FunctionUtils {
         }
         return Expression.TypeResolution.TYPE_RESOLVED;
     }
+
     public static void postOptimizationVerificationLimit(Failures failures, Expression limitField, String sourceText) {
         if (limitField == null) {
             failures.add(fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
@@ -62,6 +65,7 @@ public class FunctionUtils {
             failures.add(fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
         }
     }
+
     public static Expression.TypeResolution resolveTypeQuery(Expression queryField, String sourceText) {
         if (queryField == null) {
             return new Expression.TypeResolution(format(null, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
@@ -83,9 +87,7 @@ public class FunctionUtils {
         if (queryField instanceof Literal literal) {
             String value = BytesRefs.toString(literal.value());
             if (value == null) {
-                failures.add(
-                    fail(queryField, "Invalid query value in [{}], found [{}]", sourceText, value)
-                );
+                failures.add(fail(queryField, "Invalid query value in [{}], found [{}]", sourceText, value));
             }
         } else {
             // it is expected that the expression is a literal after folding
@@ -93,6 +95,7 @@ public class FunctionUtils {
             failures.add(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
         }
     }
+
     public static Object queryAsObject(Expression queryField, String sourceText) {
         if (queryField instanceof Literal literal) {
             return BytesRefs.toString(literal.value());

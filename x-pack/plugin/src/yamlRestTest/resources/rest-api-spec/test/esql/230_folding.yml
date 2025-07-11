@@ -24,17 +24,23 @@ setup:
                 type: long
               name:
                 type: keyword
+              image_vector:
+                type: dense_vector
+                dims: 3
+                index: true
+                similarity: l2_norm
+
   - do:
       bulk:
         index: employees
         refresh: true
         body:
           - { "index": { } }
-          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith" }
+          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ] }
           - { "index": { } }
-          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson" }
+          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ] }
           - { "index": { } }
-          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith" }
+          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ] }
 
 ---
 Top function with constant folding:
@@ -279,3 +285,39 @@ Foldable query using QSTR on name but with non-foldable expression:
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Query must be a valid string in [QSTR(CONCAT(name, \"Bob\"))], found [CONCAT(name, \"Bob\")]" }
 
+---
+
+Foldable query using KNN on image_vector:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, [0.4, 0.5, 0.9], 1 + 1)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - match: { columns.5.name: "image_vector" }
+  - length: { values: 2 }
+  # The closest vectors to [0.4, 0.5, 0.6] are Bob Johnson and Charlie Smith
+  - match: { values.0.4: "Bob Johnson" }
+  - match: { values.1.4: "Charlie Smith" }
+
+---
+
+Foldable query using KNN on image_vector but with non-foldable expression:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, [0.4, 0.5, 0.9], 1+salary)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "third argument of [KNN(image_vector, [0.4, 0.5, 0.9], 1+salary)] must be a constant, received [1+salary]" }

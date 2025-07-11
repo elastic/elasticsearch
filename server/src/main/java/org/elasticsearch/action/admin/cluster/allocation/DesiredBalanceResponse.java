@@ -151,10 +151,21 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     @Override
     public String toString() {
         return "DesiredBalanceResponse{"
-            + CLUSTER_INFO_FIELD_NAME + "=" + stats + ", "
-            + CLUSTER_BALANCE_STATS_FIELD_NAME + "=" + clusterBalanceStats + ", "
-            + ROUTING_TABLE_FIELD_NAME + "=" + routingTable + ", "
-            + CLUSTER_INFO_FIELD_NAME + "=" + clusterInfo
+            + CLUSTER_INFO_FIELD_NAME
+            + "="
+            + stats
+            + ", "
+            + CLUSTER_BALANCE_STATS_FIELD_NAME
+            + "="
+            + clusterBalanceStats
+            + ", "
+            + ROUTING_TABLE_FIELD_NAME
+            + "="
+            + routingTable
+            + ", "
+            + CLUSTER_INFO_FIELD_NAME
+            + "="
+            + clusterInfo
             + "}";
     }
 

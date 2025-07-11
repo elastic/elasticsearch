@@ -242,9 +242,9 @@ public record ClusterBalanceStats(
                 }
             }
 
-            double nodeWeight = desiredBalance == null || desiredBalance.weightsPerNode().isEmpty() ?
-                0 :
-                desiredBalance.weightsPerNode().get(routingNode.node()).nodeWeight();
+            double nodeWeight = desiredBalance == null || desiredBalance.weightsPerNode().isEmpty()
+                ? 0
+                : desiredBalance.weightsPerNode().get(routingNode.node()).nodeWeight();
 
             return new NodeBalanceStats(
                 routingNode.nodeId(),

@@ -5,11 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -19,7 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 
-public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBuilder, Releasable, Block.Builder {
+public class SingletonOrdinalsBuilder implements BlockLoader.OrdinalsBuilder, Releasable, Block.Builder {
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;
     private int minOrd = Integer.MAX_VALUE;

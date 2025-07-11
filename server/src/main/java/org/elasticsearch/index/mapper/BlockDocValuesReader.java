@@ -656,7 +656,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docs.count() == 1) {
                 return readSingleDoc(factory, docs.get(0));
             }
-            try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {
@@ -701,13 +701,29 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BytesRefBuilder builder = factory.bytesRefsFromDocValues(docs.count())) {
+            if (docs.count() == 1) {
+                return readSingleDoc(factory, docs.get(0));
+            }
+            try (var builder = factory.ordinalsBuilder(ordinals, docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
-                    read(doc, builder);
+                    if (ordinals.advanceExact(doc) == false) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int count = ordinals.docValueCount();
+                    if (count == 1) {
+                        builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int c = 0; c < count; c++) {
+                            builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                        }
+                        builder.endPositionEntry();
+                    }
                 }
                 return builder.build();
             }
@@ -716,6 +732,26 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (BytesRefBuilder) builder);
+        }
+
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId) == false) {
+                return factory.constantNulls();
+            }
+            int count = ordinals.docValueCount();
+            if (count == 1) {
+                BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+                return factory.constantBytes(BytesRef.deepCopyOf(v));
+            }
+            try (var builder = factory.bytesRefsFromDocValues(count)) {
+                builder.beginPositionEntry();
+                for (int c = 0; c < count; c++) {
+                    BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+                    builder.appendBytesRef(v);
+                }
+                builder.endPositionEntry();
+                return builder.build();
+            }
         }
 
         private void read(int docId, BytesRefBuilder builder) throws IOException {

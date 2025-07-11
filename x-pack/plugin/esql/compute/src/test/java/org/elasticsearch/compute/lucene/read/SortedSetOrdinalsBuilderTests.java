@@ -5,15 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.compute.lucene.read;
 
-import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -23,26 +21,28 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
-public class SingletonOrdinalsBuilderTests extends ESTestCase {
+public class SortedSetOrdinalsBuilderTests extends ESTestCase {
+
     public void testReader() throws IOException {
         testRead(breakingDriverContext().blockFactory());
     }
@@ -61,55 +61,69 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
     }
 
     private void testRead(BlockFactory factory) throws IOException {
-        int count = 1000;
+        int numDocs = between(1, 1000);
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            for (int i = 0; i < count; i++) {
-                for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
-                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
+            Map<Integer, List<String>> expectedValues = new HashMap<>();
+            List<String> allKeys = IntStream.range(0, between(1, 20)).mapToObj(n -> String.format(Locale.ROOT, "v%02d", n)).toList();
+            for (int i = 0; i < numDocs; i++) {
+                List<String> subs = randomSubsetOf(allKeys).stream().sorted().toList();
+                expectedValues.put(i, subs);
+                Document doc = new Document();
+                for (String v : subs) {
+                    doc.add(new SortedSetDocValuesField("f", new BytesRef(v)));
                 }
+                doc.add(new NumericDocValuesField("k", i));
+                indexWriter.addDocument(doc);
             }
-            Map<String, Integer> counts = new HashMap<>();
+            Map<Integer, List<String>> actualValues = new HashMap<>();
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
-                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    var keysDV = ctx.reader().getNumericDocValues("k");
+                    var valuesDV = ctx.reader().getSortedSetDocValues("f");
+                    try (
+                        var valuesBuilder = new SortedSetOrdinalsBuilder(factory, valuesDV, ctx.reader().numDocs());
+                        var keysBuilder = factory.newIntVectorBuilder(ctx.reader().numDocs())
+                    ) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
-                                assertThat(docValues.advanceExact(i), equalTo(true));
-                                builder.appendOrd(docValues.ordValue());
+                                assertTrue(keysDV.advanceExact(i));
+                                keysBuilder.appendInt(Math.toIntExact(keysDV.longValue()));
+                                if (valuesDV.advanceExact(i)) {
+                                    int valueCount = valuesDV.docValueCount();
+                                    if (valueCount > 1) {
+                                        valuesBuilder.beginPositionEntry();
+                                    }
+                                    for (int v = 0; v < valueCount; v++) {
+                                        valuesBuilder.appendOrd(Math.toIntExact(valuesDV.nextOrd()));
+                                    }
+                                    if (valueCount > 1) {
+                                        valuesBuilder.endPositionEntry();
+                                    }
+                                } else {
+                                    valuesBuilder.appendNull();
+                                }
                             }
                         }
-                        try (BytesRefBlock build = buildOrdinalsBuilder(builder)) {
-                            for (int i = 0; i < build.getPositionCount(); i++) {
-                                counts.merge(build.getBytesRef(i, new BytesRef()).utf8ToString(), 1, (lhs, rhs) -> lhs + rhs);
+                        BytesRef scratch = new BytesRef();
+                        try (BytesRefBlock valuesBlock = valuesBuilder.build(); IntVector counterVector = keysBuilder.build()) {
+                            for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
+                                int key = counterVector.getInt(p);
+                                ArrayList<String> subs = new ArrayList<>();
+                                assertNull(actualValues.put(key, subs));
+                                int count = valuesBlock.getValueCount(p);
+                                int first = valuesBlock.getFirstValueIndex(p);
+                                int last = first + count;
+                                for (int i = first; i < last; i++) {
+                                    String val = valuesBlock.getBytesRef(i, scratch).utf8ToString();
+                                    subs.add(val);
+                                }
                             }
                         }
                     }
                 }
             }
-            assertMap(counts, matchesMap().entry("a", count).entry("b", count).entry("c", count).entry("d", count));
+            assertThat(actualValues, equalTo(expectedValues));
         }
-    }
-
-    public void testCompactWithNulls() {
-        assertCompactToUnique(new int[] { -1, -1, -1, -1, 0, 1, 2 }, List.of(0, 1, 2));
-    }
-
-    public void testCompactNoNulls() {
-        assertCompactToUnique(new int[] { 0, 1, 2 }, List.of(0, 1, 2));
-    }
-
-    public void testCompactDups() {
-        assertCompactToUnique(new int[] { 0, 0, 0, 1, 2 }, List.of(0, 1, 2));
-    }
-
-    public void testCompactSkips() {
-        assertCompactToUnique(new int[] { 2, 7, 1000 }, List.of(2, 7, 1000));
-    }
-
-    private void assertCompactToUnique(int[] sortedOrds, List<Integer> expected) {
-        int uniqueLength = SingletonOrdinalsBuilder.compactToUnique(sortedOrds);
-        assertMap(Arrays.stream(sortedOrds).mapToObj(Integer::valueOf).limit(uniqueLength).toList(), matchesList(expected));
     }
 
     private final List<CircuitBreaker> breakers = new ArrayList<>();
@@ -129,24 +143,24 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
 
     public void testAllNull() throws IOException {
         BlockFactory factory = breakingDriverContext().blockFactory();
-        int count = 1000;
+        int numDocs = between(1, 100);
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            for (int i = 0; i < count; i++) {
-                for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
-                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
-                }
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(new SortedSetDocValuesField("f", new BytesRef("empty")));
+                indexWriter.addDocument(doc);
             }
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
-                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    var docValues = ctx.reader().getSortedSetDocValues("f");
+                    try (BlockLoader.OrdinalsBuilder builder = new SortedSetOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
                                 assertThat(docValues.advanceExact(i), equalTo(true));
                                 builder.appendNull();
                             }
                         }
-                        try (BytesRefBlock built = buildOrdinalsBuilder(builder)) {
+                        try (BytesRefBlock built = (BytesRefBlock) builder.build()) {
                             for (int p = 0; p < built.getPositionCount(); p++) {
                                 assertThat(built.isNull(p), equalTo(true));
                             }
@@ -155,47 +169,6 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                     }
                 }
             }
-        }
-    }
-
-    public void testEmitOrdinalForHighCardinality() throws IOException {
-        BlockFactory factory = breakingDriverContext().blockFactory();
-        int numOrds = between(50, 100);
-        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-            for (int o = 0; o < numOrds; o++) {
-                int docPerOrds = between(10, 15);
-                for (int d = 0; d < docPerOrds; d++) {
-                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", new BytesRef("value-" + o))));
-                }
-            }
-            try (IndexReader reader = DirectoryReader.open(indexWriter)) {
-                assertThat(reader.leaves(), hasSize(1));
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    int batchSize = between(40, 100);
-                    int ord = random().nextInt(numOrds);
-                    try (
-                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize);
-                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize)
-                    ) {
-                        for (int i = 0; i < batchSize; i++) {
-                            b1.appendOrd(ord);
-                            b2.appendOrd(ord);
-                        }
-                        try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
-                            assertThat(block1, equalTo(block2));
-                            assertNotNull(block1.asOrdinals());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    static BytesRefBlock buildOrdinalsBuilder(SingletonOrdinalsBuilder builder) {
-        if (randomBoolean()) {
-            return builder.buildRegularBlock();
-        } else {
-            return builder.buildOrdinal();
         }
     }
 

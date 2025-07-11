@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
@@ -167,8 +168,8 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
-                class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
+            public BlockLoader.OrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+                class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.OrdinalsBuilder {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
@@ -180,6 +181,22 @@ public class TestBlock implements BlockLoader.Block {
                     }
                 }
                 return new SingletonOrdsBuilder();
+            }
+
+            @Override
+            public BlockLoader.OrdinalsBuilder ordinalsBuilder(SortedSetDocValues ordinals, int count) {
+                class SortedSetOrdinalBuilder extends TestBlock.Builder implements BlockLoader.OrdinalsBuilder {
+                    @Override
+                    public SortedSetOrdinalBuilder appendOrd(int value) {
+                        try {
+                            add(ordinals.lookupOrd(value));
+                            return this;
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                }
+                return new SortedSetOrdinalBuilder();
             }
 
             @Override

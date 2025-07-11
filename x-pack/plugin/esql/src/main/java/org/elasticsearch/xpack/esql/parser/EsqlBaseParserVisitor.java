@@ -419,12 +419,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#inferenceCommandOptions}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -448,6 +442,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseMethod}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseMethod(EsqlBaseParser.FuseMethodContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -618,6 +624,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mapValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapValue(EsqlBaseParser.MapValueContext ctx);
   /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Updates the score column with new scores using the RRF formula.
@@ -23,10 +24,19 @@ import java.util.HashMap;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int forkPosition, int scorePosition) implements OperatorFactory {
+    private final double rankConstant;
+    private final Map<String, Double> weights;
+    private final int scorePosition;
+    private final int forkPosition;
+
+    private HashMap<String, Integer> counters = new HashMap<>();
+
+    public record Factory(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(forkPosition, scorePosition);
+            return new RrfScoreEvalOperator(forkPosition, scorePosition, rankConstant, weights);
         }
 
         @Override
@@ -36,14 +46,11 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
     }
 
-    private final int scorePosition;
-    private final int forkPosition;
-
-    private HashMap<String, Integer> counters = new HashMap<>();
-
-    public RrfScoreEvalOperator(int forkPosition, int scorePosition) {
+    public RrfScoreEvalOperator(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights) {
         this.scorePosition = scorePosition;
         this.forkPosition = forkPosition;
+        this.rankConstant = rankConstant;
+        this.weights = weights;
     }
 
     @Override
@@ -57,7 +64,10 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
             int rank = counters.getOrDefault(fork, 1);
             counters.put(fork, rank + 1);
-            scores.appendDouble(1.0 / (60 + rank));
+
+            var weight = weights.get(fork) == null ? 1.0 : weights.get(fork);
+
+            scores.appendDouble(1.0 / (rankConstant + rank) * weight);
         }
 
         Block scoreBlock = scores.build().asBlock();

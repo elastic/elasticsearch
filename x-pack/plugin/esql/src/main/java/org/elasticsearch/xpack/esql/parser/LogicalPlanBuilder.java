@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -43,11 +44,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -66,10 +65,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -737,16 +736,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
         Source source = source(ctx);
         return input -> {
-            Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-            Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
+            Attribute scoreAttr = ctx.score == null
+                ? new UnresolvedAttribute(source, MetadataAttribute.SCORE)
+                : visitQualifiedName(ctx.score);
+            Attribute discriminatorAttr = ctx.key == null ? new UnresolvedAttribute(source, Fork.FORK_FIELD) : visitQualifiedName(ctx.key);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
-            List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
-            );
-            List<Attribute> groupings = List.of(idAttr, indexAttr);
+            List<NamedExpression> groupings = ctx.group == null ? List.of(idAttr, indexAttr) : visitGrouping(ctx.group);
+            MapExpression options = ctx.fuseOptions == null ? null : visitMapExpression(ctx.fuseOptions);
+            Fuse.FuseType fuseType = ctx.fuseType != null && ctx.fuseType.LINEAR() != null ? Fuse.FuseType.LINEAR : Fuse.FuseType.RRF;
 
-            return new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType, options);
         };
     }
 

@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 
 import java.io.IOException;
 import java.util.List;
@@ -142,7 +142,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return (p, failures) -> {
             // `dedup` for now is not exposed as a command,
             // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
-            if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
+            if ((p instanceof Aggregate) == false && (p instanceof Fuse) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));

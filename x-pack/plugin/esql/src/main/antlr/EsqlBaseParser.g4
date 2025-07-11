@@ -311,10 +311,6 @@ insistCommand
     : DEV_INSIST qualifiedNamePatterns
     ;
 
-fuseCommand
-    : DEV_FUSE
-    ;
-
 inferenceCommandOptions
     : inferenceCommandOption (COMMA inferenceCommandOption)*
     ;
@@ -330,4 +326,13 @@ inferenceCommandOptionValue
 
 rerankCommand
     : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    ;
+
+fuseCommand
+    : DEV_FUSE (fuseType=fuseMethod)? (KEY key=qualifiedName)? (GROUP group=fields)? (SCORE score=qualifiedName)? (OPTIONS fuseOptions=mapExpression)?
+    ;
+
+fuseMethod
+    : RRF
+    | LINEAR
     ;

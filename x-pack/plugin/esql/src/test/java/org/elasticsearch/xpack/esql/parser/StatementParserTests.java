@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -64,9 +63,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -3969,7 +3968,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -3978,22 +3977,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 | FUSE
             """);
 
-        var dedup = as(plan, Dedup.class);
-        assertThat(dedup.groupings().size(), equalTo(2));
-        assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
-        assertThat(dedup.groupings().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(dedup.groupings().get(1).name(), equalTo("_index"));
-        assertThat(dedup.aggregates().size(), equalTo(1));
-        assertThat(dedup.aggregates().get(0), instanceOf(Alias.class));
+        var fuse = as(plan, Fuse.class);
+        assertThat(fuse.groupings().size(), equalTo(2));
+        assertThat(fuse.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.groupings().get(0).name(), equalTo("_id"));
+        assertThat(fuse.groupings().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.groupings().get(1).name(), equalTo("_index"));
 
-        var rrfScoreEval = as(dedup.child(), RrfScoreEval.class);
-        assertThat(rrfScoreEval.scoreAttribute(), instanceOf(UnresolvedAttribute.class));
-        assertThat(rrfScoreEval.scoreAttribute().name(), equalTo("_score"));
-        assertThat(rrfScoreEval.forkAttribute(), instanceOf(UnresolvedAttribute.class));
-        assertThat(rrfScoreEval.forkAttribute().name(), equalTo("_fork"));
-
-        assertThat(rrfScoreEval.child(), instanceOf(Fork.class));
+        assertThat(fuse.child(), instanceOf(Fork.class));
     }
 
     public void testDoubleParamsForIdentifier() {

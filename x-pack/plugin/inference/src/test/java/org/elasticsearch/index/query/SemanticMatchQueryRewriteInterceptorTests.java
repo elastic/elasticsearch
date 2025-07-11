@@ -94,7 +94,7 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertEquals(5.0, intercepted.boost(), 0.0f);
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
         assertEquals(QUERY_NAME, intercepted.queryName());
         assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
         SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;

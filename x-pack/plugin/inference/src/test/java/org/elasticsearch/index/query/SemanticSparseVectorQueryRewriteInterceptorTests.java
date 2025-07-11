@@ -52,7 +52,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     }
 
     public void testSparseVectorQueryOnInferenceFieldIsInterceptedAndRewritten() throws IOException {
-        float boost = randomFloat() * 5;
+        float boost = randomFloatBetween(1, 10, true);
         String queryName = randomAlphaOfLength(5);
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
@@ -66,12 +66,16 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     }
 
     public void testSparseVectorQueryOnInferenceFieldWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
+        float boost = randomFloatBetween(1, 10, true);
+        String queryName = randomAlphaOfLength(5);
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
             new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, null, QUERY);
+        original.boost(boost);
+        original.queryName(queryName);
         testRewrittenInferenceQuery(context, original);
     }
 

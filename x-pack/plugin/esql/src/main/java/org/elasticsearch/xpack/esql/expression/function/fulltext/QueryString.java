@@ -60,13 +60,14 @@ import static org.elasticsearch.index.query.QueryStringQueryBuilder.REWRITE_FIEL
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.TIME_ZONE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -309,9 +310,17 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
-            isNotNullAndFoldable(query(), sourceText(), FIRST)
+        TypeResolution result = isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
+            isNotNull(query(), sourceText(), FIRST)
         );
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText());
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {

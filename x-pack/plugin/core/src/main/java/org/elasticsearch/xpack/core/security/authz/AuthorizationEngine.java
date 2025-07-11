@@ -299,11 +299,6 @@ public interface AuthorizationEngine {
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
         boolean check(String name, IndexComponentSelector selector);
-
-        // Does not belong here
-        default boolean checkRemote(String remoteAlias) {
-            return false;
-        }
     }
 
     /**

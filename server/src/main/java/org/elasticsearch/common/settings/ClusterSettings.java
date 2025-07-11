@@ -484,7 +484,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.ALLOW_EXPENSIVE_QUERIES,
         SearchService.CCS_VERSION_CHECK_SETTING,
         SearchService.CCS_COLLECT_TELEMETRY,
-        SearchService.FLAT_WORLD_ENABLED,
         SearchService.BATCHED_QUERY_PHASE,
         SearchService.PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE,
         MultiBucketConsumerService.MAX_BUCKET_SETTING,

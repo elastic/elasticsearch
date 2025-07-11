@@ -297,8 +297,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> FLAT_WORLD_ENABLED = Setting.boolSetting("search.flat_world.enabled", false, Property.NodeScope);
-
     private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
 
     /**

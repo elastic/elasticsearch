@@ -48,7 +48,6 @@ tasks.register("run-ccs", RunTask) {
   useCluster queryingCluster
   doFirst {
     queryingCluster.get().getNodes().each { node ->
-      node.setting('cluster.remote.my_remote_cluster.tags', 'env-dev')
       if (proxyMode) {
         node.setting('cluster.remote.my_remote_cluster.mode', 'proxy')
         if (basicSecurityMode) {

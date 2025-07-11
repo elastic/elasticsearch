@@ -998,10 +998,6 @@ public class RBACEngine implements AuthorizationEngine {
                 } // we don't support granting access to a backing index with a failure selector via the parent data stream
             }
             return predicate.test(indexAbstraction, selector);
-        }, name -> {
-            // just some bogus predicate that lets us differentiate between roles, not at all
-            // how this will work in the end
-            return Arrays.asList(role.names()).contains("_es_test_root");
         });
     }
 
@@ -1129,18 +1125,15 @@ public class RBACEngine implements AuthorizationEngine {
         private final CachedSupplier<Set<String>> authorizedAndAvailableDataResources;
         private final CachedSupplier<Set<String>> authorizedAndAvailableFailuresResources;
         private final BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate;
-        private final Predicate<String> projectPredicate;
 
         AuthorizedIndices(
             Supplier<Set<String>> authorizedAndAvailableDataResources,
             Supplier<Set<String>> authorizedAndAvailableFailuresResources,
-            BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate,
-            Predicate<String> projectPredicate
+            BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate
         ) {
             this.authorizedAndAvailableDataResources = CachedSupplier.wrap(authorizedAndAvailableDataResources);
             this.authorizedAndAvailableFailuresResources = CachedSupplier.wrap(authorizedAndAvailableFailuresResources);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
-            this.projectPredicate = projectPredicate;
         }
 
         @Override
@@ -1155,12 +1148,6 @@ public class RBACEngine implements AuthorizationEngine {
         public boolean check(String name, IndexComponentSelector selector) {
             Objects.requireNonNull(selector, "must specify a selector for authorization check");
             return isAuthorizedPredicate.test(name, selector);
-        }
-
-        @Override
-        public boolean checkRemote(String remoteAlias) {
-            Objects.requireNonNull(remoteAlias, "must specify a project name for authorization check");
-            return projectPredicate.test(remoteAlias);
         }
     }
 }

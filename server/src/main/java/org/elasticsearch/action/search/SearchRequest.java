@@ -75,7 +75,6 @@ public class SearchRequest extends LegacyActionRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    // This will be a more complex thing in the real implementation -- a lucene expression instead of just a list of literals
     private List<RemoteClusterService.RemoteTag> routingTags = List.of();
 
     @Nullable

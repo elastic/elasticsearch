@@ -41,7 +41,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.YES;
  * the allocation process to prevent overloading nodes due to too many concurrent recovery
  * processes.
  */
-public class ThrottlingAllocationDecider extends AllocationDecider {
+public class ThrottlingAllocationDecider implements AllocationDecider.ShardToNode, AllocationDecider.ForceDuringReplace {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingAllocationDecider.class);
 

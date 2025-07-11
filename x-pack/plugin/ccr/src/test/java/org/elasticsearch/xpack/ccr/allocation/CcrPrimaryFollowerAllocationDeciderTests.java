@@ -213,7 +213,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
     }
 
     static Decision executeAllocation(ClusterState clusterState, ShardRouting shardRouting, DiscoveryNode node) {
-        final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
+        final AllocationDecider.ShardToNode decider = new CcrPrimaryFollowerAllocationDecider();
         final RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(decider)),
             RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),

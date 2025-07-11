@@ -21,7 +21,12 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
  * It also ensures that auto-expands replicas are expanded to only the replacement source or target (not both at the same time)
  * and only of the shards that were already present on the source node.
  */
-public class NodeReplacementAllocationDecider extends AllocationDecider {
+public class NodeReplacementAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.AutoExpandToNode,
+        AllocationDecider.ShardRemain,
+        AllocationDecider.ForceDuringReplace {
 
     public static final String NAME = "node_replacement";
 

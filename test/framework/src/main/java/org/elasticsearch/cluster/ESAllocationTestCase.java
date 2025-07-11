@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -346,7 +347,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return result;
     }
 
-    public static class TestAllocateDecision extends AllocationDecider {
+    public static class TestAllocateDecision extends DefaultAllocationDecider {
 
         private final Decision decision;
 

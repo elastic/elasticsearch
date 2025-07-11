@@ -25,7 +25,11 @@ import org.elasticsearch.common.settings.Setting;
  * API is manually invoked. This allows single retries without raising the limits.
  *
  */
-public class MaxRetryAllocationDecider extends AllocationDecider {
+public class MaxRetryAllocationDecider
+    implements
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ForceDuringReplace {
 
     public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting(
         "index.allocation.max_retries",

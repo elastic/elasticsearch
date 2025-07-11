@@ -19,11 +19,23 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.AutoExpandToNode;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ClusterRebalance;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ForceDuringReplace;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ForcedInitialShardAllocation;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.IndexToNode;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ShardRebalance;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ShardRemain;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ShardToCluster;
+import static org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider.ShardToNode;
 
 /**
  * Combines the decision of multiple {@link AllocationDecider} implementations into a single allocation decision.
@@ -38,15 +50,52 @@ public class AllocationDeciders {
         "shard temporarily ignored for node due to earlier failure"
     );
 
-    private final AllocationDecider[] deciders;
+    private final List<ShardToNode> shardToNodeDeciders = new ArrayList<>();
+    private final List<IndexToNode> indexToNodeDeciders = new ArrayList<>();
+    private final List<ShardToCluster> shardToClusterDeciders = new ArrayList<>();
+    private final List<ShardRemain> shardRemainDeciders = new ArrayList<>();
+    private final List<ShardRebalance> shardRebalanceDeciders = new ArrayList<>();
+    private final List<ClusterRebalance> clusterRebalanceDeciders = new ArrayList<>();
+    private final List<AutoExpandToNode> autoExpandToNodeDeciders = new ArrayList<>();
+    private final List<ForceDuringReplace> forceDuringReplaceDeciders = new ArrayList<>();
+    private final List<ForcedInitialShardAllocation> forcedInitialShardAllocationsDeciders = new ArrayList<>();
 
     public AllocationDeciders(Collection<? extends AllocationDecider> deciders) {
-        this.deciders = deciders.toArray(AllocationDecider[]::new);
+        for (var decider : deciders) {
+            if (decider instanceof ShardToNode d) {
+                shardToNodeDeciders.add(d);
+            }
+            if (decider instanceof IndexToNode d) {
+                indexToNodeDeciders.add(d);
+            }
+            if (decider instanceof ShardToCluster d) {
+                shardToClusterDeciders.add(d);
+            }
+            if (decider instanceof ShardRemain d) {
+                shardRemainDeciders.add(d);
+            }
+            if (decider instanceof ShardRebalance d) {
+                shardRebalanceDeciders.add(d);
+            }
+            if (decider instanceof ClusterRebalance d) {
+                clusterRebalanceDeciders.add(d);
+            }
+            if (decider instanceof AutoExpandToNode d) {
+                autoExpandToNodeDeciders.add(d);
+            }
+            if (decider instanceof ForceDuringReplace d) {
+                forceDuringReplaceDeciders.add(d);
+            }
+            if (decider instanceof ForcedInitialShardAllocation d) {
+                forcedInitialShardAllocationsDeciders.add(d);
+            }
+        }
     }
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         return withDeciders(
             allocation,
+            shardToClusterDeciders,
             decider -> decider.canAllocate(shardRouting, allocation),
             (decider, decision) -> Strings.format("Can not allocate [%s] on any node. [%s]: %s", shardRouting, decider, decision)
         );
@@ -55,6 +104,7 @@ public class AllocationDeciders {
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
         return withDeciders(
             allocation,
+            indexToNodeDeciders,
             decider -> decider.canAllocate(indexMetadata, node, allocation),
             (decider, decision) -> Strings.format(
                 "Can not allocate [%s] on node [%s]. [%s]: %s",
@@ -71,6 +121,7 @@ public class AllocationDeciders {
             allocation,
             shardRouting,
             node,
+            shardToNodeDeciders,
             decider -> decider.canAllocate(shardRouting, node, allocation),
             (decider, decision) -> Strings.format(
                 "Can not allocate [%s] on node [%s]. [%s]: %s",
@@ -89,6 +140,7 @@ public class AllocationDeciders {
     public Decision canRebalance(RoutingAllocation allocation) {
         return withDeciders(
             allocation,
+            clusterRebalanceDeciders,
             decider -> decider.canRebalance(allocation),
             (decider, decision) -> Strings.format("Can not rebalance. [%s]: %s", decider, decision)
         );
@@ -98,6 +150,7 @@ public class AllocationDeciders {
         assert shardRouting.started() : "Only started shard could be rebalanced: " + shardRouting;
         return withDeciders(
             allocation,
+            shardRebalanceDeciders,
             decider -> decider.canRebalance(shardRouting, allocation),
             (decider, decision) -> Strings.format("Can not rebalance [%s]. [%s]: %s", shardRouting, decider, decision)
         );
@@ -109,6 +162,7 @@ public class AllocationDeciders {
             allocation,
             shardRouting,
             node,
+            shardRemainDeciders,
             decider -> decider.canRemain(indexMetadata, shardRouting, node, allocation),
             (decider, decision) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, decision)
         );
@@ -117,6 +171,7 @@ public class AllocationDeciders {
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         return withDeciders(
             allocation,
+            autoExpandToNodeDeciders,
             decider -> decider.shouldAutoExpandToNode(indexMetadata, node, allocation),
             (decider, decision) -> Strings.format(
                 "Should not auto expand [%s] to node [%s]. [%s]: %s",
@@ -134,6 +189,7 @@ public class AllocationDeciders {
             allocation,
             shardRouting,
             node,
+            shardToNodeDeciders,
             decider -> decider.canForceAllocatePrimary(shardRouting, node, allocation),
             (decider, decision) -> Strings.format(
                 "Can not force allocate shard [%s] on node [%s]. [%s]: %s",
@@ -148,6 +204,7 @@ public class AllocationDeciders {
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return withDeciders(
             allocation,
+            forceDuringReplaceDeciders,
             decider -> decider.canForceAllocateDuringReplace(shardRouting, node, allocation),
             (decider, decision) -> Strings.format(
                 "Can not force allocate during replace shard [%s] on node [%s]. [%s]: %s",
@@ -164,6 +221,7 @@ public class AllocationDeciders {
             allocation,
             shardRouting,
             node,
+            shardToNodeDeciders,
             decider -> decider.canAllocateReplicaWhenThereIsRetentionLease(shardRouting, node, allocation),
             (decider, decision) -> Strings.format(
                 "Can not allocate replica when there is retention lease shard [%s] on node [%s]. [%s]: %s",
@@ -175,19 +233,21 @@ public class AllocationDeciders {
         );
     }
 
-    private Decision withDeciders(
+    private <D extends AllocationDecider> Decision withDeciders(
         RoutingAllocation allocation,
-        Function<AllocationDecider, Decision> deciderAction,
+        List<D> deciders,
+        Function<D, Decision> deciderAction,
         BiFunction<String, Decision, String> logMessageCreator
     ) {
-        return withDeciders(allocation.getDebugMode(), deciderAction, logMessageCreator);
+        return withDeciders(allocation.getDebugMode(), deciders, deciderAction, logMessageCreator);
     }
 
-    private Decision withDecidersCheckingShardIgnoredNodes(
+    private <D extends AllocationDecider> Decision withDecidersCheckingShardIgnoredNodes(
         RoutingAllocation allocation,
         ShardRouting shardRouting,
         RoutingNode node,
-        Function<AllocationDecider, Decision> deciderAction,
+        List<D> deciders,
+        Function<D, Decision> deciderAction,
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
@@ -196,17 +256,18 @@ public class AllocationDeciders {
             }
             return NO_IGNORING_SHARD_FOR_NODE;
         }
-        return withDeciders(allocation.getDebugMode(), deciderAction, logMessageCreator);
+        return withDeciders(allocation.getDebugMode(), deciders, deciderAction, logMessageCreator);
     }
 
-    private Decision withDeciders(
+    private <D extends AllocationDecider> Decision withDeciders(
         RoutingAllocation.DebugMode debugMode,
-        Function<AllocationDecider, Decision> deciderAction,
+        List<D> deciders,
+        Function<D, Decision> deciderAction,
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (debugMode == RoutingAllocation.DebugMode.OFF) {
             var result = Decision.YES;
-            for (AllocationDecider decider : deciders) {
+            for (D decider : deciders) {
                 var decision = deciderAction.apply(decider);
                 if (decision.type() == Decision.Type.NO) {
                     if (logger.isTraceEnabled()) {
@@ -220,7 +281,7 @@ public class AllocationDeciders {
             return result;
         } else {
             var result = new Decision.Multi();
-            for (AllocationDecider decider : deciders) {
+            for (var decider : deciders) {
                 var decision = deciderAction.apply(decider);
                 if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
                     logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
@@ -235,7 +296,7 @@ public class AllocationDeciders {
 
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         var result = Optional.<Set<String>>empty();
-        for (AllocationDecider decider : deciders) {
+        for (var decider : forcedInitialShardAllocationsDeciders) {
             var forcedInitialNodeIds = decider.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
             if (forcedInitialNodeIds.isPresent()) {
                 result = result.map(nodeIds -> Sets.intersection(nodeIds, forcedInitialNodeIds.get())).or(() -> forcedInitialNodeIds);

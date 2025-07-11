@@ -226,7 +226,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             return Collections.singletonList(new RebalanceShortCircuitAllocationDecider());
         }
 
-        private class RebalanceShortCircuitAllocationDecider extends AllocationDecider {
+        private class RebalanceShortCircuitAllocationDecider extends DefaultAllocationDecider {
 
             @Override
             public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -250,7 +250,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             return Collections.singletonList(new AllocateShortCircuitAllocationDecider());
         }
 
-        private class AllocateShortCircuitAllocationDecider extends AllocationDecider {
+        private class AllocateShortCircuitAllocationDecider extends DefaultAllocationDecider {
 
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

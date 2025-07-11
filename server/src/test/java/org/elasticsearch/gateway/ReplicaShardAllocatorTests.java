@@ -30,9 +30,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -372,7 +372,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 Arrays.asList(
                     new TestAllocateDecision(Decision.YES),
                     new SameShardAllocationDecider(createBuiltInClusterSettings()),
-                    new AllocationDecider() {
+                    new DefaultAllocationDecider() {
                         @Override
                         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                             if (node.node().equals(node2)) {

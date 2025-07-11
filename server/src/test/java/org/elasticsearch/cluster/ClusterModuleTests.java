@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -99,7 +100,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         clusterService.close();
     }
 
-    static class FakeAllocationDecider extends AllocationDecider {
+    static class FakeAllocationDecider extends DefaultAllocationDecider {
         protected FakeAllocationDecider() {}
     }
 

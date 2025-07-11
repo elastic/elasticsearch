@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
@@ -260,7 +261,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     return allocationFilter.get().test(shardRouting.getIndexName(), node.nodeId()) ? Decision.YES : Decision.NO;
@@ -441,7 +442,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     return (shardRouting.primary() && node.nodeId().equals("node-0")) || assignReplicas.get() ? Decision.YES : Decision.NO;
@@ -681,7 +682,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     if (shardRouting.primary()) {
@@ -740,7 +741,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     if (shardRouting.primary()) {
@@ -799,7 +800,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     return allocationFilter.get().test(shardRouting.getId(), node.nodeId()) ? Decision.YES : Decision.NO;
@@ -885,7 +886,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new FilterAllocationDecider(settings, clusterSettings),
             new NodeShutdownAllocationDecider(),
             new NodeReplacementAllocationDecider(),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
                     return Decision.NO;
@@ -1016,7 +1017,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new ThrottlingAllocationDecider(clusterSettings),
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canRebalance(RoutingAllocation allocation) {
                     return canRebalanceGlobalRef.get();
@@ -1151,7 +1152,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         final Set<String> desiredNodeIds = Set.of("node-1", "node-2");
-        final var initialForcedAllocationDecider = new AllocationDecider() {
+        final var initialForcedAllocationDecider = new DefaultAllocationDecider.ShardToNode() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 // allocation on desired nodes is temporarily not possible
@@ -1182,11 +1183,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
             .build();
 
-        final var allocationIsNotPossibleOnDesiredNodeDesiredNode = new AllocationDecider() {
-            @Override
-            public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
-                return Optional.of(Set.of("node-1"));// intentionally different from the desired balance
-            }
+        final DefaultAllocationDecider.ForcedInitialShardAllocation allocationIsNotPossibleOnDesiredNodeDesiredNode = (
+            shardRouting,
+            allocation) -> {
+            return Optional.of(Set.of("node-1"));// intentionally different from the desired balance
         };
 
         final var allocation = createRoutingAllocationFrom(clusterState, allocationIsNotPossibleOnDesiredNodeDesiredNode);
@@ -1211,7 +1211,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
             .build();
 
-        final var initialForcedAllocationDecider = new AllocationDecider() {
+        final var initialForcedAllocationDecider = new DefaultAllocationDecider() {
             @Override
             public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
                 return Optional.of(Set.of("node-1"));// intentionally different from the desired balance

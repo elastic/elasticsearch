@@ -34,7 +34,12 @@ import java.util.Set;
  * {@link org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider}, however it
  * is specific to the {@code _tier} setting for both the cluster and index level.
  */
-public final class DataTierAllocationDecider extends AllocationDecider {
+public final class DataTierAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.IndexToNode,
+        AllocationDecider.ShardRemain,
+        AllocationDecider.AutoExpandToNode {
 
     public static final String NAME = "data_tier";
 

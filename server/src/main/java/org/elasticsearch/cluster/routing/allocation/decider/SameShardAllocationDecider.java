@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
  * {@code node} are not allowed independently of this setting.
  * </p>
  */
-public class SameShardAllocationDecider extends AllocationDecider {
+public class SameShardAllocationDecider implements AllocationDecider.ShardToNode, AllocationDecider.ForceDuringReplace {
 
     public static final String NAME = "same_shard";
 

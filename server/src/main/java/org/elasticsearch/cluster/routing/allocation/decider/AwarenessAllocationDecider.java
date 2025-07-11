@@ -69,7 +69,11 @@ import static java.util.stream.Collectors.toList;
  * node.zone: zone1
  * </pre>
  */
-public class AwarenessAllocationDecider extends AllocationDecider {
+public class AwarenessAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ForceDuringReplace,
+        AllocationDecider.ShardRemain {
 
     public static final String NAME = "awareness";
 

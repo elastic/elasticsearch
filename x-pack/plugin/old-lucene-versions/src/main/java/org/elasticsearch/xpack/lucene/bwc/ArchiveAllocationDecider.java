@@ -16,7 +16,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.function.BooleanSupplier;
 
-public class ArchiveAllocationDecider extends AllocationDecider {
+public class ArchiveAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardToCluster,
+        AllocationDecider.IndexToNode {
 
     static final String NAME = "archive";
 

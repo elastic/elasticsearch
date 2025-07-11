@@ -1030,7 +1030,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterInfo,
             diskThresholdDecider,
             // fake allocation decider to block allocation of the `foo` shard
-            new AllocationDecider() {
+            new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
                     return cannotAllocateFooShards(indexMetadata.getIndex());

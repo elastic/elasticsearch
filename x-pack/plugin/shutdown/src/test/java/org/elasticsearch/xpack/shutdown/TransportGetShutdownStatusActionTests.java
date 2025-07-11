@@ -31,9 +31,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -106,7 +106,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         clusterInfoService = EmptyClusterInfoService.INSTANCE;
         allocationDeciders = new AllocationDeciders(
-            List.of(new NodeShutdownAllocationDecider(), new NodeReplacementAllocationDecider(), new AllocationDecider() {
+            List.of(new NodeShutdownAllocationDecider(), new NodeReplacementAllocationDecider(), new DefaultAllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     return canAllocate.get().test(shardRouting, node, allocation);

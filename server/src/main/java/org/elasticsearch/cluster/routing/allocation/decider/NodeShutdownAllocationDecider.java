@@ -22,7 +22,11 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
  * No shards can be allocated to or remain on a node which is shutting down for removal.
  * Shards can be allocated to or remain on a node scheduled for a restart.
  */
-public class NodeShutdownAllocationDecider extends AllocationDecider {
+public class NodeShutdownAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ShardRemain,
+        AllocationDecider.AutoExpandToNode {
 
     private static final String NAME = "node_shutdown";
 

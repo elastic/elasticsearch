@@ -18,7 +18,12 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoS
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 
-public class HasFrozenCacheAllocationDecider extends AllocationDecider {
+public class HasFrozenCacheAllocationDecider
+    implements
+        AllocationDecider.ShardToNode,
+        AllocationDecider.IndexToNode,
+        AllocationDecider.ShardRemain,
+        AllocationDecider.AutoExpandToNode {
 
     private static final String NAME = "has_frozen_cache";
 

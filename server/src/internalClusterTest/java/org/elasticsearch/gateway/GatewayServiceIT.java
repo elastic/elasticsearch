@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.DefaultAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -104,7 +105,7 @@ public class GatewayServiceIT extends ESIntegTestCase {
         }
     }
 
-    private static class TestAllocationDecider extends AllocationDecider {
+    private static class TestAllocationDecider extends DefaultAllocationDecider {
         TestAllocationDecider(Settings settings, ClusterSettings clusterSettings, AtomicBoolean settingApplied) {
             if (TEST_SETTING.get(settings)) {
                 settingApplied.set(true);

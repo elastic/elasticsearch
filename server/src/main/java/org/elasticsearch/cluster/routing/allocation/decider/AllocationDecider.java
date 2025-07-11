@@ -14,102 +14,94 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * {@link AllocationDecider} is an abstract base class that allows to make
- * dynamic cluster- or index-wide shard allocation decisions on a per-node
- * basis.
+ * A collection of Decider interfaces.
  */
-public abstract class AllocationDecider {
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be
-     * re-balanced to the given allocation. The default is
-     * {@link Decision#ALWAYS}.
-     */
-    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
+public interface AllocationDecider {
 
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be
-     * allocated on the given node. The default is {@link Decision#ALWAYS}.
-     */
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
+    interface ShardToNode extends AllocationDecider {
+        /**
+         * Returns a {@link Decision} whether the given shard routing can be allocated on the given node.
+         */
+        Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
 
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be remain
-     * on the given node. The default is {@link Decision#ALWAYS}.
-     */
-    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
-
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be allocated at all at this state of the
-     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
-     */
-    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
-
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be allocated at all at this state of the
-     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
-     */
-    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
-
-    /**
-     * Returns a {@link Decision} whether shards of the given index should be auto-expanded to this node at this state of the
-     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
-     */
-    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
-
-    /**
-     * Returns a {@link Decision} on whether the cluster is allowed to rebalance shards to improve relative node shard weights and
-     * performance.
-     * @return {@link Decision#ALWAYS} is returned by default if not overridden.
-     */
-    public Decision canRebalance(RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
-
-    /**
-     * Returns a {@link Decision} whether the given primary shard can be
-     * forcibly allocated on the given node. This method should only be called
-     * for unassigned primary shards where the node has a shard copy on disk.
-     *
-     * Note: all implementations that override this behavior should take into account
-     * the results of {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}
-     * before making a decision on force allocation, because force allocation should only
-     * be considered if all deciders return {@link Decision#NO}.
-     */
-    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
-        assert shardRouting.unassigned() : "must not call canForceAllocatePrimary on an assigned shard " + shardRouting;
-        Decision decision = canAllocate(shardRouting, node, allocation);
-        if (decision.type() == Type.NO) {
-            // On a NO decision, by default, we allow force allocating the primary.
-            return allocation.decision(
-                Decision.YES,
-                decision.label(),
-                "primary shard [%s] allowed to force allocate on node [%s]",
-                shardRouting.shardId(),
-                node.nodeId()
-            );
-        } else {
-            // On a THROTTLE/YES decision, we use the same decision instead of forcing allocation
-            return decision;
+        /**
+         * Returns a {@link Decision} whether the given primary shard can be
+         * forcibly allocated on the given node. This method should only be called
+         * for unassigned primary shards where the node has a shard copy on disk.
+         *
+         * Note: all implementations that override this behavior should take into account
+         * the results of {@link ShardToNode#canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}
+         * before making a decision on force allocation, because force allocation should only
+         * be considered if all deciders return {@link Decision#NO}.
+         */
+        default Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
+            assert shardRouting.unassigned() : "must not call canForceAllocatePrimary on an assigned shard " + shardRouting;
+            Decision decision = canAllocate(shardRouting, node, allocation);
+            if (decision.type() == Decision.Type.NO) {
+                // On a NO decision, by default, we allow force allocating the primary.
+                return allocation.decision(
+                    Decision.YES,
+                    decision.label(),
+                    "primary shard [%s] allowed to force allocate on node [%s]",
+                    shardRouting.shardId(),
+                    node.nodeId()
+                );
+            } else {
+                // On a THROTTLE/YES decision, we use the same decision instead of forcing allocation
+                return decision;
+            }
         }
+
+        /**
+         * Returns a {@link Decision} whether the given replica shard can be
+         * allocated to the given node when there is an existing retention lease
+         * already existing on the node (meaning it has been allocated there previously)
+         *
+         * This method does not actually check whether there is a retention lease,
+         * that is the responsibility of the caller.
+         *
+         * It defaults to the same value as {@code canAllocate}.
+         */
+        default Decision canAllocateReplicaWhenThereIsRetentionLease(
+            ShardRouting shardRouting,
+            RoutingNode node,
+            RoutingAllocation allocation
+        ) {
+            return canAllocate(shardRouting, node, allocation);
+        }
+
+    }
+
+    /**
+     * Returns a {@link Decision} whether any shard of index can be allocated to given node.
+     */
+    @FunctionalInterface
+    interface IndexToNode extends AllocationDecider {
+        Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation);
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given shard routing can be allocated at all at this state of the {@link RoutingAllocation}.
+     */
+    @FunctionalInterface
+    interface ShardToCluster extends AllocationDecider {
+        Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation);
+    }
+
+    /**
+     * Returns a {@code empty()} if shard could be initially allocated anywhere or {@code Optional.of(Set.of(nodeIds))} if shard could be
+     * initially allocated only on subset of a nodes.
+     *
+     * This might be required for splitting or shrinking index as resulting shards have to be on the same node as a source shard.
+     */
+    interface ForcedInitialShardAllocation extends AllocationDecider {
+        Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation);
     }
 
     /**
@@ -126,31 +118,37 @@ public abstract class AllocationDecider {
      * - that a replacement is ongoing
      * - the shard routing's current node is the source of the replacement
      */
-    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return Decision.YES;
+    interface ForceDuringReplace extends AllocationDecider {
+        Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
     }
 
     /**
-     * Returns a {@link Decision} whether the given replica shard can be
-     * allocated to the given node when there is an existing retention lease
-     * already existing on the node (meaning it has been allocated there previously)
-     *
-     * This method does not actually check whether there is a retention lease,
-     * that is the responsibility of the caller.
-     *
-     * It defaults to the same value as {@code canAllocate}.
+     * Returns a {@link Decision} on whether the cluster is allowed to rebalance shards to improve relative node shard weights and
+     * performance.
      */
-    public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocate(shardRouting, node, allocation);
+    interface ClusterRebalance extends AllocationDecider {
+        Decision canRebalance(RoutingAllocation allocation);
     }
 
     /**
-     * Returns a {@code empty()} if shard could be initially allocated anywhere or {@code Optional.of(Set.of(nodeIds))} if shard could be
-     * initially allocated only on subset of a nodes.
-     *
-     * This might be required for splitting or shrinking index as resulting shards have to be on the same node as a source shard.
+     * Returns a {@link Decision} whether shards of the given index should be auto-expanded to this node at this state of the
+     * {@link RoutingAllocation}.
      */
-    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return Optional.empty();
+    interface AutoExpandToNode extends AllocationDecider {
+        Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation);
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given shard routing can be remain on the given node.
+     */
+    interface ShardRemain extends AllocationDecider {
+        Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given shard routing can be re-balanced to the given allocation.
+     */
+    interface ShardRebalance extends AllocationDecider {
+        Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation);
     }
 }

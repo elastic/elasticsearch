@@ -19,37 +19,16 @@ import org.elasticsearch.core.FixForMultiProject;
 import java.util.Objects;
 
 /**
- * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
+ * This {@link AllocationDecider} prevents shards that
  * are currently been snapshotted to be moved to other nodes.
  */
-public class SnapshotInProgressAllocationDecider extends AllocationDecider {
+public class SnapshotInProgressAllocationDecider
+    implements
+        AllocationDecider.ShardRebalance,
+        AllocationDecider.ShardToNode,
+        AllocationDecider.ForceDuringReplace {
 
     public static final String NAME = "snapshot_in_progress";
-
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be
-     * re-balanced to the given allocation. The default is
-     * {@link Decision#ALWAYS}.
-     */
-    @Override
-    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return canMove(shardRouting, allocation);
-    }
-
-    /**
-     * Returns a {@link Decision} whether the given shard routing can be
-     * allocated on the given node. The default is {@link Decision#ALWAYS}.
-     */
-    @Override
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canMove(shardRouting, allocation);
-    }
-
-    @Override
-    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocate(shardRouting, node, allocation);
-    }
-
     private static final Decision YES_NOT_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
 
@@ -130,5 +109,29 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         }
 
         return YES_NOT_SNAPSHOTTED;
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given shard routing can be
+     * re-balanced to the given allocation. The default is
+     * {@link Decision#ALWAYS}.
+     */
+    @Override
+    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return canMove(shardRouting, allocation);
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given shard routing can be
+     * allocated on the given node. The default is {@link Decision#ALWAYS}.
+     */
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canMove(shardRouting, allocation);
+    }
+
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
     }
 }

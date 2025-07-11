@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
  * remote cluster client role. This is necessary as those nodes reach out to the leader shards on the remote cluster to copy Lucene segment
  * files and periodically renew retention leases during the bootstrap.
  */
-public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider {
+public final class CcrPrimaryFollowerAllocationDecider implements AllocationDecider.ShardToNode {
     static final String NAME = "ccr_primary_follower";
 
     @Override

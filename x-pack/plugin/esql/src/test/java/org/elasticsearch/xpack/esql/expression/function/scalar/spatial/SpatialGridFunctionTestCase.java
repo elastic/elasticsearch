@@ -121,17 +121,17 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
 
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
-            return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
+            return switch (dataType) {
+                case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
+                case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         } else {
-            return switch (dataType.esType()) {
-                case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
-                case "cartesian_point" -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-                case "cartesian_shape" -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
+            return switch (dataType) {
+                case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
+                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
+                case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
+                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }

@@ -957,6 +957,11 @@ public class EsqlCapabilities {
         PARAMETER_FOR_LIMIT,
 
         /**
+         * Changed and normalized the LIMIT error message.
+         */
+        NORMALIZED_LIMIT_ERROR_MESSAGE,
+
+        /**
          * Enable support for index aliases in lookup joins
          */
         ENABLE_LOOKUP_JOIN_ON_ALIASES,

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.sagemaker;
 
+import org.elasticsearch.cluster.service.ClusterService;
+
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponse;
 
@@ -28,7 +30,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
-import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
@@ -76,18 +77,16 @@ public class SageMakerServiceTests extends ESTestCase {
     private SageMakerClient client;
     private SageMakerSchemas schemas;
     private SageMakerService sageMakerService;
-    private ServiceComponents serviceComponents;
 
     @Before
     public void init() {
         modelBuilder = mock();
         client = mock();
         schemas = mock();
-        serviceComponents = mock();
         ThreadPool threadPool = mock();
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, serviceComponents);
+        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, mock(ClusterService.class));
     }
 
     public void testSupportedTaskTypes() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -71,12 +72,14 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
 
     private HttpClientManager clientManager;
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private ClusterService clusterService;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clusterService = mock(ClusterService.class);
     }
 
     @After
@@ -1043,7 +1046,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     private GoogleVertexAiService createGoogleVertexAiService() {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool));
+        return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool), clusterService);
     }
 
     private Map<String, Object> getRequestConfigMap(

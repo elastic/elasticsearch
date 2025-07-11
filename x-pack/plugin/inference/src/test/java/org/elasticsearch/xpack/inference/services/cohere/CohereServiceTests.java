@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -97,12 +98,14 @@ public class CohereServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+    private ClusterService clusterService;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clusterService = mock(ClusterService.class);
     }
 
     @After
@@ -784,7 +787,7 @@ public class CohereServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new CohereService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(factory, createWithEmptySettings(threadPool), clusterService)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -817,7 +820,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_SendsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -891,7 +894,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             var model = CohereCompletionModelTests.createModel(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
             assertThrows(
                 ElasticsearchStatusException.class,
@@ -911,7 +914,7 @@ public class CohereServiceTests extends ESTestCase {
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             var embeddingSize = randomNonNegativeInt();
             var embeddingType = randomFrom(CohereEmbeddingType.values());
             var model = CohereEmbeddingsModelTests.createModel(
@@ -938,7 +941,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -980,7 +983,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_SetsInputTypeToIngest_FromInferParameter_WhenTaskSettingsAreEmpty() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -1056,7 +1059,7 @@ public class CohereServiceTests extends ESTestCase {
         throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -1130,7 +1133,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testInfer_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -1234,7 +1237,7 @@ public class CohereServiceTests extends ESTestCase {
     private void testChunkedInfer(CohereEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             // Batching will call the service with 2 inputs
             String responseJson = """
@@ -1324,7 +1327,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testChunkedInfer_BatchesCalls_Bytes() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             // Batching will call the service with 2 inputs
             String responseJson = """
@@ -1444,7 +1447,7 @@ public class CohereServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1528,7 +1531,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new CohereService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new CohereService(mock(), createWithEmptySettings(mock()), clusterService)) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1569,7 +1572,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     private CohereService createCohereService() {
-        return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService);
     }
 
 }

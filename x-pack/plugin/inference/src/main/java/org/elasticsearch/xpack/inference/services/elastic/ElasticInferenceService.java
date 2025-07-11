@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -122,6 +123,31 @@ public class ElasticInferenceService extends SenderService {
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
         super(factory, serviceComponents, context);
+        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
+            elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
+        );
+        authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+            serviceComponents,
+            modelRegistry,
+            authorizationRequestHandler,
+            initDefaultEndpoints(elasticInferenceServiceComponents),
+            IMPLEMENTED_TASK_TYPES,
+            this,
+            getSender(),
+            elasticInferenceServiceSettings
+        );
+    }
+
+    // for testing
+    public ElasticInferenceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        ModelRegistry modelRegistry,
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        ClusterService service
+    ) {
+        super(factory, serviceComponents, service);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.inference.services.custom.response.SparseE
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
 
@@ -149,7 +151,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool));
+        return new CustomService(senderFactory, createWithEmptySettings(threadPool), mock(ClusterService.class));
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {

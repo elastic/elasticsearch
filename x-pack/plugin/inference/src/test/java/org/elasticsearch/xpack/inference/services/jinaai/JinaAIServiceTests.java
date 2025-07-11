@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -91,12 +92,14 @@ public class JinaAIServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+    private ClusterService clusterService;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clusterService = mock(ClusterService.class);
     }
 
     @After
@@ -778,7 +781,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new JinaAIService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(factory, createWithEmptySettings(threadPool), clusterService)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -819,7 +822,7 @@ public class JinaAIServiceTests extends ESTestCase {
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             var embeddingSize = randomNonNegativeInt();
             var embeddingType = randomFrom(JinaAIEmbeddingType.values());
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -846,7 +849,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -889,7 +892,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -923,7 +926,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_Ingest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -994,7 +997,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_Search() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -1065,7 +1068,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_clustering() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {"model":"jina-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},
@@ -1120,7 +1123,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_NullInputType() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             String responseJson = """
                 {
@@ -1210,7 +1213,7 @@ public class JinaAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1295,7 +1298,7 @@ public class JinaAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1392,7 +1395,7 @@ public class JinaAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1475,7 +1478,7 @@ public class JinaAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool),clusterService)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1540,7 +1543,7 @@ public class JinaAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool),clusterService)) {
 
             String responseJson = """
                 {
@@ -1637,7 +1640,7 @@ public class JinaAIServiceTests extends ESTestCase {
     private void test_Embedding_ChunkedInfer_BatchesCalls(JinaAIEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), clusterService)) {
 
             // Batching will call the service with 2 input
             String responseJson = """
@@ -1800,7 +1803,7 @@ public class JinaAIServiceTests extends ESTestCase {
     }
 
     public void testDoesNotSupportsStreaming() throws IOException {
-        try (var service = new JinaAIService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new JinaAIService(mock(), createWithEmptySettings(mock()),clusterService)) {
             assertFalse(service.canStream(TaskType.COMPLETION));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1841,7 +1844,7 @@ public class JinaAIServiceTests extends ESTestCase {
     }
 
     private JinaAIService createJinaAIService() {
-        return new JinaAIService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new JinaAIService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), clusterService);
     }
 
 }

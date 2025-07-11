@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -92,7 +93,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
     private static final class TestService extends HuggingFaceService {
         TestService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+            super(factory, serviceComponents, mock(ClusterService.class));
         }
 
         @Override

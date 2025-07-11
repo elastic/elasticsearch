@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -113,6 +114,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     private ThreadPool threadPool;
 
     private HttpClientManager clientManager;
+    private ClusterService clusterService;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -125,6 +127,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clusterService = mock(ClusterService.class);
     }
 
     @After
@@ -1459,7 +1462,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
             modelRegistry,
-            mockAuthHandler
+            mockAuthHandler,
+            clusterService
         );
     }
 
@@ -1488,7 +1492,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             modelRegistry,
-            mockAuthHandler
+            mockAuthHandler,
+            clusterService
         );
     }
 
@@ -1501,7 +1506,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             modelRegistry,
-            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool),
+            clusterService
         );
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.deepseek;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -66,12 +67,14 @@ public class DeepSeekServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+    private ClusterService clusterService;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clusterService = mock(ClusterService.class);
     }
 
     @After
@@ -360,7 +363,8 @@ public class DeepSeekServiceTests extends ESTestCase {
     private DeepSeekService createService() {
         return new DeepSeekService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-            createWithEmptySettings(threadPool)
+            createWithEmptySettings(threadPool),
+            clusterService
         );
     }
 

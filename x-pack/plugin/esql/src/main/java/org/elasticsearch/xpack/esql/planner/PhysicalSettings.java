@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 /**

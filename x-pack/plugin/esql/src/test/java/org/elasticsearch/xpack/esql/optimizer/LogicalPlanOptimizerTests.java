@@ -5209,20 +5209,26 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             TEST_VERIFIER
         );
 
-        var plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test")));
+        var plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test", EsqlTestUtils.TEST_CFG)));
         as(plan, LocalRelation.class);
         assertThat(plan.output(), equalTo(NO_FIELDS));
 
-        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id | eval x = 1")));
+        plan = logicalOptimizer.optimize(
+            analyzer.analyze(parser.createStatement("from empty_test metadata _id | eval x = 1", EsqlTestUtils.TEST_CFG))
+        );
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "x"));
 
-        plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test metadata _id, _version | limit 5")));
+        plan = logicalOptimizer.optimize(
+            analyzer.analyze(parser.createStatement("from empty_test metadata _id, _version | limit 5", EsqlTestUtils.TEST_CFG))
+        );
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "_version"));
 
         plan = logicalOptimizer.optimize(
-            analyzer.analyze(parser.createStatement("from empty_test | eval x = \"abc\" | enrich languages_idx on x"))
+            analyzer.analyze(
+                parser.createStatement("from empty_test | eval x = \"abc\" | enrich languages_idx on x", EsqlTestUtils.TEST_CFG)
+            )
         );
         LocalRelation local = as(plan, LocalRelation.class);
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
@@ -5917,7 +5923,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     private void assertSemanticMatching(String expected, String provided) {
         BinaryComparison bc = extractPlannedBinaryComparison(provided);
-        LogicalPlan exp = analyzerTypes.analyze(parser.createStatement("FROM types | WHERE " + expected));
+        LogicalPlan exp = analyzerTypes.analyze(parser.createStatement("FROM types | WHERE " + expected, EsqlTestUtils.TEST_CFG));
         assertSemanticMatching(bc, extractPlannedBinaryComparison(exp));
     }
 
@@ -5945,7 +5951,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private void assertNotSimplified(String comparison) {
         String query = "FROM types | WHERE " + comparison;
         Expression optimized = getComparisonFromLogicalPlan(planTypes(query));
-        Expression raw = getComparisonFromLogicalPlan(analyzerTypes.analyze(parser.createStatement(query)));
+        Expression raw = getComparisonFromLogicalPlan(analyzerTypes.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
 
         assertTrue(raw.semanticEquals(optimized));
     }
@@ -6095,7 +6101,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -6110,7 +6116,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -6642,7 +6648,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "METRICS k8s max(rate(network.total_bytes_in))";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
@@ -6663,7 +6669,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMixedAggsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost)";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         Aggregate aggsByTsid = as(finalAggs.child(), Aggregate.class);
@@ -6688,7 +6694,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
         Eval mulEval = as(project.child(), Eval.class);
         assertThat(mulEval.fields(), hasSize(1));
@@ -6725,7 +6731,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMetricsGroupedByOneDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         TopN topN = as(plan, TopN.class);
         Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
         assertThat(aggsByCluster.aggregates(), hasSize(2));
@@ -6749,7 +6755,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMetricsGroupedByTwoDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "METRICS k8s avg(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
@@ -6788,7 +6794,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTranslateMetricsGroupedByTimeBucket() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg.aggregates(), hasSize(2));
@@ -6819,7 +6825,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
@@ -6858,7 +6864,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
@@ -6907,7 +6913,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval evalDiv = as(topN.child(), Eval.class);
@@ -6970,7 +6976,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
         List<LogicalPlan> plans = new ArrayList<>();
         for (String query : queries) {
-            var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
             plans.add(plan);
         }
         for (LogicalPlan plan : plans) {
@@ -7001,7 +7007,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
         VerificationException error = expectThrows(
             VerificationException.class,
-            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
+            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)))
         );
         assertThat(error.getMessage(), equalTo("""
             Found 1 problem
@@ -7560,7 +7566,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand x
             | sort y
             """;
-        LogicalPlan analyzed = analyzer.analyze(parser.createStatement(query));
+        LogicalPlan analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         LogicalPlan optimized = rule.apply(analyzed);
 
         // check that all the redundant SORTs are removed in a single run

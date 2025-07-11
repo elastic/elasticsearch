@@ -25,4 +25,9 @@ public class MatchAll extends Query {
     protected String innerToString() {
         return "";
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

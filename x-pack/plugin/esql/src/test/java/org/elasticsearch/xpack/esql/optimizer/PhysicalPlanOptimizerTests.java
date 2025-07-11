@@ -136,6 +136,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -7837,7 +7838,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        plan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), plan, TEST_SEARCH_STATS);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -8198,7 +8199,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats);
+            var localPlan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), fragment, searchStats);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 
@@ -8236,7 +8237,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query, config)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("Physical\n" + physical);

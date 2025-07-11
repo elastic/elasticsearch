@@ -156,7 +156,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = optimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -164,7 +164,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyzerAirports.analyze(parser.createStatement(query));
+        var analyzed = analyzerAirports.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -172,7 +172,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyzerExtra.analyze(parser.createStatement(query));
+        var analyzed = analyzerExtra.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);
@@ -180,7 +180,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
+        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     @Override

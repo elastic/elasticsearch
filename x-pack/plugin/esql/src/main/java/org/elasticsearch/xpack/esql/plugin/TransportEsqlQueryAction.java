@@ -170,6 +170,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+
     }
 
     @Override
@@ -209,6 +210,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        EsqlFlags flags = computeService.createFlags();
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -232,6 +234,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
+            flags,
             plan,
             configuration,
             foldCtx,

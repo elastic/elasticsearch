@@ -167,6 +167,41 @@ bucket:datetime
 1985-12-01T00:00:00.000Z
 ;
 
+bucketHeightWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS BY heightBucket = ROUND(BUCKET(height, 10, 1.0, 2.0), 2)
+| SORT heightBucket
+;
+
+heightBucket:double
+1.9
+7.9
+;
+
+bucketsWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1990-01-01T00:00:00Z"
+| STATS BY yearBucket = BUCKET(hire_date, 1 year, "1985-01-01T00:00:00Z", "1990-01-01T00:00:00Z", true),
+           heightBucket = ROUND(BUCKET(height, 10, 1.0, 2.0), 2)
+| SORT yearBucket, heightBucket
+;
+
+yearBucket:datetime      | heightBucket:double
+1985-01-01T00:00:00.000Z | 1.0 
+1985-02-01T00:00:00.000Z | 1.0
+1985-03-01T00:00:00.000Z | 1.0
+1985-04-01T00:00:00.000Z | 1.0
+1985-05-01T00:00:00.000Z | 1.0
+1985-06-01T00:00:00.000Z | 1.0
+1985-07-01T00:00:00.000Z | 1.0
+1985-08-01T00:00:00.000Z | 1.0
+1985-09-01T00:00:00.000Z | 1.0
+1985-10-01T00:00:00.000Z | 1.0
+1985-11-01T00:00:00.000Z | 1.0
+1985-12-01T00:00:00.000Z | 1.0
+;
+
 bucketMonthInAggWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"

@@ -160,7 +160,7 @@ public class HashAggregationOperator implements Operator {
     public void addInput(Page page) {
         if (isInitialPage.compareAndSet(true, false)
             && (aggregators.size() == 0 || AggregatorMode.INITIAL.equals(aggregators.get(0).getMode()))) {
-            Page initialPage = createInitialPage(page.getBlockCount());
+            Page initialPage = createInitialPage(page);
             if (initialPage != null) {
                 addInputInternal(initialPage);
             }
@@ -314,18 +314,21 @@ public class HashAggregationOperator implements Operator {
         return page;
     }
 
-    private @Nullable Page createInitialPage(int blockCount) {
-        int maxBucketCount = getMaxBucketCount(groups);
+    private @Nullable Page createInitialPage(Page page) {
+        int maxBucketCount = getMaxBucketCount(groups, page);
         if (maxBucketCount == 0) {
             return null;
         }
-        Map<Integer, BlockHash.GroupSpec> channelsToAppend = groups.stream()
-            .filter(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets())
-            .collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
-        Block[] blocks = new Block[blockCount];
-        for (int i = 0; i < blockCount; i++) {
-            if (channelsToAppend.containsKey(i)) {
-                blocks[i] = appendValues(channelsToAppend.get(i).emptyBucketDef(), maxBucketCount);
+        Map<Integer, BlockHash.GroupSpec> groupByChannel = groups.stream().collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
+        Block[] blocks = new Block[page.getBlockCount()];
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            if (groupByChannel.containsKey(i)) {
+                BlockHash.EmptyBucketDef emptyBucketDef = groupByChannel.get(i).emptyBucketDef();
+                if (emptyBucketDef != null && emptyBucketDef.emitEmptyBuckets()) {
+                    blocks[i] = appendInitialValues(emptyBucketDef, maxBucketCount);
+                } else {
+                    blocks[i] = copyValues(page.getBlock(i), maxBucketCount);
+                }
             } else {
                 blocks[i] = driverContext.blockFactory().newConstantNullBlock(maxBucketCount);
             }
@@ -333,7 +336,7 @@ public class HashAggregationOperator implements Operator {
         return new Page(blocks);
     }
 
-    Block appendValues(BlockHash.EmptyBucketDef group, int maxBucketCount) {
+    private Block appendInitialValues(BlockHash.EmptyBucketDef group, int maxBucketCount) {
         Rounding.Prepared rounding = group.rounding();
         try (
             LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(
@@ -354,21 +357,36 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private static int getMaxBucketCount(List<BlockHash.GroupSpec> groups) {
+    private Block copyValues(Block block, int maxBucketCount) {
+        try (
+            Block.Builder newBlockBuilder = block.elementType().newBlockBuilder(
+                block.getPositionCount(),
+                driverContext.blockFactory()
+            )
+        ) {
+            newBlockBuilder.copyFrom(block, 0, block.getPositionCount());
+            for (int i = block.getPositionCount(); i < maxBucketCount; i++) {
+                newBlockBuilder.appendNull();
+            }
+            return newBlockBuilder.build();
+        }
+    }
+
+    private static int getMaxBucketCount(List<BlockHash.GroupSpec> groups, Page page) {
         int result = 0;
         for (BlockHash.GroupSpec group : groups) {
-            if (group.emptyBucketDef() != null) {
-                int bucketCount = getBucketCount(group.emptyBucketDef());
-                result = Math.max(result, bucketCount);
+            int positionCount;
+            if (group.emptyBucketDef() != null && group.emptyBucketDef().emitEmptyBuckets()) {
+                positionCount = getBucketCount(group.emptyBucketDef());
+            } else {
+                positionCount = page.getBlock(group.channel()).getPositionCount();
             }
+            result = Math.max(result, positionCount);
         }
         return result;
     }
 
     private static int getBucketCount(BlockHash.EmptyBucketDef group) {
-        if (group.emitEmptyBuckets() == false) {
-            return 0;
-        }
         Rounding.Prepared rounding = group.rounding();
         long from = group.from();
         long to = group.to();

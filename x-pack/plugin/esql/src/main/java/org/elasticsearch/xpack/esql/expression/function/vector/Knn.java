@@ -56,7 +56,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -190,8 +189,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     private TypeResolution resolveQuery() {
         return isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector").and(
-            isNotNullAndFoldable(query(), sourceText(), SECOND)
-        );
+            isNotNull(query(), sourceText(), SECOND)
+        ).and(isFoldable(query(), sourceText(), SECOND));
     }
 
     private TypeResolution resolveK() {

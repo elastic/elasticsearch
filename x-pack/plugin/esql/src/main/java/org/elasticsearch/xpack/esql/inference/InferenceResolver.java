@@ -51,7 +51,7 @@ public class InferenceResolver {
      * extracting their deployment IDs for subsequent validation. Currently, supports:
      * <ul>
      *   <li>{@link InferencePlan} objects (Completion, etc.)</li>
-     *   <li>{@link InferenceFunction} objects (TextEmbedding, etc.)</li>
+     *   <li>{@link InferenceFunction} objects (EmbedText, etc.)</li>
      * </ul>
      *
      * @param plan The logical plan to scan for inference operations

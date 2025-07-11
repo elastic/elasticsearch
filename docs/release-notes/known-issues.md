@@ -20,7 +20,7 @@ To mitigate this issue, the disk space checker is disabled by default in 9.0.3 b
 
   Possible work-arounds are:
   * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
-  * reducing the grouping key cardinality, filtering out values before STATS.
+  * reducing the grouping key cardinality, by filtering out values before STATS
 
 ## 9.0.0 [elasticsearch-9.0.0-known-issues]
 * Elasticsearch on Windows might fail to start, or might forbid some file-related operations, when referencing paths with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the filesystem stores them with case. Entitlements, the new security system used by Elasticsearch, treat all paths as case-sensitive, and can therefore prevent access to a path that should be accessible.

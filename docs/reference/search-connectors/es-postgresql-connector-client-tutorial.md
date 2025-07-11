@@ -109,7 +109,7 @@ If you're using {{es-serverless}}, click **{icon}`plus_in_circle` Self-managed c
 ::::
 ::::{step} Link your connector to Elasticsearch
 You need to run the connector code on your own infrastructure and link it to {{es}}.
-You have two options: [Run with Docker](/search-connectors/es-connectors-run-from-docker.md) and [Run from source](/search-connectors/es-connectors-run-from-source.md).
+You have two options: [Run with Docker](/reference/search-connectors/es-connectors-run-from-docker.md) and [Run from source](/reference/search-connectors/es-connectors-run-from-source.md).
 For this example, we’ll use the latter method:
 
 1. Clone or fork that repository locally with the following command: `git clone https://github.com/elastic/connectors`.

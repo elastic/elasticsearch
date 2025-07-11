@@ -56,7 +56,7 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     BooleanVector valuesVector = valuesBlock.asVector();

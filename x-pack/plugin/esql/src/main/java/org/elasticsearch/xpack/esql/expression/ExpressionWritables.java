@@ -259,7 +259,7 @@ public class ExpressionWritables {
     }
 
     private static List<NamedWriteableRegistry.Entry> vector() {
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
             return List.of(Knn.ENTRY);
         }
         return List.of();

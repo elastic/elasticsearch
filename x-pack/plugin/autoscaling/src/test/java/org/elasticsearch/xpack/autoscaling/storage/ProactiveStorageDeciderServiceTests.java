@@ -408,7 +408,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         for (var id : projectState.cluster().nodes().getDataNodes().keySet()) {
             diskUsage.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
         }
-        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of(), Map.of());
+        return ClusterInfo.builder().leastAvailableSpaceUsage(diskUsage).mostAvailableSpaceUsage(diskUsage).shardSizes(shardSizes).build();
     }
 
     private ProjectMetadata applyCreatedDates(ProjectMetadata project, DataStream ds, long last, long decrement) {

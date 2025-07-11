@@ -208,7 +208,7 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
         }
 
         @Override
-        public BlockLoader.OrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
     }

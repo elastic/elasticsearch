@@ -704,7 +704,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docs.count() == 1) {
                 return readSingleDoc(factory, docs.get(0));
             }
-            try (var builder = factory.ordinalsBuilder(ordinals, docs.count())) {
+            try (var builder = factory.sortedSetOrdinalsBuilder(ordinals, docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {

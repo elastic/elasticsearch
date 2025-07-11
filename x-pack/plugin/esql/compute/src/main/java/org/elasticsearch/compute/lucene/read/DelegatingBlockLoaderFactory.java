@@ -82,12 +82,12 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
-    public BlockLoader.OrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+    public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
         return new SingletonOrdinalsBuilder(factory, ordinals, count);
     }
 
     @Override
-    public BlockLoader.OrdinalsBuilder ordinalsBuilder(SortedSetDocValues ordinals, int count) {
+    public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
         return new SortedSetOrdinalsBuilder(factory, ordinals, count);
     }
 

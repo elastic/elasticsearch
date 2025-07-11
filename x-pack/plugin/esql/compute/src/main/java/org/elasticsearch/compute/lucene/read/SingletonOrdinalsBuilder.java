@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 
-public class SingletonOrdinalsBuilder implements BlockLoader.OrdinalsBuilder, Releasable, Block.Builder {
+public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBuilder, Releasable, Block.Builder {
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;
     private int minOrd = Integer.MAX_VALUE;

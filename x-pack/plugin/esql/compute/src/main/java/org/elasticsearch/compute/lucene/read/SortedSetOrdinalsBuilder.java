@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 
-public final class SortedSetOrdinalsBuilder implements BlockLoader.OrdinalsBuilder, Releasable, Block.Builder {
+public final class SortedSetOrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Releasable, Block.Builder {
     private final BlockFactory blockFactory;
     private final SortedSetDocValues docValues;
     private int minOrd = Integer.MAX_VALUE;

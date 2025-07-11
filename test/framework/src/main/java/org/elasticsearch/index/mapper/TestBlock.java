@@ -168,8 +168,8 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.OrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
-                class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.OrdinalsBuilder {
+            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+                class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
@@ -184,8 +184,8 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.OrdinalsBuilder ordinalsBuilder(SortedSetDocValues ordinals, int count) {
-                class SortedSetOrdinalBuilder extends TestBlock.Builder implements BlockLoader.OrdinalsBuilder {
+            public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
+                class SortedSetOrdinalBuilder extends TestBlock.Builder implements BlockLoader.SortedSetOrdinalsBuilder {
                     @Override
                     public SortedSetOrdinalBuilder appendOrd(int value) {
                         try {

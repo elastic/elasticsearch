@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.IOException;
@@ -129,14 +128,14 @@ public class SortedSetOrdinalsBuilderTests extends ComputeTestCase {
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getSortedSetDocValues("f");
-                    try (BlockLoader.OrdinalsBuilder builder = new SortedSetOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    try (var builder = new SortedSetOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
                                 assertThat(docValues.advanceExact(i), equalTo(true));
                                 builder.appendNull();
                             }
                         }
-                        try (BytesRefBlock built = (BytesRefBlock) builder.build()) {
+                        try (BytesRefBlock built = builder.build()) {
                             for (int p = 0; p < built.getPositionCount(); p++) {
                                 assertThat(built.isNull(p), equalTo(true));
                             }

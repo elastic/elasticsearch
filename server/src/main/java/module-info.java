@@ -433,6 +433,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.synonyms.SynonymFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures,

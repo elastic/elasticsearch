@@ -914,7 +914,7 @@ public class Stateless extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 SHARD_READ_THREAD_POOL_SETTING,
-                new EsExecutors.TaskTrackingConfig(true, 0.3)
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build()
             ),
             new ScalingExecutorBuilder(
                 TRANSLOG_THREAD_POOL,

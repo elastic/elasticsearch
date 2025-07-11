@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.score.ScoreMapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A function to be used to score specific portions of an ES|QL query e.g., in conjunction with
@@ -119,5 +120,17 @@ public class Score extends Function implements EvaluatorMapper {
                 }
             };
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        Score score = (Score) o;
+        return super.equals(o) && score.children().equals(children());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(children());
     }
 }

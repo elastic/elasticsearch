@@ -489,7 +489,8 @@ public class EsqlFunctionRegistry {
                 def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
-                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") } };
+                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string"),
+                def(Score.class, Score::new, "score") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

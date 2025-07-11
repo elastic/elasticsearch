@@ -23,6 +23,7 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
@@ -437,16 +438,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
             Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
             Map<?, ?> nodes = (Map<?, ?>) stats.get("nodes");
-            for (Object n : nodes.values()) {
-                Map<?, ?> node = (Map<?, ?>) n;
-                Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
-                Map<?, ?> request = (Map<?, ?>) breakers.get("request");
-                assertMap(
-                    "circuit breakers not reset to 0",
-                    request,
-                    matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b")
+
+            MapMatcher breakersEmpty = matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b");
+
+            MapMatcher nodesMatcher = matchesMap();
+            for (Object name : nodes.keySet()) {
+                nodesMatcher = nodesMatcher.entry(
+                    name,
+                    matchesMap().extraOk().entry("breakers", matchesMap().extraOk().entry("request", breakersEmpty))
                 );
             }
+            assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
     }
 

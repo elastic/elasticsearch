@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -173,7 +174,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build(), null).getExplanation()
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build(), ProjectId.DEFAULT).getExplanation()
         );
     }
 
@@ -196,7 +197,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             params,
             csBuilder.nodes().getAllNodes(),
             csBuilder.build(),
-            null
+            ProjectId.DEFAULT
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -218,7 +219,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             params,
             csBuilder.nodes().getAllNodes(),
             csBuilder.build(),
-            null
+            ProjectId.DEFAULT
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());

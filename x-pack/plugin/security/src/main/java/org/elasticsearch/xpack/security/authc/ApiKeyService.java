@@ -2693,7 +2693,7 @@ public class ApiKeyService implements Closeable {
             // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
             this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
-                .setMaximumWeight(maximumWeight > Long.MAX_VALUE / 2 ? Long.MAX_VALUE : maximumWeight * 2L)
+                .setMaximumWeight(maximumWeight < Long.MAX_VALUE / 2 ? maximumWeight * 2L : Long.MAX_VALUE)
                 .build();
             this.lockingAtomicCounter = new LockingAtomicCounter();
         }

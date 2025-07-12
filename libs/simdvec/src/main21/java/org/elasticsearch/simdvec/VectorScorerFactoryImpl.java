@@ -9,18 +9,17 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.Float32VectorScorer;
+import org.elasticsearch.simdvec.internal.Float32VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
-import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
-import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.EuclideanSupplier;
-import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.MaxInnerProductSupplier;
+import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 
 import java.util.Optional;
 
@@ -41,17 +40,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
-        input = FilterIndexInput.unwrapOnlyTest(input);
-        if (input instanceof MemorySegmentAccessInput == false) {
-            return Optional.empty();
-        }
-        MemorySegmentAccessInput msInput = (MemorySegmentAccessInput) input;
-        checkInvariants(values.size(), values.dimension(), input);
-        return switch (similarityType) {
-            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductSupplier(msInput, values, scoreCorrectionConstant));
-            case EUCLIDEAN -> Optional.of(new EuclideanSupplier(msInput, values, scoreCorrectionConstant));
-            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant));
-        };
+        return Int7SQVectorScorerSupplier.create(similarityType, input, values, scoreCorrectionConstant);
     }
 
     @Override
@@ -63,9 +52,28 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         return Int7SQVectorScorer.create(sim, values, queryVector);
     }
 
-    static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
-        if (input.length() < (long) vectorByteLength * maxOrd) {
-            throw new IllegalArgumentException("input length is less than expected vector data");
-        }
+    // -- floats
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
+        return Float32VectorScorerSupplier.create(similarityType, input, values);
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getFloat32VectorScorer(
+        VectorSimilarityFunction sim,
+        FloatVectorValues values,
+        float[] queryVector
+    ) {
+        return Float32VectorScorer.create(sim, values, queryVector);
+    }
+
+    @Override
+    public String toString() {
+        return "VectorScorerFactoryImpl";
     }
 }

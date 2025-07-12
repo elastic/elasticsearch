@@ -18,7 +18,7 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InternalRandomSampler extends InternalSingleBucketAggregation {
+public class InternalRandomSampler extends SingleBucketAggregation {
     public static final String NAME = "mapped_random_sampler";
     public static final String PARSER_NAME = "random_sampler";
 
@@ -85,7 +85,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalRandomSampler(name, docCount, seed, shardSeed, probability, subAggregations, metadata);
     }
 
@@ -97,8 +97,8 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
 
             @Override
             public void accept(InternalAggregation aggregation) {
-                docCount += ((InternalSingleBucketAggregation) aggregation).getDocCount();
-                subAggregatorReducer.accept(((InternalSingleBucketAggregation) aggregation).getAggregations());
+                docCount += ((SingleBucketAggregation) aggregation).getDocCount();
+                subAggregatorReducer.accept(((SingleBucketAggregation) aggregation).getAggregations());
             }
 
             @Override

@@ -10,12 +10,12 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class InternalSampler extends InternalSingleBucketAggregation {
+public class InternalSampler extends SingleBucketAggregation {
     public static final String NAME = "mapped_sampler";
     // InternalSampler and UnmappedSampler share the same parser name, so we use this when identifying the aggregation type
     public static final String PARSER_NAME = "sampler";
@@ -42,7 +42,7 @@ public class InternalSampler extends InternalSingleBucketAggregation {
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalSampler(name, docCount, subAggregations, metadata);
     }
 }

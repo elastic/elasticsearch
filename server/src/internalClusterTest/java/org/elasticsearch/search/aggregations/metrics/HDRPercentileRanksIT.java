@@ -14,7 +14,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -226,7 +225,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                 PercentileRanks values = global.getAggregations().get("percentile_ranks");
                 assertThat(values, notNullValue());
                 assertThat(values.getName(), equalTo("percentile_ranks"));
-                assertThat(((InternalAggregation) global).getProperty("percentile_ranks"), sameInstance(values));
+                assertThat(global.getProperty("percentile_ranks"), sameInstance(values));
             }
         );
     }

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -106,16 +105,15 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
                 assertThat(global.getAggregations().asList().size(), equalTo(1));
 
                 CentroidAggregation geoCentroid = global.getAggregations().get(aggName());
-                InternalAggregation agg = (InternalAggregation) global;
                 assertThat(geoCentroid, notNullValue());
                 assertThat(geoCentroid.getName(), equalTo(aggName()));
-                assertThat((CentroidAggregation) agg.getProperty(aggName()), sameInstance(geoCentroid));
+                assertThat((CentroidAggregation) global.getProperty(aggName()), sameInstance(geoCentroid));
                 assertSameCentroid(geoCentroid.centroid(), singleCentroid);
-                assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getY(), singleCentroid.getY());
-                assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getX(), singleCentroid.getX());
-                assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("y")), singleCentroid.getY());
-                assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("x")), singleCentroid.getX());
-                assertEquals(numDocs, (long) ((InternalAggregation) global).getProperty(aggName() + ".count"));
+                assertSimilarValue(((SpatialPoint) global.getProperty(aggName() + ".value")).getY(), singleCentroid.getY());
+                assertSimilarValue(((SpatialPoint) global.getProperty(aggName() + ".value")).getX(), singleCentroid.getX());
+                assertSimilarValue((double) global.getProperty(aggName() + "." + coordinateName("y")), singleCentroid.getY());
+                assertSimilarValue((double) global.getProperty(aggName() + "." + coordinateName("x")), singleCentroid.getX());
+                assertEquals(numDocs, (long) global.getProperty(aggName() + ".count"));
             }
         );
     }

@@ -176,9 +176,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
-  method: testHTTPExporterWithSSL
-  issue: https://github.com/elastic/elasticsearch/issues/122220
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
@@ -344,9 +341,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
-  issue: https://github.com/elastic/elasticsearch/issues/127096
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
@@ -534,9 +528,6 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
@@ -561,6 +552,12 @@ tests:
 - class: org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutorTests
   method: testMaxQueueLatency
   issue: https://github.com/elastic/elasticsearch/issues/131093
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyOnFromAfterStats ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/131148
 
 # Examples:
 #

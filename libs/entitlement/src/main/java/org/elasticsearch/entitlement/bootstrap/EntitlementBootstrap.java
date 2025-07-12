@@ -140,7 +140,8 @@ public class EntitlementBootstrap {
             return propertyValue;
         }
 
-        Path dir = Path.of("lib", "entitlement-agent");
+        Path esHome = Path.of(System.getProperty("es.path.home"));
+        Path dir = esHome.resolve("lib/entitlement-agent");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
         }

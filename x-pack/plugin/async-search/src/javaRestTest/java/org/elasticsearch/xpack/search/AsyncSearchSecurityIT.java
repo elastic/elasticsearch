@@ -93,21 +93,28 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("test-error-query")
-        .module("analysis-common")
-        .module("x-pack-async-search")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "true")
-        .rolesFile(Resource.fromClasspath("roles.yml"))
-        .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
-        .user("test-admin", "x-pack-test-password", "test-admin", false)
-        .user("user1", "x-pack-test-password", "user1", false)
-        .user("user2", "x-pack-test-password", "user2", false)
-        .user("user-dls", "x-pack-test-password", "user-dls", false)
-        .user("user-cancel", "x-pack-test-password", "user-cancel", false)
-        .user("user-monitor", "x-pack-test-password", "user-monitor", false)
-        .build();
+    public static ElasticsearchCluster cluster = getCluster();
+
+    private static ElasticsearchCluster getCluster() {
+        var builder = ElasticsearchCluster.local()
+            .module("analysis-common")
+            .module("x-pack-async-search")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.enabled", "true")
+            .rolesFile(Resource.fromClasspath("roles.yml"))
+            .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
+            .user("test-admin", "x-pack-test-password", "test-admin", false)
+            .user("user1", "x-pack-test-password", "user1", false)
+            .user("user2", "x-pack-test-password", "user2", false)
+            .user("user-dls", "x-pack-test-password", "user-dls", false)
+            .user("user-cancel", "x-pack-test-password", "user-cancel", false)
+            .user("user-monitor", "x-pack-test-password", "user-monitor", false);
+        if (Build.current().isSnapshot()) {
+            // Only in non-release builds we can use the error_query
+            builder = builder.module("test-error-query");
+        }
+        return builder.build();
+    }
 
     @Override
     protected String getTestRestCluster() {

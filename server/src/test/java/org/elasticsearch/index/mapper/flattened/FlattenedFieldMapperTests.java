@@ -868,6 +868,98 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             {"field":{"obj1":{"key":"foo"},"obj2":{"key":"bar"}}}"""));
     }
 
+    public void testSyntheticSourceWithScalarObjectMismatch() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1.key2", "foo");
+                b.startObject("key1");
+                {
+                    b.startObject("key2").field("key3", "bar").endObject();
+                    b.field("key4", "baz");
+                }
+                b.endObject();
+                b.field("key5", "qux");
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":"foo","key2.key3":"bar","key4":"baz"},"key5":"qux"}}"""));
+    }
+
+    public void testSyntheticSourceWithScalarObjectMismatchArray() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.array("key1.key2", "qux", "foo");
+                b.startObject("key1");
+                {
+                    b.field("key2.key3", "baz");
+                    b.field("key2", "bar");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":["bar","foo","qux"],"key2.key3":"baz"}}}"""));
+    }
+
+    public void testSyntheticSourceWithEmptyObject() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "foo");
+                b.startObject("key2").endObject();
+            }
+            b.endObject();
+        });
+        // Objects without any values are not included in the synthetic source
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":"foo"}}"""));
+    }
+
+    public void testSyntheticSourceWithMatchesInNestedPath() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        // This test covers a scenario that previously had a bug.
+        // Since a.b.c and b.b.d have a matching middle key `b`, and b.b.d starts with a `b`,
+        // startObject was not called for the first `b` in b.b.d.
+        // For a full explanation see this comment: https://github.com/elastic/elasticsearch/pull/129600#issuecomment-3024476134
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject("a");
+                {
+                    b.startObject("b").field("c", "1").endObject();
+                }
+                b.endObject();
+                b.startObject("b");
+                {
+                    b.startObject("b").field("d", "2").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"a":{"b":{"c":"1"}},"b":{"b":{"d":"2"}}}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;

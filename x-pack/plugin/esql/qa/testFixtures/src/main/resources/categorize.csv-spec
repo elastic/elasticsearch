@@ -309,6 +309,7 @@ COUNT():long | category:keyword
 
 on REVERSE(CONCAT())
 required_capability: categorize_v6
+required_capability: fn_reverse_grapheme_clusters
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(REVERSE(CONCAT(message, " 👍🏽😊")))

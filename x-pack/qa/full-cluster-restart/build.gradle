@@ -29,3 +29,12 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
     maxParallelForks = 1
   }
 }
+
+tasks.named("bcUpgradeTest").configure {
+  filter {
+    // Mute testSnapshotRestore: it uses string compare of Version (from the cluster, saved in the snapshot) with tests.bwc.main.version,
+    // which does not work for SNAPSHOT builds
+    excludeTestsMatching("org.elasticsearch.xpack.restart.CoreFullClusterRestartIT.testSnapshotRestore")
+    excludeTestsMatching("org.elasticsearch.xpack.restart.CoreFullClusterRestartIT.testSnapshotRestore *")
+  }
+}

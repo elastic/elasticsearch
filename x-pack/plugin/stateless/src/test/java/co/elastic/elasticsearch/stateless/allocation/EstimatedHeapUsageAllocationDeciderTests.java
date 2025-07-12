@@ -234,6 +234,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 .build(),
             Set.of(
                 InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
+                EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK
             )
         );

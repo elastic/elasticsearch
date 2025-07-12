@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -53,6 +55,13 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
+        "cluster.routing.allocation.estimated_heap.log_interval",
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Decision YES_ESTIMATED_HEAP_USAGE_DECIDER_DISABLED = Decision.single(
         Decision.Type.YES,
         NAME,
@@ -65,6 +74,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         "estimated heap allocation decider is applicable only to index nodes"
     );
 
+    private final FrequencyCappedAction logInterventionMessage;
     private volatile boolean enabled;
     private volatile RatioValue estimatedHeapLowWatermark;
 
@@ -73,6 +83,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
             this::setEnabled
         );
+        logInterventionMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, logInterventionMessage::setMinInterval);
         clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK, this::setEstimatedHeapLowWatermark);
     }
 
@@ -113,7 +125,11 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
                 heapUsedPercentage,
                 lowWaterMarkPercentage
             );
-            logger.debug(message);
+
+            if (logger.isDebugEnabled()) {
+                logInterventionMessage.maybeExecute(() -> logger.debug(message));
+            }
+
             return allocation.decision(Decision.NO, NAME, message);
         } else {
             return allocation.decision(

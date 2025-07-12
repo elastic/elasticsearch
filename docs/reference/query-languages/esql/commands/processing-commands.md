@@ -20,6 +20,9 @@ mapped_pages:
 :::{include} ../_snippets/commands/layout/change_point.md
 :::
 
+:::{include} ../_snippets/commands/layout/completion.md
+:::
+
 :::{include} ../_snippets/commands/layout/dissect.md
 :::
 

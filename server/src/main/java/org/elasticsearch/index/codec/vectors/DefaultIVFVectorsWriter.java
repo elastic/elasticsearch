@@ -16,7 +16,9 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -61,6 +63,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             floatVectorValues,
             postingsOutput
         );
+        int[] docIds = null;
+        int[] clusterOrds = null;
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             // TODO: add back in sorting vectors by distance to centroid
@@ -68,13 +72,25 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // TODO align???
             offsets[c] = postingsOutput.getFilePointer();
             int size = cluster.length;
+            if (docIds == null || docIds.length < size) {
+                docIds = new int[size];
+                clusterOrds = new int[size];
+            }
+            for (int j = 0; j < size; j++) {
+                docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                clusterOrds[j] = j;
+            }
+            final int[] finalDocs = docIds;
+            final int[] finalOrds = clusterOrds;
+            // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
+            new IntSorter(clusterOrds, i -> finalDocs[i]).sort(0, size);
             postingsOutput.writeVInt(size);
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
-            bulkWriter.writeOrds(j -> cluster[j], cluster.length, centroid);
+            docIdsWriter.writeDocIds(j -> finalDocs[finalOrds[j]], size, postingsOutput);
+            bulkWriter.writeOrds(j -> cluster[finalOrds[j]], cluster.length, centroid);
         }
 
         if (logger.isDebugEnabled()) {
@@ -279,6 +295,39 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;
+        }
+    }
+
+    static class IntSorter extends IntroSorter {
+        int pivot = -1;
+        private final int[] arr;
+        private final IntToIntFunction func;
+
+        IntSorter(int[] arr, IntToIntFunction func) {
+            this.arr = arr;
+            this.func = func;
+        }
+
+        @Override
+        protected void setPivot(int i) {
+            pivot = func.apply(arr[i]);
+        }
+
+        @Override
+        protected int comparePivot(int j) {
+            return Integer.compare(pivot, func.apply(arr[j]));
+        }
+
+        @Override
+        protected int compare(int a, int b) {
+            return Integer.compare(func.apply(arr[a]), func.apply(arr[b]));
+        }
+
+        @Override
+        protected void swap(int i, int j) {
+            final int tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
         }
     }
 }

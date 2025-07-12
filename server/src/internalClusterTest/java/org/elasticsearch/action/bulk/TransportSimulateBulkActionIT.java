@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -85,7 +86,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().getProject().index(indexName).mapping().sourceAsMap();
+        final var project = clusterStateResponse.getState().metadata().getProject(ProjectId.DEFAULT);
+        Map<String, Object> indexMapping = project.index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
     }
@@ -142,7 +144,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().getProject().index(indexName).mapping().sourceAsMap();
+        final var project = clusterStateResponse.getState().metadata().getProject(ProjectId.DEFAULT);
+        Map<String, Object> indexMapping = project.index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
     }

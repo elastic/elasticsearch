@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
@@ -116,13 +117,22 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     @Override
     @Nullable
     public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-        return cache.putIfAbsent(projectId, ipAddress, cachedDatabasePathToString, ip -> {
+        Function<String, RESPONSE> retrieveFunction = ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
-        });
+        };
+        @SuppressWarnings("unchecked") // This is not generally safe! However, it is okay since we know that we will only call getResponse
+                                       // with RESPONSE types which extend IpDataLookup.Response. TODO(pete): Explain why we're doing this!
+        Function<String, ? extends IpDataLookup.Response> castRetrieveFunction = (Function<
+            String,
+            ? extends IpDataLookup.Response>) retrieveFunction;
+        @SuppressWarnings("unchecked") // This one *is* safe, because we know that the retrieve function really does return RESPONSE (it was
+                                       // typed as such before we cast it).
+        RESPONSE response = (RESPONSE) cache.putIfAbsent(projectId, ipAddress, cachedDatabasePathToString, castRetrieveFunction);
+        return response;
     }
 
     Reader get() throws IOException {

@@ -10,7 +10,8 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -31,7 +32,7 @@ public class ESONSourceClaude {
 
     public static class Builder {
 
-        private final BytesStreamOutput bytes = new BytesStreamOutput();
+        private final RecyclerBytesStreamOutput bytes = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
         // TODO: Implement key cache when makes sense
         private final Map<BytesRef, String> keyCache;
         // TODO: Implement ordered
@@ -140,7 +141,6 @@ public class ESONSourceClaude {
                 }
                 default -> throw new IllegalStateException("Unexpected token [" + token + "]");
             }
-
             return new ParsedValue(Math.toIntExact(position), valueType);
         }
 

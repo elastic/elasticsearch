@@ -213,7 +213,8 @@ public record ClusterBalanceStats(
         int undesiredShardAllocations,
         double forecastWriteLoad,
         long forecastShardSize,
-        long actualShardSize
+        long actualShardSize,
+        double nodeWeight
     ) implements Writeable, ToXContentObject {
 
         private static final String UNKNOWN_NODE_ID = "UNKNOWN";
@@ -241,6 +242,10 @@ public record ClusterBalanceStats(
                 }
             }
 
+            double nodeWeight = desiredBalance == null || desiredBalance.weightsPerNode().isEmpty()
+                ? 0
+                : desiredBalance.weightsPerNode().get(routingNode.node()).nodeWeight();
+
             return new NodeBalanceStats(
                 routingNode.nodeId(),
                 routingNode.node().getRoles().stream().map(DiscoveryNodeRole::roleName).toList(),
@@ -248,7 +253,8 @@ public record ClusterBalanceStats(
                 undesired,
                 forecastWriteLoad,
                 forecastShardSize,
-                actualShardSize
+                actualShardSize,
+                nodeWeight
             );
         }
 
@@ -269,7 +275,8 @@ public record ClusterBalanceStats(
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
                 in.readDouble(),
                 in.readLong(),
-                in.readLong()
+                in.readLong(),
+                in.readDouble()
             );
         }
 
@@ -286,6 +293,7 @@ public record ClusterBalanceStats(
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);
+            out.writeDouble(nodeWeight);
         }
 
         @Override
@@ -300,6 +308,7 @@ public record ClusterBalanceStats(
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
                 .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))
+                .field("node_weight", nodeWeight)
                 .endObject();
         }
     }

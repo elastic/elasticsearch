@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
@@ -17,13 +16,13 @@ import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -63,8 +63,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.postOptimizationVerificationQuery;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
@@ -76,7 +77,8 @@ public abstract class FullTextFunction extends Function
         TranslationAware,
         PostAnalysisPlanVerificationAware,
         EvaluatorMapper,
-        ExpressionScoreMapper {
+        ExpressionScoreMapper,
+        PostOptimizationVerificationAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -116,7 +118,15 @@ public abstract class FullTextFunction extends Function
      * @return type resolution for the query parameter
      */
     protected TypeResolution resolveQuery(TypeResolutions.ParamOrdinal queryOrdinal) {
-        return isString(query(), sourceText(), queryOrdinal).and(isNotNullAndFoldable(query(), sourceText(), queryOrdinal));
+        TypeResolution result = isString(query(), sourceText(), queryOrdinal).and(isNotNull(query(), sourceText(), queryOrdinal));
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText());
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     public Expression query() {
@@ -129,8 +139,7 @@ public abstract class FullTextFunction extends Function
      * @return query expression as an object
      */
     public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
-        return BytesRefs.toString(queryAsObject);
+        return FunctionUtils.queryAsObject(query(), sourceText());
     }
 
     @Override
@@ -454,5 +463,10 @@ public abstract class FullTextFunction extends Function
             fieldExpression = convertFunction.field();
         }
         return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        postOptimizationVerificationQuery(failures, query(), sourceText());
     }
 }

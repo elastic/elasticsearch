@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -54,13 +53,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery} .
@@ -196,9 +195,17 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
-            isNotNullAndFoldable(query(), sourceText(), SECOND)
+        TypeResolution result = isType(query(), QUERY_DATA_TYPES::contains, sourceText(), SECOND, "keyword").and(
+            isNotNull(query(), sourceText(), SECOND)
         );
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText());
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -255,7 +262,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @Override
     public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
+        Object queryAsObject = super.queryAsObject();
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {

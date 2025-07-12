@@ -19,6 +19,11 @@ public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRul
 
     @Override
     public Expression rule(Expression e, LogicalOptimizerContext ctx) {
-        return e.foldable() ? Literal.of(ctx.foldCtx(), e) : e;
+        if (e.foldable()) {
+            return Literal.of(ctx.foldCtx(), e);
+        } else if (e.partiallyFoldable()) {
+            return e.partiallyFold(ctx.foldCtx());
+        }
+        return e;
     }
 }

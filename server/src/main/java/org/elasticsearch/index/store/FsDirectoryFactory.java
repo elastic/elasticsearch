@@ -181,6 +181,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // we might run into trouble with files that are pendingDelete in one directory but still
                 // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
                 // and intersect for perf reasons.
+
+                // Force normal read advice for stored field temp fdt files:
+                // (tmp fdt files should only exist when index sorting is enabled)
+                if (LuceneFilesExtensions.TMP.getExtension().equals(getExtension(name)) && name.contains("fdt")) {
+                    context = context.withReadAdvice(ReadAdvice.NORMAL);
+                }
+
                 return delegate.openInput(name, context);
             } else {
                 return super.openInput(name, context);

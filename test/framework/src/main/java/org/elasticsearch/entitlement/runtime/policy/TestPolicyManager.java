@@ -38,7 +38,7 @@ public class TestPolicyManager extends PolicyManager {
      * We need this larger map per class instead.
      */
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
-
+    final Collection<Path> classpath;
     final Collection<URI> testOnlyClasspath;
 
     public TestPolicyManager(
@@ -46,11 +46,12 @@ public class TestPolicyManager extends PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
-        Map<String, Collection<Path>> pluginSourcePaths,
         PathLookup pathLookup,
+        Collection<Path> classpath,
         Collection<URI> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, pluginSourcePaths, pathLookup);
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
+        this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
         reset();
     }
@@ -118,6 +119,11 @@ public class TestPolicyManager extends PolicyManager {
         return super.isTriviallyAllowed(requestingClass);
     }
 
+    @Override
+    protected Collection<Path> getComponentPathsFromClass(Class<?> requestingClass) {
+        return classpath; // required to grant read access to the production source and test resources
+    }
+
     private boolean isEntitlementClass(Class<?> requestingClass) {
         return requestingClass.getPackageName().startsWith("org.elasticsearch.entitlement")
             && (requestingClass.getName().contains("Test") == false);
@@ -180,6 +186,9 @@ public class TestPolicyManager extends PolicyManager {
         URI needle;
         try {
             needle = codeSource.getLocation().toURI();
+            if (needle.getScheme().equals("jrt")) {
+                return false; // won't be on testOnlyClasspath
+            }
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

@@ -81,6 +81,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -102,6 +104,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -542,7 +545,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ActionListener<AcknowledgedResponse> listener,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) throws Exception {
-        if (isNoOpPipelineUpdate(state.metadata().getProject(projectId), request)) {
+        Map<String, Object> newPipelineConfig = readPipelineConfig(request);
+        validateNoSystemPropertiesInPipelineConfig(newPipelineConfig);
+        if (isNoOpPipelineUpdate(state.metadata().getProject(projectId), request, () -> newPipelineConfig)) {
             // existing pipeline matches request pipeline -- no need to update
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
@@ -569,16 +574,35 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         validatePipeline(ingestInfos, projectId, request.getId(), config);
     }
 
-    public static boolean isNoOpPipelineUpdate(ProjectMetadata metadata, PutPipelineRequest request) {
+    public static Map<String, Object> readPipelineConfig(PutPipelineRequest request) {
+        return XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+    }
+
+    public static void validateNoSystemPropertiesInPipelineConfig(final Map<String, Object> pipelineConfig) {
+        if (pipelineConfig.containsKey(Pipeline.CREATED_DATE_KEY) || pipelineConfig.containsKey(Pipeline.MODIFIED_DATE_KEY)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system, e.g. `created_date`.");
+        }
+    }
+
+    public static boolean isNoOpPipelineUpdate(
+        ProjectMetadata metadata,
+        PutPipelineRequest request,
+        Supplier<Map<String, Object>> newPipelineConfigSupplier
+    ) {
         IngestMetadata currentIngestMetadata = metadata.custom(IngestMetadata.TYPE);
         if (request.getVersion() == null
             && currentIngestMetadata != null
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
-            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfig().equals(pipelineConfig)) {
-                return true;
-            }
+
+            Map<String, Object> currentConfigWithoutSystemProps = new HashMap<>(
+                currentIngestMetadata.getPipelines().get(request.getId()).getConfig()
+            );
+            currentConfigWithoutSystemProps.remove(Pipeline.CREATED_DATE_KEY);
+            currentConfigWithoutSystemProps.remove(Pipeline.MODIFIED_DATE_KEY);
+
+            Map<String, Object> newPipelineConfig = newPipelineConfigSupplier.get();
+
+            return newPipelineConfig.equals(currentConfigWithoutSystemProps);
         }
 
         return false;
@@ -750,7 +774,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 pipelines = new HashMap<>();
             }
 
-            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
+            Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+            Map<String, Object> newPipelineConfig = XContentHelper.convertToMap(pipelineSource, true, request.getXContentType()).v2();
+            PipelineConfiguration existingPipeline = pipelines.get(request.getId());
+            if (existingPipeline == null) {
+                newPipelineConfig.put(Pipeline.CREATED_DATE_KEY, now.toString());
+            } else {
+                Object existingCreatedAt = existingPipeline.getConfig().get(Pipeline.CREATED_DATE_KEY);
+                // only set/carry over `created_date` if existing pipeline already has it.
+                // would be confusing if existing pipelines were all updated to have `created_date` set to now.
+                if (existingCreatedAt != null) {
+                    newPipelineConfig.put(Pipeline.CREATED_DATE_KEY, existingCreatedAt);
+                }
+            }
+            newPipelineConfig.put(Pipeline.MODIFIED_DATE_KEY, now.toString());
+
+            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
             return new IngestMetadata(pipelines);
         }
     }

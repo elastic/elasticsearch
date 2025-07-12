@@ -210,6 +210,8 @@ public final class TrackingResultProcessor implements Processor {
                 conditionalWithResult
             )
         );
+        long createdDate = pipeline.getCreatedDate().orElse(-1);
+        long modifiedDate = pipeline.getModifiedDate().orElse(-1);
         Pipeline verbosePipeline = new Pipeline(
             pipeline.getId(),
             pipeline.getDescription(),
@@ -217,7 +219,9 @@ public final class TrackingResultProcessor implements Processor {
             pipeline.getMetadata(),
             verbosePipelineProcessor,
             pipeline.getFieldAccessPattern(),
-            pipeline.getDeprecated()
+            pipeline.getDeprecated(),
+            createdDate == -1 ? null : createdDate,
+            modifiedDate == -1 ? null : modifiedDate
         );
         ingestDocument.executePipeline(verbosePipeline, handler);
     }

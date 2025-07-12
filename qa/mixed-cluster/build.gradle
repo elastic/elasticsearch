@@ -71,6 +71,12 @@ excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 // sync_id is removed in 9.0
 excludeList.add("cat.shards/10_basic/Help")
 
+//  new optional properties only available on latest cluster
+excludeList.add("ingest/10_basic/Test creating and getting pipeline returns created_date and modified_date")
+excludeList.add("ingest/10_basic/Test PUT setting created_date")
+excludeList.add("ingest/10_basic/Test PUT setting modified_date")
+excludeList.add("simulate.ingest/10_basic/Test simulate with pipeline with created_date")
+
 def clusterPath = getPath()
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->

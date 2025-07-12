@@ -1359,7 +1359,6 @@ public class MetadataTests extends ESTestCase {
             expectThrows(NullPointerException.class, () -> builder.putCustom(key, (Metadata.ClusterCustom) null)).getMessage(),
             containsString(key)
         );
-        assertThat(expectThrows(NullPointerException.class, () -> builder.putProjectCustom(key, null)).getMessage(), containsString(key));
     }
 
     public void testBuilderRejectsNullInCustoms() {

@@ -126,6 +126,16 @@ public interface GroupingAggregatorFunction extends Releasable {
     /**
      * Add data produced by {@link #evaluateIntermediate}.
      */
+    void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
+
+    /**
+     * Add data produced by {@link #evaluateIntermediate}.
+     */
+    void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
+
+    /**
+     * Add data produced by {@link #evaluateIntermediate}.
+     */
     void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**

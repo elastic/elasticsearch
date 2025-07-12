@@ -8,6 +8,9 @@
 `query`
 :   Vector value to find top nearest neighbours for.
 
+`k`
+:   The number of nearest neighbors to return from each shard. Elasticsearch collects k results from each shard, then merges them to find the global top results. This value must be less than or equal to num_candidates.
+
 `options`
 :   (Optional) kNN additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [knn query](/reference/query-languages/query-dsl/query-dsl-match-query.md#query-dsl-knn-query) for more information.
 

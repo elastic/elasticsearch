@@ -55,6 +55,9 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
     );
 
@@ -68,6 +71,9 @@ public class Values extends AggregateFunction implements ToAggregator {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -107,6 +113,9 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",

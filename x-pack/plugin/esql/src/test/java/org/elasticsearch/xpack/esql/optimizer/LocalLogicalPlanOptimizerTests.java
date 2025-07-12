@@ -818,22 +818,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
         var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-        // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
-        // System.out.println(optimized);
-        return optimized;
+        return logicalOptimizer.optimize(analyzed);
     }
 
-    private LogicalPlan plan(String query) {
+    protected LogicalPlan plan(String query) {
         return plan(query, analyzer);
     }
 
-    private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
+    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
-        // System.out.println(localPlan);
-        return localPlan;
+        return new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
     }
 
     private LogicalPlan localPlan(String query) {

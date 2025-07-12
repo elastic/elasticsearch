@@ -65,6 +65,7 @@ processingCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? fuseCommand
+    | {this.isDevVersion()}? untableCommand
     ;
 
 whereCommand
@@ -330,4 +331,8 @@ inferenceCommandOptionValue
 
 rerankCommand
     : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    ;
+
+untableCommand
+    : DEV_UNTABLE valueColumn=qualifiedNamePattern FOR keyColumn=qualifiedNamePattern IN LP target=qualifiedNamePatterns RP
     ;

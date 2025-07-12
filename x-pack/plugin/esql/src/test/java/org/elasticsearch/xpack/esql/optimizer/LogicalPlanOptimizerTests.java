@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Untable;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -7709,6 +7710,48 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
         as(mvExpand2.child(), Row.class);
+    }
+
+    /**
+     * Limit[2[INTEGER],true]
+     * \_Untable[[first_name{f}#8, last_name{f}#11],fieldName{r}#19,fieldValue{r}#20]
+     *   \_Limit[1[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testUntableLimitPushdown() {
+        var plan = plan("""
+            from test
+            | untable fieldName for fieldValue in (*name)
+            | limit 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(2));
+        var untable = as(limit.child(), Untable.class);
+        var limit2 = as(untable.child(), Limit.class);
+        assertThat(limit2.limit().fold(FoldContext.small()), is(1));
+        var relation = as(limit2.child(), EsRelation.class);
+    }
+
+    /**
+     * Limit[1[INTEGER],true]
+     * \_Untable[[first_name{f}#8, last_name{f}#11],fieldName{r}#19,fieldValue{r}#20]
+     *   \_Limit[1[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testUntableLimitPushdown2() {
+        var plan = plan("""
+            from test
+            | untable fieldName for fieldValue in (*name)
+            | limit 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1));
+        var untable = as(limit.child(), Untable.class);
+        var limit2 = as(untable.child(), Limit.class);
+        assertThat(limit2.limit().fold(FoldContext.small()), is(1));
+        var relation = as(limit2.child(), EsRelation.class);
     }
 
     /**

@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.UntableOperator;
 import org.elasticsearch.compute.operator.exchange.DirectExchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
@@ -118,6 +119,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UntableExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -270,6 +272,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof UntableExec untable) {
+            return planUntable(untable, context);
         }
 
         // source nodes
@@ -906,6 +910,28 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
         return source.with(new SampleOperator.Factory(probability), source.layout);
+    }
+
+    private PhysicalOperation planUntable(UntableExec untableExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(untableExec.child(), context);
+        Layout.Builder layout = new Layout.Builder();
+        for (Attribute attribute : untableExec.child().output()) {
+            if (untableExec.sourceColumns().contains(attribute) == false) {
+                layout.append(attribute);
+            }
+        }
+        layout.append(untableExec.keyColumn());
+        layout.append(untableExec.valueColumn());
+
+        List<NameId> nameIds = untableExec.sourceColumns().stream().map(NamedExpression::id).toList();
+        int[] channels = new int[nameIds.size()];
+        for (int i = 0; i < nameIds.size(); i++) {
+            channels[i] = source.layout.get(nameIds.get(i)).channel();
+        }
+        return source.with(
+            new UntableOperator.Factory(channels, untableExec.sourceColumns().stream().map(NamedExpression::name).toList()),
+            layout.build()
+        );
     }
 
     /**

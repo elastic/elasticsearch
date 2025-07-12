@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Untable;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -72,7 +73,8 @@ public enum FeatureMetric {
     FORK(Fork.class::isInstance),
     RRF(RrfScoreEval.class::isInstance),
     COMPLETION(Completion.class::isInstance),
-    SAMPLE(Sample.class::isInstance);
+    SAMPLE(Sample.class::isInstance),
+    UNTABLE(Untable.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

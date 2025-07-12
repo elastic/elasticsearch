@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Untable;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -454,6 +455,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         });
 
         return child -> new Keep(source(ctx), child, projections);
+    }
+
+    @Override
+    public PlanFactory visitUntableCommand(EsqlBaseParser.UntableCommandContext ctx) {
+        List<NamedExpression> target = visitQualifiedNamePatterns(ctx.target);
+        NamedExpression keyField = visitQualifiedNamePattern(ctx.valueColumn);
+        NamedExpression valueField = visitQualifiedNamePattern(ctx.keyColumn);
+        Source src = source(ctx);
+        return child -> new Untable(
+            src,
+            child,
+            target,
+            new UnresolvedAttribute(src, keyField.name()),
+            new UnresolvedAttribute(src, valueField.name())
+        );
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ParallelizeTimeSeriesSource;
@@ -42,15 +43,15 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+        return verify(execute(plan), plan.output());
     }
 
-    PhysicalPlan verify(PhysicalPlan plan) {
-        Failures failures = verifier.verify(plan, true);
+    PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
+        Failures failures = verifier.verify(optimizedPlan, true, expectedOutputAttributes);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
-        return plan;
+        return optimizedPlan;
     }
 
     @Override

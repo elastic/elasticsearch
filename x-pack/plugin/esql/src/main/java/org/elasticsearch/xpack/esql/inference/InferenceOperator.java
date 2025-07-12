@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -15,7 +16,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
@@ -26,7 +26,7 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceRunner}.
+ * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceResolver}.
  * <p>
  * The {@code InferenceOperator} integrates with the compute framework  supports throttled bulk execution of inference requests. It
  * transforms input {@link Page} into inference requests, asynchronously executes them, and converts the responses into a new {@link Page}.
@@ -41,21 +41,21 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * Constructs a new {@code InferenceOperator}.
      *
      * @param driverContext        The driver context.
-     * @param inferenceRunner      The runner used to execute inference requests.
+     * @param threadContext        The thread context for executing async inference.
+     * @param bulkExecutorFactory  Factory for creating bulk inference executors.
      * @param bulkExecutionConfig  Configuration for inference execution.
-     * @param threadPool           The thread pool used for executing async inference.
      * @param inferenceId          The ID of the inference model to use.
      */
     public InferenceOperator(
         DriverContext driverContext,
-        InferenceRunner inferenceRunner,
+        ThreadContext threadContext,
+        BulkInferenceExecutor.Factory bulkExecutorFactory,
         BulkInferenceExecutionConfig bulkExecutionConfig,
-        ThreadPool threadPool,
         String inferenceId
     ) {
-        super(driverContext, inferenceRunner.threadPool().getThreadContext(), bulkExecutionConfig.workers());
+        super(driverContext, threadContext, bulkExecutionConfig.workers());
         this.blockFactory = driverContext.blockFactory();
-        this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig);
+        this.bulkInferenceExecutor = bulkExecutorFactory.create(bulkExecutionConfig);
         this.inferenceId = inferenceId;
     }
 

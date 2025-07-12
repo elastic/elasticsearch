@@ -30,7 +30,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RerankOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, SIMPLE_QUERY, evaluatorFactory(0), 1);
+        return new RerankOperator.Factory(mockedBulkInferenceExecutorFactory(), SIMPLE_INFERENCE_ID, SIMPLE_QUERY, evaluatorFactory(0), 1);
     }
 
     @Override

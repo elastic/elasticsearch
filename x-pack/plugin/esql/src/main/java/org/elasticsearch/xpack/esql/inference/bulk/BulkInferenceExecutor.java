@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
@@ -21,6 +21,9 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Executes a sequence of inference requests in bulk with throttling and concurrency control.
@@ -32,12 +35,11 @@ public class BulkInferenceExecutor {
     /**
      * Constructs a new {@code BulkInferenceExecutor}.
      *
-     * @param inferenceRunner      The inference runner used to execute individual inference requests.
-     * @param threadPool           The thread pool for executing inference tasks.
-     * @param bulkExecutionConfig  Configuration options (throttling and concurrency limits).
+     * @param throttledInferenceRunner The throttled inference runner used to execute individual inference requests.
+     * @param bulkExecutionConfig      Configuration options (throttling and concurrency limits).
      */
-    public BulkInferenceExecutor(InferenceRunner inferenceRunner, ThreadPool threadPool, BulkInferenceExecutionConfig bulkExecutionConfig) {
-        this.throttledInferenceRunner = ThrottledInferenceRunner.create(inferenceRunner, executorService(threadPool), bulkExecutionConfig);
+    private BulkInferenceExecutor(ThrottledInferenceRunner throttledInferenceRunner, BulkInferenceExecutionConfig bulkExecutionConfig) {
+        this.throttledInferenceRunner = throttledInferenceRunner;
         this.bulkExecutionConfig = bulkExecutionConfig;
     }
 
@@ -149,31 +151,16 @@ public class BulkInferenceExecutor {
      * Manages throttled inference tasks execution.
      */
     private static class ThrottledInferenceRunner {
-        private final InferenceRunner inferenceRunner;
+        private final Client client;
         private final ExecutorService executorService;
         private final BlockingQueue<AbstractRunnable> pendingRequestsQueue;
         private final Semaphore permits;
 
-        private ThrottledInferenceRunner(InferenceRunner inferenceRunner, ExecutorService executorService, int maxRunningTasks) {
+        private ThrottledInferenceRunner(Client client, ExecutorService executorService, int maxRunningTasks) {
             this.executorService = executorService;
             this.permits = new Semaphore(maxRunningTasks);
-            this.inferenceRunner = inferenceRunner;
+            this.client = client;
             this.pendingRequestsQueue = new ArrayBlockingQueue<>(maxRunningTasks);
-        }
-
-        /**
-         * Creates a new {@code ThrottledInferenceRunner} with the specified configuration.
-         *
-         * @param inferenceRunner     TThe inference runner used to execute individual inference requests.
-         * @param executorService     The executor used for asynchronous execution.
-         * @param bulkExecutionConfig Configuration options (throttling and concurrency limits).
-         */
-        public static ThrottledInferenceRunner create(
-            InferenceRunner inferenceRunner,
-            ExecutorService executorService,
-            BulkInferenceExecutionConfig bulkExecutionConfig
-        ) {
-            return new ThrottledInferenceRunner(inferenceRunner, executorService, bulkExecutionConfig.maxOutstandingRequests());
         }
 
         /**
@@ -212,7 +199,7 @@ public class BulkInferenceExecutor {
          * Add an inference task to the queue.
          *
          * @param request  The inference request.
-        *        * @param listener The listener to notify on response or failure.
+         * @param listener The listener to notify on response or failure.
          */
         private void enqueueTask(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
             try {
@@ -240,7 +227,7 @@ public class BulkInferenceExecutor {
                 @Override
                 protected void doRun() {
                     try {
-                        inferenceRunner.doInference(request, completionListener);
+                        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
                     } catch (Throwable e) {
                         listener.onFailure(new RuntimeException("Unexpected failure while running inference", e));
                     }
@@ -256,5 +243,14 @@ public class BulkInferenceExecutor {
 
     private static ExecutorService executorService(ThreadPool threadPool) {
         return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+    }
+
+    public record Factory(Client client, ThreadPool threadPool) {
+        public BulkInferenceExecutor create(BulkInferenceExecutionConfig bulkExecutionConfig) {
+            return new BulkInferenceExecutor(
+                new ThrottledInferenceRunner(client, executorService(threadPool), bulkExecutionConfig.maxOutstandingRequests()),
+                bulkExecutionConfig
+            );
+        }
     }
 }

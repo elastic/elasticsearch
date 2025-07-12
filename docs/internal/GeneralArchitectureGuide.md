@@ -182,12 +182,12 @@ capabilities.
 
 ## Serializations
 
-## Settings
+# Settings
 
 Elasticsearch supports [cluster-level settings][] and [index-level settings][], configurable via [node-level file settings][]
 (e.g. `elasticsearch.yml` file), command line arguments and REST APIs.
 
-### Declaring a Setting
+## Declaring a Setting
 
 [cluster-level settings]: https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html
 [index-level settings]: https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html
@@ -222,7 +222,7 @@ settings.
 [SettingsModule constructor]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/node/NodeConstruction.java#L491-L495
 [getSettings()]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L203-L208
 
-### Dynamically updating a Setting
+## Dynamically updating a Setting
 
 Externally, [TransportClusterUpdateSettingsAction][] and [TransportUpdateSettingsAction][] (and the corresponding REST endpoints)
 allow users to dynamically change cluster and index settings, respectively. Internally, `AbstractScopedSettings` (parent class
@@ -244,9 +244,9 @@ state must ever be reloaded from persisted state.
 [Metadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L212-L213
 [applied here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L2437
 
-## Deprecations
+# Deprecations
 
-## Backwards Compatibility
+# Backwards Compatibility
 
 major releases are mostly about breaking compatibility and dropping deprecated functionality.
 
@@ -292,18 +292,18 @@ See the [public upgrade docs][] for the upgrade process.
 
 [public upgrade docs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
 
-## Plugins
+# Plugins
 
 (what warrants a plugin?)
 
 (what plugins do we have?)
 
-## Testing
+# Testing
 
 (Overview of our testing frameworks. Discuss base test classes.)
 
-### Unit Testing
+## Unit Testing
 
-### REST Testing
+## REST Testing
 
-### Integration Testing
+## Integration Testing

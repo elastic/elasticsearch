@@ -554,7 +554,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
             }
             parentBitSet = context.bitsetFilter(parentFilter);
-            ArrayList<Query> filterAdjusted = new ArrayList<>(filtersInitial.size());
+            List<Query> filterAdjusted = new ArrayList<>(filtersInitial.size());
             for (Query f : filtersInitial) {
                 // If filter matches non-nested docs, we assume this is a filter over parents docs,
                 // so we will modify it accordingly: matching parents docs with join to its child docs

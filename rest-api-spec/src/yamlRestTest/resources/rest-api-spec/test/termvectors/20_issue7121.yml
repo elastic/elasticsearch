@@ -7,17 +7,12 @@
               index:
                 translog.flush_threshold_size: "512MB"
                 number_of_shards: 1
-                number_of_replicas: 0
                 refresh_interval: -1
             mappings:
               properties:
                 text:
                    type : "text"
                    term_vector : "with_positions_offsets"
-
-  - do:
-      cluster.health:
-        wait_for_status: green
 
   - do:
       index:

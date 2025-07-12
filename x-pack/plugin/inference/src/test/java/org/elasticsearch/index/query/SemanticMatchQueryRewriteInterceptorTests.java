@@ -36,6 +36,8 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     private static final String FIELD_NAME = "fieldName";
     private static final String VALUE = "value";
+    private static final String QUERY_NAME = "match_query";
+    private static final float BOOST = 5.0f;
 
     @Before
     public void setup() {
@@ -79,8 +81,36 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
         assertEquals(original, rewritten);
     }
 
+    public void testBoostAndQueryNameInMatchQueryRewrite() throws IOException {
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            FIELD_NAME,
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
+        );
+        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
+        QueryBuilder original = createTestQueryBuilderWithBoostAndQueryName();
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof InterceptedQueryBuilderWrapper
+        );
+        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
+        assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
+        SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;
+        assertEquals(FIELD_NAME, semanticQueryBuilder.getFieldName());
+        assertEquals(VALUE, semanticQueryBuilder.getQuery());
+    }
+
     private MatchQueryBuilder createTestQueryBuilder() {
         return new MatchQueryBuilder(FIELD_NAME, VALUE);
+    }
+
+    private MatchQueryBuilder createTestQueryBuilderWithBoostAndQueryName() {
+        MatchQueryBuilder queryBuilder = createTestQueryBuilder();
+        queryBuilder.boost(BOOST);
+        queryBuilder.queryName(QUERY_NAME);
+        return queryBuilder;
     }
 
     private QueryRewriteContext createQueryRewriteContext(Map<String, InferenceFieldMetadata> inferenceFields) {

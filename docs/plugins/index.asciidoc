@@ -47,6 +47,8 @@ include::repository.asciidoc[]
 
 include::store.asciidoc[]
 
+include::authentication.asciidoc[]
+
 include::integrations.asciidoc[]
 
 include::authors.asciidoc[]

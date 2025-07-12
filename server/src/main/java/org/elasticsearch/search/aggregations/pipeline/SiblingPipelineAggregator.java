@@ -25,10 +25,10 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         return aggregation.copyWithRewritenBuckets(
             aggregations -> InternalAggregations.from(
-                CollectionUtils.appendToCopyNoNullElements(aggregations.copyResults(), doReduce(aggregations, reduceContext))
+                CollectionUtils.appendToCopyNoNullElements(aggregations.copyResults(), doReduce(aggregations))
             )
         );
     }
 
-    public abstract InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context);
+    public abstract InternalAggregation doReduce(InternalAggregations aggregations);
 }

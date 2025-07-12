@@ -519,33 +519,66 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
-        final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-
+        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+        boolean hasQueryCache = queryCache != null;
+        // First pass: gather all shards, cache sizes, and compute totals
+        long totalSize = 0L;
+        int shardCount = 0;
+        boolean anyNonZero = false;
+        // First pass: compute totals only
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
+                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+                shardCount++;
+                if (cacheSize > 0L) {
+                    anyNonZero = true;
+                    totalSize += cacheSize;
+                }
+            }
+        }
+        long sharedRamBytesUsed = hasQueryCache ? queryCache.getSharedRamBytesUsed() : 0L;
+        final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+        // Second pass: build stats, compute shared RAM on the fly
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
+                org.elasticsearch.index.shard.ShardId shardId = indexShard.shardId();
+                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(shardId) : 0L;
+                long sharedRam = 0L;
+                if (sharedRamBytesUsed != 0L) {
+                    if (anyNonZero == false) {
+                        sharedRam = Math.round((double) sharedRamBytesUsed / shardCount);
+                    } else if (totalSize != 0) {
+                        sharedRam = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+                    }
+                }
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
-
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
                     if (indexShardStats == null) {
                         continue;
                     }
-
                     if (statsByShard.containsKey(indexService.index()) == false) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
                         statsByShard.get(indexService.index()).add(indexShardStats);
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
-                    // we can safely ignore illegal state on ones that are closing for example
-                    logger.trace(() -> format("%s ignoring shard stats", indexShard.shardId()), e);
+                    logger.trace(() -> format("%s ignoring shard stats", shardId), e);
                 }
             }
         }
-
         return statsByShard;
     }
 
     IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+        return indexShardStats(indicesService, indexShard, flags, null);
+    }
+
+    IndexShardStats indexShardStats(
+        final IndicesService indicesService,
+        final IndexShard indexShard,
+        final CommonStatsFlags flags,
+        Long precomputedSharedRam
+    ) {
         if (indexShard.routingEntry() == null) {
             return null;
         }
@@ -570,7 +603,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags, precomputedSharedRam),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,

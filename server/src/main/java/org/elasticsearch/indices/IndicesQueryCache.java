@@ -67,6 +67,17 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
 
+    // Package-private for IndicesService efficient stats collection
+    long getCacheSizeForShard(ShardId shardId) {
+        Stats stats = shardStats.get(shardId);
+        return stats != null ? stats.cacheSize : 0L;
+    }
+
+    // Package-private for IndicesService efficient stats collection
+    long getSharedRamBytesUsed() {
+        return sharedRamBytesUsed;
+    }
+
     // This is a hack for the fact that the close listener for the
     // ShardCoreKeyMap will be called before onDocIdSetEviction
     // See onDocIdSetEviction for more info
@@ -136,6 +147,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public QueryCacheStats getStats(ShardId shard) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
         queryCacheStats.addRamBytesUsed(getShareOfAdditionalRamBytesUsed(queryCacheStats.getCacheSize()));
+        return queryCacheStats;
+    }
+
+    /**
+     * Overload to allow passing in a precomputed shared RAM split for this shard.
+     */
+    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
+        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
+        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
         return queryCacheStats;
     }
 

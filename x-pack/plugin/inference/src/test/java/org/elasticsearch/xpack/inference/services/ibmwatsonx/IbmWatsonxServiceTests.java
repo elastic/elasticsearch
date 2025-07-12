@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,6 +25,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -98,6 +100,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     private ThreadPool threadPool;
 
     private HttpClientManager clientManager;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     private static final String apiKey = "apiKey";
     private static final String modelId = "model";
@@ -110,6 +113,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -597,7 +606,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -635,7 +644,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             var thrownException = expectThrows(
@@ -1018,12 +1027,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     }
 
     private IbmWatsonxService createIbmWatsonxService() {
-        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context);
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {
         IbmWatsonxServiceWithoutAuth(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+            super(factory, serviceComponents, mock(ClusterService.class));
         }
 
         @Override

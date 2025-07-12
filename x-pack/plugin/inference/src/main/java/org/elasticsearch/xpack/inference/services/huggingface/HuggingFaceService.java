@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -71,8 +72,12 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public HuggingFaceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        super(factory, serviceComponents, context);
     }
 
     @Override

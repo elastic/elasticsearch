@@ -12,11 +12,13 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -84,7 +86,14 @@ public class SageMakerServiceTests extends ESTestCase {
         ThreadPool threadPool = mock();
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of);
+        sageMakerService = new SageMakerService(
+            modelBuilder,
+            client,
+            schemas,
+            threadPool,
+            Map::of,
+            new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY)
+        );
     }
 
     public void testSupportedTaskTypes() {

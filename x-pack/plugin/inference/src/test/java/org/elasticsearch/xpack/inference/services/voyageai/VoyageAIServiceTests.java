@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -89,12 +91,19 @@ public class VoyageAIServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -718,7 +727,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -763,7 +772,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             "voyage-3-large"
         );
 
-        try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             var thrownException = expectThrows(
@@ -806,7 +815,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
             var embeddingSize = randomNonNegativeInt();
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -831,7 +840,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -873,7 +882,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -907,7 +916,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_Ingest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -989,7 +998,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_Search() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -1071,7 +1080,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_Get_Response_NullInputType() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -1163,7 +1172,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1251,7 +1260,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1345,7 +1354,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1423,7 +1432,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             """;
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
             var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true, true);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1490,7 +1499,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Embedding_DoesNotSetInputType_WhenNotPresentInTaskSettings_AndUnspecifiedIsPassedInRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 {
@@ -1599,7 +1608,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     private void test_Embedding_ChunkedInfer_BatchesCalls(VoyageAIEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             // Batching will call the service with 2 input
             String responseJson = """
@@ -1745,7 +1754,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     }
 
     public void testDoesNotSupportsStreaming() throws IOException {
-        try (var service = new VoyageAIService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new VoyageAIService(mock(), createWithEmptySettings(mock()), context)) {
             assertFalse(service.canStream(TaskType.COMPLETION));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -1786,7 +1795,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     }
 
     private VoyageAIService createVoyageAIService() {
-        return new VoyageAIService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new VoyageAIService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), context);
     }
 
 }

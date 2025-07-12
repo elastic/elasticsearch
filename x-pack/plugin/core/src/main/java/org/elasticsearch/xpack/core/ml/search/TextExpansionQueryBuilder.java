@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -162,7 +161,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             List.of(modelText),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            null
         );
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);

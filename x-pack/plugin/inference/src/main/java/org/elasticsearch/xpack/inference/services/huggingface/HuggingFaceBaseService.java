@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -44,8 +45,12 @@ public abstract class HuggingFaceBaseService extends SenderService {
      */
     static final int EMBEDDING_MAX_BATCH_SIZE = 20;
 
-    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public HuggingFaceBaseService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        super(factory, serviceComponents, context);
     }
 
     @Override

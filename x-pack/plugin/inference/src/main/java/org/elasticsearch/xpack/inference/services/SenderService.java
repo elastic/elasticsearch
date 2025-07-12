@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -17,12 +18,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -42,11 +45,17 @@ public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
+    private final ClusterService clusterService;
 
-    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+    public SenderService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.clusterService = Objects.requireNonNull(context.clusterService());
     }
 
     public Sender getSender() {
@@ -73,6 +82,9 @@ public abstract class SenderService implements InferenceService {
         init();
         var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
         var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);
+        if (timeout == null) {
+            timeout = clusterService.getClusterSettings().get(InferencePlugin.QUERY_INFERENCE_TIMEOUT);
+        }
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 

@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -41,10 +44,17 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private ThreadPool threadPool;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -60,7 +70,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new TestService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new TestService(factory, createWithEmptySettings(threadPool), context)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -91,8 +101,12 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
     }
 
     private static final class TestService extends HuggingFaceService {
-        TestService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+        TestService(
+            HttpRequestSender.Factory factory,
+            ServiceComponents serviceComponents,
+            InferenceServiceExtension.InferenceServiceFactoryContext context
+        ) {
+            super(factory, serviceComponents, context);
         }
 
         @Override

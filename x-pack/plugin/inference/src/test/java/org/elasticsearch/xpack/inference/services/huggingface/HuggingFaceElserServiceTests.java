@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
@@ -63,12 +65,19 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
+    private InferenceServiceExtension.InferenceServiceFactoryContext context;
 
     @Before
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            mock(ClusterService.class),
+            Settings.EMPTY
+        );
     }
 
     @After
@@ -81,7 +90,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     public void testChunkedInfer_CallsInfer_Elser_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), context)) {
 
             String responseJson = """
                 [
@@ -137,7 +146,8 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         try (
             var service = new HuggingFaceElserService(
                 HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-                createWithEmptySettings(threadPool)
+                createWithEmptySettings(threadPool),
+                context
             )
         ) {
             String content = XContentHelper.stripWhitespace("""

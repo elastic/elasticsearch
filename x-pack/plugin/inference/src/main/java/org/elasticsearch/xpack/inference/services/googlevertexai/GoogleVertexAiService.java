@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -97,8 +98,12 @@ public class GoogleVertexAiService extends SenderService {
         return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
     }
 
-    public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public GoogleVertexAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        super(factory, serviceComponents, context);
     }
 
     @Override

@@ -147,6 +147,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -176,6 +177,13 @@ public class InferencePlugin extends Plugin
     public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
         "xpack.inference.skip_validate_and_start",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final TimeValue DEFAULT_QUERY_INFERENCE_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
+    public static final Setting<TimeValue> QUERY_INFERENCE_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.semantic_text.inference_timeout",
+        DEFAULT_QUERY_INFERENCE_TIMEOUT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -311,7 +319,8 @@ public class InferencePlugin extends Plugin
                     serviceComponents.get(),
                     inferenceServiceSettings,
                     modelRegistry.get(),
-                    authorizationHandler
+                    authorizationHandler,
+                    context
                 ),
                 context -> new SageMakerService(
                     new SageMakerModelBuilder(sageMakerSchemas),
@@ -321,7 +330,8 @@ public class InferencePlugin extends Plugin
                     ),
                     sageMakerSchemas,
                     services.threadPool(),
-                    sageMakerConfigurations::getOrCompute
+                    sageMakerConfigurations::getOrCompute,
+                    context
                 )
             )
         );
@@ -383,24 +393,24 @@ public class InferencePlugin extends Plugin
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
-            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
-            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
-            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new MistralService(httpFactory.get(), serviceComponents.get()),
-            context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
-            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
-            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
-            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
-            context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
+            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
-            context -> new CustomService(httpFactory.get(), serviceComponents.get())
+            context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
     }
 
@@ -495,7 +505,7 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-
+        settings.add(QUERY_INFERENCE_TIMEOUT);
         return settings;
     }
 

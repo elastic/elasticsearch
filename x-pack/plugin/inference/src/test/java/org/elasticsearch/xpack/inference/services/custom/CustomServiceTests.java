@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -64,6 +67,7 @@ import static org.elasticsearch.xpack.inference.services.custom.response.SparseE
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
 
@@ -148,7 +152,11 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new CustomService(senderFactory, createWithEmptySettings(threadPool));
+        return new CustomService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            new InferenceServiceExtension.InferenceServiceFactoryContext(mock(), threadPool, mock(ClusterService.class), Settings.EMPTY)
+        );
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {

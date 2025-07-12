@@ -686,16 +686,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
-   * @param ctx the parse tree
-   */
-  void enterFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
-   * @param ctx the parse tree
-   */
-  void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#inferenceCommandOptions}.
    * @param ctx the parse tree
    */
@@ -735,6 +725,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * @param ctx the parse tree
+   */
+  void enterFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * @param ctx the parse tree
+   */
+  void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuseMethod}.
+   * @param ctx the parse tree
+   */
+  void enterFuseMethod(EsqlBaseParser.FuseMethodContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuseMethod}.
+   * @param ctx the parse tree
+   */
+  void exitFuseMethod(EsqlBaseParser.FuseMethodContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -1025,6 +1035,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mapValue}.
+   * @param ctx the parse tree
+   */
+  void enterMapValue(EsqlBaseParser.MapValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mapValue}.
+   * @param ctx the parse tree
+   */
+  void exitMapValue(EsqlBaseParser.MapValueContext ctx);
   /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

@@ -130,6 +130,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId
+     * TODO: Remove this method as the grouping operator has been removed
      */
     void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position);
 

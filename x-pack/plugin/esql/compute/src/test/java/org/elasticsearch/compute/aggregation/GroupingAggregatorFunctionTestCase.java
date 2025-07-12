@@ -117,7 +117,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
                 randomPageSize(),
-                null
+                null,
+                100
             );
         } else {
             return new RandomizingHashAggregationOperatorFactory(
@@ -125,7 +126,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
                 randomPageSize(),
-                null
+                null,
+                100
             );
         }
     }
@@ -829,7 +831,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        int maxTopNLimit
     ) implements Operator.OperatorFactory {
 
         @Override
@@ -843,7 +846,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                         analysisRegistry,
                         maxPageSize
                     )
-                    : BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false);
+                    : BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false, maxTopNLimit);
 
                 return new BlockHashWrapper(driverContext.blockFactory(), blockHash) {
                     @Override
@@ -891,7 +894,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 aggregatorMode,
                 aggregators,
                 maxPageSize,
-                analysisRegistry
+                analysisRegistry,
+                maxTopNLimit
             ).describe();
         }
     }

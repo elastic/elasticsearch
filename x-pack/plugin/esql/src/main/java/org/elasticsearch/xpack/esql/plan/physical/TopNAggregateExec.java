@@ -7,38 +7,32 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.expression.Order;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
-/**
- * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
- * The grouping must be `_tsid` and `tbucket` or just `_tsid`.
- */
-public class TimeSeriesAggregateExec extends AggregateExec {
+public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
-        "TimeSeriesAggregateExec",
-        TimeSeriesAggregateExec::new
+        "TopNAggregateExec",
+        TopNAggregateExec::new
     );
 
-    private final Bucket timeBucket;
+    private final List<Order> order;
+    private final Expression limit;
 
-    public TimeSeriesAggregateExec(
+    public TopNAggregateExec(
         Source source,
         PhysicalPlan child,
         List<? extends Expression> groupings,
@@ -46,21 +40,25 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         AggregatorMode mode,
         List<Attribute> intermediateAttributes,
         Integer estimatedRowSize,
-        Bucket timeBucket
+        List<Order> order,
+        Expression limit
     ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
-        this.timeBucket = timeBucket;
+        this.order = order;
+        this.limit = limit;
     }
 
-    private TimeSeriesAggregateExec(StreamInput in) throws IOException {
+    protected TopNAggregateExec(StreamInput in) throws IOException {
         super(in);
-        this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        this.order = in.readCollectionAsList(Order::new);
+        this.limit = in.readNamedWriteable(Expression.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalWriteable(timeBucket);
+        out.writeCollection(order);
+        out.writeNamedWriteable(limit);
     }
 
     @Override
@@ -72,20 +70,21 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     protected NodeInfo<AggregateExec> info() {
         return NodeInfo.create(
             this,
-            TimeSeriesAggregateExec::new,
+            TopNAggregateExec::new,
             child(),
             groupings(),
             aggregates(),
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            order,
+            limit
         );
     }
 
     @Override
-    public TimeSeriesAggregateExec replaceChild(PhysicalPlan newChild) {
-        return new TimeSeriesAggregateExec(
+    public TopNAggregateExec replaceChild(PhysicalPlan newChild) {
+        return new TopNAggregateExec(
             source(),
             newChild,
             groupings(),
@@ -93,13 +92,22 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            order,
+            limit
         );
     }
 
+    public List<Order> order() {
+        return order;
+    }
+
+    public Expression limit() {
+        return limit;
+    }
+
     @Override
-    public TimeSeriesAggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregateExec(
+    public TopNAggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
+        return new TopNAggregateExec(
             source(),
             child(),
             groupings(),
@@ -107,13 +115,14 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            order,
+            limit
         );
     }
 
     @Override
-    public TimeSeriesAggregateExec withMode(AggregatorMode newMode) {
-        return new TimeSeriesAggregateExec(
+    public TopNAggregateExec withMode(AggregatorMode newMode) {
+        return new TopNAggregateExec(
             source(),
             child(),
             groupings(),
@@ -121,13 +130,14 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             newMode,
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            order,
+            limit
         );
     }
 
     @Override
-    protected TimeSeriesAggregateExec withEstimatedSize(int estimatedRowSize) {
-        return new TimeSeriesAggregateExec(
+    protected TopNAggregateExec withEstimatedSize(int estimatedRowSize) {
+        return new TopNAggregateExec(
             source(),
             child(),
             groupings(),
@@ -135,22 +145,35 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize,
-            timeBucket
+            order,
+            limit
         );
     }
 
-    public Bucket timeBucket() {
-        return timeBucket;
+    @Override
+    public int hashCode() {
+        return Objects.hash(groupings(), aggregates(), getMode(), intermediateAttributes(), estimatedRowSize(), order, limit, child());
     }
 
-    public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
-        if (timeBucket == null) {
-            return null;
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
         }
-        Rounding.Prepared rounding = timeBucket.getDateRoundingOrNull(foldContext);
-        if (rounding == null) {
-            throw new EsqlIllegalArgumentException("expected TBUCKET; got ", timeBucket);
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
         }
-        return rounding;
+
+        TopNAggregateExec other = (TopNAggregateExec) obj;
+        return Objects.equals(groupings(), other.groupings())
+            && Objects.equals(aggregates(), other.aggregates())
+            && Objects.equals(getMode(), other.getMode())
+            && Objects.equals(intermediateAttributes(), other.intermediateAttributes())
+            && Objects.equals(estimatedRowSize(), other.estimatedRowSize())
+            && Objects.equals(order, other.order)
+            && Objects.equals(limit, other.limit)
+            && Objects.equals(child(), other.child());
     }
+
 }

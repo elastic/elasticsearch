@@ -113,7 +113,7 @@ public class HashAggregationOperator implements Operator {
     /**
      * Total nanos for emitting the output
      */
-    protected long emitNanos;
+    private long emitNanos;
 
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(

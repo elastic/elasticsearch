@@ -13,7 +13,13 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
@@ -36,7 +42,9 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -100,6 +108,32 @@ public class OrdinalsGroupingOperator implements Operator {
 
     private boolean finished = false;
 
+    /**
+     * Nanoseconds this operator has spent processing the rows.
+     */
+    private long totalProcessNanos;
+    private long ordinalsProcessNanos;
+    private long valuesProcessNanos;
+    /**
+     * Count of pages this operator has processed.
+     */
+    private int pagesProcessed;
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
+
+    /**
+     * Nanoseconds this operator has spent emitting the results.
+     */
+    private long totalEmitNanos;
+    private long ordinalsEmitNanos;
+    private long valuesEmitNanos;
+
     // used to extract and aggregate values
     private final int maxPageSize;
     private ValuesAggregator valuesAggregator;
@@ -135,6 +169,7 @@ public class OrdinalsGroupingOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
+        long startNanos = System.nanoTime();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         final int shardIndex = docVector.shards().getInt(0);
         RefCounted shardRefCounter = docVector.shardRefCounted().get(shardIndex);
@@ -142,6 +177,7 @@ public class OrdinalsGroupingOperator implements Operator {
         boolean pagePassed = false;
         try {
             if (docVector.singleSegmentNonDecreasing() && blockLoader.supportsOrdinals()) {
+                long ordinalsStartNanos = System.nanoTime();
                 final IntVector segmentIndexVector = docVector.segments();
                 assert segmentIndexVector.isConstant();
                 final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
@@ -162,7 +198,9 @@ public class OrdinalsGroupingOperator implements Operator {
                 );
                 pagePassed = true;
                 ordinalAggregator.addInput(docVector.docs(), page);
+                ordinalsProcessNanos += System.nanoTime() - ordinalsStartNanos;
             } else {
+                long valuesStartNanos = System.nanoTime();
                 if (valuesAggregator == null) {
                     int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
                     valuesAggregator = new ValuesAggregator(
@@ -179,11 +217,15 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
                 pagePassed = true;
                 valuesAggregator.addInput(page);
+                valuesProcessNanos += System.nanoTime() - valuesStartNanos;
             }
         } finally {
             if (pagePassed == false) {
                 Releasables.closeExpectNoException(page::releaseBlocks);
             }
+            pagesProcessed++;
+            rowsReceived += page.getPositionCount();
+            totalProcessNanos += System.nanoTime() - startNanos;
         }
     }
 
@@ -208,32 +250,41 @@ public class OrdinalsGroupingOperator implements Operator {
         if (finished == false) {
             return null;
         }
+        long startNanos = System.nanoTime();
+        Page page = null;
         if (valuesAggregator != null) {
             try {
-                return valuesAggregator.getOutput();
+                page = valuesAggregator.getOutput();
             } finally {
                 final ValuesAggregator aggregator = this.valuesAggregator;
                 this.valuesAggregator = null;
                 Releasables.close(aggregator);
+                valuesEmitNanos += System.nanoTime() - startNanos;
             }
-        }
-        if (ordinalAggregators.isEmpty() == false) {
+        } else if (ordinalAggregators.isEmpty() == false) {
             try {
-                return mergeOrdinalsSegmentResults();
+                page = mergeOrdinalsSegmentResults();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
                 Releasables.close(() -> Releasables.close(ordinalAggregators.values()), ordinalAggregators::clear);
+                ordinalsEmitNanos += System.nanoTime() - startNanos;
             }
         }
-        return null;
+        if (page != null) {
+            rowsEmitted += page.getPositionCount();
+        }
+        totalEmitNanos += System.nanoTime() - startNanos;
+        return page;
     }
 
     @Override
     public void finish() {
         finished = true;
         if (valuesAggregator != null) {
+            long startNanos = System.nanoTime();
             valuesAggregator.finish();
+            valuesEmitNanos += System.nanoTime() - startNanos;
         }
     }
 
@@ -322,6 +373,21 @@ public class OrdinalsGroupingOperator implements Operator {
         Releasables.close(() -> Releasables.close(ordinalAggregators.values()), valuesAggregator);
     }
 
+    @Override
+    public Operator.Status status() {
+        return new Status(
+            totalProcessNanos,
+            ordinalsProcessNanos,
+            valuesProcessNanos,
+            totalEmitNanos,
+            ordinalsEmitNanos,
+            valuesEmitNanos,
+            pagesProcessed,
+            rowsReceived,
+            rowsEmitted
+        );
+    }
+
     private static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
@@ -335,6 +401,214 @@ public class OrdinalsGroupingOperator implements Operator {
             .collect(Collectors.joining(", "));
 
         return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "ordinals_grouping",
+            Status::new
+        );
+
+        private final long totalProcessNanos;
+        private final long ordinalsProcessNanos;
+        private final long valuesProcessNanos;
+        private final long totalEmitNanos;
+        private final long ordinalsEmitNanos;
+        private final long valuesEmitNanos;
+        private final int pagesProcessed;
+        private final long rowsReceived;
+        private final long rowsEmitted;
+
+        /**
+         * Build.
+         * @param totalProcessNanos Nanoseconds this operator has spent processing the rows.
+         * @param pagesProcessed Count of pages this operator has processed.
+         * @param rowsReceived Count of rows this operator has received.
+         * @param rowsEmitted Count of rows this operator has emitted.
+         */
+        public Status(
+            long totalProcessNanos,
+            long ordinalsProcessNanos,
+            long valuesProcessNanos,
+            long totalEmitNanos,
+            long ordinalsEmitNanos,
+            long valuesEmitNanos,
+            int pagesProcessed,
+            long rowsReceived,
+            long rowsEmitted
+        ) {
+            this.totalProcessNanos = totalProcessNanos;
+            this.ordinalsProcessNanos = ordinalsProcessNanos;
+            this.valuesProcessNanos = valuesProcessNanos;
+
+            this.totalEmitNanos = totalEmitNanos;
+            this.ordinalsEmitNanos = ordinalsEmitNanos;
+            this.valuesEmitNanos = valuesEmitNanos;
+
+            this.pagesProcessed = pagesProcessed;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
+        }
+
+        protected Status(StreamInput in) throws IOException {
+            totalProcessNanos = in.readVLong();
+            ordinalsProcessNanos = in.readVLong();
+            valuesProcessNanos = in.readVLong();
+
+            totalEmitNanos = in.readVLong();
+            ordinalsEmitNanos = in.readVLong();
+            valuesEmitNanos = in.readVLong();
+
+            pagesProcessed = in.readVInt();
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(totalProcessNanos);
+            out.writeVLong(ordinalsProcessNanos);
+            out.writeVLong(valuesProcessNanos);
+
+            out.writeVLong(totalEmitNanos);
+            out.writeVLong(ordinalsEmitNanos);
+            out.writeVLong(valuesEmitNanos);
+
+            out.writeVInt(pagesProcessed);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public long totalProcessNanos() {
+            return totalProcessNanos;
+        }
+
+        public long ordinalsProcessNanos() {
+            return ordinalsProcessNanos;
+        }
+
+        public long valuesProcessNanos() {
+            return valuesProcessNanos;
+        }
+
+        public long totalEmitNanos() {
+            return totalEmitNanos;
+        }
+
+        public long ordinalsEmitNanos() {
+            return ordinalsEmitNanos;
+        }
+
+        public long valuesEmitNanos() {
+            return valuesEmitNanos;
+        }
+
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            // Process nanos
+            builder.field("total_process_nanos", totalProcessNanos);
+            if (builder.humanReadable()) {
+                builder.field("total_process_time", TimeValue.timeValueNanos(totalProcessNanos));
+            }
+            builder.field("ordinals_process_nanos", ordinalsProcessNanos);
+            if (builder.humanReadable()) {
+                builder.field("ordinals_process_time", TimeValue.timeValueNanos(ordinalsProcessNanos));
+            }
+            builder.field("values_process_nanos", valuesProcessNanos);
+            if (builder.humanReadable()) {
+                builder.field("values_process_time", TimeValue.timeValueNanos(valuesProcessNanos));
+            }
+
+            // Emit nanos
+            builder.field("total_emit_nanos", totalEmitNanos);
+            if (builder.humanReadable()) {
+                builder.field("total_emit_time", TimeValue.timeValueNanos(totalEmitNanos));
+            }
+            builder.field("ordinals_emit_nanos", ordinalsEmitNanos);
+            if (builder.humanReadable()) {
+                builder.field("ordinals_emit_time", TimeValue.timeValueNanos(ordinalsEmitNanos));
+            }
+            builder.field("values_emit_nanos", valuesEmitNanos);
+            if (builder.humanReadable()) {
+                builder.field("values_emit_time", TimeValue.timeValueNanos(valuesEmitNanos));
+            }
+
+            // Page/row counts
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return totalProcessNanos == status.totalProcessNanos
+                && ordinalsProcessNanos == status.ordinalsProcessNanos
+                && valuesProcessNanos == status.valuesProcessNanos
+                && totalEmitNanos == status.totalEmitNanos
+                && ordinalsEmitNanos == status.ordinalsEmitNanos
+                && valuesEmitNanos == status.valuesEmitNanos
+                && pagesProcessed == status.pagesProcessed
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                totalProcessNanos,
+                ordinalsProcessNanos,
+                valuesProcessNanos,
+                totalEmitNanos,
+                ordinalsEmitNanos,
+                valuesEmitNanos,
+                pagesProcessed,
+                rowsReceived,
+                rowsEmitted
+            );
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            assert false : "should never be called when supportsVersion is used";
+            return TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS)
+                || version.isPatchFrom(TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS_9_1)
+                || version.isPatchFrom(TransportVersions.ESQL_ORDINALS_OPERATOR_STATUS_8_19);
+        }
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {

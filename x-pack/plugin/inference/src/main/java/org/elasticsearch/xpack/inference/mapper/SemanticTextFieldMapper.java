@@ -143,6 +143,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS = new NodeFeature(
         "semantic_text.index_options_with_defaults"
     );
+    public static final NodeFeature SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS_SUPPORT = new NodeFeature(
+        "semantic_text.sparse_vector_index_options_support"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -459,7 +462,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-
                 if (modelSettings.taskType() != TEXT_EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
@@ -470,8 +472,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
                     (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
                 denseVectorIndexOptions.validate(modelSettings.elementType(), dims, true);
+            } else if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+                // the options will be validated within the ctor for the SparseVectorIndexOptions
+                indexOptions.indexOptions();
             }
-
         }
 
         /**
@@ -1259,23 +1263,28 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     static SemanticTextIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
-
         if (modelSettings == null) {
             return null;
         }
 
-        SemanticTextIndexOptions defaultIndexOptions = null;
         if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
             DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
                 modelSettings
             );
-            defaultIndexOptions = denseVectorIndexOptions == null
+            return denseVectorIndexOptions == null
                 ? null
                 : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseVectorIndexOptions);
         }
 
-        return defaultIndexOptions;
+        if (modelSettings.taskType() == SPARSE_EMBEDDING) {
+            return new SemanticTextIndexOptions(
+                SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated)
+            );
+        }
+
+        return null;
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {

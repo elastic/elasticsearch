@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -47,6 +48,17 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         return plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
+            }
+
+            // for mv_expand, the target attribute should be retained in its original position
+            if (currentPlanNode instanceof MvExpandExec mvExpand) {
+                List<Attribute> updatedAttrs = new ArrayList<>(requiredAttrBuilder.build());
+                int idx = updatedAttrs.indexOf(mvExpand.expanded());
+                if (idx != -1) {
+                    updatedAttrs.set(idx, (Attribute) mvExpand.target());
+                    requiredAttrBuilder.clear();
+                    requiredAttrBuilder.addAll(updatedAttrs);
+                }
             }
 
             // for non-unary execution plans, we apply the rule for each child

@@ -43,6 +43,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_NORMALIZER;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
 
 /**
@@ -82,12 +83,14 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             List<LinearRetrieverComponent> retrieverComponents = args[0] == null ? List.of() : (List<LinearRetrieverComponent>) args[0];
             List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
-            ScoreNormalizer normalizer = args[3] == null ? null : ScoreNormalizer.valueOf((String) args[3]);
+            String normalizerName = (String) args[3];
+            ScoreNormalizer normalizer = normalizerName == null ? null : ScoreNormalizer.valueOf(normalizerName);
             int rankWindowSize = args[4] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
 
             int index = 0;
             float[] weights = new float[retrieverComponents.size()];
             ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
+            Arrays.fill(normalizers, normalizer);
             List<RetrieverSource> innerRetrievers = new ArrayList<>();
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(RetrieverSource.from(component.retriever));
@@ -221,17 +224,27 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ),
                 validationException
             );
-        } else if (innerRetrievers.isEmpty() == false && normalizer != null) {
-            validationException = addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "[%s] [%s] cannot be provided when [%s] is specified",
-                    getName(),
-                    NORMALIZER_FIELD.getPreferredName(),
-                    RETRIEVERS_FIELD.getPreferredName()
-                ),
-                validationException
-            );
+        }
+
+        if (normalizer != null) {
+            for (ScoreNormalizer perRetrieverNormalizer : normalizers) {
+                boolean isExplicitSubNormalizer = perRetrieverNormalizer != null && !perRetrieverNormalizer.equals(DEFAULT_NORMALIZER);
+                boolean isMismatch = isExplicitSubNormalizer && !perRetrieverNormalizer.equals(normalizer);
+                if (isMismatch) {
+                    validationException = addValidationError(
+                        String.format(
+                            Locale.ROOT,
+                            "[%s] top-level [%s] is [%s] but a sub-retriever specifies [%s]",
+                            getName(),
+                            NORMALIZER_FIELD.getPreferredName(),
+                            normalizer.getName(),
+                            perRetrieverNormalizer.getName()
+                        ),
+                        validationException
+                    );
+                    break;
+                }
+            }
         }
 
         return validationException;
@@ -368,6 +381,13 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
+        if (normalizer != null) {
+            ScoreNormalizer[] newNormalizers = new ScoreNormalizer[normalizers.length];
+            for (int i = 0; i < normalizers.length; i++) {
+                newNormalizers[i] = (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER)) ? normalizer : normalizers[i];
+            }
+            return new LinearRetrieverBuilder(innerRetrievers, fields, query, null, rankWindowSize, weights, newNormalizers);
+        }
 
         return rewritten;
     }
@@ -393,7 +413,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject();
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
+                if (normalizers[index] != null && !normalizers[index].equals(DEFAULT_NORMALIZER)) {
+                    builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
+                }
                 builder.endObject();
                 index++;
             }
@@ -410,7 +432,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (query != null) {
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
-        if (normalizer != null) {
+        if (normalizer != null && !normalizer.equals(DEFAULT_NORMALIZER)) {
             builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
         }
 

@@ -17,7 +17,7 @@ import java.util.Locale;
 public class TestUtil {
 
     public static String getTestLibraryPath(String nativeLibsDir) {
-        String arch = Architecture.current().toString().toLowerCase(Locale.ROOT);
+        String arch = Architecture.current().jdkClassifier;
         String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
 
         return String.format(Locale.ROOT, "%s/%s", nativeLibsDir, platform);

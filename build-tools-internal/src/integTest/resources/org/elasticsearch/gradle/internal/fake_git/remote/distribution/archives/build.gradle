@@ -15,7 +15,7 @@ subprojects {
         archiveBaseName.set("elasticsearch${project.name.startsWith('oss')?'-oss':''}")
         def versionFromBranch = calculateBranchVersion()
         archiveVersion.set("${versionFromBranch}-SNAPSHOT")
-        archiveClassifier.set("darwin-x86_64")
+        archiveClassifier.set("darwin-amd64")
         archiveExtension.set('tar.gz')
     }
 

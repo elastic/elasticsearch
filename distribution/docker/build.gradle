@@ -98,12 +98,12 @@ configurations {
   allPlugins
   filebeat_aarch64
   filebeat_fips_aarch64
-  filebeat_x86_64
-  filebeat_fips_x86_64
+  filebeat_amd64
+  filebeat_fips_amd64
   metricbeat_aarch64
   metricbeat_fips_aarch64
-  metricbeat_x86_64
-  metricbeat_fips_x86_64
+  metricbeat_amd64
+  metricbeat_fips_amd64
   fips
 }
 
@@ -112,22 +112,22 @@ String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'am
 dependencies {
   aarch64DockerSource project(":distribution:archives:linux-aarch64-tar")
   aarch64DockerSourceTar project(path: ":distribution:archives:linux-aarch64-tar", configuration: "default")
-  dockerSource project(":distribution:archives:linux-tar")
-  dockerSourceTar project(path: ":distribution:archives:linux-tar", configuration: "default")
+  dockerSource project(":distribution:archives:linux-amd64-tar")
+  dockerSourceTar project(path: ":distribution:archives:linux-amd64-tar", configuration: "default")
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
   allPlugins project(path: ':x-pack:extras:plugins', configuration: 'allPlugins')
   filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  filebeat_amd64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   filebeat_fips_aarch64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  filebeat_fips_x86_64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  filebeat_fips_amd64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  metricbeat_amd64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  metricbeat_fips_amd64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
   fips "org.bouncycastle:bc-fips:1.0.2.5"
   fips "org.bouncycastle:bctls-fips:1.0.19"
@@ -607,7 +607,7 @@ subprojects { Project subProject ->
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
-    final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
+    final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.AMD64
     DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ironbank-')) {
       base = DockerBase.IRON_BANK
@@ -659,7 +659,7 @@ subprojects { Project subProject ->
       it.setCompression(Compression.GZIP)
       it.getArchiveBaseName().set("elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-image")
       it.getArchiveVersion().set("")
-      it.getArchiveClassifier().set(architecture == Architecture.AARCH64 ? 'aarch64' : '')
+      it.getArchiveClassifier().set(architecture.classifier)
       it.getDestinationDirectory().set(new File(project.parent.buildDir, 'distributions'))
       it.dependsOn(exportTask)
     }

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.gradle.internal.distribution;
 
+import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import org.elasticsearch.gradle.Version;
 
 public class RpmElasticsearchDistributionType implements ElasticsearchDistributionType {
 
@@ -28,5 +31,10 @@ public class RpmElasticsearchDistributionType implements ElasticsearchDistributi
     @Override
     public boolean isDocker() {
         return false;
+    }
+
+    @Override
+    public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
+        return ":" + Architecture.current().bwcClassifier;
     }
 }

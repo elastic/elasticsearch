@@ -9,21 +9,27 @@
 
 package org.elasticsearch.gradle
 
+import spock.lang.Unroll
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import spock.lang.Unroll
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
 class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     @Unroll
-    def "extracted #distType version can be resolved"() {
+    def "extracted #distType #arch version can be resolved"() {
         given:
         buildFile << applyPluginAndSetupDistro(version, platform)
 
         when:
-        def result = withMockedDistributionDownload(version, platform, gradleRunner('setupDistro', '-i')) {
+        def result = withMockedDistributionDownload(
+            version,
+            platform,
+            arch,
+            gradleRunner("-Dos.arch=${arch.classifier}", 'setupDistro', '-i')
+        ) {
             build()
         }
 
@@ -32,10 +38,13 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assertExtractedDistroCreated("build/distro")
 
         where:
-        version                              | platform                                   | distType
-        VersionProperties.getElasticsearch() | ElasticsearchDistribution.Platform.LINUX   | "current"
-        "8.1.0-SNAPSHOT"                     | ElasticsearchDistribution.Platform.LINUX   | "bwc"
-        "7.0.0"                              | ElasticsearchDistribution.Platform.WINDOWS | "released"
+        version                              | platform                                   | arch                 | distType
+        VersionProperties.getElasticsearch() | ElasticsearchDistribution.Platform.LINUX   | Architecture.AMD64   | "current"
+        VersionProperties.getElasticsearch() | ElasticsearchDistribution.Platform.LINUX   | Architecture.AARCH64 | "current"
+        "8.1.0-SNAPSHOT"                     | ElasticsearchDistribution.Platform.LINUX   | Architecture.AMD64   | "bwc"
+        "8.1.0-SNAPSHOT"                     | ElasticsearchDistribution.Platform.LINUX   | Architecture.AARCH64 | "bwc"
+        "7.0.0"                              | ElasticsearchDistribution.Platform.WINDOWS | Architecture.AMD64   | "released"
+        "7.0.0"                              | ElasticsearchDistribution.Platform.WINDOWS | Architecture.AARCH64 | "released"
     }
 
 
@@ -52,7 +61,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', gradleUserHome)
         def unpackingMessage = "Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
-                "using SymbolicLinkPreservingUntarTransform"
+            "using SymbolicLinkPreservingUntarTransform"
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
             def firstRun = build()
@@ -88,8 +97,10 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
-                "using SymbolicLinkPreservingUntarTransform") == 1
+        result.output.count(
+            "Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
+                "using SymbolicLinkPreservingUntarTransform"
+        ) == 1
     }
 
     private boolean assertExtractedDistroCreated(String relativePath) {

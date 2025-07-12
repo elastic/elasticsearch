@@ -138,6 +138,10 @@ public interface SecurityExtension {
         return null;
     }
 
+    default CustomRemoteServerTransportInterceptor getCustomRemoteServerTransportInterceptor(SecurityComponents components) {
+        return null;
+    }
+
     /**
      * Returns a authorization engine for authorizing requests, or null to use the default authorization mechanism.
      *

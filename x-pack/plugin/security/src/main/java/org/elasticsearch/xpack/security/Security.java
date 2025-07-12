@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.security.CustomRemoteServerTransportInterceptor;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -1198,7 +1199,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
-                customIndicesRequestRewriter,
+                createCustomRemoteServerTransportInterceptor(extensionComponents),
                 getLicenseState()
             )
         );
@@ -1255,6 +1256,48 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private CustomRemoteServerTransportInterceptor createCustomRemoteServerTransportInterceptor(
+        SecurityExtension.SecurityComponents extensionComponents
+    ) {
+        final Map<String, CustomRemoteServerTransportInterceptor> customByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
+            final CustomRemoteServerTransportInterceptor custom = extension.getCustomRemoteServerTransportInterceptor(extensionComponents);
+            if (custom != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CustomIndicesRequestRewriter. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                customByExtension.put(extension.extensionName(), custom);
+            }
+        }
+
+        if (customByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to default implementation.",
+                CustomRemoteServerTransportInterceptor.class.getCanonicalName()
+            );
+            return new CustomRemoteServerTransportInterceptor.Default();
+        } else if (customByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CustomRemoteServerTransportInterceptor: " + customByExtension.keySet()
+            );
+        } else {
+            final var byExtensionEntry = customByExtension.entrySet().iterator().next();
+            final CustomRemoteServerTransportInterceptor custom = byExtensionEntry.getValue();
+            final String extensionName = byExtensionEntry.getKey();
+            logger.debug(
+                "CustomRemoteServerTransportInterceptor implementation [{}] provided by extension [{}]",
+                custom.getClass().getCanonicalName(),
+                extensionName
+            );
+            return custom;
+        }
     }
 
     private CustomIndicesRequestRewriter createCustomIndicesRequestRewriter(SecurityExtension.SecurityComponents extensionComponents) {

@@ -52,7 +52,7 @@ public interface CustomIndicesRequestRewriter {
             TransportRequestOptions options,
             TransportResponseHandler<T> handler
         ) {
-
+            sender.sendRequest(connection, action, request, options, handler); // Default implementation simply forwards the request
         }
     }
 }

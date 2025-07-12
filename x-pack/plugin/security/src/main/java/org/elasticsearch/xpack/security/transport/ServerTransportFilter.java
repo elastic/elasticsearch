@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
@@ -104,13 +105,30 @@ class ServerTransportFilter {
         TransportVersion version = transportChannel.getVersion();
         authenticate(securityAction, request, listener.delegateFailureAndWrap((l, authentication) -> {
             if (authentication != null) {
+                // TODO why is this needed?
+                String id = AuditUtil.getOrGenerateRequestId(threadContext);
+                logger.debug("Audit id [{}] for request [{}]", id, request.getDescription());
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
+                    logger.debug(
+                        "Authenticated request [{}] for action [{}] from [{}] for hand shake",
+                        authentication.getEffectiveSubject().getUser(),
+                        securityAction,
+                        authentication.getEffectiveSubject()
+                    );
                     securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, l);
                     });
                 } else {
+                    if (SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
+                        logger.info(
+                            "Authenticated request [{}] for action [{}] from [{}]",
+                            authentication.getEffectiveSubject().getUser(),
+                            securityAction,
+                            authentication.getEffectiveSubject()
+                        );
+                    }
                     authzService.authorize(authentication, securityAction, request, l);
                 }
             } else {

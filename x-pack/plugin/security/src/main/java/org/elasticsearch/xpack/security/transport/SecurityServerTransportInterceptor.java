@@ -331,16 +331,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
                 if (remoteClusterCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
-                } else if (customIndicesRequestRewriter.enabled() && RemoteConnectionManager.isRemoteConnection(connection)) {
-                    customIndicesRequestRewriter.sendRequest(sender, connection, action, request, options, handler);
-                } else {
-                    // Send regular request, without cross cluster access headers
-                    try {
-                        sender.sendRequest(connection, action, request, options, handler);
-                    } catch (Exception e) {
-                        handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                } else if (customIndicesRequestRewriter.enabled()
+                    && RemoteConnectionManager.resolveRemoteClusterAliasWithCredentials(connection).isPresent()) {
+                        customIndicesRequestRewriter.sendRequest(sender, connection, action, request, options, handler);
+                    } else {
+                        // Send regular request, without cross cluster access headers
+                        try {
+                            sender.sendRequest(connection, action, request, options, handler);
+                        } catch (Exception e) {
+                            handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
+                        }
                     }
-                }
             }
 
             /**

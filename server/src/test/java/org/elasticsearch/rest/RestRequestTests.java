@@ -118,6 +118,58 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(emptyMap(), source.get());
     }
 
+    public void testParamAsIntWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
+        assertEquals(defaultValue, value);
+    }
+
+    public void testParamAsIntWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
+        assertEquals(123, value);
+    }
+
+    public void testParamAsIntWithNonIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInt(parameterKey, defaultValue));
+    }
+
+    public void testParamAsIntegerWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(defaultValue, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(123, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithNonIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInteger(parameterKey, defaultValue));
+    }
+
     public void testContentOrSourceParam() throws IOException {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).contentOrSourceParam());
         assertEquals("request body or source parameter is required", e.getMessage());

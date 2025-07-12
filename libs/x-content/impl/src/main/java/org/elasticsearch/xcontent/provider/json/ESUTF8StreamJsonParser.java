@@ -67,75 +67,117 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             ptr = _inputPtr;
         }
 
-        int startPtr = ptr;
-        final int[] codes = INPUT_CODES_UTF8;
-        final int max = _inputEnd;
+        final int startPtr = ptr;
         final byte[] inputBuffer = _inputBuffer;
-        stringLength = 0;
-        backslashes.clear();
+        final int max = _inputEnd;
 
-        loop: while (true) {
-            if (ptr >= max) {
-                return null;
+        // Fast path: scan for quote or backslash first
+        while (ptr < max) {
+            byte b = inputBuffer[ptr];
+            if (b == INT_QUOTE) {
+                // Found end quote - string has no escapes
+                int length = ptr - startPtr;
+                stringLength = length;
+                stringEnd = ptr + 1;
+                return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, length), length);
             }
-            int c = inputBuffer[ptr] & 0xFF;
-            switch (codes[c]) {
-                case 0 -> {
-                    ++ptr;
-                    ++stringLength;
-                }
-                case 1 -> {
-                    if (c == INT_QUOTE) {
-                        // End of the string
-                        break loop;
-                    }
-                    assert c == INT_BACKSLASH;
-                    backslashes.add(ptr);
-                    ++ptr;
-                    if (ptr >= max) {
-                        // Backslash at end of file
+            if (b == INT_BACKSLASH) {
+                // Found escape - switch to escape handling
+                break;
+            }
+            // For bytes < 128 (ASCII), we can skip the codes table lookup
+            if (b >= 0) {
+                ptr++;
+            } else {
+                // Non-ASCII handling...
+                int c = b & 0xFF;
+                int codeType = INPUT_CODES_UTF8[c];
+                if (codeType == 0) {
+                    ptr++;
+                } else if (codeType >= 2 && codeType <= 4) {
+                    if (ptr + codeType > max) {
                         return null;
                     }
-                    c = inputBuffer[ptr] & 0xFF;
-                    if (c == '"' || c == '/' || c == '\\') {
-                        ptr += 1;
-                        stringLength += 1;
-                    } else {
-                        // Any other escaped sequence requires replacing the sequence with
-                        // a new character, which we don't support in the optimized path
-                        return null;
-                    }
-                }
-                case 2, 3, 4 -> {
-                    int bytesToSkip = codes[c];
-                    if (ptr + bytesToSkip > max) {
-                        return null;
-                    }
-                    ptr += bytesToSkip;
-                    ++stringLength;
-                }
-                default -> {
+                    ptr += codeType;
+                } else {
                     return null;
                 }
             }
         }
 
-        stringEnd = ptr + 1;
-        if (backslashes.isEmpty()) {
-            return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, ptr - startPtr), stringLength);
-        } else {
-            byte[] buff = new byte[ptr - startPtr - backslashes.size()];
-            int copyPtr = startPtr;
-            int destPtr = 0;
-            for (Integer backslash : backslashes) {
-                int length = backslash - copyPtr;
-                System.arraycopy(inputBuffer, copyPtr, buff, destPtr, length);
-                destPtr += length;
-                copyPtr = backslash + 1;
-            }
-            System.arraycopy(inputBuffer, copyPtr, buff, destPtr, ptr - copyPtr);
-            return new Text(new XContentString.UTF8Bytes(buff), stringLength);
+        // Escape handling path - optimized for many escapes
+        if (ptr >= max) {
+            return null;
         }
+
+        // Instead of tracking backslash positions, directly build the result
+        byte[] resultBuffer = new byte[max - startPtr]; // Pessimistic size
+        int writePos = ptr - startPtr;
+
+        // Copy everything before the first backslash
+        System.arraycopy(inputBuffer, startPtr, resultBuffer, 0, writePos);
+
+        stringLength = writePos;
+
+        while (ptr < max) {
+            byte b = inputBuffer[ptr];
+            if (b == INT_QUOTE) {
+                // End of string
+                stringEnd = ptr + 1;
+                // Create result with exact size
+                if (writePos == resultBuffer.length) {
+                    return new Text(new XContentString.UTF8Bytes(resultBuffer), stringLength);
+                } else {
+                    byte[] exact = new byte[writePos];
+                    System.arraycopy(resultBuffer, 0, exact, 0, writePos);
+                    return new Text(new XContentString.UTF8Bytes(exact), stringLength);
+                }
+            }
+
+            if (b == INT_BACKSLASH) {
+                ptr++;
+                if (ptr >= max) {
+                    return null;
+                }
+                b = inputBuffer[ptr];
+                // Only handle simple escapes
+                if (b == '"' || b == '/' || b == '\\') {
+                    resultBuffer[writePos++] = b;
+                    ptr++;
+                    stringLength++;
+                } else {
+                    // Unsupported escape
+                    return null;
+                }
+            } else if (b >= 0) {
+                // ASCII
+                resultBuffer[writePos++] = b;
+                ptr++;
+                stringLength++;
+            } else {
+                // Non-ASCII
+                int c = b & 0xFF;
+                int codeType = INPUT_CODES_UTF8[c];
+                if (codeType == 0) {
+                    resultBuffer[writePos++] = b;
+                    ptr++;
+                    stringLength++;
+                } else if (codeType >= 2 && codeType <= 4) {
+                    if (ptr + codeType > max) {
+                        return null;
+                    }
+                    // Copy multi-byte sequence
+                    System.arraycopy(inputBuffer, ptr, resultBuffer, writePos, codeType);
+                    writePos += codeType;
+                    ptr += codeType;
+                    stringLength++;
+                } else {
+                    return null;
+                }
+            }
+        }
+
+        return null; // Didn't find closing quote
     }
 
     @Override

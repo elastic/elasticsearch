@@ -527,6 +527,12 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
+  issue: https://github.com/elastic/elasticsearch/issues/130281
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteCanBeRejectedAtPrimaryLevel
+  issue: https://github.com/elastic/elasticsearch/issues/131151
 
 # Examples:
 #

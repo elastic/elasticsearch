@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-public class DatabaseReaderLazyLoader implements IpDatabase {
+public class DatabaseReaderLazyLoader implements CacheingIpDatabase {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
@@ -116,6 +116,15 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     @Override
     @Nullable
     public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+        // TODO(pete): Improve the documentation here.
+        throw new UnsupportedOperationException("This is a CacheingIpDatabase, callers should use get getCacheableResponse instead");
+    }
+
+    @Nullable
+    public <RESPONSE extends GeoIpCache.Response> RESPONSE getCacheableResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    ) {
         return cache.putIfAbsent(projectId, ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);

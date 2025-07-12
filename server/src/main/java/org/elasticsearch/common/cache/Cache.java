@@ -12,12 +12,22 @@ package org.elasticsearch.common.cache;
 import java.util.Iterator;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import java.util.function.ToLongBiFunction;
 
 /**
- * Interface for cache implementations, currently still quite tied to {@link LRUCache}
+ * Interface for cache implementations, currently still quite tied to {@link LRUCache} it's currently an ongoing effort to decouple.
+ * <p>
+ * Implementations are expected to notify through a {@link RemovalListener} but the interface does not feature a method for registering a
+ * listener as how it's left to the implementation; which could possibly be supplied through a constructor. If an implementation supplies
+ * a means of modifying the listener(s) it should specify its guarantees with respect to delivery of notifies. If the implementation
+ * features an eviction strategy, and events are evicted, a removal notification with
+ * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} EVICTED should be emitted. If {@link #invalidate(Key)},
+ * {@link #invalidate(Key, Value)}, or {@link #invalidateAll()} is used, a removal notification with
+ * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED should be emitted.
+ * </p>
  *
- * @param <Key> Type used for keys to lookup values
- * @param <Value> Type used for values stored in the cache
+ * @param <Key> Type of keys to lookup values
+ * @param <Value> Type of values stored in the cache
  */
 public interface Cache<Key, Value> {
     /**
@@ -78,9 +88,12 @@ public interface Cache<Key, Value> {
     void invalidateAll();
 
     /**
-     * Force any outstanding evictions to occur
+     * Blocking call that evaluates all entries if they meet the requirements and evicts the entries based on the eviction strategy if
+     * provided / supported by the implementation, no-op otherwise.
+     * A removal notification will be issued for evicted entries with
+     * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} EVICTED
      */
-    void refresh();
+    default void refresh() {};
 
     /**
      * The number of entries in the cache.
@@ -90,25 +103,32 @@ public interface Cache<Key, Value> {
     int count();
 
     /**
-     * The weight of the entries in the cache.
+     * The total weight of all entries in the cache. This interface does not specify the property that gives a entry weight,
+     * implementations are expected to allow the user to specify an external weigher in the form of a {@link ToLongBiFunction}
      *
-     * @return the weight of the entries in the cache
+     * @return the weight of all the entries in the cache
      */
     long weight();
 
     /**
-     * An undefined sequencing of the keys in the cache that supports removal. Implementations might guarantee a specific sequencing.
-     * The returned sequence is not protected from mutations to the cache (except for {@link Iterator#remove()}. The result of
-     * iteration under any other mutation is undefined.
+     * An Iterable that allows to transverse all keys in the cache. Modifications might be visible and no guarantee is made on ordering of
+     * these modifications as new entries might end up in the already transversed part of the cache. So while transversing; if A and B are
+     * added to the cache in that order, we might only observe B. Implementations should allow the cache to be modified while transversing
+     * but only {@link Iterator#remove()} is guaranteed to not affect further transversal.
+     * Implementations might guarantee a specific sequencing or other stronger guarantees.
+     * {@link Iterator#remove()} does not issue a removal notification.
      *
      * @return an {@link Iterable} over the keys in the cache
      */
     Iterable<Key> keys();
 
     /**
-     * An undefined sequencing of the values in the cache that supports removal. Implementations might guarantee a specific sequencing.
-     * The returned sequence is not protected from mutations to the cache (except for {@link Iterator#remove()}. The result of
-     * iteration under any other mutation is undefined.
+     * An Iterable that allows to transverse all keys in the cache. Modifications might be visible and no guarantee is made on ordering of
+     * these modifications as new entries might end up in the already transversed part of the cache. So while transversing; if A and B are
+     * added to the cache, and in that order, we might only observe B. Implementations should allow the cache to be modified while
+     * transversing but only {@link Iterator#remove()} is guaranteed to not affect further transversal.
+     * Implementations might guarantee a specific sequencing or other stronger guarantees.
+     * {@link Iterator#remove()} does not issue a removal notification
      *
      * @return an {@link Iterable} over the values in the cache
      */

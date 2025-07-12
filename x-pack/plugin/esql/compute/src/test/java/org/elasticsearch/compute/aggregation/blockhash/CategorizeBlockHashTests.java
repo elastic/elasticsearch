@@ -63,6 +63,12 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class CategorizeBlockHashTests extends BlockHashTestCase {
 
+    private static final BlockHash.CategorizeDef CATEGORIZE_DEF = new BlockHash.CategorizeDef(
+        null,
+        BlockHash.CategorizeDef.OutputFormat.REGEX,
+        70
+    );
+
     private AnalysisRegistry analysisRegistry;
 
     @Before
@@ -98,7 +104,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, CATEGORIZE_DEF, analysisRegistry)) {
             for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
                     private void addBlock(int positionOffset, IntBlock groupIds) {
@@ -170,7 +176,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, CATEGORIZE_DEF, analysisRegistry)) {
             for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
                     private void addBlock(int positionOffset, IntBlock groupIds) {
@@ -259,8 +265,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         // Fill intermediatePages with the intermediate state from the raw hashes
         try (
-            BlockHash rawHash1 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
-            BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
+            BlockHash rawHash1 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, CATEGORIZE_DEF, analysisRegistry);
+            BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, CATEGORIZE_DEF, analysisRegistry);
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
                 private void addBlock(int positionOffset, IntBlock groupIds) {
@@ -335,7 +341,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page2.releaseBlocks();
         }
 
-        try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, null)) {
+        try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, CATEGORIZE_DEF, null)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 private void addBlock(int positionOffset, IntBlock groupIds) {
                     List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
@@ -590,7 +596,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     private BlockHash.GroupSpec makeGroupSpec() {
-        return new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true);
+        return new BlockHash.GroupSpec(0, ElementType.BYTES_REF, CATEGORIZE_DEF);
     }
 
     private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {

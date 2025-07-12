@@ -1236,10 +1236,12 @@ public class EsqlCapabilities {
          * FUSE command
          */
         FUSE(Build.current().isSnapshot()),
+
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */
         LIKE_ON_INDEX_FIELDS,
+
         /**
          * Support avg with aggregate metric doubles
          */
@@ -1249,7 +1251,12 @@ public class EsqlCapabilities {
          * Forbid usage of brackets in unquoted index and enrich policy names
          * https://github.com/elastic/elasticsearch/issues/130378
          */
-        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES;
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
+
+        /**
+         * Support for the options field of CATEGORIZE.
+         */
+        CATEGORIZE_OPTIONS;
 
         private final boolean enabled;
 

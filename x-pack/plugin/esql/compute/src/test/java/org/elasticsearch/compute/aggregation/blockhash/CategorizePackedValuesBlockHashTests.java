@@ -74,10 +74,11 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
         DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
+        BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(null, BlockHash.CategorizeDef.OutputFormat.REGEX, 70);
 
         List<BlockHash.GroupSpec> groupSpecs = List.of(
-            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true),
-            new BlockHash.GroupSpec(1, ElementType.INT, false)
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef),
+            new BlockHash.GroupSpec(1, ElementType.INT, null)
         );
 
         LocalSourceOperator.BlockSupplier input1 = () -> {

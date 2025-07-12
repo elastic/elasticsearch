@@ -1,0 +1,6 @@
+pr: 130337
+summary: Add `XmlProcessor` initial implementation
+area: Ingest Node
+type: enhancement
+issues:
+ - 97364

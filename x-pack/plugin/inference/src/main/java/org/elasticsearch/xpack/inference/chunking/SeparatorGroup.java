@@ -10,17 +10,17 @@ package org.elasticsearch.xpack.inference.chunking;
 import java.util.List;
 import java.util.Locale;
 
-public enum SeparatorSet {
+public enum SeparatorGroup {
     PLAINTEXT("plaintext"),
     MARKDOWN("markdown");
 
     private final String name;
 
-    SeparatorSet(String name) {
+    SeparatorGroup(String name) {
         this.name = name;
     }
 
-    public static SeparatorSet fromString(String name) {
+    public static SeparatorGroup fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 

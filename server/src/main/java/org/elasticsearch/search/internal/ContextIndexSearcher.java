@@ -191,6 +191,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return this.cancellable.isEnabled();
     }
 
+    public void checkCancelled() {
+        if (this.cancellable.isEnabled()) {
+            this.cancellable.checkCancelled();
+        }
+    }
+
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
         this.aggregatedDfs = aggregatedDfs;
     }

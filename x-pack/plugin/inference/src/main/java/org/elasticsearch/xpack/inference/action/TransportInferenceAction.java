@@ -74,6 +74,8 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
+        // var rerankChunker = new RerankRequestChunker(request.getInput());
+
         service.infer(
             model,
             request.getQuery(),

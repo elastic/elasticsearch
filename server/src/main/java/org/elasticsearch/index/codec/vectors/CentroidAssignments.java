@@ -9,10 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-record CentroidAssignments(int numCentroids, float[][] centroids, int[][] assignmentsByCluster) {
+record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
 
-    CentroidAssignments(float[][] centroids, int[][] assignmentsByCluster) {
-        this(centroids.length, centroids, assignmentsByCluster);
-        assert centroids.length == assignmentsByCluster.length;
+    CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
+        this(centroids.length, centroids, assignments, overspillAssignments);
+        assert assignments.length == overspillAssignments.length : "assignments and overspillAssignments must have the same length";
     }
 }

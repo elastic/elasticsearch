@@ -34,6 +34,7 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
@@ -49,6 +50,8 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     public static final String DUMP_OUTPUT_ON_FAILURE_PROP_NAME = "dumpOutputOnFailure";
+
+    public static final Set<String> TEST_TASKS_WITH_ENTITLEMENTS = Set.of("test", "internalClusterTest");
 
     @Inject
     protected abstract ProviderFactory getProviderFactory();
@@ -178,10 +181,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
-            if ("test".equals(test.getName()) && mainSourceSet != null && testSourceSet != null) {
+            SourceSet internalClusterTestSourceSet = sourceSets.findByName("internalClusterTest");
+
+            if (TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) && mainSourceSet != null && testSourceSet != null) {
                 FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
                 FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
-                FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
+                FileCollection internalClusterTestRuntime = ("internalClusterTest".equals(test.getName())
+                    && internalClusterTestSourceSet != null) ? internalClusterTestSourceSet.getRuntimeClasspath() : project.files();
+                FileCollection testOnlyFiles = testRuntime.plus(internalClusterTestRuntime).minus(mainRuntime);
+
                 test.doFirst(task -> test.environment("es.entitlement.testOnlyPath", testOnlyFiles.getAsPath()));
             }
 
@@ -241,14 +249,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
      * Computes and sets the {@code --patch-module=java.base} and {@code --add-opens=java.base} JVM command line options.
      */
     private void configureJavaBaseModuleOptions(Project project) {
-        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
-            FileCollection patchedImmutableCollections = patchedImmutableCollections(project);
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // patch immutable collections only for "test" task
+            FileCollection patchedImmutableCollections = test.getName().equals("test") ? patchedImmutableCollections(project) : null;
             if (patchedImmutableCollections != null) {
                 test.getInputs().files(patchedImmutableCollections);
                 test.systemProperty("tests.hackImmutableCollections", "true");
             }
 
-            FileCollection entitlementBridge = entitlementBridge(project);
+            FileCollection entitlementBridge = TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) ? entitlementBridge(project) : null;
             if (entitlementBridge != null) {
                 test.getInputs().files(entitlementBridge);
             }
@@ -312,27 +321,30 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         }
         FileCollection bridgeFiles = bridgeConfig;
 
-        project.getTasks().withType(Test.class).configureEach(test -> {
-            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+        project.getTasks()
+            .withType(Test.class)
+            .matching(test -> TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()))
+            .configureEach(test -> {
+                // See also SystemJvmOptions.maybeAttachEntitlementAgent.
 
-            // Agent
-            if (agentFiles.isEmpty() == false) {
-                test.getInputs().files(agentFiles);
-                test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
-                test.systemProperty("jdk.attach.allowAttachSelf", true);
-            }
+                // Agent
+                if (agentFiles.isEmpty() == false) {
+                    test.getInputs().files(agentFiles);
+                    test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+                    test.systemProperty("jdk.attach.allowAttachSelf", true);
+                }
 
-            // Bridge
-            if (bridgeFiles.isEmpty() == false) {
-                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                test.getInputs().files(bridgeFiles);
-                // Tests may not be modular, but the JDK still is
-                test.jvmArgs(
-                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
-                        + modulesContainingEntitlementInstrumentation
-                );
-            }
-        });
+                // Bridge
+                if (bridgeFiles.isEmpty() == false) {
+                    String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                    test.getInputs().files(bridgeFiles);
+                    // Tests may not be modular, but the JDK still is
+                    test.jvmArgs(
+                        "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                            + modulesContainingEntitlementInstrumentation
+                    );
+                }
+            });
     }
 
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
 import org.elasticsearch.indices.IndicesService;
@@ -234,6 +235,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        // TODO: no need to abort in stateless mode
         // abort any snapshots occurring on the soon-to-be closed shard
         synchronized (shardSnapshots) {
             for (Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> snapshotShards : shardSnapshots.entrySet()) {
@@ -286,6 +288,20 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 result.put(entry.getKey(), entry.getValue().asCopy());
             }
             return result;
+        }
+    }
+
+    public void ensureShardSnapshotNotAborted(Snapshot snapshot, ShardId shardId) {
+        synchronized (shardSnapshots) {
+            final var current = shardSnapshots.get(snapshot);
+            if (current == null) {
+                throw new SnapshotMissingException(snapshot.getRepository(), snapshot.getSnapshotId().getName());
+            }
+            final var indexShardSnapshotStatus = current.get(shardId);
+            if (indexShardSnapshotStatus == null) {
+                throw new IndexShardSnapshotException(shardId, "shard snapshot [" + snapshot.getSnapshotId() + "] does not exist");
+            }
+            indexShardSnapshotStatus.ensureNotAborted();
         }
     }
 

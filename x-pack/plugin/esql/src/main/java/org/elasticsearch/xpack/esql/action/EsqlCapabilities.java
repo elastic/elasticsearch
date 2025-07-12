@@ -1210,6 +1210,11 @@ public class EsqlCapabilities {
          */
         KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
+        /**
+         * Support for dense vector embedding function
+         */
+        DENSE_VECTOR_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
         LIKE_WITH_LIST_OF_PATTERNS,
 
         LIKE_LIST_ON_INDEX_FIELDS,

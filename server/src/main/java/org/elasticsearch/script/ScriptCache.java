@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
@@ -78,13 +79,14 @@ public class ScriptCache {
     <FactoryType> FactoryType compile(
         ScriptContext<FactoryType> context,
         ScriptEngine scriptEngine,
+        ProjectId projectId,
         String id,
         String idOrCode,
         ScriptType type,
         Map<String, String> options
     ) {
         String lang = scriptEngine.getType();
-        CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);
+        CacheKey cacheKey = new CacheKey(lang, projectId, idOrCode, context.name, options);
 
         // Relying on computeIfAbsent to avoid multiple threads from compiling the same script
         try {
@@ -204,12 +206,14 @@ public class ScriptCache {
 
     private static final class CacheKey {
         final String lang;
+        final ProjectId projectId;
         final String idOrCode;
         final String context;
         final Map<String, String> options;
 
-        private CacheKey(String lang, String idOrCode, String context, Map<String, String> options) {
+        private CacheKey(String lang, ProjectId projectId, String idOrCode, String context, Map<String, String> options) {
             this.lang = lang;
+            this.projectId = projectId;
             this.idOrCode = idOrCode;
             this.context = context;
             this.options = options;

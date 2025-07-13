@@ -40,10 +40,6 @@ public class RemovalNotification<K, V> {
 
     @Override
     public String toString() {
-        return "RemovalNotification{" +
-            "key=" + key +
-            ", value=" + value +
-            ", removalReason=" + removalReason +
-            '}';
+        return "RemovalNotification{" + "key=" + key + ", value=" + value + ", removalReason=" + removalReason + '}';
     }
 }

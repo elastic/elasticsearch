@@ -39,14 +39,12 @@ public class CacheTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        knownImplementations = List.of(
-            (removalListener, weigher) -> {
-                CacheBuilder<String, String> builder = CacheBuilder.builder();
-                weigher.ifPresent(builder::weigher);
-                removalListener.ifPresent(builder::removalListener);
-                return builder.build();
-            }
-        );
+        knownImplementations = List.of((removalListener, weigher) -> {
+            CacheBuilder<String, String> builder = CacheBuilder.builder();
+            weigher.ifPresent(builder::weigher);
+            removalListener.ifPresent(builder::removalListener);
+            return builder.build();
+        });
         logger.debug("Testing known implementations: {}", knownImplementations);
     }
 
@@ -55,16 +53,20 @@ public class CacheTests extends ESTestCase {
         default Cache<Key, Value> supply() {
             return supply(Optional.empty(), Optional.empty());
         }
-        default Cache<Key, Value> supply(RemovalListener<Key,Value> removalListener) {
+
+        default Cache<Key, Value> supply(RemovalListener<Key, Value> removalListener) {
             return supply(Optional.ofNullable(removalListener), Optional.empty());
         }
-        default Cache<Key, Value> supply(ToLongBiFunction<Key,Value> weigher) {
+
+        default Cache<Key, Value> supply(ToLongBiFunction<Key, Value> weigher) {
             return supply(Optional.empty(), Optional.ofNullable(weigher));
         }
-        default Cache<Key, Value> supply(RemovalListener<Key,Value> removalListener, ToLongBiFunction<Key,Value> weigher) {
+
+        default Cache<Key, Value> supply(RemovalListener<Key, Value> removalListener, ToLongBiFunction<Key, Value> weigher) {
             return supply(Optional.ofNullable(removalListener), Optional.ofNullable(weigher));
         }
-        Cache<Key, Value> supply(Optional<RemovalListener<Key,Value>> removalListener, Optional<ToLongBiFunction<Key,Value>> weigher);
+
+        Cache<Key, Value> supply(Optional<RemovalListener<Key, Value>> removalListener, Optional<ToLongBiFunction<Key, Value>> weigher);
     }
 
     /**
@@ -87,8 +89,8 @@ public class CacheTests extends ESTestCase {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Cache<String, String> cache = supplier.supply();
 
-            int expectedCount = randomIntBetween(3,10);
-            for(int i = 0; i < expectedCount; i++) {
+            int expectedCount = randomIntBetween(3, 10);
+            for (int i = 0; i < expectedCount; i++) {
                 cache.put(randomAlphaOfLength(10), randomAlphaOfLength(50));
             }
             assertEquals(expectedCount, cache.count());
@@ -141,14 +143,14 @@ public class CacheTests extends ESTestCase {
             };
             Cache<String, String> cache = supplier.supply(removalListener);
 
-            int numberOfEntries = randomIntBetween(10,50);
-            for(int i = 0; i < numberOfEntries; i++) {
+            int numberOfEntries = randomIntBetween(10, 50);
+            for (int i = 0; i < numberOfEntries; i++) {
                 cache.put(randomAlphaOfLength(10), randomAlphaOfLength(50));
             }
             cache.invalidateAll();
 
-            for(int tries = 1; tries <= 10; tries++) {
-                if(notified.longValue()==numberOfEntries) {
+            for (int tries = 1; tries <= 10; tries++) {
+                if (notified.longValue() == numberOfEntries) {
                     break;
                 }
                 wait(100);
@@ -162,7 +164,7 @@ public class CacheTests extends ESTestCase {
     public void testStats() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(50));
             }
 
@@ -171,9 +173,9 @@ public class CacheTests extends ESTestCase {
 
             int expectedHits = 0;
             int expectedMisses = 0;
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 String key = randomAlphaOfLength(10);
-                if(entries.containsKey(key)) {
+                if (entries.containsKey(key)) {
                     expectedHits++;
                     assertEquals(entries.get(key), cache.get(key));
                 } else {
@@ -182,8 +184,8 @@ public class CacheTests extends ESTestCase {
                 }
             }
 
-            int invalidations = randomIntBetween(10,entries.size()-1);
-            for(int i = 0; i < invalidations; i++) {
+            int invalidations = randomIntBetween(10, entries.size() - 1);
+            for (int i = 0; i < invalidations; i++) {
                 String entry = randomFrom(entries.keySet());
                 entries.remove(entry);
                 cache.invalidate(entry);
@@ -200,7 +202,7 @@ public class CacheTests extends ESTestCase {
     public void testKeys() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(11));
             }
 
@@ -217,7 +219,7 @@ public class CacheTests extends ESTestCase {
     public void testKeysIterator() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(11));
             }
 
@@ -258,7 +260,7 @@ public class CacheTests extends ESTestCase {
     public void testValues() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(11));
             }
 
@@ -275,7 +277,7 @@ public class CacheTests extends ESTestCase {
     public void testValuesIterator() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(11));
             }
 
@@ -319,7 +321,7 @@ public class CacheTests extends ESTestCase {
     public void testForEach() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(50));
             }
 
@@ -336,15 +338,14 @@ public class CacheTests extends ESTestCase {
     public void testRefresh() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
-            for(int i = 0; i < randomIntBetween(25,100); i++) {
+            for (int i = 0; i < randomIntBetween(25, 100); i++) {
                 entries.put(randomAlphaOfLength(10), randomAlphaOfLength(50));
             }
 
-            Cache<String, String> cache = supplier.supply(
-                notification -> {
-                    assertEquals(notification.getRemovalReason(), EVICTED);
-                    logger.debug("Eviction happened for key [{}], value [{}]", notification.getKey(), notification.getValue());
-                },
+            Cache<String, String> cache = supplier.supply(notification -> {
+                assertEquals(notification.getRemovalReason(), EVICTED);
+                logger.debug("Eviction happened for key [{}], value [{}]", notification.getKey(), notification.getValue());
+            },
                 (key, value) -> Long.MAX_VALUE // maximize chance of triggering Eviction.
             );
             entries.forEach(cache::put);

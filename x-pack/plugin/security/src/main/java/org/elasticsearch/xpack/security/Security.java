@@ -1186,8 +1186,18 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
+        CustomRemoteServerTransportInterceptor customRemoteServerTransportInterceptor = createCustomRemoteServerTransportInterceptor(
+            extensionComponents
+        );
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
+        crossClusterAccessAuthcService.set(
+            new CrossClusterAccessAuthenticationService(
+                clusterService,
+                apiKeyService,
+                authcService.get(),
+                customRemoteServerTransportInterceptor.enabled()
+            )
+        );
         components.add(crossClusterAccessAuthcService.get());
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -1199,7 +1209,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
-                createCustomRemoteServerTransportInterceptor(extensionComponents),
+                customRemoteServerTransportInterceptor,
                 getLicenseState()
             )
         );

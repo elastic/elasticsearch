@@ -562,7 +562,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     profileFilters.put(
                         profileName,
                         new CustomRemoteServerTransportFilter(
-                            customRemoteServerTransportInterceptor.getAuthenticator(),
+                            customRemoteServerTransportInterceptor.getFilter(),
                             authcService,
                             authzService,
                             threadPool.getThreadContext(),

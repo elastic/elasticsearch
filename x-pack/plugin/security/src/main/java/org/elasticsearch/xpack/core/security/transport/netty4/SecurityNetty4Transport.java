@@ -161,7 +161,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     protected InboundPipeline getInboundPipeline(Channel channel, boolean isRemoteClusterServerChannel) {
-        if (false == isRemoteClusterServerChannel) {
+        if (false == isRemoteClusterServerChannel || crossClusterAccessAuthenticationService.skipTransportCheck()) {
             return super.getInboundPipeline(channel, false);
         } else {
             return new InboundPipeline(

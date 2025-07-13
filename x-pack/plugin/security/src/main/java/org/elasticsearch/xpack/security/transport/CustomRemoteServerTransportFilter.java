@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.CustomServerTransportFilterAuthenticator;
+import org.elasticsearch.xpack.core.security.CustomServerTransportFilter;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 final class CustomRemoteServerTransportFilter extends ServerTransportFilter {
     private static final Logger logger = LogManager.getLogger(CustomRemoteServerTransportFilter.class);
 
-    private final CustomServerTransportFilterAuthenticator authenticator;
+    private final CustomServerTransportFilter authenticator;
 
     CustomRemoteServerTransportFilter(
-        CustomServerTransportFilterAuthenticator authenticator,
+        CustomServerTransportFilter filter,
         AuthenticationService authcService,
         AuthorizationService authzService,
         ThreadContext threadContext,
@@ -34,12 +34,23 @@ final class CustomRemoteServerTransportFilter extends ServerTransportFilter {
         SecurityContext securityContext
     ) {
         super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, securityContext);
-        this.authenticator = authenticator;
+        this.authenticator = filter;
     }
 
     @Override
     public void authenticate(String securityAction, TransportRequest request, ActionListener<Authentication> authenticationListener) {
         logger.info("Custom authenticator authenticating request for action: {}", securityAction);
-        authenticator.authenticate(securityAction, request, authenticationListener);
+        authenticator.filter(securityAction, request, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                CustomRemoteServerTransportFilter.super.authenticate(securityAction, request, authenticationListener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // TODO wrap exception
+                authenticationListener.onFailure(e);
+            }
+        });
     }
 }

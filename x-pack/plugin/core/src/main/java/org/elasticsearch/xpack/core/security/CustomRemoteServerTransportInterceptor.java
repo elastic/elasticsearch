@@ -28,7 +28,7 @@ public interface CustomRemoteServerTransportInterceptor {
         TransportResponseHandler<T> handler
     );
 
-    CustomServerTransportFilterAuthenticator getAuthenticator();
+    CustomServerTransportFilter getFilter();
 
     class Default implements CustomRemoteServerTransportInterceptor {
         @Override
@@ -49,8 +49,8 @@ public interface CustomRemoteServerTransportInterceptor {
         }
 
         @Override
-        public CustomServerTransportFilterAuthenticator getAuthenticator() {
-            return new CustomServerTransportFilterAuthenticator.Default();
+        public CustomServerTransportFilter getFilter() {
+            return new CustomServerTransportFilter.Default();
         }
     }
 }

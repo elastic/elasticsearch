@@ -34,7 +34,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -558,14 +557,11 @@ public class IndicesAndAliasesResolver {
     public static class RemoteClusterResolver extends RemoteClusterAware {
 
         private final CopyOnWriteArraySet<String> clusters;
-        // TODO consolidate
-        private final Map<String, List<RemoteClusterService.RemoteTag>> tags;
 
         @SuppressWarnings("this-escape")
         public RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
             clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
-            tags = RemoteClusterService.getEnabledRemoteClustersWithTags(settings);
             listenForUpdates(clusterSettings);
         }
 
@@ -586,14 +582,6 @@ public class IndicesAndAliasesResolver {
                 .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
                 .toList();
             return new ResolvedIndices(local == null ? List.of() : local, remote);
-        }
-
-        public Set<String> clusters() {
-            return Collections.unmodifiableSet(clusters);
-        }
-
-        public Map<String, List<RemoteClusterService.RemoteTag>> tags() {
-            return Collections.unmodifiableMap(tags);
         }
     }
 }

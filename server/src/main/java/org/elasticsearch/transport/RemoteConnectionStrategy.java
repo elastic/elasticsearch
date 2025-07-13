@@ -189,10 +189,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 
-    static Map<String, List<RemoteClusterService.RemoteTag>> getRemoteTags(Settings settings) {
-        return RemoteClusterService.REMOTE_CLUSTER_TAGS.getAsMap(settings);
-    }
-
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {

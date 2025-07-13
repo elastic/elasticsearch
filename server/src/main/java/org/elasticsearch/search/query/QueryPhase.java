@@ -209,47 +209,29 @@ public class QueryPhase {
                 searcher.addQueryCancellation(timeoutRunnable);
             }
 
-            try {
-                QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
-                if (searchContext.getProfilers() != null) {
-                    searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
-                }
-                queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
-                if (searcher.timeExceeded()) {
-                    assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                    SearchTimeoutException.handleTimeout(
-                        searchContext.request().allowPartialSearchResults(),
-                        searchContext.shardTarget(),
-                        searchContext.queryResult()
-                    );
-                }
-                if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                    queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
-                }
-                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
-                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
-                }
-            } finally {
-                /*
-                 * If the request ALLOWS PARTIAL RESULTS, we remove the query-cancellation callback
-                 * **before** moving to later phases.
-                 *
-                 * Reason: When allowPartialSearchResults == true we want only the **query** phase
-                 * to be interruptible by timeout, the fetch phase must run to completion so the client
-                 * receives the hits already collected. Otherwise, the timeout cancellation could fire
-                 * during fetch and return an empty SearchHits[] (see bug #130071).
-                 *
-                 * When allowPartialSearchResults==false, we keep the callback active,
-                 * preserving the cross-phase timeout propagation introduced in PR #98715.
-                 */
-                if (searchContext.request().allowPartialSearchResults() && timeoutRunnable != null) {
-                    searcher.removeQueryCancellation(timeoutRunnable);
-                }
+            QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
+            if (searchContext.getProfilers() != null) {
+                searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
+            }
+            queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
+            if (searcher.timeExceeded()) {
+                assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
+                SearchTimeoutException.handleTimeout(
+                    searchContext.request().allowPartialSearchResults(),
+                    searchContext.shardTarget(),
+                    searchContext.queryResult()
+                );
+            }
+            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
+            }
+            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+            assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
+                || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+            if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
+                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);

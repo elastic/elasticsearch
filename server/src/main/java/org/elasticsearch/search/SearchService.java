@@ -907,7 +907,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 tracer.stopTrace(task);
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
-                // we already have query results, but we can run fetch at the same time
+                // in this case, we reuse search context across search and fetch phases.
+                // so we need to remove all cancelation callbacks from query phase before starting fetch.
+                context.searcher().removeQueryCancellations();
                 context.addFetchResult();
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {

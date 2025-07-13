@@ -456,24 +456,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         return context;
     }
 
-    public void testQueryCancellationCallbackRemovedWhenPartialAllowed() throws Exception {
-        TrackingSearcher searcher = new TrackingSearcher(reader);
-        try (TestSearchContext ctx = createSearchContextWithAllowPartialResults(searcher, true)) {
-            QueryPhase.executeQuery(ctx);
-            assertNotNull("callback should be registered", searcher.added);
-        }
-        assertTrue("callback should be removed", searcher.removed);
-    }
-
-    public void testQueryCancellationCallbackNotRemovedWhenPartialDisallowed() throws Exception {
-        TrackingSearcher searcher = new TrackingSearcher(reader);
-        try (TestSearchContext ctx = createSearchContextWithAllowPartialResults(searcher, false)) {
-            QueryPhase.executeQuery(ctx);
-            assertNotNull("callback should be registered", searcher.added);
-        }
-        assertFalse("callback must stay registered for later phases", searcher.removed);
-    }
-
     private static final class TestSuggester extends Suggester<TestSuggestionContext> {
         private final ContextIndexSearcher contextIndexSearcher;
 
@@ -588,47 +570,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         @Override
         public final boolean isCacheable(LeafReaderContext ctx) {
             return false;
-        }
-    }
-
-    private TestSearchContext createSearchContextWithAllowPartialResults(TrackingSearcher searcher, boolean allowPartial) {
-        TestSearchContext context = new TestSearchContext(null, indexShard, searcher) {
-
-            @Override
-            public ShardSearchRequest request() {
-                SearchRequest req = new SearchRequest();
-                req.allowPartialSearchResults(allowPartial);
-                return new ShardSearchRequest(OriginalIndices.NONE, req, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1F, 0, null);
-            }
-        };
-
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-
-        return context;
-    }
-
-    private class TrackingSearcher extends ContextIndexSearcher {
-        Runnable added;
-        boolean removed;
-
-        TrackingSearcher(IndexReader reader) throws IOException {
-            super(
-                reader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                LuceneTestCase.MAYBE_CACHE_POLICY,
-                true
-            );
-        }
-
-        @Override
-        public void addQueryCancellation(Runnable r) {
-            added = r;
-        }
-
-        @Override
-        public void removeQueryCancellation(Runnable r) {
-            if (r == added) removed = true;
         }
     }
 }

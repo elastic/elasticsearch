@@ -26,10 +26,12 @@ teardown:
           agent:
             name: "agentNameValue"
             type: "agentTypeValue"
+          cloud:
+            region: "originalCloudRegion"
           message: |
             {
               "@timestamp": "2023-10-02T12:00:00Z",
-              "log.level": "overriddenCloudRegion",
+              "log.level": "WARN",
               "span": {
                 "id": "spanIdValue"
               },
@@ -51,10 +53,11 @@ teardown:
   - match: { _source.@timestamp: "2023-10-02T12:00:00Z" }
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
-  - match: { _source.resource.attributes.cloud\.region: "agentTypeValue" }
+  - match: { _source.resource.attributes.cloud\.region: "overriddenCloudRegion" }
   - match: { _source.resource.attributes.process\.args.0: "arg1" }
   - match: { _source.resource.attributes.process\.args.1: "arg2" }
   - match: { _source.body.text: "This is the actual log message" }
+  - match: { _source.severity_text: "WARN" }
   - match: { _source.attributes.tags.0: "tag1" }
   - match: { _source.attributes.tags.1: "tag2" }
 
@@ -90,9 +93,9 @@ teardown:
   - match: { _source.@timestamp: "2023-10-01T12:00:00Z" }
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
-  - match: { _source.resource.body.structured.message: "This is the actual log message" }
-  - match: { _source.resource.body.structured.nested.child: "nestedValue" }
-  - match: { _source.resource.body.structured.nested.next-level.grandchild: "deepValue" }
-  - match: { _source.resource.body.structured.nested.array.0: "value1" }
-  - match: { _source.resource.body.structured.nested.array.1: "value2" }
-  - match: { _source.resource.body.structured.cloud\.region: "cloudRegionValue" }
+  - match: { _source.body.structured.message: "This is the actual log message" }
+  - match: { _source.body.structured.nested.child: "nestedValue" }
+  - match: { _source.body.structured.nested.next-level.grandchild: "deepValue" }
+  - match: { _source.body.structured.nested.array.0: "value1" }
+  - match: { _source.body.structured.nested.array.1: "value2" }
+  - match: { _source.body.structured.cloud\.region: "cloudRegionValue" }

@@ -554,12 +554,12 @@ public class IndicesAndAliasesResolver {
         return (list == null) ? null : Arrays.asList(list);
     }
 
-    public static class RemoteClusterResolver extends RemoteClusterAware {
+    private static class RemoteClusterResolver extends RemoteClusterAware {
 
         private final CopyOnWriteArraySet<String> clusters;
 
         @SuppressWarnings("this-escape")
-        public RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+        private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
             clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
             listenForUpdates(clusterSettings);

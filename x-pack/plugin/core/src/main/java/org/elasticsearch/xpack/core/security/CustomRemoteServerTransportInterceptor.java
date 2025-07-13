@@ -18,7 +18,7 @@ public interface CustomRemoteServerTransportInterceptor {
     // TODO probably don't want this
     boolean enabled();
 
-    // TODO not the signature we want
+    // TODO this should be a wrapper around TransportInterceptor.AsyncSender instead
     <T extends TransportResponse> void sendRequest(
         TransportInterceptor.AsyncSender sender,
         Transport.Connection connection,
@@ -27,6 +27,8 @@ public interface CustomRemoteServerTransportInterceptor {
         TransportRequestOptions options,
         TransportResponseHandler<T> handler
     );
+
+    CustomServerTransportFilterAuthenticator getAuthenticator();
 
     class Default implements CustomRemoteServerTransportInterceptor {
         @Override
@@ -44,6 +46,11 @@ public interface CustomRemoteServerTransportInterceptor {
             TransportResponseHandler<T> handler
         ) {
             sender.sendRequest(connection, action, request, options, handler);
+        }
+
+        @Override
+        public CustomServerTransportFilterAuthenticator getAuthenticator() {
+            return new CustomServerTransportFilterAuthenticator.Default();
         }
     }
 }

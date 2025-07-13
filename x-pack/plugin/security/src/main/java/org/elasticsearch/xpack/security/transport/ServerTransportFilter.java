@@ -67,7 +67,7 @@ class ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
+    public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
         if (TransportCloseIndexAction.NAME.equals(action)
             || OpenIndexAction.NAME.equals(action)
             || TransportDeleteIndexAction.TYPE.name().equals(action)) {

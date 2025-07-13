@@ -557,18 +557,34 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final String profileName = entry.getKey();
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
             if (useRemoteClusterProfile) {
-                profileFilters.put(
-                    profileName,
-                    new CrossClusterAccessServerTransportFilter(
-                        crossClusterAccessAuthcService,
-                        authzService,
-                        threadPool.getThreadContext(),
-                        remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
-                        destructiveOperations,
-                        securityContext,
-                        licenseState
-                    )
-                );
+                // probably not how we want to do this but ballpark correct
+                if (customRemoteServerTransportInterceptor.enabled()) {
+                    profileFilters.put(
+                        profileName,
+                        new CustomRemoteServerTransportFilter(
+                            customRemoteServerTransportInterceptor.getAuthenticator(),
+                            authcService,
+                            authzService,
+                            threadPool.getThreadContext(),
+                            remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                            destructiveOperations,
+                            securityContext
+                        )
+                    );
+                } else {
+                    profileFilters.put(
+                        profileName,
+                        new CrossClusterAccessServerTransportFilter(
+                            crossClusterAccessAuthcService,
+                            authzService,
+                            threadPool.getThreadContext(),
+                            remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
+                            destructiveOperations,
+                            securityContext,
+                            licenseState
+                        )
+                    );
+                }
             } else {
                 profileFilters.put(
                     profileName,

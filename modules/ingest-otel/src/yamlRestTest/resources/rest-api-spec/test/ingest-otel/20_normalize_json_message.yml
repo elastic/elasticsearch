@@ -28,6 +28,9 @@ teardown:
             type: "agentTypeValue"
           cloud:
             region: "originalCloudRegion"
+            provider: "aws"
+            service:
+              name: "serviceNameValue"
           message: |
             {
               "@timestamp": "2023-10-02T12:00:00Z",
@@ -38,7 +41,11 @@ teardown:
               "trace.id": "traceIdValue",
               "message": "This is the actual log message",
               "cloud": {
-                "region": "overriddenCloudRegion"
+                "region": "overriddenCloudRegion",
+                "availability_zone": "availabilityZoneValue",
+                "service": {
+                  "type": "serviceTypeValue"
+                }
               },
               "process": {
                 "args": ["arg1", "arg2"]
@@ -54,6 +61,10 @@ teardown:
   - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
   - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
   - match: { _source.resource.attributes.cloud\.region: "overriddenCloudRegion" }
+  - match: { _source.resource.attributes.cloud\.availability_zone: "availabilityZoneValue" }
+  - match: { _source.resource.attributes.cloud\.provider: "aws" }
+  - match: { _source.resource.attributes.cloud\.service\.name: "serviceNameValue" }
+  - match: { _source.attributes.cloud\.service\.type: "serviceTypeValue" }
   - match: { _source.resource.attributes.process\.args.0: "arg1" }
   - match: { _source.resource.attributes.process\.args.1: "arg2" }
   - match: { _source.body.text: "This is the actual log message" }

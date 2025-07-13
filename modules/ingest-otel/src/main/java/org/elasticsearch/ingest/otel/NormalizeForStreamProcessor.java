@@ -121,25 +121,26 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> messageMap = (Map<String, Object>) parsedMessage;
                         if (messageMap.containsKey("@timestamp")) {
-                            // todo - log debug
-                            // ECS-JSON format - merge contents into root document
+                            log.debug(
+                                "Handling structured message with @timestamp field, assuming ECS-JSON format, merging into root document"
+                            );
                             source.remove("message");
                             JsonProcessor.recursiveMerge(source, messageMap);
                         } else {
-                            // todo - log debug
-                            // Non-ECS format - move to body.structured
+                            log.debug(
+                                "Handling structured message without @timestamp field, assuming non-ECS format, moving to 'body.structured'"
+                            );
                             body = new HashMap<>();
                             body.put(STRUCTURED_KEY, messageMap);
                             source.remove("message");
                         }
                     } else {
-                        // todo - log warning
+                        log.debug("Structured message is not a JSON object, keeping it as a string in 'body.text' field: {}", message);
                     }
                 }
             }
         } catch (Exception e) {
-            // todo - log warning
-            log.warn("");
+            log.warn("Failed to parse structured message, keeping it as a string in 'body.text' field: {}", e.getMessage());
         }
 
         Map<String, Object> newAttributes = new HashMap<>();
@@ -158,7 +159,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
 
         // if the body is not null, it means we have a structured log that we need to move to the body.structured field.
         if (body != null) {
-            source.put("body", body);
+            source.put(BODY_KEY, body);
         }
 
         source.put(ATTRIBUTES_KEY, newAttributes);

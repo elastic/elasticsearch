@@ -250,7 +250,7 @@ import static java.lang.invoke.MethodHandles.lookup;
 import static java.util.Collections.newSetFromMap;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.core.Types.forciblyCast;
-import static org.elasticsearch.snapshots.SnapshotsService.STATELESS_SNAPSHOT_ENABLED;
+import static org.elasticsearch.snapshots.SnapshotsService.STATELESS_SNAPSHOT_ENABLED_SETTING_NAME;
 
 /**
  * Class uses to perform all the operations needed to construct a {@link Node} instance.
@@ -1113,12 +1113,12 @@ class NodeConstruction {
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
 
-        final boolean statelessSnapshotEnabled = settings.getAsBoolean(STATELESS_SNAPSHOT_ENABLED, false);
+        final boolean statelessSnapshotEnabled = settings.getAsBoolean(STATELESS_SNAPSHOT_ENABLED_SETTING_NAME, false);
         final SnapshotShardContextFactory snapshotShardContextFactory;
         if (statelessSnapshotEnabled) {
             snapshotShardContextFactory = pluginsService.loadSingletonServiceProvider(SnapshotShardContextFactory.class, () -> {
                 throw new IllegalStateException(
-                    STATELESS_SNAPSHOT_ENABLED + " is enabled, but no SnapshotShardContextFactory is registered"
+                    STATELESS_SNAPSHOT_ENABLED_SETTING_NAME + " is enabled, but no SnapshotShardContextFactory is registered"
                 );
             });
         } else {

@@ -72,7 +72,6 @@ public class CacheTests extends ESTestCase {
     /**
      * Tests the put and get functionality across all known implementations of the Cache.
      */
-    @Test
     public void testPutAndGet() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Cache<String, String> cache = supplier.supply();
@@ -84,7 +83,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCount() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Cache<String, String> cache = supplier.supply();
@@ -97,7 +95,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testWeight() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             ToLongBiFunction<String, String> weigher = (key, value) -> value.length();
@@ -111,7 +108,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testInvalidate() throws ExecutionException, InterruptedException, TimeoutException {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             String key = randomAlphaOfLength(10);
@@ -133,7 +129,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testInvalidateAll() throws InterruptedException {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             LongAdder notified = new LongAdder();
@@ -160,7 +155,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testStats() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
@@ -198,7 +192,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testKeys() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
@@ -215,7 +208,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testKeysIterator() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
@@ -256,7 +248,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testValues() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
@@ -273,7 +264,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testValuesIterator() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
@@ -317,7 +307,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testForEach() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();
@@ -334,7 +323,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testRefresh() {
         for (CacheSupplier<String, String> supplier : knownImplementations) {
             Map<String, String> entries = new HashMap<>();

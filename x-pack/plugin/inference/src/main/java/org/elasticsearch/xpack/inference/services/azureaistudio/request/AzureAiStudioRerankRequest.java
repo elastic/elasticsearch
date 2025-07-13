@@ -69,7 +69,6 @@ public class AzureAiStudioRerankRequest extends AzureAiStudioRequest {
     }
 
     private AzureAiStudioRerankRequestEntity createRequestEntity() {
-        var taskSettings = rerankModel.getTaskSettings();
-        return new AzureAiStudioRerankRequestEntity(query, input, returnDocuments, topN, taskSettings);
+        return new AzureAiStudioRerankRequestEntity(query, input, returnDocuments, topN, rerankModel.getTaskSettings());
     }
 }

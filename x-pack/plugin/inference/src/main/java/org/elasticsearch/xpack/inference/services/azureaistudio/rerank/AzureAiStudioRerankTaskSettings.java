@@ -28,11 +28,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_N_FIELD;
 
 /**
- * Defines the task settings for the AzureAiStudio cohere rerank service.
- *
- * <p>
- * <a href="https://docs.cohere.com/v1/reference/rerank">See api docs for details.</a>
- * </p>
+ * Defines the rerank task settings for the AzureAiStudio service.
  */
 public class AzureAiStudioRerankTaskSettings implements TaskSettings {
     public static final String NAME = "azure_ai_studio_rerank_task_settings";
@@ -91,10 +87,6 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
         return topN;
     }
 
-    public boolean areAnyParametersAvailable() {
-        return returnDocuments != null && topN != null;
-    }
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -102,7 +94,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO_ADDED;
+        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;
     }
 
     @Override

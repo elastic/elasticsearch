@@ -22,25 +22,35 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioRerankRequestTaskSettingsTests extends ESTestCase {
     private static final String INVALID_FIELD_TYPE_STRING = "invalid";
+    private static final boolean RETURN_DOCUMENTS = true;
+    private static final int TOP_N = 2;
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        final var settings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
-        assertThat(settings, is(AzureAiStudioRerankRequestTaskSettings.EMPTY_SETTINGS));
+        assertThat(
+            AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of())),
+            is(AzureAiStudioRerankRequestTaskSettings.EMPTY_SETTINGS)
+        );
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
-        final var settings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
-        assertThat(settings, is(AzureAiStudioRerankRequestTaskSettings.EMPTY_SETTINGS));
+        assertThat(
+            AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model"))),
+            is(AzureAiStudioRerankRequestTaskSettings.EMPTY_SETTINGS)
+        );
     }
 
-    public void testFromMap_ReturnsDoSample() {
-        final var settings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of(RETURN_DOCUMENTS_FIELD, true)));
-        assertThat(settings.returnDocuments(), is(true));
+    public void testFromMap_ReturnsReturnDocuments() {
+        assertThat(
+            AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of(RETURN_DOCUMENTS_FIELD, RETURN_DOCUMENTS))),
+            is(new AzureAiStudioRerankRequestTaskSettings(RETURN_DOCUMENTS, null))
+        );
     }
 
     public void testFromMap_ReturnsTopN() {
-        final var settings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_N_FIELD, 2)));
-        assertThat(settings.topN(), is(2));
+        assertThat(
+            AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_N_FIELD, TOP_N))),
+            is(new AzureAiStudioRerankRequestTaskSettings(null, TOP_N))
+        );
     }
 
     public void testFromMap_ReturnDocumentsIsInvalidValue_ThrowsValidationException() {

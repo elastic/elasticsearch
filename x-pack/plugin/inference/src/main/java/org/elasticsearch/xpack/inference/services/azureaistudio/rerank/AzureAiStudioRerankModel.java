@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -24,34 +25,32 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.RERANK_URI_PATH;
 
 public class AzureAiStudioRerankModel extends AzureAiStudioModel {
-    public static AzureAiStudioRerankModel of(AzureAiStudioModel model, Map<String, Object> taskSettings) {
-        final var modelAsRerankModel = (AzureAiStudioRerankModel) model;
 
+    public static AzureAiStudioRerankModel of(AzureAiStudioRerankModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
-            return modelAsRerankModel;
+            return model;
         }
 
         final var requestTaskSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(taskSettings);
-        final var taskSettingToUse = AzureAiStudioRerankTaskSettings.of(modelAsRerankModel.getTaskSettings(), requestTaskSettings);
+        final var taskSettingToUse = AzureAiStudioRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
 
-        return new AzureAiStudioRerankModel(modelAsRerankModel, taskSettingToUse);
+        return new AzureAiStudioRerankModel(model, taskSettingToUse);
     }
 
     public AzureAiStudioRerankModel(
         String inferenceEntityId,
-        TaskType taskType,
-        String service,
         AzureAiStudioRerankServiceSettings serviceSettings,
         AzureAiStudioRerankTaskSettings taskSettings,
         DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, TaskType.RERANK, AzureAiStudioService.NAME, serviceSettings, taskSettings),
+            new ModelSecrets(secrets)
+        );
     }
 
     public AzureAiStudioRerankModel(
         String inferenceEntityId,
-        TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
@@ -59,8 +58,6 @@ public class AzureAiStudioRerankModel extends AzureAiStudioModel {
     ) {
         this(
             inferenceEntityId,
-            taskType,
-            service,
             AzureAiStudioRerankServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioRerankTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)

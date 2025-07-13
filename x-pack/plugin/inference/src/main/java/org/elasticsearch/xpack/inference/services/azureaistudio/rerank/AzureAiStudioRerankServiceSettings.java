@@ -31,7 +31,7 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     public static AzureAiStudioRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         final var validationException = new ValidationException();
 
-        final var settings = completionSettingsFromMap(map, validationException, context);
+        final var settings = rerankSettingsFromMap(map, validationException, context);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -40,7 +40,7 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
         return new AzureAiStudioRerankServiceSettings(settings);
     }
 
-    private static AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields completionSettingsFromMap(
+    private static AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields rerankSettingsFromMap(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context
@@ -80,7 +80,7 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO_ADDED;
+        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;
     }
 
     @Override

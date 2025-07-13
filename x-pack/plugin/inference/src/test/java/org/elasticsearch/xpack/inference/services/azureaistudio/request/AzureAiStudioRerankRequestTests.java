@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.RETURN_DOCUMENTS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_N_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -38,13 +39,9 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
         final var query = randomAlphaOfLength(3);
         final var apikey = randomAlphaOfLength(3);
         final var request = createRequest(TARGET_URI, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, apikey, query, input);
-        final var httpRequest = request.createHttpRequest();
-
-        final var httpPost = validateRequestUrlAndContentType(httpRequest, TARGET_URI + "/v1/rerank");
-        validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, apikey);
-
+        final var httpPost = getHttpPost(request, apikey);
         final var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get(QUERY), is(query));
         assertThat(requestMap.get(INPUT), is(List.of(input)));
     }
@@ -63,16 +60,42 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
             query,
             input
         );
+        final var httpPost = getHttpPost(request, apikey);
+        final var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get(QUERY), is(query));
+        assertThat(requestMap.get(INPUT), is(List.of(input)));
+        assertThat(requestMap.get(TOP_N_FIELD), is(TOP_N));
+    }
+
+    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithTopReturnDocumentsParam() throws IOException {
+        final var input = randomAlphaOfLength(3);
+        final var query = randomAlphaOfLength(3);
+        final var apikey = randomAlphaOfLength(3);
+        final var request = createRequest(
+            TARGET_URI,
+            AzureAiStudioProvider.COHERE,
+            AzureAiStudioEndpointType.TOKEN,
+            apikey,
+            true,
+            null,
+            query,
+            input
+        );
+        final var httpPost = getHttpPost(request, apikey);
+        final var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap.get(QUERY), is(query));
+        assertThat(requestMap.get(INPUT), is(List.of(input)));
+        assertThat(requestMap.get(RETURN_DOCUMENTS_FIELD), is(true));
+    }
+
+    private HttpPost getHttpPost(AzureAiStudioRerankRequest request, String apikey) {
         final var httpRequest = request.createHttpRequest();
 
         final var httpPost = validateRequestUrlAndContentType(httpRequest, TARGET_URI + "/v1/rerank");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, apikey);
-
-        final var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(4));
-        assertThat(requestMap.get(QUERY), is(query));
-        assertThat(requestMap.get(INPUT), is(List.of(input)));
-        assertThat(requestMap.get(TOP_N_FIELD), is(TOP_N));
+        return httpPost;
     }
 
     private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) {
@@ -131,6 +154,6 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
             topN,
             null
         );
-        return new AzureAiStudioRerankRequest(model, query, List.of(input), false, topN);
+        return new AzureAiStudioRerankRequest(model, query, List.of(input), returnDocuments, topN);
     }
 }

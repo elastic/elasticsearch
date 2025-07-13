@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.RETURN_DOCUMENTS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_N_FIELD;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioRerankTaskSettings> {
     private static final String INVALID_FIELD_TYPE_STRING = "invalid";
+    private static final int MAX_RETRIES = 3;
 
     public void testIsEmpty() {
         final var randomSettings = createRandom();
@@ -37,9 +39,51 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
         assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
-    public void testUpdatedTaskSettings() {
-        final var initialSettings = createRandom();
-        final var newSettings = createRandom();
+    public void testUpdatedTaskSettings_WithAllValues() {
+        final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
+        AzureAiStudioRerankTaskSettings newSettings;
+        int retries = 0;
+        do {
+            newSettings = createRandom();
+            retries++;
+        } while (newSettings.equals(initialSettings) && retries < MAX_RETRIES);
+        assertUpdateSettings(newSettings, initialSettings);
+    }
+
+    public void testUpdatedTaskSettings_WithReturnDocumentsValue() {
+        final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
+        AzureAiStudioRerankTaskSettings newSettings;
+        int retries = 0;
+        do {
+            newSettings = createRandomWithReturnDocuments();
+            retries++;
+        } while (newSettings.returnDocuments() == initialSettings.returnDocuments() && retries < MAX_RETRIES);
+        assertUpdateSettings(newSettings, initialSettings);
+    }
+
+    public void testUpdatedTaskSettings_WithTopNValue() {
+        final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
+        AzureAiStudioRerankTaskSettings newSettings;
+        int retries = 0;
+        do {
+            newSettings = createRandomWithTopN();
+            retries++;
+        } while (Objects.equals(newSettings.topN(), initialSettings.topN()) && retries < MAX_RETRIES);
+        assertUpdateSettings(newSettings, initialSettings);
+    }
+
+    public void testUpdatedTaskSettings_WithNoValues() {
+        AzureAiStudioRerankTaskSettings initialSettings;
+        final AzureAiStudioRerankTaskSettings newSettings = new AzureAiStudioRerankTaskSettings(null, null);
+        int retries = 0;
+        do {
+            initialSettings = createRandom();
+            retries++;
+        } while (newSettings.equals(initialSettings) && retries < MAX_RETRIES);
+        assertUpdateSettings(newSettings, initialSettings);
+    }
+
+    private void assertUpdateSettings(AzureAiStudioRerankTaskSettings newSettings, AzureAiStudioRerankTaskSettings initialSettings) {
         final var settingsMap = new HashMap<String, Object>();
         if (newSettings.returnDocuments() != null) settingsMap.put(RETURN_DOCUMENTS_FIELD, newSettings.returnDocuments());
         if (newSettings.topN() != null) settingsMap.put(TOP_N_FIELD, newSettings.topN());
@@ -47,7 +91,6 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
         final AzureAiStudioRerankTaskSettings updatedSettings = (AzureAiStudioRerankTaskSettings) initialSettings.updatedTaskSettings(
             Collections.unmodifiableMap(settingsMap)
         );
-
         assertEquals(
             newSettings.returnDocuments() == null ? initialSettings.returnDocuments() : newSettings.returnDocuments(),
             updatedSettings.returnDocuments()
@@ -56,26 +99,32 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_AllValues() {
-        final var taskMap = getTaskSettingsMap(true, 2);
-        assertEquals(new AzureAiStudioRerankTaskSettings(true, 2), AzureAiStudioRerankTaskSettings.fromMap(taskMap));
+        assertEquals(new AzureAiStudioRerankTaskSettings(true, 2), AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(true, 2)));
+    }
+
+    public void testFromMap_ReturnDocuments() {
+        assertEquals(
+            new AzureAiStudioRerankTaskSettings(true, null),
+            AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(true, null))
+        );
+    }
+
+    public void testFromMap_TopN() {
+        assertEquals(new AzureAiStudioRerankTaskSettings(null, 2), AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(null, 2)));
     }
 
     public void testFromMap_ReturnDocumentsIsInvalidValue_ThrowsValidationException() {
-        final var taskMap = getTaskSettingsMap(true, 2);
-        taskMap.put(RETURN_DOCUMENTS_FIELD, INVALID_FIELD_TYPE_STRING);
-
+        getTaskSettingsMap(true, 2).put(RETURN_DOCUMENTS_FIELD, INVALID_FIELD_TYPE_STRING);
         assertThrowsValidationExceptionIfStringValueProvidedFor(RETURN_DOCUMENTS_FIELD);
     }
 
     public void testFromMap_TopNIsInvalidValue_ThrowsValidationException() {
-        final var taskMap = getTaskSettingsMap(true, 2);
-        taskMap.put(TOP_N_FIELD, INVALID_FIELD_TYPE_STRING);
-
+        getTaskSettingsMap(true, 2).put(TOP_N_FIELD, INVALID_FIELD_TYPE_STRING);
         assertThrowsValidationExceptionIfStringValueProvidedFor(TOP_N_FIELD);
     }
 
     public void testFromMap_WithNoValues_DoesNotThrowException() {
-        final var taskMap = AzureAiStudioRerankTaskSettings.fromMap(new HashMap<String, Object>(Map.of()));
+        final var taskMap = AzureAiStudioRerankTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertNull(taskMap.returnDocuments());
         assertNull(taskMap.topN());
     }
@@ -100,25 +149,37 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioRerankTaskSettings(null, 1)));
     }
 
+    public void testOverrideWith_UsesAllParametersOverride() {
+        final var settings = AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(false, 2));
+        final var overrideSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(getTaskSettingsMap(true, 1));
+        final var overriddenTaskSettings = AzureAiStudioRerankTaskSettings.of(settings, overrideSettings);
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioRerankTaskSettings(true, 1)));
+    }
+
     public void testToXContent_WithoutParameters() throws IOException {
-        final var settings = AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(null, null));
+        assertThat(getXContentResult(null, null), is("{}"));
+    }
 
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        settings.toXContent(builder, null);
-        final String xContentResult = Strings.toString(builder);
+    public void testToXContent_WithReturnDocumentsParameter() throws IOException {
+        assertThat(getXContentResult(true, null), is("""
+            {"return_documents":true}"""));
+    }
 
-        assertThat(xContentResult, is("{}"));
+    public void testToXContent_WithTopNParameter() throws IOException {
+        assertThat(getXContentResult(null, 2), is("""
+            {"top_n":2}"""));
     }
 
     public void testToXContent_WithParameters() throws IOException {
-        final var settings = AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(true, 2));
+        assertThat(getXContentResult(true, 2), is("""
+            {"return_documents":true,"top_n":2}"""));
+    }
 
+    private String getXContentResult(Boolean returnDocuments, Integer topN) throws IOException {
+        final var settings = AzureAiStudioRerankTaskSettings.fromMap(getTaskSettingsMap(returnDocuments, topN));
         final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        final String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"return_documents":true,"top_n":2}"""));
+        return Strings.toString(builder);
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable Boolean returnDocuments, @Nullable Integer topN) {
@@ -157,9 +218,17 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
 
     private static AzureAiStudioRerankTaskSettings createRandom() {
         return new AzureAiStudioRerankTaskSettings(
-            randomFrom(randomFrom(new Boolean[] { null, randomBoolean() })),
+            randomFrom(new Boolean[] { null, randomBoolean() }),
             randomFrom(new Integer[] { null, randomNonNegativeInt() })
         );
+    }
+
+    private static AzureAiStudioRerankTaskSettings createRandomWithReturnDocuments() {
+        return new AzureAiStudioRerankTaskSettings(randomFrom(new Boolean[] { null, randomBoolean() }), null);
+    }
+
+    private static AzureAiStudioRerankTaskSettings createRandomWithTopN() {
+        return new AzureAiStudioRerankTaskSettings(null, randomFrom(new Integer[] { null, randomNonNegativeInt() }));
     }
 
     private void assertThrowsValidationExceptionIfStringValueProvidedFor(String field) {

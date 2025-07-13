@@ -248,7 +248,9 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 ),
                 modelVerificationListener
             );
+            // providerAllowsEndpointTypeForTask
         }
+
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {

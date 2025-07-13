@@ -15,11 +15,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Request to update some documents. That means you can't change their type, id, index, or anything like that. This implements
@@ -31,10 +33,16 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {
+
     /**
      * Ingest pipeline to set on index requests made by this action.
      */
     private String pipeline;
+
+    /**
+     * Optional doc field to allow simplified partial updates.
+     */
+    private Map<String, Object> doc;
 
     public UpdateByQueryRequest() {
         this(new SearchRequest());
@@ -51,6 +59,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public UpdateByQueryRequest(StreamInput in) throws IOException {
         super(in);
         pipeline = in.readOptionalString();
+        doc = in.readMap(StreamInput::readString, StreamInput::readGenericValue); // Deserialize doc
     }
 
     UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
@@ -63,6 +72,21 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public UpdateByQueryRequest setPipeline(String pipeline) {
         this.pipeline = pipeline;
         return this;
+    }
+
+    /**
+     * Optional doc to be applied to matched documents.
+     */
+    public UpdateByQueryRequest setDoc(Map<String, Object> doc) {
+        this.doc = doc;
+        return this;
+    }
+
+    /**
+     * Get the doc used for partial update, if present.
+     */
+    public Map<String, Object> getDoc() {
+        return doc;
     }
 
     /**
@@ -136,6 +160,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask, totalSlices);
         request.setPipeline(pipeline);
+        request.setDoc(doc); // Ensure doc is copied to sliced request
         return request;
     }
 
@@ -172,6 +197,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(pipeline);
+        out.writeMap(doc, StreamOutput::writeString, StreamOutput::writeGenericValue); // Serialize doc
     }
 
     @Override
@@ -180,6 +206,9 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         if (getScript() != null) {
             builder.field("script");
             getScript().toXContent(builder, params);
+        }
+        if (doc != null) {
+            builder.field("doc", doc); // Include doc in output
         }
         getSearchRequest().source().innerToXContent(builder, params);
         builder.endObject();

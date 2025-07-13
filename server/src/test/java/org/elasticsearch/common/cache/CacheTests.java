@@ -11,7 +11,6 @@ package org.elasticsearch.common.cache;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;

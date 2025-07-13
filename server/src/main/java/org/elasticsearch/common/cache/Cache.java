@@ -93,7 +93,7 @@ public interface Cache<Key, Value> {
      * A removal notification will be issued for evicted entries with
      * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} EVICTED
      */
-    default void refresh() {};
+    default void refresh() {}
 
     /**
      * The number of entries in the cache.
@@ -116,7 +116,8 @@ public interface Cache<Key, Value> {
      * added to the cache in that order, we might only observe B. Implementations should allow the cache to be modified while transversing
      * but only {@link Iterator#remove()} is guaranteed to not affect further transversal.
      * Implementations might guarantee a specific sequencing or other stronger guarantees.
-     * {@link Iterator#remove()} does not issue a removal notification.
+     * {@link Iterator#remove()} issues a removal notification with
+     * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      *
      * @return an {@link Iterable} over the keys in the cache
      */
@@ -128,7 +129,8 @@ public interface Cache<Key, Value> {
      * added to the cache, and in that order, we might only observe B. Implementations should allow the cache to be modified while
      * transversing but only {@link Iterator#remove()} is guaranteed to not affect further transversal.
      * Implementations might guarantee a specific sequencing or other stronger guarantees.
-     * {@link Iterator#remove()} does not issue a removal notification
+     * {@link Iterator#remove()} issues a removal notification with
+     * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
      *
      * @return an {@link Iterable} over the values in the cache
      */

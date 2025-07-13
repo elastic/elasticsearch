@@ -37,4 +37,13 @@ public class RemovalNotification<K, V> {
     public RemovalReason getRemovalReason() {
         return removalReason;
     }
+
+    @Override
+    public String toString() {
+        return "RemovalNotification{" +
+            "key=" + key +
+            ", value=" + value +
+            ", removalReason=" + removalReason +
+            '}';
+    }
 }

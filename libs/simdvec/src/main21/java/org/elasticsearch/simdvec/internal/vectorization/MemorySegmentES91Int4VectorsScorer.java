@@ -182,21 +182,21 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
     }
 
     @Override
-    public void int4DotProductBulk(byte[] q, float[] scores) throws IOException {
+    public void int4DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 512 || PanamaESVectorUtilSupport.VECTOR_BITSIZE == 256) {
-            dotProductBulk(q, scores);
+            dotProductBulk(q, count, scores);
             return;
         }
         if (dimensions >= 32 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            int4DotProductBody128Bulk(q, scores);
+            int4DotProductBody128Bulk(q, count, scores);
             return;
         }
-        super.int4DotProductBulk(q, scores);
+        super.int4DotProductBulk(q, count, scores);
     }
 
-    private void int4DotProductBody128Bulk(byte[] q, float[] scores) throws IOException {
+    private void int4DotProductBody128Bulk(byte[] q, int count, float[] scores) throws IOException {
         int limit = BYTE_SPECIES_128.loopBound(dimensions);
-        for (int iter = 0; iter < BULK_SIZE; iter++) {
+        for (int iter = 0; iter < count; iter++) {
             int sum = 0;
             long offset = in.getFilePointer();
             for (int i = 0; i < limit; i += 1024) {
@@ -235,27 +235,27 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
         }
     }
 
-    private void dotProductBulk(byte[] q, float[] scores) throws IOException {
+    private void dotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         // only vectorize if we'll at least enter the loop a single time, and we have at least 128-bit
         // vectors (256-bit on intel to dodge performance landmines)
         if (dimensions >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             // compute vectorized dot product consistent with VPDPBUSD instruction
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 512) {
-                dotProductBody512Bulk(q, scores);
+                dotProductBody512Bulk(q, count, scores);
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 256) {
-                dotProductBody256Bulk(q, scores);
+                dotProductBody256Bulk(q, count, scores);
             } else {
                 throw new IllegalArgumentException("Unreacheable statement");
             }
             return;
         }
-        super.int4DotProductBulk(q, scores);
+        super.int4DotProductBulk(q, count, scores);
     }
 
     /** vectorized dot product body (512 bit vectors) */
-    private void dotProductBody512Bulk(byte[] q, float[] scores) throws IOException {
+    private void dotProductBody512Bulk(byte[] q, int count, float[] scores) throws IOException {
         int limit = BYTE_SPECIES_128.loopBound(dimensions);
-        for (int iter = 0; iter < BULK_SIZE; iter++) {
+        for (int iter = 0; iter < count; iter++) {
             IntVector acc = IntVector.zero(INT_SPECIES_512);
             long offset = in.getFilePointer();
             int i = 0;
@@ -284,9 +284,9 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
     }
 
     /** vectorized dot product body (256 bit vectors) */
-    private void dotProductBody256Bulk(byte[] q, float[] scores) throws IOException {
+    private void dotProductBody256Bulk(byte[] q, int count, float[] scores) throws IOException {
         int limit = BYTE_SPECIES_128.loopBound(dimensions);
-        for (int iter = 0; iter < BULK_SIZE; iter++) {
+        for (int iter = 0; iter < count; iter++) {
             IntVector acc = IntVector.zero(INT_SPECIES_256);
             long offset = in.getFilePointer();
             int i = 0;
@@ -320,7 +320,7 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
         float centroidDp,
         float[] scores
     ) throws IOException {
-        int4DotProductBulk(q, scores);
+        int4DotProductBulk(q, BULK_SIZE, scores);
         applyCorrectionsBulk(
             queryLowerInterval,
             queryUpperInterval,

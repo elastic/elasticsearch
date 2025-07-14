@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Streams;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
@@ -65,7 +66,6 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
     @Input
     public abstract Property<String> getReleaseVersionMajorMinor();
 
-
     @TaskAction
     public void generateTransportVersionData() {
         var tvDataDir = Objects.requireNonNull(getDataFileDirectory().getAsFile().get());
@@ -85,7 +85,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         var priorLatestTVSetDataFileName = getPriorLatestTVSetFilename(tvDataDir, major, minor);
         var priorLatestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, priorLatestTVSetDataFileName);
         if (priorLatestTVSetData == null) {
-            // TODO Can this ever be null?  No, must populate the data file for the latest branch we can no longer backport to.
+            // TODO Can this ever be null? No, must populate the data file for the latest branch we can no longer backport to.
         }
 
         // Bump the version number
@@ -96,7 +96,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
                 // This is major bump
                 nextVersion = major * 1_000_000;
             } else {
-                // This is a minor bump.  Just increment as usual but from the prior version.
+                // This is a minor bump. Just increment as usual but from the prior version.
                 assert priorLatestTVSetData != null;
                 nextVersion = bumpVersionNumber(priorLatestTVSetData.ids.getFirst());
             }
@@ -104,7 +104,6 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             nextVersion = bumpVersionNumber(latestTVSetData.ids.getFirst());
         }
         System.out.println("Latest transport version set: " + latestTVSetData.name + " with IDs: " + latestTVSetData.ids);
-
 
         // Load the tvSetData for the specified name.
         var tvSetDataFromFile = TransportVersionUtils.getTVSetData(tvDataDir, newTVName);
@@ -114,7 +113,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             // Create a new data file for the case where this is a new TV
             new TransportVersionUtils.TransportVersionSetData(newTVName, List.of(nextVersion)).writeToDataDir(tvDataDir);
         } else {
-            // This is not a new TV.  We are backporting an existing TVSet.
+            // This is not a new TV. We are backporting an existing TVSet.
             // Check to ensure that there isn't already a TV number for this change (e.g. if this task has been run twice).
             var existingIDsForReleaseVersion = tvSetDataFromFile.ids.stream().filter(id -> {
                 var priorLatestID = priorLatestTVSetData.ids.getFirst();
@@ -122,8 +121,12 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
                 return priorLatestID < id && id < latestID;
             }).toList();
             if (existingIDsForReleaseVersion.isEmpty() == false) {
-                throw new GradleException("TransportVersion already exists for this release! Release version: " +
-                    majorMinor + "TransportVersion Id: " + existingIDsForReleaseVersion.stream().findFirst());
+                throw new GradleException(
+                    "TransportVersion already exists for this release! Release version: "
+                        + majorMinor
+                        + "TransportVersion Id: "
+                        + existingIDsForReleaseVersion.stream().findFirst()
+                );
             }
 
             // Update the existing data file for the backport.
@@ -141,8 +144,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         );
     }
 
-
-    // TODO account for bumping majors.  Need to make a new data file too.
+    // TODO account for bumping majors. Need to make a new data file too.
     private static int bumpVersionNumber(int versionNumber) {
         var main = false; // TODO how do we know if we are on main?
 
@@ -184,7 +186,10 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
                 var localMajor = Integer.parseInt(matcher.group(1));
                 var localMinor = Integer.parseInt(matcher.group(2));
                 return localMajor == major - 1 ? Stream.of(localMinor) : Stream.empty();
-            }).sorted().toList().getLast();
+            })
+            .sorted()
+            .toList()
+            .getLast();
 
         return formatLatestTVSetFilename(major - 1, highestMinorOfPrevMajor);
     }

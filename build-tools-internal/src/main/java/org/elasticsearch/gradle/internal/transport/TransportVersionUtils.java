@@ -21,11 +21,9 @@ public class TransportVersionUtils {
     public static final String LATEST_SUFFIX = "-LATEST.json";
     public static final String JSON_SUFFIX = ".json";
 
-
     public static class TransportVersionSetData implements Serializable {
         public String name;
         public List<Integer> ids;
-
 
         public TransportVersionSetData(String name, List<Integer> ids) {
             this.name = name;
@@ -50,7 +48,6 @@ public class TransportVersionUtils {
             throw new RuntimeException("Failed to write the TransportVersionSet data file: " + tvDataDir.getAbsolutePath(), e);
         }
     }
-
 
     public static TransportVersionSetData getLatestTVSetData(File tvDataDir, String majorMinor) {
         return getTVSetData(tvDataDir.toPath().resolve(majorMinor + LATEST_SUFFIX));

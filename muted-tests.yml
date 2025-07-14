@@ -538,6 +538,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliases
   issue: https://github.com/elastic/elasticsearch/issues/131166
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=field_caps/40_time_series/Get simple time series field caps}
+  issue: https://github.com/elastic/elasticsearch/issues/131225
 
 # Examples:
 #

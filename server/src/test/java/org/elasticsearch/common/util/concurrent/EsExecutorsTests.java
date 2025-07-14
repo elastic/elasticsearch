@@ -675,6 +675,7 @@ public class EsExecutorsTests extends ESTestCase {
         final int max = between(min + 1, 6);
 
         {
+            var executionTimeEwma = randomDoubleBetween(0.01, 0.1, true);
             ThreadPoolExecutor pool = EsExecutors.newScaling(
                 getClass().getName() + "/" + getTestName(),
                 min,
@@ -684,7 +685,9 @@ public class EsExecutorsTests extends ESTestCase {
                 randomBoolean(),
                 EsExecutors.daemonThreadFactory("test"),
                 threadContext,
-                new EsExecutors.TaskTrackingConfig(randomBoolean(), randomDoubleBetween(0.01, 0.1, true))
+                randomBoolean()
+                    ? EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(executionTimeEwma).build()
+                    : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(executionTimeEwma).build()
             );
             assertThat(pool, instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
         }

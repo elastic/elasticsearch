@@ -629,10 +629,16 @@ public class MultiClustersIT extends ESRestTestCase {
             """, includeCCSMetadata);
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         Predicate<Doc> filter = d -> false == (d.color.contains("blue") || d.color.contains("red"));
-        var values = List.of(
-            List.of((int) remoteDocs.stream().filter(filter).count(), REMOTE_CLUSTER_NAME + ":" + remoteIndex),
-            List.of((int) localDocs.stream().filter(filter).count(), localIndex)
-        );
+
+        var values = new ArrayList<>();
+        int remoteCount = (int) remoteDocs.stream().filter(filter).count();
+        int localCount = (int) localDocs.stream().filter(filter).count();
+        if (remoteCount > 0) {
+            values.add(List.of(remoteCount, REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        }
+        if (localCount > 0) {
+            values.add(List.of(localCount, localIndex));
+        }
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 

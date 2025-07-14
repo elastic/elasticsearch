@@ -59,7 +59,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();

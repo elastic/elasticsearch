@@ -534,7 +534,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             TestEntitlementBootstrap.setActive(false == withoutEntitlements);
             TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
             if (entitledPackages != null) {
-                assert withEntitlementsOnTestCode == false : "Cannot use @WithEntitlementsOnTestCode together with @EntitledTestPackages";
                 assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
                 TestEntitlementBootstrap.setEntitledTestPackages(entitledPackages.value());
             }

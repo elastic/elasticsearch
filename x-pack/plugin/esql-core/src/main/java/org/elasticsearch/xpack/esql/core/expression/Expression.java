@@ -86,23 +86,12 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     /**
-     * Whether the expression can be evaluated partially, for example we might be able to fold and expression in an argument of the function but not remove the function completely
-     */
-    public boolean partiallyFoldable() {
-        return false;
-    }
-
-    /**
      * Evaluate this expression statically to a constant. It is an error to call
      * this if {@link #foldable} returns false.
      */
     public Object fold(FoldContext ctx) {
         // TODO After removing FoldContext.unbounded from non-test code examine all calls
         // for places we should use instanceof Literal instead
-        throw new QlIllegalArgumentException("Should not fold expression");
-    }
-
-    public Expression partiallyFold(FoldContext ctx) {
         throw new QlIllegalArgumentException("Should not fold expression");
     }
 

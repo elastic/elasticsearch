@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -246,28 +245,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Map<String, Object> matchOptions = new HashMap<>();
         populateOptionsMap((MapExpression) options(), matchOptions, TypeResolutions.ParamOrdinal.FOURTH, sourceText(), ALLOWED_OPTIONS);
         return matchOptions;
-    }
-
-    @Override
-    public boolean partiallyFoldable() {
-        return true;
-    }
-
-    @Override
-    public Expression partiallyFold(FoldContext ctx) {
-        if (k instanceof Literal) {
-            // already folded, return self
-            return this;
-        }
-        Object foldedK = k.fold(ctx);
-        if (foldedK instanceof Number == false) {
-            throw new EsqlIllegalArgumentException(format(null, "K value must be a constant integer in [{}], found [{}]", source(), k()));
-        }
-        List<Expression> newChildren = new ArrayList<>(this.children());
-        newChildren.set(2, new Literal(source(), foldedK, INTEGER));
-        Expression replaced = this.replaceChildren(newChildren);
-        log.error("Partially folded knn function [{}] with k value [{}]", replaced, foldedK);
-        return replaced;
     }
 
     @Override

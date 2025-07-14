@@ -128,8 +128,10 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
 
-    public record DatetimeEmptyBucketDef(boolean emitEmptyBuckets, long from, long to, Rounding.Prepared rounding) implements BlockHash.EmptyBucketDef {}
-    public record NumericEmptyBucketDef(boolean emitEmptyBuckets, double from, double to, double rounding) implements BlockHash.EmptyBucketDef {}
+    public record DatetimeEmptyBucketDef(boolean emitEmptyBuckets, long from, long to, Rounding.Prepared rounding)
+        implements BlockHash.EmptyBucketDef {}
+    public record NumericEmptyBucketDef(boolean emitEmptyBuckets, double from, double to, double rounding)
+        implements BlockHash.EmptyBucketDef {}
 
     public interface EmptyBucketDef {
         boolean emitEmptyBuckets();

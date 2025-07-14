@@ -371,7 +371,9 @@ public class HashAggregationOperator implements Operator {
             )
         ) {
             int i = 0;
-            for (double bucket = round(Math.floor(group.from() / roundTo) * roundTo, 2); bucket < group.to(); bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
+            for (double bucket = round(Math.floor(group.from() / roundTo) * roundTo, 2);
+                 bucket < group.to();
+                 bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
                 newBlockBuilder.appendDouble(bucket);
                 i++;
             }
@@ -434,7 +436,9 @@ public class HashAggregationOperator implements Operator {
         double from = group.from();
         double to = group.to();
         int result = 0;
-        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
+        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2);
+             bucket < to;
+             bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
             result++;
         }
         return result;

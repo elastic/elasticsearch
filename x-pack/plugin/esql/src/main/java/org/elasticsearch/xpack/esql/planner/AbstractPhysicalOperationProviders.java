@@ -431,7 +431,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     (double) bucket.from().fold(foldContext),
                     (double) bucket.to().fold(foldContext)
                 )
-        );
+            );
     }
 
     /**

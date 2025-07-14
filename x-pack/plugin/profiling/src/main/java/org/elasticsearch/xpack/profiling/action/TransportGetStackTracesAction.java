@@ -403,7 +403,6 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 long indexSamplingFactor = Math.round(1 / eventsIndex.getSampleRate()); // for example, 5^2 = 25 for profiling-events-5pow02
                 int bucketCount = stacktraces.getBuckets().size();
                 long eventCount = sample.getDocCount();
-                AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
                 long maxSamplingFrequency = getAggValueAsLong(searchResponse, "max_freq") <= 0
                     ? (long) DEFAULT_SAMPLING_FREQUENCY
                     : getAggValueAsLong(searchResponse, "max_freq");
@@ -413,13 +412,24 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     eventCount,
                     bucketCount,
                     indexSamplingFactor,
-                    upscaledEventCount.get()
+                    eventCount * indexSamplingFactor
                 );
 
+                RandomGenerator rng = new Random(rngSeed);
+                double randomSamplerCorrection = getRandomSamplerCorrection(eventCount);
+
+                eventCount = 0;
                 boolean mixedFrequency = false;
                 Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(bucketCount);
                 for (InternalComposite.InternalBucket stacktraceBucket : stacktraces.getBuckets()) {
-                    long count = stacktraceBucket.getDocCount() * indexSamplingFactor;
+                    long sampledCount = downsampleEvents(rng, randomSamplerCorrection, stacktraceBucket.getDocCount());
+                    if (sampledCount <= 0) {
+                        bucketCount--;
+                        continue; // skip bucket
+                    }
+
+                    long count = sampledCount * indexSamplingFactor;
+                    eventCount += sampledCount;
 
                     TraceEventID eventID = getTraceEventID(stacktraceBucket);
                     stackTraceEvents.compute(eventID, (k, event) -> {
@@ -450,8 +460,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     }
                 }
 
+                AtomicLong upscaledEventCount = new AtomicLong(eventCount * indexSamplingFactor);
                 if (mixedFrequency) {
-                    RandomGenerator r = new Random(rngSeed);
                     upscaledEventCount.set(0);
 
                     // Events have different frequencies.
@@ -470,7 +480,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         double newCount = event.count * samplingFactor;
                         long integerPart = (long) newCount;
                         double fractionalPart = newCount - integerPart;
-                        event.count = integerPart + (r.nextDouble() < fractionalPart ? 1 : 0);
+                        event.count = integerPart + (rng.nextDouble() < fractionalPart ? 1 : 0);
                         upscaledEventCount.addAndGet(event.count);
                     });
                 }
@@ -479,15 +489,38 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
                 responseBuilder.setSamplingFrequency(maxSamplingFrequency);
                 responseBuilder.setTotalSamples(upscaledEventCount.get());
-                log.debug(
-                    "Found [{}] events in [{}] buckets, upscaled to [{}] events).",
-                    eventCount,
-                    bucketCount,
-                    upscaledEventCount.get()
-                );
+                log.debug("Use [{}] events in [{}] buckets, upscaled to [{}] events).", eventCount, bucketCount, upscaledEventCount.get());
 
                 return stackTraceEvents;
             }));
+    }
+
+    private static double getRandomSamplerCorrection(long eventCount) {
+        double randomSamplerCorrection = 1.0d;
+        if (eventCount > MAX_TRACE_EVENTS_RESULT_SIZE / 2) {
+            // Since the random sampler aggregation does not support sampling rates between 0.5 and 1.0,
+            // we can have up to 40k events in the response when 20k would be statistically sufficient.
+            // In order to reduce latency for stacktrace and stackframe lookups, we add another sampling factor
+            // to reduce the number of events to 20k (which reduces the number of unique stacktrace ids).
+            // e.g. if we have 40k events, we need to reduce the events by 2x (randomSamplerCorrection is 0.5).
+            randomSamplerCorrection = (double) MAX_TRACE_EVENTS_RESULT_SIZE / (double) (2 * eventCount);
+        }
+        return randomSamplerCorrection;
+    }
+
+    private static long downsampleEvents(RandomGenerator r, double samplingRate, long count) {
+        if (samplingRate == 1.0d) {
+            // no downsampling needed
+            return count;
+        }
+
+        long sampledCount = 0;
+        for (long i = 0; i < count; i++) {
+            if (r.nextDouble() < samplingRate) {
+                sampledCount++;
+            }
+        }
+        return sampledCount;
     }
 
     private static TraceEventID getTraceEventID(InternalComposite.InternalBucket stacktraceBucket) {

@@ -9,6 +9,10 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+/**
+ * Iterates over two sets of buckets in parallel, bringing them to the same scale
+ * and merging buckets which exist in both.
+ */
 final class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
 
     private final ExponentialHistogram.BucketIterator itA;

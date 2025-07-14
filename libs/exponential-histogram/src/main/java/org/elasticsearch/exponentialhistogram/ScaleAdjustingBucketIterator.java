@@ -11,6 +11,11 @@ package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 
+/**
+ * Iterates over buckets while also adjusting the scale.
+ * When scaling down, this can cause multiple buckets to collapse into a single one.
+ * This iterator ensures that they are properly merged in this case.
+ */
 final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
 
     private final ExponentialHistogram.BucketIterator delegate;

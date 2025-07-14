@@ -1210,7 +1210,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             for (int i = 0; i < size; i++) {
                 projectBuilder.put(IndexTemplateMetadata.readFrom(in));
             }
-            readBwcCustoms(in, builder, projectBuilder);
+            readBwcCustoms(in, builder);
 
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -1229,7 +1229,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return builder.build();
     }
 
-    private static void readBwcCustoms(StreamInput in, Builder builder, ProjectMetadata.Builder projectBuilder) throws IOException {
+    private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        final ProjectMetadata.Builder projectBuilder = builder.getProject(ProjectId.DEFAULT);
         final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
         final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
         final int count = in.readVInt();

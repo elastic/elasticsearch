@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -355,7 +356,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), queryStringOptions());
+        return new QueryStringQuery(source(), FunctionUtils.queryAsString(query(), sourceText()), Map.of(), queryStringOptions());
     }
 
     @Override

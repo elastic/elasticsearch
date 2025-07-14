@@ -247,7 +247,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         return matchOptions;
     }
 
-    @Override
     public List<Number> queryAsObject() {
         // we need to check that we got a list and every element in the list is a number
         Expression query = query();

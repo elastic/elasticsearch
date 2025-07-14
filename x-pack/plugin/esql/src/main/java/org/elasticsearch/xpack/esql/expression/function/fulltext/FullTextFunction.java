@@ -133,15 +133,6 @@ public abstract class FullTextFunction extends Function
         return query;
     }
 
-    /**
-     * Returns the resulting query as an object
-     *
-     * @return query expression as an object
-     */
-    public Object queryAsObject() {
-        return FunctionUtils.queryAsObject(query(), sourceText());
-    }
-
     @Override
     public Nullability nullable() {
         return Nullability.FALSE;

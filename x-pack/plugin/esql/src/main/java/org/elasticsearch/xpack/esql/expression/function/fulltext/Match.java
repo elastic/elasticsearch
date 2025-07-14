@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -403,9 +404,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         };
     }
 
-    @Override
     public Object queryAsObject() {
-        Object queryAsObject = super.queryAsObject();
+        Object queryAsObject = FunctionUtils.queryAsObject(query(), sourceText());
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {

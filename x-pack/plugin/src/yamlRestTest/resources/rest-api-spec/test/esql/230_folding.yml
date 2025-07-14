@@ -141,7 +141,7 @@ SAMPLE function with constant folding:
 
 ---
 
-Sample function with negative limit value after folding:
+SAMPLE function with negative limit value after folding:
   - do:
       catch: bad_request
       esql.query:
@@ -156,7 +156,7 @@ Sample function with negative limit value after folding:
 
 ---
 
-Match function with foldable query:
+MATCH function with foldable query:
   - do:
       esql.query:
         body:
@@ -179,7 +179,7 @@ Match function with foldable query:
 
 ---
 
-Match function with non-foldable query:
+MATCH function with non-foldable query:
   - do:
       catch: bad_request
       esql.query:

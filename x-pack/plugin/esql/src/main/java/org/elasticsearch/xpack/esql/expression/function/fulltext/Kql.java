@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -94,7 +95,7 @@ public class Kql extends FullTextFunction {
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new KqlQuery(source(), Objects.toString(queryAsObject()));
+        return new KqlQuery(source(), FunctionUtils.queryAsString(query(), sourceText()));
     }
 
     @Override

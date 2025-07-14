@@ -85,9 +85,8 @@ public class FunctionUtils {
             failures.add(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
         }
         if (queryField instanceof Literal literal) {
-            String value = BytesRefs.toString(literal.value());
-            if (value == null) {
-                failures.add(fail(queryField, "Invalid query value in [{}], found [{}]", sourceText, value));
+            if (literal.value() == null) {
+                failures.add(fail(queryField, "Invalid query value in [{}], found [{}]", sourceText, literal.value()));
             }
         } else {
             // it is expected that the expression is a literal after folding
@@ -97,6 +96,15 @@ public class FunctionUtils {
     }
 
     public static Object queryAsObject(Expression queryField, String sourceText) {
+        if (queryField instanceof Literal literal) {
+            return literal.value();
+        }
+        throw new EsqlIllegalArgumentException(
+            format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
+        );
+    }
+
+    public static String queryAsString(Expression queryField, String sourceText) {
         if (queryField instanceof Literal literal) {
             return BytesRefs.toString(literal.value());
         }

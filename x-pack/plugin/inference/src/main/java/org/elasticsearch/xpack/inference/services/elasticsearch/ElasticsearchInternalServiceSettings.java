@@ -43,7 +43,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     private Integer numAllocations;
     private final int numThreads;
     private final String modelId;
-    private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+    private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
     private final String deploymentId;
 
     public static ElasticsearchInternalServiceSettings fromPersistedMap(Map<String, Object> map) {
@@ -158,8 +158,9 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
     }
 
-    public void setNumAllocations(Integer numAllocations) {
+    public void setAllocations(Integer numAllocations, @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
         this.numAllocations = numAllocations;
+        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
     }
 
     @Override

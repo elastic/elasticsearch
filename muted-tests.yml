@@ -502,9 +502,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
-- class: org.elasticsearch.xpack.slm.SLMFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/130853
 - class: org.elasticsearch.cluster.ClusterStateSerializationTests
   method: testSerializationPreMultiProject
   issue: https://github.com/elastic/elasticsearch/issues/130872
@@ -520,9 +517,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testRowStatsProjectGroupByInt
   issue: https://github.com/elastic/elasticsearch/issues/131024
-- class: org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutorTests
-  method: testMaxQueueLatency
-  issue: https://github.com/elastic/elasticsearch/issues/131093
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672

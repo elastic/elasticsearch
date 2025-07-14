@@ -23,20 +23,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
- * This abstract class defining basic {@link Decision} used during shard
- * allocation process.
+ * A {@link Decision} used during shard allocation process.
  *
  * @see AllocationDecider
  */
-public abstract class Decision implements ToXContent, Writeable {
+public sealed interface Decision extends ToXContent, Writeable permits Decision.Single, Decision.Multi {
 
-    public static final Decision ALWAYS = new Single(Type.YES);
-    public static final Decision YES = new Single(Type.YES);
-    public static final Decision NO = new Single(Type.NO);
-    public static final Decision THROTTLE = new Single(Type.THROTTLE);
+    Single ALWAYS = new Single(Type.YES);
+    Single YES = new Single(Type.YES);
+    Single NO = new Single(Type.NO);
+    Single THROTTLE = new Single(Type.THROTTLE);
 
     /**
      * Creates a simple decision
@@ -46,40 +44,69 @@ public abstract class Decision implements ToXContent, Writeable {
      * @param explanationParams additional parameters for the decision
      * @return new {@link Decision} instance
      */
-    public static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
+    static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
         return new Single(type, label, explanation, explanationParams);
     }
 
-    public static Decision readFrom(StreamInput in) throws IOException {
+    static Decision readFrom(StreamInput in) throws IOException {
         // Determine whether to read a Single or Multi Decision
         if (in.readBoolean()) {
             Multi result = new Multi();
             int decisionCount = in.readVInt();
             for (int i = 0; i < decisionCount; i++) {
-                Decision s = readFrom(in);
-                result.decisions.add(s);
+                var flag = in.readBoolean();
+                assert flag == false : "nested multi decision is not permitted";
+                var single = readSingleFrom(in);
+                result.decisions.add(single);
             }
             return result;
         } else {
-            final Type type = Type.readFrom(in);
-            final String label = in.readOptionalString();
-            final String explanation = in.readOptionalString();
-            if (label == null && explanation == null) {
-                return switch (type) {
-                    case YES -> YES;
-                    case THROTTLE -> THROTTLE;
-                    case NO -> NO;
-                };
-            }
-            return new Single(type, label, explanation);
+            return readSingleFrom(in);
         }
     }
+
+    private static Single readSingleFrom(StreamInput in) throws IOException {
+        final Type type = Type.readFrom(in);
+        final String label = in.readOptionalString();
+        final String explanation = in.readOptionalString();
+        if (label == null && explanation == null) {
+            return switch (type) {
+                case YES -> YES;
+                case THROTTLE -> THROTTLE;
+                case NO -> NO;
+            };
+        }
+        return new Single(type, label, explanation);
+    }
+
+    /**
+     * Get the {@link Type} of this decision
+     * @return {@link Type} of this decision
+     */
+    Type type();
+
+    /**
+     * Get the description label for this decision.
+     */
+    @Nullable
+    String label();
+
+    /**
+     * Get the explanation for this decision.
+     */
+    @Nullable
+    String getExplanation();
+
+    /**
+     * Return the list of all decisions that make up this decision
+     */
+    List<Decision> getDecisions();
 
     /**
      * This enumeration defines the
      * possible types of decisions
      */
-    public enum Type implements Writeable {
+    enum Type implements Writeable {
         YES(1),
         THROTTLE(2),
         NO(0);
@@ -110,45 +137,22 @@ public abstract class Decision implements ToXContent, Writeable {
                 return false;
             } else if (other == NO) {
                 return true;
-            } else if (other == THROTTLE && this == YES) {
-                return true;
-            }
-            return false;
+            } else return other == THROTTLE && this == YES;
+        }
+
+        /**
+         * @return lowest decision by precedence NO->THROTTLE->YES
+         */
+        public static Type min(Type a, Type b) {
+            return a.higherThan(b) ? b : a;
         }
 
     }
 
     /**
-     * Get the {@link Type} of this decision
-     * @return {@link Type} of this decision
-     */
-    public abstract Type type();
-
-    /**
-     * Get the description label for this decision.
-     */
-    @Nullable
-    public abstract String label();
-
-    /**
-     * Get the explanation for this decision.
-     */
-    @Nullable
-    public abstract String getExplanation();
-
-    /**
-     * Return the list of all decisions that make up this decision
-     */
-    public abstract List<Decision> getDecisions();
-
-    /**
      * Simple class representing a single decision
      */
-    public static class Single extends Decision implements ToXContentObject {
-        private final Type type;
-        private final String label;
-        private final String explanationString;
-
+    record Single(Type type, String label, String explanationString) implements Decision, ToXContentObject {
         /**
          * Creates a new {@link Single} decision of a given type
          * @param type {@link Type} of the decision
@@ -165,24 +169,13 @@ public abstract class Decision implements ToXContent, Writeable {
          * @param explanationParams A set of additional parameters
          */
         public Single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
-            this.type = type;
-            this.label = label;
-            if (explanationParams != null && explanationParams.length > 0) {
-                this.explanationString = String.format(Locale.ROOT, explanation, explanationParams);
-            } else {
-                this.explanationString = explanation;
-            }
-        }
-
-        @Override
-        public Type type() {
-            return this.type;
-        }
-
-        @Override
-        @Nullable
-        public String label() {
-            return this.label;
+            this(
+                type,
+                label,
+                explanationParams != null && explanationParams.length > 0
+                    ? String.format(Locale.ROOT, explanation, explanationParams)
+                    : explanation
+            );
         }
 
         @Override
@@ -197,29 +190,6 @@ public abstract class Decision implements ToXContent, Writeable {
         @Nullable
         public String getExplanation() {
             return this.explanationString;
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            Decision.Single s = (Decision.Single) object;
-            return this.type == s.type && Objects.equals(label, s.label) && Objects.equals(explanationString, s.explanationString);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = type.hashCode();
-            result = 31 * result + (label == null ? 0 : label.hashCode());
-            String explanationStr = explanationString;
-            result = 31 * result + (explanationStr == null ? 0 : explanationStr.hashCode());
-            return result;
         }
 
         @Override
@@ -254,9 +224,11 @@ public abstract class Decision implements ToXContent, Writeable {
     /**
      * Simple class representing a list of decisions
      */
-    public static class Multi extends Decision implements ToXContentFragment {
+    record Multi(List<Single> decisions) implements Decision, ToXContentFragment {
 
-        private final List<Decision> decisions = new ArrayList<>();
+        public Multi() {
+            this(new ArrayList<>());
+        }
 
         /**
          * Add a decision to this {@link Multi}decision instance
@@ -264,7 +236,8 @@ public abstract class Decision implements ToXContent, Writeable {
          * @return {@link Multi}decision instance with the given decision added
          */
         public Multi add(Decision decision) {
-            decisions.add(decision);
+            assert decision instanceof Single;
+            decisions.add((Single) decision);
             return this;
         }
 
@@ -298,26 +271,6 @@ public abstract class Decision implements ToXContent, Writeable {
         @Override
         public List<Decision> getDecisions() {
             return Collections.unmodifiableList(this.decisions);
-        }
-
-        @Override
-        public boolean equals(final Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            final Decision.Multi m = (Decision.Multi) object;
-
-            return this.decisions.equals(m.decisions);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * decisions.hashCode();
         }
 
         @Override

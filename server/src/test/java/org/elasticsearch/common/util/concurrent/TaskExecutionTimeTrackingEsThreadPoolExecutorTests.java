@@ -11,7 +11,6 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -51,7 +50,12 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+            randomBoolean()
+                ? EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    .build()
+                : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -109,7 +113,16 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queue-latency-test"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+            randomBoolean()
+                ? EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackMaxQueueLatency()
+                    .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    .build()
+                : EsExecutors.TaskTrackingConfig.builder()
+                    .trackMaxQueueLatency()
+                    .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    .build()
         );
         try {
             executor.prestartAllCoreThreads();
@@ -153,7 +166,12 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+            randomBoolean()
+                ? EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    .build()
+                : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -185,7 +203,10 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackOngoingTasks()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .build()
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);
@@ -220,7 +241,10 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
-            new TaskTrackingConfig(true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackOngoingTasks()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .build()
         );
         executor.setupMetrics(meterRegistry, threadPoolName);
 

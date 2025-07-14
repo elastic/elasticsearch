@@ -1,0 +1,149 @@
+---
+synthetic_source match_only_text with wildcard as parent field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: wildcard
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source match_only_text with number as parent field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: long
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: [1, 5]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: 1 5
+
+  - match: { "hits.total.value": 0 }
+
+  - do:
+      indices.create:
+        index: stored_source_test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: long
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: stored_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: [1, 5]
+
+  - do:
+      search:
+        index: stored_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: 1 5
+
+  - match: { "hits.total.value": 0 }
+
+---
+synthetic_source match_only_text with scaled_float as parent field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: scaled_float
+                scaling_factor: 10
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: [1.1, 5.5]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: 1.1 5.5
+
+  - match: { "hits.total.value": 0 }

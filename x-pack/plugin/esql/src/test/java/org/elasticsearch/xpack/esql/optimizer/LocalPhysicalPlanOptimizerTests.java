@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -2083,7 +2084,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // We want to verify that the localOptimize detects the missing attribute.
         // However, it also throws an error in one of the rules before we get to the verifier.
         // So we use an implementation of LocalPhysicalPlanOptimizer that does not have any rules.
-        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(config, FoldContext.small(), SearchStats.EMPTY);
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+            new EsqlFlags(true),
+            config,
+            FoldContext.small(),
+            SearchStats.EMPTY
+        );
         LocalPhysicalPlanOptimizer optimizerWithNoopExecute = new LocalPhysicalPlanOptimizer(context) {
             @Override
             protected List<Batch<PhysicalPlan>> batches() {

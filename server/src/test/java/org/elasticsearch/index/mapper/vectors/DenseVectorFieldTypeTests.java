@@ -55,10 +55,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static DenseVectorFieldMapper.RescoreVector randomRescoreVector() {
-        return new DenseVectorFieldMapper.RescoreVector(
-            randomBoolean() ? 0 : randomFloatBetween(1.0F, 10.0F, false),
-            randomOptionalBoolean()
-        );
+        return new DenseVectorFieldMapper.RescoreVector(randomBoolean() ? 0 : randomFloatBetween(1.0F, 10.0F, false));
     }
 
     private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
@@ -95,7 +92,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.BBQHnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
+                randomBoolean()
             ),
             new DenseVectorFieldMapper.BBQFlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
         );
@@ -121,7 +119,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
                 rescoreVector
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                rescoreVector,
+                randomBoolean()
+            )
         );
     }
 
@@ -666,7 +669,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             3,
             true,
             VectorSimilarity.COSINE,
-            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(randomFloatBetween(1.1f, 9.9f, false), null)),
+            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(randomFloatBetween(1.1f, 9.9f, false))),
             Collections.emptyMap(),
             false
         );
@@ -695,7 +698,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             3,
             true,
             VectorSimilarity.COSINE,
-            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(0f, null)),
+            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(0)),
             Collections.emptyMap(),
             false
         );

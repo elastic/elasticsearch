@@ -388,7 +388,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return new BBQHnswIndexOptions(
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                    null
+                    new RescoreVector(DEFAULT_OVERSAMPLE),
+                    false
                 );
             } else if (defaultInt8Hnsw) {
                 return new Int8HnswIndexOptions(
@@ -1622,6 +1623,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object useDirectIONode = indexOptionsMap.remove("use_direct_io");
+
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
@@ -1630,12 +1633,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                    if (rescoreVector == null && defaultOversampleForBBQ(indexVersion)) {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
                 }
+
+                boolean useDirectIO = XContentMapValues.nodeBooleanValue("use_direct_io", false);
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector);
+                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, useDirectIO);
             }
 
             @Override
@@ -1654,6 +1664,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                    if (rescoreVector == null && defaultOversampleForBBQ(indexVersion)) {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQFlatIndexOptions(rescoreVector);
@@ -1688,6 +1701,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                if (rescoreVector == null) {
+                    rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                }
                 Object nProbeNode = indexOptionsMap.remove("default_n_probe");
                 int nProbe = -1;
                 if (nProbeNode != null) {
@@ -2165,18 +2181,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
+        private final boolean useDirectIO;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector) {
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean useDirectIO) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
+            this.useDirectIO = useDirectIO;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            boolean directIO = rescoreVector != null && rescoreVector.useDirectIO != null && rescoreVector.useDirectIO;
-            return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction, directIO);
+            return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction, useDirectIO);
         }
 
         @Override
@@ -2187,12 +2204,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         boolean doEquals(DenseVectorIndexOptions other) {
             BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
-            return m == that.m && efConstruction == that.efConstruction && Objects.equals(rescoreVector, that.rescoreVector);
+            return m == that.m
+                && efConstruction == that.efConstruction
+                && Objects.equals(rescoreVector, that.rescoreVector)
+                && useDirectIO == that.useDirectIO;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector);
+            return Objects.hash(m, efConstruction, rescoreVector, useDirectIO);
         }
 
         @Override
@@ -2206,6 +2226,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
+            if (useDirectIO) {
+                builder.field("use_direct_io", true);
+            }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
@@ -2335,10 +2358,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public record RescoreVector(Float oversample, Boolean useDirectIO) implements ToXContentObject {
+    public record RescoreVector(float oversample) implements ToXContentObject {
         static final String NAME = "rescore_vector";
         static final String OVERSAMPLE = "oversample";
-        static final String DIRECT_IO = "direct_io";
 
         static RescoreVector fromIndexOptions(Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
             Object rescoreVectorNode = indexOptionsMap.remove(NAME);
@@ -2346,35 +2368,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
             Map<String, Object> mappedNode = XContentMapValues.nodeMapValue(rescoreVectorNode, NAME);
-
-            Float oversampleValue = null;
             Object oversampleNode = mappedNode.get(OVERSAMPLE);
-            if (oversampleNode != null) {
-                oversampleValue = (float) XContentMapValues.nodeDoubleValue(oversampleNode);
-                if (oversampleValue == 0 && allowsZeroRescore(indexVersion) == false) {
-                    throw new IllegalArgumentException("oversample must be greater than 1");
-                }
-                if (oversampleValue < 1 && oversampleValue != 0) {
-                    throw new IllegalArgumentException("oversample must be greater than 1 or exactly 0");
-                } else if (oversampleValue > 10) {
-                    throw new IllegalArgumentException("oversample must be less than or equal to 10");
-                }
+            if (oversampleNode == null) {
+                throw new IllegalArgumentException("Invalid rescore_vector value. Missing required field " + OVERSAMPLE);
             }
-
-            Boolean directIO = (Boolean) mappedNode.get(DIRECT_IO);
-
-            return new RescoreVector(oversampleValue, directIO);
+            float oversampleValue = (float) XContentMapValues.nodeDoubleValue(oversampleNode);
+            if (oversampleValue == 0 && allowsZeroRescore(indexVersion) == false) {
+                throw new IllegalArgumentException("oversample must be greater than 1");
+            }
+            if (oversampleValue < 1 && oversampleValue != 0) {
+                throw new IllegalArgumentException("oversample must be greater than 1 or exactly 0");
+            } else if (oversampleValue > 10) {
+                throw new IllegalArgumentException("oversample must be less than or equal to 10");
+            }
+            return new RescoreVector(oversampleValue);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
-            if (oversample != null) {
-                builder.field(OVERSAMPLE, oversample);
-            }
-            if (useDirectIO != null) {
-                builder.field(DIRECT_IO, useDirectIO);
-            }
+            builder.field(OVERSAMPLE, oversample);
             builder.endObject();
             return builder;
         }
@@ -2716,10 +2729,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && quantizedIndexOptions.rescoreVector != null) {
                 oversample = quantizedIndexOptions.rescoreVector.oversample;
             }
-            if (oversample == null) {
-                oversample = DEFAULT_OVERSAMPLE;
-            }
-
             boolean rescore = needsRescore(oversample);
             if (rescore) {
                 // Will get k * oversample for rescoring, and get the top k

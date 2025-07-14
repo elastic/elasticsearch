@@ -37,6 +37,7 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -898,8 +899,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertBusy(
                 () -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()))
             );
-            List<ThreadPoolMergeScheduler.MergeTask> tasksRunList = new ArrayList<>();
-            List<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = new ArrayList<>();
+            List<ThreadPoolMergeScheduler.MergeTask> tasksRunList = Collections.synchronizedList(new ArrayList<>());
+            List<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = Collections.synchronizedList(new ArrayList<>());
             int submittedMergesCount = randomIntBetween(1, 5);
             long[] mergeSizeEstimates = new long[submittedMergesCount];
             for (int i = 0; i < submittedMergesCount; i++) {
@@ -954,13 +955,17 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             });
             // assert all merge tasks are either run or aborted
             assertBusy(() -> {
-                for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksRunList) {
-                    verify(mergeTask, times(1)).run();
-                    verify(mergeTask, times(0)).abort();
+                synchronized (tasksRunList) {
+                    for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksRunList) {
+                        verify(mergeTask, times(1)).run();
+                        verify(mergeTask, times(0)).abort();
+                    }
                 }
-                for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksAbortList) {
-                    verify(mergeTask, times(0)).run();
-                    verify(mergeTask, times(1)).abort();
+                synchronized (tasksAbortList) {
+                    for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksAbortList) {
+                        verify(mergeTask, times(0)).run();
+                        verify(mergeTask, times(1)).abort();
+                    }
                 }
             });
         }

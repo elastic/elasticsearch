@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
@@ -147,6 +148,11 @@ public class ParameterizableYamlXContentParser implements XContentParser {
     @Override
     public XContentString optimizedText() throws IOException {
         return delegate.optimizedText();
+    }
+
+    @Override
+    public boolean optimizedText(OutputStream out) throws IOException {
+        return delegate.optimizedText(out);
     }
 
     @Override

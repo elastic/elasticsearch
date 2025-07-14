@@ -13,6 +13,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +103,11 @@ public abstract class FilterXContentParser implements XContentParser {
 
     public XContentString optimizedText() throws IOException {
         return delegate().optimizedText();
+    }
+
+    @Override
+    public boolean optimizedText(OutputStream out) throws IOException {
+        return delegate().optimizedText(out);
     }
 
     public XContentString optimizedTextOrNull() throws IOException {

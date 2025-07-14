@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.CharBuffer;
 
 public class JsonXContentParser extends AbstractXContentParser {
@@ -129,6 +130,19 @@ public class JsonXContentParser extends AbstractXContentParser {
             }
         }
         return new Text(text());
+    }
+
+    @Override
+    public boolean optimizedText(OutputStream out) throws IOException {
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
+        }
+        // TODO: Probably change to ByteBuffer as this can do a partial write that needs to be reset in case of failure.
+        if (parser instanceof ESUTF8StreamJsonParser esParser) {
+            return esParser.writeUTF8TextToStream(out);
+        } else {
+            return super.optimizedText(out);
+        }
     }
 
     private void throwOnNoText() {

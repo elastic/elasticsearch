@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
@@ -273,6 +274,13 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public XContentString optimizedText() throws IOException {
         return new Text(text());
+    }
+
+    @Override
+    public boolean optimizedText(OutputStream out) throws IOException {
+        XContentString.UTF8Bytes bytes = optimizedText().bytes();
+        out.write(bytes.bytes(), bytes.offset(), bytes.length());
+        return true;
     }
 
     @Override

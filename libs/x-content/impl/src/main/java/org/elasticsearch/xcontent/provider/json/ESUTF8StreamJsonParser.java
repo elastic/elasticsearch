@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -178,6 +179,125 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
         }
 
         return null; // Didn't find closing quote
+    }
+
+    public boolean writeUTF8TextToStream(OutputStream out) throws IOException {
+        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
+            if (stringEnd > 0) {
+                final int len = stringEnd - 1 - _inputPtr;
+                XContentString.UTF8Bytes utf8Bytes = new XContentString.UTF8Bytes(_inputBuffer, _inputPtr, len);
+                out.write(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+                return true;
+            }
+            return _finishAndWriteToStream(out);
+        } else {
+            return false;
+        }
+    }
+
+    protected boolean _finishAndWriteToStream(OutputStream out) throws IOException {
+        int ptr = _inputPtr;
+        if (ptr >= _inputEnd) {
+            _loadMoreGuaranteed();
+            ptr = _inputPtr;
+        }
+
+        final int startPtr = ptr;
+        final byte[] inputBuffer = _inputBuffer;
+        final int max = _inputEnd;
+
+        // Fast path: scan for quote or backslash first
+        while (ptr < max) {
+            byte b = inputBuffer[ptr];
+            if (b == INT_QUOTE) {
+                // Found end quote - string has no escapes
+                // Write the entire string directly to output
+                out.write(inputBuffer, startPtr, ptr - startPtr);
+                stringEnd = ptr + 1;
+                return true;
+            }
+            if (b == INT_BACKSLASH) {
+                // Found escape - switch to escape handling
+                break;
+            }
+            // For bytes < 128 (ASCII), we can skip the codes table lookup
+            if (b >= 0) {
+                ptr++;
+            } else {
+                // Non-ASCII handling...
+                int c = b & 0xFF;
+                int codeType = INPUT_CODES_UTF8[c];
+                if (codeType == 0) {
+                    ptr++;
+                } else if (codeType >= 2 && codeType <= 4) {
+                    if (ptr + codeType > max) {
+                        return false;
+                    }
+                    ptr += codeType;
+                } else {
+                    return false;
+                }
+            }
+        }
+
+        // Escape handling path - optimized for streaming
+        if (ptr >= max) {
+            return false;
+        }
+
+        // Write everything before the first backslash
+        if (ptr > startPtr) {
+            out.write(inputBuffer, startPtr, ptr - startPtr);
+        }
+
+        // Process escaped content
+        while (ptr < max) {
+            byte b = inputBuffer[ptr];
+            if (b == INT_QUOTE) {
+                // End of string
+                stringEnd = ptr + 1;
+                return true;
+            }
+
+            if (b == INT_BACKSLASH) {
+                ptr++;
+                if (ptr >= max) {
+                    return false;
+                }
+                b = inputBuffer[ptr];
+                // Only handle simple escapes
+                if (b == '"' || b == '/' || b == '\\') {
+                    out.write(b);
+                    ptr++;
+                } else {
+                    // Unsupported escape
+                    return false;
+                }
+            } else if (b >= 0) {
+                // ASCII - write single byte
+                out.write(b);
+                ptr++;
+            } else {
+                // Non-ASCII
+                int c = b & 0xFF;
+                int codeType = INPUT_CODES_UTF8[c];
+                if (codeType == 0) {
+                    out.write(b);
+                    ptr++;
+                } else if (codeType >= 2 && codeType <= 4) {
+                    if (ptr + codeType > max) {
+                        return false;
+                    }
+                    // Write multi-byte sequence directly
+                    out.write(inputBuffer, ptr, codeType);
+                    ptr += codeType;
+                } else {
+                    return false;
+                }
+            }
+        }
+
+        return false; // Didn't find closing quote
     }
 
     @Override

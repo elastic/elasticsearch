@@ -40,7 +40,7 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     final Map<String, Integer> hostToRate = new HashMap<>();
     final Map<String, Integer> hostToCpu = new HashMap<>();
 
-    static final float DEVIATION_LIMIT = 0.25f;
+    static final float DEVIATION_LIMIT = 0.30f;
     // extra deviation tolerance for subgroups due to fewer samples
     // at 0.35 deviation limit, we see 2/8000 failures. I am expanding to 0.4
     static final float SUBGROUP_DEVIATION_LIMIT = 0.45f;

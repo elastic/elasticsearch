@@ -538,6 +538,9 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitorIT
   method: testFloodStageExceeded
   issue: https://github.com/elastic/elasticsearch/issues/131146
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test090SecurityCliPackaging
+  issue: https://github.com/elastic/elasticsearch/issues/131107
 
 # Examples:
 #

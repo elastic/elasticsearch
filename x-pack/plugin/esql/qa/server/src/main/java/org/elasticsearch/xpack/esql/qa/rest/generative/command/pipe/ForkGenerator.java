@@ -81,7 +81,7 @@ public class ForkGenerator implements CommandGenerator {
                     List<EsqlQueryGenerator.Column> previousOutput,
                     QuerySchema schema
                 ) {
-                    return new CommandDescription("<source>", this, completeCommand.toString(), Map.of());
+                    return new CommandDescription(FORK, this, completeCommand.toString(), Map.of());
                 }
 
                 @Override

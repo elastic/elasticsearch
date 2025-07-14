@@ -355,31 +355,31 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         try (var resp = runQuery(request)) {
             assertThat(EsqlTestUtils.getValuesList(resp), hasSize(local.okIds.size()));
             assertTrue(resp.isPartial());
-            assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getFailures(), not(empty()));
-            assertThat(
-                resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getFailures().get(0).reason(),
-                containsString("index [unavailable-local] has no active shard copy")
-            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getFailures(), not(empty()));
+            assertThat(localCluster.getFailures().get(0).reason(), containsString("index [unavailable-local] has no active shard copy"));
         }
         request.query("FROM *:ok*,unavailable* | LIMIT 1000");
         try (var resp = runQuery(request)) {
             assertThat(EsqlTestUtils.getValuesList(resp), hasSize(remote1.okIds.size() + remote2.okIds.size()));
             assertTrue(resp.isPartial());
-            assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getFailures(), not(empty()));
-            assertThat(
-                resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getFailures().get(0).reason(),
-                containsString("index [unavailable-local] has no active shard copy")
-            );
+            var executionInfo = resp.getExecutionInfo();
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(localCluster.getFailures(), not(empty()));
+            assertThat(localCluster.getFailures().get(0).reason(), containsString("index [unavailable-local] has no active shard copy"));
+            assertThat(executionInfo.getCluster(REMOTE_CLUSTER_1).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(executionInfo.getCluster(REMOTE_CLUSTER_2).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
         request.query("FROM ok*,cluster-a:unavailable* | LIMIT 1000");
         try (var resp = runQuery(request)) {
             assertThat(EsqlTestUtils.getValuesList(resp), hasSize(local.okIds.size()));
             assertTrue(resp.isPartial());
-            assertThat(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getFailures(), not(empty()));
-            assertThat(
-                resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getFailures().get(0).reason(),
-                containsString("index [unavailable-cluster1] has no active shard copy")
-            );
+            var remote1 = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+            assertThat(remote1.getFailures(), not(empty()));
+            assertThat(remote1.getFailures().get(0).reason(), containsString("index [unavailable-cluster1] has no active shard copy"));
+            assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
     }
 

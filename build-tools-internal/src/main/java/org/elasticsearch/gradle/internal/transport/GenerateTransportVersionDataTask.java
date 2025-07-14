@@ -82,7 +82,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         var latestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, majorMinor);
 
         // Get the latest transport version data for the prior release version.
-        var priorLatestTVSetDataFileName = getPriorLatestTVSetFilename(tvDataDir, majorMinor);
+        var priorLatestTVSetDataFileName = getPriorLatestTVSetFilename(tvDataDir, major, minor);
         var priorLatestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, priorLatestTVSetDataFileName);
         if (priorLatestTVSetData == null) {
             // TODO Can this ever be null?  No, must populate the data file for the latest branch we can no longer backport to.

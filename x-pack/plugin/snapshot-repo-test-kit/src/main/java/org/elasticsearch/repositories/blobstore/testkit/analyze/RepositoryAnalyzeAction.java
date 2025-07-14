@@ -724,8 +724,10 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                                                 request.getRepositoryName(),
                                                 Strings.format(
                                                     """
-                                                        successfully completed all [%d] atomic increments of register [%s] so its expected \
-                                                        value is [%s], but reading its value with [%s] unexpectedly yielded [%s]""",
+                                                        Successfully completed all [%d] atomic increments of register [%s] so its expected \
+                                                        value is [%s], but reading its value with [%s] unexpectedly yielded [%s]. This \
+                                                        anomaly may indicate an atomicity failure amongst concurrent compare-and-exchange \
+                                                        operations on registers in this repository.""",
                                                     expectedFinalRegisterValue,
                                                     registerName,
                                                     OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue)),

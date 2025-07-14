@@ -424,9 +424,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                         ExceptionsHelper.unwrapCause(repositoryVerificationException.getCause())
                     ).getMessage(),
                     matchesPattern("""
-                        \\[test-repo] successfully completed all \\[.*] atomic increments of register \\[test-register-contended-.*] \
+                        \\[test-repo] Successfully completed all \\[.*] atomic increments of register \\[test-register-contended-.*] \
                         so its expected value is \\[OptionalBytesReference\\[.*]], but reading its value with \\[.*] unexpectedly \
-                        yielded \\[OptionalBytesReference\\[.*]]""")
+                        yielded \\[OptionalBytesReference\\[.*]]\\. This anomaly may indicate an atomicity failure amongst concurrent \
+                        compare-and-exchange operations on registers in this repository\\.""")
                 );
                 ll.onResponse(null);
             } else {

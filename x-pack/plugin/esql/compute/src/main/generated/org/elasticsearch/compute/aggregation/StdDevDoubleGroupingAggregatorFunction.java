@@ -59,7 +59,7 @@ public final class StdDevDoubleGroupingAggregatorFunction implements GroupingAgg
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     DoubleVector valuesVector = valuesBlock.asVector();

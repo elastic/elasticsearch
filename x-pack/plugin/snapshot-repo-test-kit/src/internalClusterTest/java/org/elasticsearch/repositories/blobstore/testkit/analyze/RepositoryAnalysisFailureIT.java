@@ -391,19 +391,16 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
 
         blobStore.setDisruption(new Disruption() {
-
             @Override
             public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+                if (expected.equals(updated) == false // not the initial read
+                    && updated.length() == Long.BYTES // not the final write
+                    && randomBoolean()
+                    && register.get().equals(expected) // would have succeeded
+                    && registerWasCorrupted.compareAndSet(false, true)) {
 
-                // noinspection SynchronizationOnLocalVariableOrMethodParameter
-                synchronized (register) {
-                    if (expected.equals(updated) == false // not the initial read
-                        && updated.length() == Long.BYTES // not the final write
-                        && randomBoolean()
-                        && register.get().equals(expected) // would have succeeded
-                        && registerWasCorrupted.compareAndSet(false, true)) {
-                        return expected;
-                    }
+                    // indicate success without actually applying the update
+                    return expected;
                 }
 
                 return register.compareAndExchange(expected, updated);

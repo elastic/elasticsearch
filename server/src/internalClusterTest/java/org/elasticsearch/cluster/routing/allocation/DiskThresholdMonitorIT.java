@@ -89,10 +89,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         final String newDataNodeId = clusterAdmin().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
         awaitClusterState(state -> {
             final ShardRouting primaryShard = state.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard();
-            if (primaryShard.state() != ShardRoutingState.STARTED) {
-                return false;
-            }
-            return newDataNodeId.equals(primaryShard.currentNodeId());
+            return primaryShard.state() == ShardRoutingState.STARTED && newDataNodeId.equals(primaryShard.currentNodeId());
         });
 
         // Verify that the block is removed once the shard migration is complete

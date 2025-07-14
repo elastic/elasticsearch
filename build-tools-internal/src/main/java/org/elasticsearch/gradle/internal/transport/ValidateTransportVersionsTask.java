@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import groovy.json.JsonSlurper;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.InputDirectory;
@@ -42,7 +43,6 @@ public abstract class ValidateTransportVersionsTask extends DefaultTask {
     public void validateTransportVersions() throws IOException {
         var dataFileDirectory = getDataFileDirectory();
         var tvDataDir = dataFileDirectory.getAsFile().get();
-
 
         Set<String> tvSetNamesInDataFiles = new HashSet<>();
         for (var tvDataFile : Objects.requireNonNull(tvDataDir.listFiles())) {

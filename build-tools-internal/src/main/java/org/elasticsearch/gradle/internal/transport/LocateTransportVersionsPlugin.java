@@ -17,6 +17,7 @@ import org.gradle.api.tasks.SourceSet;
 
 public class LocateTransportVersionsPlugin implements Plugin<Project> {
     public static final String TRANSPORT_VERSION_NAMES_FILE = "generated-transport-info/transport-version-set-names.txt";
+
     @Override
     public void apply(Project project) {
         // TODO figure out what the classpath needs to be to be able to scan the server classes

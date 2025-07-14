@@ -21,6 +21,7 @@ record ComputeContext(
     String sessionId,
     String description,
     String clusterAlias,
+    EsqlFlags flags,
     List<SearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,

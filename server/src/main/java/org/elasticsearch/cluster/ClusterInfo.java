@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,6 +50,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
+    public static final TransportVersionSet NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = TransportVersionSet.get(
+        "node-usage-stats-for-thread-pools-in-cluster-info"
+    );
+
     public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
@@ -58,9 +63,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
+    final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -73,6 +79,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @param estimatedHeapUsages estimated heap usage broken down by node
+     * @param nodeUsageStatsForThreadPools node-level usage stats (operational load) broken down by node
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -82,7 +89,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
-        Map<String, EstimatedHeapUsage> estimatedHeapUsages
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -91,6 +99,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
         this.estimatedHeapUsages = Map.copyOf(estimatedHeapUsages);
+        this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -106,6 +115,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::new);
         } else {
             this.estimatedHeapUsages = Map.of();
+        }
+        if (NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO.isCompatible(in.getTransportVersion())) {
+            this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::new);
+        } else {
+            this.nodeUsageStatsForThreadPools = Map.of();
         }
     }
 
@@ -123,6 +137,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         out.writeMap(this.reservedSpace);
         if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
+        }
+        if (NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO.isCompatible(out.getTransportVersion())) {
+            out.writeMap(this.nodeUsageStatsForThreadPools, StreamOutput::writeWriteable);
         }
     }
 
@@ -204,8 +221,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 return builder.endObject(); // NodeAndPath
             }),
             endArray() // end "reserved_sizes"
-            // NOTE: We don't serialize estimatedHeapUsages at this stage, to avoid
-            // committing to API payloads until the feature is settled
+            // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools at this stage, to avoid
+            // committing to API payloads until the features are settled
         );
     }
 
@@ -218,6 +235,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      */
     public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
         return estimatedHeapUsages;
+    }
+
+    /**
+     * Returns a map containing thread pool usage stats for each node, keyed by node ID.
+     */
+    public Map<String, NodeUsageStatsForThreadPools> getNodeUsageStatsForThreadPools() {
+        return nodeUsageStatsForThreadPools;
     }
 
     /**
@@ -311,12 +335,21 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             && shardSizes.equals(that.shardSizes)
             && shardDataSetSizes.equals(that.shardDataSetSizes)
             && dataPath.equals(that.dataPath)
-            && reservedSpace.equals(that.reservedSpace);
+            && reservedSpace.equals(that.reservedSpace)
+            && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, reservedSpace);
+        return Objects.hash(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeUsageStatsForThreadPools
+        );
     }
 
     @Override
@@ -422,6 +455,74 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 total += reservedBytes;
                 return this;
             }
+        }
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Map<String, DiskUsage> leastAvailableSpaceUsage = Map.of();
+        private Map<String, DiskUsage> mostAvailableSpaceUsage = Map.of();
+        private Map<String, Long> shardSizes = Map.of();
+        private Map<ShardId, Long> shardDataSetSizes = Map.of();
+        private Map<NodeAndShard, String> dataPath = Map.of();
+        private Map<NodeAndPath, ReservedSpace> reservedSpace = Map.of();
+        private Map<String, EstimatedHeapUsage> estimatedHeapUsages = Map.of();
+        private Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = Map.of();
+
+        public ClusterInfo build() {
+            return new ClusterInfo(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                shardDataSetSizes,
+                dataPath,
+                reservedSpace,
+                estimatedHeapUsages,
+                nodeUsageStatsForThreadPools
+            );
+        }
+
+        public Builder leastAvailableSpaceUsage(Map<String, DiskUsage> leastAvailableSpaceUsage) {
+            this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
+            return this;
+        }
+
+        public Builder mostAvailableSpaceUsage(Map<String, DiskUsage> mostAvailableSpaceUsage) {
+            this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
+            return this;
+        }
+
+        public Builder shardSizes(Map<String, Long> shardSizes) {
+            this.shardSizes = shardSizes;
+            return this;
+        }
+
+        public Builder shardDataSetSizes(Map<ShardId, Long> shardDataSetSizes) {
+            this.shardDataSetSizes = shardDataSetSizes;
+            return this;
+        }
+
+        public Builder dataPath(Map<NodeAndShard, String> dataPath) {
+            this.dataPath = dataPath;
+            return this;
+        }
+
+        public Builder reservedSpace(Map<NodeAndPath, ReservedSpace> reservedSpace) {
+            this.reservedSpace = reservedSpace;
+            return this;
+        }
+
+        public Builder estimatedHeapUsages(Map<String, EstimatedHeapUsage> estimatedHeapUsages) {
+            this.estimatedHeapUsages = estimatedHeapUsages;
+            return this;
+        }
+
+        public Builder nodeUsageStatsForThreadPools(Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools) {
+            this.nodeUsageStatsForThreadPools = nodeUsageStatsForThreadPools;
+            return this;
         }
     }
 }

@@ -83,7 +83,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * If {@link #scope()} returns CLUSTER, then {@link ProjectId} will be null.
      * If {@link #scope()} returns PROJECT, then {@link ProjectId} will not be null.
      */
-    public Assignment doGetAssignment(
+    protected Assignment doGetAssignment(
         Params params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

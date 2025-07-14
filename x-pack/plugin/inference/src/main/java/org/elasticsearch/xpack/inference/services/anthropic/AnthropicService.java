@@ -267,6 +267,19 @@ public class AnthropicService extends SenderService {
                         .build()
                 );
 
+                configurationMap.put(
+                    AnthropicServiceFields.MAX_TOKENS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION)).setDescription(
+                        "The maximum number of tokens to generate before stopping."
+                    )
+                        .setLabel("Max Tokens")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(

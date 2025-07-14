@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -309,8 +310,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             List<Map<String, Object>> processors = (List<Map<String, Object>>) configuration.getConfig().get(Pipeline.PROCESSORS_KEY);
             String pipelineName = configuration.getId();
             if (pipelineHasGeoProcessorById.containsKey(pipelineName) == false) {
-                // We initialize this to null so that we know it's in progress and can use it to avoid stack overflow errors:
-                pipelineHasGeoProcessorById.put(pipelineName, null);
                 if (hasAtLeastOneGeoipProcessor(
                     processors,
                     downloadDatabaseOnPipelineCreation,
@@ -493,8 +492,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             String pipelineName = (String) processorConfig.get("name");
             if (pipelineName != null) {
                 if (pipelineHasGeoProcessorById.containsKey(pipelineName)) {
-                    Boolean hasGeoProcessor = pipelineHasGeoProcessorById.get(pipelineName);
-                    if (hasGeoProcessor == null) {
+                    if (pipelineHasGeoProcessorById.get(pipelineName) == null) {
                         /*
                          * If the value is null here, it indicates that this method has been called recursively with the same pipeline name.
                          * This will cause a runtime error when the pipeline is executed, but we're avoiding changing existing behavior at
@@ -502,34 +500,26 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                          * this could lead to a geo database not being downloaded for the pipeline, but it doesn't really matter since the
                          * pipeline was going to fail anyway.
                          */
-                        logger.warn("Detected that pipeline [" + pipelineName + "] is called recursively.");
+                        logger.warn("Detected that pipeline [{}] is called recursively.", pipelineName);
                         pipelineHasGeoProcessorById.put(pipelineName, false);
-                        return false;
-                    } else {
-                        return hasGeoProcessor;
                     }
                 } else {
-                    PipelineConfiguration pipelineConfiguration = pipelineConfigById.get(pipelineName);
-                    final boolean pipelineHasGeoProcessor;
-                    if (pipelineConfiguration != null) {
-                        List<Map<String, Object>> childProcessors = (List<Map<String, Object>>) pipelineConfiguration.getConfig()
-                            .get(Pipeline.PROCESSORS_KEY);
-                        if (childProcessors != null && childProcessors.isEmpty() == false) {
-                            // We initialize this to null so that we know it's in progress and can use it to avoid stack overflow errors:
-                            pipelineHasGeoProcessorById.put(pipelineName, null);
-                            pipelineHasGeoProcessor = hasAtLeastOneGeoipProcessor(
-                                childProcessors,
-                                downloadDatabaseOnPipelineCreation,
-                                pipelineConfigById,
-                                pipelineHasGeoProcessorById
-                            );
-                        } else {
-                            pipelineHasGeoProcessor = false;
-                        }
-                    } else {
-                        pipelineHasGeoProcessor = false;
-                    }
-                    pipelineHasGeoProcessorById.put(pipelineName, pipelineHasGeoProcessor);
+                    List<Map<String, Object>> childProcessors = Optional.ofNullable((String) processorConfig.get("name"))
+                        .map(pipelineConfigById::get)
+                        .map(PipelineConfiguration::getConfig)
+                        .map(config -> (List<Map<String, Object>>) config.get(Pipeline.PROCESSORS_KEY))
+                        .orElse(Collections.emptyList());
+                    // We initialize this to null so that we know it's in progress and can use it to avoid stack overflow errors:
+                    pipelineHasGeoProcessorById.put(pipelineName, null);
+                    pipelineHasGeoProcessorById.put(
+                        pipelineName,
+                        hasAtLeastOneGeoipProcessor(
+                            childProcessors,
+                            downloadDatabaseOnPipelineCreation,
+                            pipelineConfigById,
+                            pipelineHasGeoProcessorById
+                        )
+                    );
                 }
                 return pipelineHasGeoProcessorById.get(pipelineName);
             }

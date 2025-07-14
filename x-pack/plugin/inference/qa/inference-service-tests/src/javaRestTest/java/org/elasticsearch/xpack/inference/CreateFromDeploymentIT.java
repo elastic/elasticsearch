@@ -303,9 +303,9 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         assertThat(
             responseException.getMessage(),
             containsString(
-                "Cannot update inference [second_endpoint_for_model_deployment] for model deployment "
-                    + "[first_endpoint_for_model_deployment] as it was created by another inference endpoint. "
-                    + "This model can only be updated using inference endpoint id [first_endpoint_for_model_deployment]."
+                "Cannot update inference endpoint [second_endpoint_for_model_deployment] for model deployment " +
+                    "[first_endpoint_for_model_deployment] as it was created by another inference endpoint. " +
+                    "The model can only be updated using inference endpoint id [first_endpoint_for_model_deployment]."
             )
         );
 

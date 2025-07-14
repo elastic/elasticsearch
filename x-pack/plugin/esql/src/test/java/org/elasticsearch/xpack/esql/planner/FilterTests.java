@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.AutomatonQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -30,8 +29,10 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.BeforeClass;
@@ -50,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.TransportVersions.V_8_16_0;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -324,8 +327,8 @@ public class FilterTests extends ESTestCase {
             |WHERE {} LIKE ("a+", "b+")
             """, LAST_NAME);
         var plan = plan(query, null);
-
-        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
+        // test with an older version, so like list is not supported
+        var filter = filterQueryForTransportNodes(V_8_16_0, plan);
         assertNull(filter);
     }
 
@@ -342,12 +345,13 @@ public class FilterTests extends ESTestCase {
             """, LAST_NAME);
         var plan = plan(query, null);
 
-        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterQueryForTransportNodes(null, plan);
+        PlanStreamWrapperQueryBuilder filterWrapper = (PlanStreamWrapperQueryBuilder) filterQueryForTransportNodes(null, plan);
+        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterWrapper.next();
         assertEquals(LAST_NAME, filter.fieldName());
-        AutomatonQueryBuilder innerFilter = (AutomatonQueryBuilder) filter.next();
+        ExpressionQueryBuilder innerFilter = (ExpressionQueryBuilder) filter.next();
         assertEquals(LAST_NAME, innerFilter.fieldName());
         assertEquals("""
-            LIKE("a+", "b+"), caseInsensitive=false""", innerFilter.description());
+            last_name LIKE ("a+", "b+")""", innerFilter.getExpression().toString());
     }
 
     /**
@@ -378,7 +382,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, QueryBuilder restFilter) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println("physical\n" + physical);
@@ -397,7 +401,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(TransportVersion minTransportVersion, PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
+        return PlannerUtils.detectFilter(new EsqlFlags(true), null, minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
     }
 
     @Override

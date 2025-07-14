@@ -1623,7 +1623,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Object useDirectIONode = indexOptionsMap.remove("use_direct_io");
+                Object disableOffheapCacheRescoringNode = indexOptionsMap.remove("disable_offheap_cache_rescoring");
 
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -1642,10 +1642,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                boolean useDirectIO = XContentMapValues.nodeBooleanValue("use_direct_io", false);
+                boolean disableOffheapCacheRescoring = XContentMapValues.nodeBooleanValue(disableOffheapCacheRescoringNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, useDirectIO);
+                return new BBQHnswIndexOptions(m, efConstruction, rescoreVector, disableOffheapCacheRescoring);
             }
 
             @Override
@@ -2181,19 +2181,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class BBQHnswIndexOptions extends QuantizedIndexOptions {
         private final int m;
         private final int efConstruction;
-        private final boolean useDirectIO;
+        private final boolean disableOffheapCacheRescoring;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean useDirectIO) {
+        public BBQHnswIndexOptions(int m, int efConstruction, RescoreVector rescoreVector, boolean disableOffheapCacheRescoring) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
-            this.useDirectIO = useDirectIO;
+            this.disableOffheapCacheRescoring = disableOffheapCacheRescoring;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT;
-            return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction, useDirectIO);
+            return new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction, disableOffheapCacheRescoring);
         }
 
         @Override
@@ -2207,12 +2207,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return m == that.m
                 && efConstruction == that.efConstruction
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && useDirectIO == that.useDirectIO;
+                && disableOffheapCacheRescoring == that.disableOffheapCacheRescoring;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, rescoreVector, useDirectIO);
+            return Objects.hash(m, efConstruction, rescoreVector, disableOffheapCacheRescoring);
         }
 
         @Override
@@ -2226,8 +2226,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
-            if (useDirectIO) {
-                builder.field("use_direct_io", true);
+            if (disableOffheapCacheRescoring) {
+                builder.field("disable_offheap_cache_rescoring", true);
             }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);

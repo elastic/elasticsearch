@@ -79,6 +79,9 @@ public class TestEntitlementBootstrap {
     }
 
     public static void registerNodeBaseDirs(Settings settings, Path configPath) {
+        if (policyManager == null) {
+            return;
+        }
         Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
         Path configDir = configPath != null ? configPath : homeDir.resolve("config");
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
@@ -91,6 +94,9 @@ public class TestEntitlementBootstrap {
     }
 
     public static void unregisterNodeBaseDirs(Settings settings, Path configPath) {
+        if (policyManager == null) {
+            return;
+        }
         Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
         Path configDir = configPath != null ? configPath : homeDir.resolve("config");
         Collection<Path> dataDirs = dataDirs(settings, homeDir);

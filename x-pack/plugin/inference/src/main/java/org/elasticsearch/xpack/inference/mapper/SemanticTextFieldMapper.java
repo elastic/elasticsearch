@@ -1245,15 +1245,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
             }
         }
-
-        boolean hasUserSpecifiedIndexOptions = indexOptions != null;
-        DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = hasUserSpecifiedIndexOptions
-            ? (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions()
-            : defaultDenseVectorIndexOptions(indexVersionCreated, modelSettings);
-
-        if (denseVectorIndexOptions != null) {
-            denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
-        }
     }
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(

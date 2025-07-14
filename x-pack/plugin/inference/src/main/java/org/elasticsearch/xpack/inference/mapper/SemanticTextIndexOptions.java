@@ -81,7 +81,10 @@ public class SemanticTextIndexOptions implements ToXContent {
         SPARSE_VECTOR("sparse_vector") {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
-                return parseSparseVectorIndexOptionsFromMap(map);
+                SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions = parseSparseVectorIndexOptionsFromMap(map);
+                return (SparseVectorFieldMapper.SparseVectorIndexOptions.isDefaultOptions(indexOptions, indexVersion))
+                    ? null
+                    : indexOptions;
             }
         };
 

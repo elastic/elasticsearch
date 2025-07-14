@@ -196,7 +196,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         final String masterNode = internalCluster().startMasterOnlyNode();
         awaitMasterNode();
-        
+
         Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();
         logger.info("--> write some role mappings, no other file settings");

@@ -78,6 +78,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
         return registry.projectsSettings.getOrDefault(projectId, Settings.EMPTY);
     }
 
+    public boolean isProjectMarkedForDeletion(ProjectId projectId) {
+        return projectsMarkedForDeletion.contains(projectId);
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean multiProject = params.paramAsBoolean("multi-project", false);
@@ -139,6 +143,18 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
     // visible for testing
     Map<ProjectId, Settings> getProjectsSettings() {
         return Collections.unmodifiableMap(projectsSettings);
+    }
+
+    @Override
+    public String toString() {
+        return "ProjectStateRegistry["
+            + "projectsSettings="
+            + projectsSettings
+            + ", projectsMarkedForDeletion="
+            + projectsMarkedForDeletion
+            + ", projectsMarkedForDeletionGeneration="
+            + projectsMarkedForDeletionGeneration
+            + ']';
     }
 
     @Override

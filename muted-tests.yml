@@ -176,9 +176,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
-  method: testHTTPExporterWithSSL
-  issue: https://github.com/elastic/elasticsearch/issues/122220
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
@@ -344,9 +341,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
-  issue: https://github.com/elastic/elasticsearch/issues/127096
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
@@ -495,21 +489,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
   issue: https://github.com/elastic/elasticsearch/issues/130472
-- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
-  method: testMessageForKeyStoreOutsideConfigDir
-  issue: https://github.com/elastic/elasticsearch/issues/127192
-- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
-  method: testMessageForPemKeyOutsideConfigDir
-  issue: https://github.com/elastic/elasticsearch/issues/127192
-- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
-  method: testMessageForPemCertificateOutsideConfigDir
-  issue: https://github.com/elastic/elasticsearch/issues/127192
-- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
-  method: testMessageForTrustStoreOutsideConfigDir
-  issue: https://github.com/elastic/elasticsearch/issues/127192
-- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
-  method: testMessageForCertificateAuthoritiesOutsideConfigDir
-  issue: https://github.com/elastic/elasticsearch/issues/127192
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/130497
@@ -534,12 +513,6 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.xpack.esql.action.EsqlRemoteErrorWrapIT
-  method: testThatRemoteErrorsAreWrapped
-  issue: https://github.com/elastic/elasticsearch/issues/130794
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
@@ -564,6 +537,24 @@ tests:
 - class: org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutorTests
   method: testMaxQueueLatency
   issue: https://github.com/elastic/elasticsearch/issues/131093
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyOnFromAfterStats ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/131148
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/131154
+- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
+  method: testNotLikeListKeyword
+  issue: https://github.com/elastic/elasticsearch/issues/131155
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
+  issue: https://github.com/elastic/elasticsearch/issues/131165
+- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
+  method: testLookupJoinAliases
+  issue: https://github.com/elastic/elasticsearch/issues/131166
 
 # Examples:
 #

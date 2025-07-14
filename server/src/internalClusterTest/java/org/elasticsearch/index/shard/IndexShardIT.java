@@ -347,7 +347,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 assertNotNull(writeThreadPoolStats);
                 assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
                 assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-                assertThat(writeThreadPoolStats.averageThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
             }
         } finally {
             updateClusterSettings(

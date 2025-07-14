@@ -1675,7 +1675,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims >= BBQ_MIN_DIMS;
             }
         },
-        BBQ_IVF("bbq_disk", true) {
+        BBQ_DISK("bbq_disk", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
@@ -2295,7 +2295,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int defaultNProbe;
 
         BBQIVFIndexOptions(int clusterSize, int defaultNProbe, RescoreVector rescoreVector) {
-            super(VectorIndexType.BBQ_IVF, rescoreVector);
+            super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultNProbe = defaultNProbe;
         }

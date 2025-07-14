@@ -622,7 +622,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String inferenceId = "test_model";
             String fieldName = randomFieldName(depth);
 
-
         }
     }
 
@@ -1453,16 +1452,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return randomBoolean()
                 ? null
-                : new SemanticTextIndexOptions(
-                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, randomIndexOptionsAll()
-                );
+                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, randomIndexOptionsAll());
         }
 
         if (taskType == TaskType.SPARSE_EMBEDDING) {
             return randomBoolean()
                 ? null
                 : new SemanticTextIndexOptions(
-                    SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, randomSparseVectorIndexOptionsAll()
+                    SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                    randomSparseVectorIndexOptionsAll()
                 );
         }
 

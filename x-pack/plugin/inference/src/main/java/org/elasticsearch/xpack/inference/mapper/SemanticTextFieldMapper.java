@@ -1175,7 +1175,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
-                    CHUNKED_EMBEDDINGS_FIELD, indexVersionCreated, false
+                    CHUNKED_EMBEDDINGS_FIELD,
+                    indexVersionCreated,
+                    false
                 ).setStored(useLegacyFormat == false);
 
                 if (indexOptions != null) {
@@ -1184,8 +1186,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                     sparseVectorMapperBuilder.setIndexOptions(sparseVectorIndexOptions);
                 } else {
-                    SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions =
-                        SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
+                    SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                        .getDefaultIndexOptions(indexVersionCreated);
                     if (defaultIndexOptions != null) {
                         sparseVectorMapperBuilder.setIndexOptions(defaultIndexOptions);
                     }
@@ -1220,9 +1222,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
                 case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
                 case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                default -> throw new IllegalArgumentException(
-                    "Unknown similarity measure in model_settings [" + similarity.name() + "]"
-                );
+                default -> throw new IllegalArgumentException("Unknown similarity measure in model_settings [" + similarity.name() + "]");
             }
         }
 
@@ -1248,8 +1248,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         boolean hasUserSpecifiedIndexOptions = indexOptions != null;
         DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = hasUserSpecifiedIndexOptions
-                                                                                 ? (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions()
-                                                                                 : defaultDenseVectorIndexOptions(indexVersionCreated, modelSettings);
+            ? (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions()
+            : defaultDenseVectorIndexOptions(indexVersionCreated, modelSettings);
 
         if (denseVectorIndexOptions != null) {
             denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);

@@ -116,8 +116,8 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             getResultsAction.execute(task, getAsyncResultRequest, listener);
             return;
         }
-        logger.debug("Async stop for task {} - stopping", asyncIdStr);
         final EsqlExecutionInfo esqlExecutionInfo = asyncTask.executionInfo();
+        logger.debug("Async stop for task {} current execution info {}", asyncIdStr, esqlExecutionInfo);
         if (esqlExecutionInfo != null) {
             esqlExecutionInfo.markAsStopped();
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -37,6 +38,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@TestIssueLogging(
+    value = "org.elasticsearch.xpack.esql.plugin.TransportEsqlAsyncStopAction:DEBUG",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/121672"
+)
 public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CrossClusterAsyncQueryStopIT.class);

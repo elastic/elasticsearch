@@ -11,6 +11,7 @@ from colors metadata _score
 | sort _score desc, color asc
 // end::knn-function[]
 | keep color, rgb_vector
+| limit 10
 ;
 
 // tag::knn-function-result[]
@@ -28,8 +29,7 @@ chartreuse | [127.0, 255.0, 0.0]
 // end::knn-function-result[]
 ;
 
-# https://github.com/elastic/elasticsearch/issues/129550 - Add as an example to knn function documentation
-knnSearchWithSimilarityOption-Ignore
+knnSearchWithSimilarityOption
 required_capability: knn_function_v3
 
 from colors metadata _score 
@@ -250,8 +250,7 @@ green      | false
 maroon     | false
 ;
 
-# https://github.com/elastic/elasticsearch/issues/129550
-testKnnWithNonPushableDisjunctions-Ignore
+testKnnWithNonPushableDisjunctions
 required_capability: knn_function_v3
 
 from colors metadata _score 
@@ -267,8 +266,7 @@ lemon chiffon
 papaya whip
 ;
 
-# https://github.com/elastic/elasticsearch/issues/129550
-testKnnWithNonPushableDisjunctionsOnComplexExpressions-Ignore
+testKnnWithNonPushableDisjunctionsOnComplexExpressions
 required_capability: knn_function_v3
 
 from colors metadata _score 

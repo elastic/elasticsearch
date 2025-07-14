@@ -286,6 +286,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 }
                 listener.onFailure(e);
             }));
+            return;
         }
 
         if (newModel.getServiceSettings() instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {

@@ -230,8 +230,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         writeJSONFile(dataNode, testJSON);
 
         logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
+        internalCluster().startMasterOnlyNode();
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 

@@ -20,6 +20,10 @@ import java.util.function.Consumer;
 
 public interface SnapshotShardContextFactory {
 
+    default boolean isStateless() {
+        return false;
+    };
+
     void asyncCreate(
         ShardId shardId,
         Snapshot snapshot,

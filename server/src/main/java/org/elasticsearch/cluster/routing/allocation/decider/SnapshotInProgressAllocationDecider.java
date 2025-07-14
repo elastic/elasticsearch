@@ -14,9 +14,12 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Objects;
+
+import static org.elasticsearch.snapshots.SnapshotsService.STATELESS_SNAPSHOT_ENABLED_SETTING_NAME;
 
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
@@ -25,6 +28,11 @@ import java.util.Objects;
 public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "snapshot_in_progress";
+    private final boolean statelessSnapshotEnabled;
+
+    public SnapshotInProgressAllocationDecider(Settings settings) {
+        this.statelessSnapshotEnabled = settings.getAsBoolean(STATELESS_SNAPSHOT_ENABLED_SETTING_NAME, false);
+    }
 
     /**
      * Returns a {@link Decision} whether the given shard routing can be
@@ -50,10 +58,19 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
+    private static final Decision YES_STATELESS_SNAPSHOT_ENABLED = Decision.single(
+        Decision.Type.YES,
+        NAME,
+        "stateless snapshot is enabled"
+    );
     private static final Decision YES_NOT_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
 
-    private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+    private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (statelessSnapshotEnabled) {
+            return YES_STATELESS_SNAPSHOT_ENABLED;
+        }
+
         if (allocation.isSimulating()) {
             return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }

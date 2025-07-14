@@ -73,6 +73,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final TransportVersionSet ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = TransportVersionSet.get(
         "ml-inference-custom-service-embedding-type"
     );
+    public static final TransportVersionSet ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = TransportVersionSet.get(
+        "ml-inference-custom-service-embedding-batch-size"
+    );
 
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         ValidationException validationException = new ValidationException();
@@ -286,15 +289,13 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
 
-        if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isNotCompatible(in.getTransportVersion())) {
             // Read the error parsing fields for backwards compatibility
             in.readString();
             in.readString();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isCompatible(in.getTransportVersion())) {
             batchSize = in.readVInt();
         } else {
             batchSize = DEFAULT_EMBEDDING_BATCH_SIZE;
@@ -444,15 +445,13 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
 
-        if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isNotCompatible(out.getTransportVersion())) {
             // Write empty strings for backwards compatibility for the error parsing fields
             out.writeString("");
             out.writeString("");
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isCompatible(out.getTransportVersion())) {
             out.writeVInt(batchSize);
         }
 

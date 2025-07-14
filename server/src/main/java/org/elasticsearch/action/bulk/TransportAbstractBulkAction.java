@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.streams.StreamType;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
@@ -46,12 +48,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * This is an abstract base class for bulk actions. It traverses all indices that the request gets routed to, executes all applicable
@@ -400,6 +406,31 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         ActionListener<BulkResponse> listener
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
+
+        // Validate child stream writes before processing pipelines
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        Set<StreamType> enabledStreamTypes = Arrays.stream(StreamType.values())
+            .filter(t -> StreamsPermissionsUtils.getInstance().streamTypeIsEnabled(t, projectMetadata))
+            .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
+
+        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
+
+        for (StreamType streamType : enabledStreamTypes) {
+            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                DocWriteRequest<?> req = bulkRequest.requests.get(i);
+                String prefix = streamType.getStreamName() + ".";
+                if (req != null && req.index() != null && req.index().startsWith(prefix)) {
+                    IllegalArgumentException e = new IllegalArgumentException("Can't write to child stream");
+                    Boolean failureStore = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+                    if (failureStore != null && failureStore) {
+                        bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                    } else {
+                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                    }
+                }
+            }
+        }
+
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }

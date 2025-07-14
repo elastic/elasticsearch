@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
-import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectRequestHandler;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -422,7 +422,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             settings,
             clusterService,
             indexNameExpressionResolver,
-            new CustomIndicesRequestRewriter.Default()
+            new CrossProjectRequestHandler.Default()
         );
     }
 

@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.RewritableIndicesRequest;
+import org.elasticsearch.CrossProjectRequest;
 
-public interface CustomIndicesRequestRewriter {
-    void rewrite(RewritableIndicesRequest request);
+public interface CrossProjectRequestHandler {
+    void handle(CrossProjectRequest request);
 
-    class Default implements CustomIndicesRequestRewriter {
+    class Default implements CrossProjectRequestHandler {
         @Override
-        public void rewrite(RewritableIndicesRequest request) {
+        public void handle(CrossProjectRequest request) {
             // No rewriting by default
             // This is a no-op implementation
         }

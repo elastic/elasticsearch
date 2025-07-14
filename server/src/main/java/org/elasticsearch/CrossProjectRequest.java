@@ -10,16 +10,18 @@
 package org.elasticsearch;
 
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 
-public interface RewritableIndicesRequest extends IndicesRequest {
-    boolean rewritten();
+public interface CrossProjectRequest extends IndicesRequest {
+    // TODO naming for all these methods...
+    boolean alreadyHandled();
 
-    void rewritten(List<RewrittenIndexExpression> indexExpressions);
+    void qualified(List<QualifiedExpression> qualifiedExpressions);
 
-    boolean checkRemote(List<RemoteClusterService.RemoteTag> tags);
+    @Nullable
+    String queryRouting();
 
-    record RewrittenIndexExpression(String original, List<String> rewritten) {}
+    record QualifiedExpression(String original, List<String> qualified) {}
 }

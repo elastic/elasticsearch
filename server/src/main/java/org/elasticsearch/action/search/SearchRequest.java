@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.RewritableIndicesRequest;
+import org.elasticsearch.CrossProjectRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -32,7 +32,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -57,7 +56,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SearchRequest extends LegacyActionRequest
     implements
-        RewritableIndicesRequest,
+        CrossProjectRequest,
         IndicesRequest.Replaceable,
         Rewriteable<SearchRequest> {
 
@@ -75,10 +74,12 @@ public class SearchRequest extends LegacyActionRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private List<RemoteClusterService.RemoteTag> routingTags = List.of();
 
     @Nullable
-    private List<RewrittenIndexExpression> indexExpressions;
+    private String queryRouting = null;
+
+    @Nullable
+    private List<QualifiedExpression> indexExpressions;
 
     @Nullable
     private String routing;
@@ -410,8 +411,8 @@ public class SearchRequest extends LegacyActionRequest
         return this;
     }
 
-    public SearchRequest routingTags(List<RemoteClusterService.RemoteTag> routingTags) {
-        this.routingTags = routingTags;
+    public SearchRequest queryRouting(String queryRouting) {
+        this.queryRouting = queryRouting;
         return this;
     }
 
@@ -870,28 +871,19 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean rewritten() {
+    public boolean alreadyHandled() {
         return indexExpressions != null;
     }
 
     @Override
-    public void rewritten(List<RewrittenIndexExpression> indexExpressions) {
-        assert false == rewritten();
-        this.indexExpressions = indexExpressions;
-        indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
+    public void qualified(List<QualifiedExpression> qualifiedExpressions) {
+        assert false == alreadyHandled();
+        this.indexExpressions = qualifiedExpressions;
+        indices(qualifiedExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
     }
 
     @Override
-    public boolean checkRemote(List<RemoteClusterService.RemoteTag> tags) {
-        if (routingTags.isEmpty()) {
-            return true; // no routing requested, so no constraints
-        }
-        // if any tag in routingTags matches one in tags, return true
-        for (RemoteClusterService.RemoteTag tag : routingTags) {
-            if (tags.contains(tag)) {
-                return true;
-            }
-        }
-        return false;
+    public String queryRouting() {
+        return queryRouting;
     }
 }

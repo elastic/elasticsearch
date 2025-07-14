@@ -214,7 +214,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectRequestHandler;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1149,7 +1149,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        CustomIndicesRequestRewriter customIndicesRequestRewriter = createCustomIndicesRequestRewriter(extensionComponents);
+        CrossProjectRequestHandler crossProjectRequestHandler = createCustomIndicesRequestRewriter(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1167,7 +1167,7 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             projectResolver,
-            customIndicesRequestRewriter
+            crossProjectRequestHandler
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1310,10 +1310,10 @@ public class Security extends Plugin
         }
     }
 
-    private CustomIndicesRequestRewriter createCustomIndicesRequestRewriter(SecurityExtension.SecurityComponents extensionComponents) {
-        final Map<String, CustomIndicesRequestRewriter> customByExtension = new HashMap<>();
+    private CrossProjectRequestHandler createCustomIndicesRequestRewriter(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, CrossProjectRequestHandler> customByExtension = new HashMap<>();
         for (final SecurityExtension extension : securityExtensions) {
-            final CustomIndicesRequestRewriter custom = extension.getCustomIndicesRequestRewriter(extensionComponents);
+            final CrossProjectRequestHandler custom = extension.getCustomIndicesRequestRewriter(extensionComponents);
             if (custom != null) {
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
@@ -1330,16 +1330,16 @@ public class Security extends Plugin
         if (customByExtension.isEmpty()) {
             logger.debug(
                 "No custom implementation for [{}]. Falling-back to default implementation.",
-                CustomIndicesRequestRewriter.class.getCanonicalName()
+                CrossProjectRequestHandler.class.getCanonicalName()
             );
-            return new CustomIndicesRequestRewriter.Default();
+            return new CrossProjectRequestHandler.Default();
         } else if (customByExtension.size() > 1) {
             throw new IllegalStateException(
                 "Multiple extensions tried to install a custom CustomIndicesRequestRewriter: " + customByExtension.keySet()
             );
         } else {
             final var byExtensionEntry = customByExtension.entrySet().iterator().next();
-            final CustomIndicesRequestRewriter custom = byExtensionEntry.getValue();
+            final CrossProjectRequestHandler custom = byExtensionEntry.getValue();
             final String extensionName = byExtensionEntry.getKey();
             logger.debug(
                 "CustomIndicesRequestRewriter implementation [{}] provided by extension [{}]",

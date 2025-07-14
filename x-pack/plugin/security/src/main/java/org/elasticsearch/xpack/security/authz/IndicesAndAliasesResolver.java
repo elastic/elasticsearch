@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.RewritableIndicesRequest;
+import org.elasticsearch.CrossProjectRequest;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -37,7 +37,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.CustomIndicesRequestRewriter;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectRequestHandler;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
@@ -60,18 +60,18 @@ public class IndicesAndAliasesResolver {
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
-    private final CustomIndicesRequestRewriter customIndicesRequestRewriter;
+    private final CrossProjectRequestHandler crossProjectRequestHandler;
 
     IndicesAndAliasesResolver(
         Settings settings,
         ClusterService clusterService,
         IndexNameExpressionResolver resolver,
-        CustomIndicesRequestRewriter customIndicesRequestRewriter
+        CrossProjectRequestHandler crossProjectRequestHandler
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-        this.customIndicesRequestRewriter = customIndicesRequestRewriter;
+        this.crossProjectRequestHandler = crossProjectRequestHandler;
     }
 
     /**
@@ -133,8 +133,8 @@ public class IndicesAndAliasesResolver {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
-        if (request instanceof RewritableIndicesRequest rewritableIndicesRequest) {
-            customIndicesRequestRewriter.rewrite(rewritableIndicesRequest);
+        if (request instanceof CrossProjectRequest rewritableIndicesRequest) {
+            crossProjectRequestHandler.handle(rewritableIndicesRequest);
         }
 
         return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);

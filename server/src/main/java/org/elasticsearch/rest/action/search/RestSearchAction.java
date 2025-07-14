@@ -37,7 +37,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -173,13 +172,11 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
 
-        var routingTags = request.param("query_routing", null);
-        if (routingTags != null) {
-            searchRequest.routingTags(
-                Arrays.stream(Strings.splitStringByCommaToArray(routingTags)).map(RemoteClusterService.RemoteTag::fromString).toList()
-            );
+        String queryRouting = request.param("query_routing", null);
+        if (queryRouting != null) {
+            searchRequest.queryRouting(queryRouting);
         } else {
-            log.info("No routing tags");
+            log.info("No query routing defined");
         }
 
         if (requestContentParser != null) {

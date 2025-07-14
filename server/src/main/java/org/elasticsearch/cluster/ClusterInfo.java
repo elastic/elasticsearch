@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,6 +49,10 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
 public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
+
+    public static final TransportVersionSet NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = TransportVersionSet.get(
+        "node-usage-stats-for-thread-pools-in-cluster-info"
+    );
 
     public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
@@ -111,7 +116,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         } else {
             this.estimatedHeapUsages = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
+        if (NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO.isCompatible(in.getTransportVersion())) {
             this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::new);
         } else {
             this.nodeUsageStatsForThreadPools = Map.of();
@@ -133,7 +138,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
+        if (NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO.isCompatible(out.getTransportVersion())) {
             out.writeMap(this.nodeUsageStatsForThreadPools, StreamOutput::writeWriteable);
         }
     }

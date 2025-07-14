@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.WildcardQueryBuilder.ESQL_FIXED_INDEX_LIKE;
 import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTransportSupported;
 
 /**
@@ -55,7 +55,7 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ESQL_FIXED_INDEX_LIKE;
+        return ESQL_FIXED_INDEX_LIKE.local();
     }
 
     @Override

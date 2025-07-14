@@ -186,7 +186,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var createRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(createRequest);
 
-        numDocs = randomIntBetween(10, 20);
+        numDocs = randomIntBetween(15, 25);
         numDims = randomIntBetween(3, 10);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         float value = 0.0f;

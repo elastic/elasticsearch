@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersionSet;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.collect.Iterators;

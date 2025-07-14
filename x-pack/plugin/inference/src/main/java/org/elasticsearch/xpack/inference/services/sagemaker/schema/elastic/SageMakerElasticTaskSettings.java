@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersionSet;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;

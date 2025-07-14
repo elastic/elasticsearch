@@ -24,6 +24,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordPainlessExtension;
+import org.elasticsearch.xpack.spatial.SpatialPainlessExtension;
+import org.elasticsearch.xpack.wildcard.WildcardPainlessExtension;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -82,8 +85,10 @@ public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> im
                     if (extensionPointType.isAssignableFrom(PainlessExtension.class)) {
                         final List<PainlessExtension> extensions = new ArrayList<>();
 
-                        // Add available extensions using reflection to avoid module visibility issues
-                        extensions.add(new ProcessorsWhitelistExtension());  // module: ingest-common
+                        extensions.add(new ConstantKeywordPainlessExtension());  // module: constant-keyword
+                        extensions.add(new ProcessorsWhitelistExtension());         // module: ingest-common
+                        extensions.add(new SpatialPainlessExtension());          // module: spatial
+                        extensions.add(new WildcardPainlessExtension());         // module: wildcard
 
                         return (List<T>) extensions;
                     } else {

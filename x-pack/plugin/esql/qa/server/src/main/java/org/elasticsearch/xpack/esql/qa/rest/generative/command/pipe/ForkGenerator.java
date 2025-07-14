@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
 import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
@@ -28,17 +30,88 @@ public class ForkGenerator implements CommandGenerator {
     ) {
         // FORK can only be allowed once - so we skip adding another FORK if we already have one
         // otherwise, most generated queries would only result in a validation error
+        StringBuilder completeCommand = new StringBuilder();
         for (CommandDescription command : previousCommands) {
             if (command.commandName().equals(FORK)) {
-                return new CommandDescription(FORK, this, " ", Map.of());
+                return EMPTY_DESCRIPTION;
             }
+
+            completeCommand.append(command.commandString());
         }
 
-        int n = randomIntBetween(2, 3);
+        final int branchCount = randomIntBetween(2, 8);
+        final int branchToRetain = randomIntBetween(1, branchCount);
 
-        String cmd = " | FORK " + "( WHERE true ) ".repeat(n) + " | WHERE _fork == \"fork" + randomIntBetween(1, n) + "\" | DROP _fork";
+        StringBuilder forkCmd = new StringBuilder(" | FORK ");
+        for (int i = 0; i < branchCount; i++) {
+            var expr = WhereGenerator.randomExpression(randomIntBetween(1, 2), previousOutput);
+            if (expr == null) {
+                expr = "true";
+            }
+            forkCmd.append(" (").append("where ").append(expr);
 
-        return new CommandDescription(FORK, this, cmd, Map.of());
+            var exec = new EsqlQueryGenerator.Executor() {
+                @Override
+                public void run(CommandGenerator generator, CommandDescription current) {
+                    previousCommands.add(current);
+                }
+
+                @Override
+                public List<CommandDescription> previousCommands() {
+                    return previousCommands;
+                }
+
+                @Override
+                public boolean continueExecuting() {
+                    return true;
+                }
+
+                @Override
+                public List<EsqlQueryGenerator.Column> currentSchema() {
+                    return previousOutput;
+                }
+
+                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+            };
+
+            var gen = new CommandGenerator() {
+                @Override
+                public CommandDescription generate(
+                    List<CommandDescription> previousCommands,
+                    List<EsqlQueryGenerator.Column> previousOutput,
+                    QuerySchema schema
+                ) {
+                    return new CommandDescription("<source>", this, completeCommand.toString(), Map.of());
+                }
+
+                @Override
+                public ValidationResult validateOutput(
+                    List<CommandDescription> previousCommands,
+                    CommandDescription command,
+                    List<EsqlQueryGenerator.Column> previousColumns,
+                    List<List<Object>> previousOutput,
+                    List<EsqlQueryGenerator.Column> columns,
+                    List<List<Object>> output
+                ) {
+                    return VALIDATION_OK;
+                }
+            };
+
+            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec);
+            if (exec.previousCommands().size() > 1) {
+                String previousCmd = exec.previousCommands()
+                    .stream()
+                    .skip(1)
+                    .map(CommandDescription::commandString)
+                    .collect(Collectors.joining(" "));
+                forkCmd.append(previousCmd);
+            }
+
+            forkCmd.append(")");
+        }
+        forkCmd.append(" | WHERE _fork == \"fork").append(branchToRetain).append("\" | DROP _fork");
+
+        return new CommandDescription(FORK, this, forkCmd.toString(), Map.of());
     }
 
     @Override

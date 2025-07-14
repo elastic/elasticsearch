@@ -175,12 +175,9 @@ public class SplitTargetService {
     }
 
     private void moveToDoneStep(IndexShard indexShard, Split split, ActionListener<Void> listener) {
-        SubscribableListener.<Void>newForked(
-            forkedListener -> ActionListener.run(
-                forkedListener,
-                runListener -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), runListener)
-            )
-        ).<Void>andThen(l -> {
+        // Note that a shard can be closed (due to a failure) at any moment during the below flow.
+        // It is not a problem since all operations are idempotent.
+        SubscribableListener.<Void>newForked(l -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), l)).<Void>andThen(l -> {
             var changeStateToDone = new ChangeState(
                 indexShard,
                 split,
@@ -197,8 +194,7 @@ public class SplitTargetService {
     private void stateError(IndexShard shard, Split split, IndexReshardingState.Split.TargetShardState state, Exception e) {
         if (onGoingSplits.get(shard) == split) {
             // TODO: Consider failing shard if this happens
-            logger.error(Strings.format("unexpected failure to transition target state to %s", state), e);
-            assert false;
+            logger.error(Strings.format("unexpected failure to transition target shard %s state to %s", shard.shardId(), state), e);
         }
     }
 

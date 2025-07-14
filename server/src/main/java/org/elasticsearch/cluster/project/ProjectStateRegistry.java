@@ -124,7 +124,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
-            return new ProjectStatusRegistryDiff(in);
+            return new ProjectStateRegistryDiff(in);
         }
         return readDiffFrom(Custom.class, TYPE, in);
     }
@@ -134,7 +134,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         if (this.equals(previousState)) {
             return SimpleDiffable.empty();
         }
-        return new ProjectStatusRegistryDiff((ProjectStateRegistry) previousState, this);
+        return new ProjectStateRegistryDiff((ProjectStateRegistry) previousState, this);
     }
 
     @Override
@@ -230,13 +230,13 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         private final Set<ProjectId> projectsMarkedForDeletion;
         private final long projectsMarkedForDeletionGeneration;
 
-        ProjectStatusRegistryDiff(StreamInput in) throws IOException {
+        ProjectStateRegistryDiff(StreamInput in) throws IOException {
             projectsEntriesDiff = DiffableUtils.readJdkMapDiff(in, ProjectId.PROJECT_ID_SERIALIZER, VALUE_READER);
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId.READER);
             projectsMarkedForDeletionGeneration = in.readVLong();
         }
 
-        ProjectStatusRegistryDiff(ProjectStateRegistry previousState, ProjectStateRegistry currentState) {
+        ProjectStateRegistryDiff(ProjectStateRegistry previousState, ProjectStateRegistry currentState) {
             projectsEntriesDiff = DiffableUtils.diff(
                 previousState.projectsEntries,
                 currentState.projectsEntries,

@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -34,6 +35,8 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -315,17 +318,19 @@ public class HashAggregationOperator implements Operator {
     }
 
     private @Nullable Page createInitialPage(Page page) {
-        int maxBucketCount = getMaxBucketCount(groups, page);
-        if (maxBucketCount == 0) {
+        if (anyEmitEmptyBuckets(groups) == false) {
             return null;
         }
+        int maxBucketCount = getMaxBucketCount(groups, page);
         Map<Integer, BlockHash.GroupSpec> groupByChannel = groups.stream().collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {
             if (groupByChannel.containsKey(i)) {
                 BlockHash.EmptyBucketDef emptyBucketDef = groupByChannel.get(i).emptyBucketDef();
                 if (emptyBucketDef != null && emptyBucketDef.emitEmptyBuckets()) {
-                    blocks[i] = appendInitialValues(emptyBucketDef, maxBucketCount);
+                    blocks[i] = emptyBucketDef instanceof BlockHash.DatetimeEmptyBucketDef
+                        ? appendInitialValuesForDatetime((BlockHash.DatetimeEmptyBucketDef) emptyBucketDef, maxBucketCount)
+                        : appendInitialValuesForNumeric((BlockHash.NumericEmptyBucketDef) emptyBucketDef, maxBucketCount);
                 } else {
                     blocks[i] = copyValues(page.getBlock(i), maxBucketCount);
                 }
@@ -336,7 +341,7 @@ public class HashAggregationOperator implements Operator {
         return new Page(blocks);
     }
 
-    private Block appendInitialValues(BlockHash.EmptyBucketDef group, int maxBucketCount) {
+    private Block appendInitialValuesForDatetime(BlockHash.DatetimeEmptyBucketDef group, int maxBucketCount) {
         Rounding.Prepared rounding = group.rounding();
         try (
             LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(
@@ -347,6 +352,27 @@ public class HashAggregationOperator implements Operator {
             int i = 0;
             for (long bucket = rounding.round(group.from()); bucket < group.to(); bucket = rounding.nextRoundingValue(bucket)) {
                 newBlockBuilder.appendLong(bucket);
+                i++;
+            }
+            while (i < maxBucketCount) {
+                newBlockBuilder.appendNull();
+                i++;
+            }
+            return newBlockBuilder.build();
+        }
+    }
+
+    private Block appendInitialValuesForNumeric(BlockHash.NumericEmptyBucketDef group, int maxBucketCount) {
+        double roundTo = group.rounding();
+        try (
+            DoubleBlock.Builder newBlockBuilder = (DoubleBlock.Builder) ElementType.DOUBLE.newBlockBuilder(
+                maxBucketCount,
+                driverContext.blockFactory()
+            )
+        ) {
+            int i = 0;
+            for (double bucket = round(Math.floor(group.from() / roundTo) * roundTo, 2); bucket < group.to(); bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
+                newBlockBuilder.appendDouble(bucket);
                 i++;
             }
             while (i < maxBucketCount) {
@@ -372,12 +398,18 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
+    private static boolean anyEmitEmptyBuckets(List<BlockHash.GroupSpec> groups) {
+        return groups.stream().anyMatch(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets());
+    }
+
     private static int getMaxBucketCount(List<BlockHash.GroupSpec> groups, Page page) {
         int result = 0;
         for (BlockHash.GroupSpec group : groups) {
             int positionCount;
             if (group.emptyBucketDef() != null && group.emptyBucketDef().emitEmptyBuckets()) {
-                positionCount = getBucketCount(group.emptyBucketDef());
+                positionCount = group.emptyBucketDef() instanceof BlockHash.DatetimeEmptyBucketDef
+                    ? getBucketCount((BlockHash.DatetimeEmptyBucketDef) group.emptyBucketDef())
+                    : getBucketCount((BlockHash.NumericEmptyBucketDef) group.emptyBucketDef());
             } else {
                 positionCount = page.getBlock(group.channel()).getPositionCount();
             }
@@ -386,7 +418,7 @@ public class HashAggregationOperator implements Operator {
         return result;
     }
 
-    private static int getBucketCount(BlockHash.EmptyBucketDef group) {
+    private static int getBucketCount(BlockHash.DatetimeEmptyBucketDef group) {
         Rounding.Prepared rounding = group.rounding();
         long from = group.from();
         long to = group.to();
@@ -395,6 +427,21 @@ public class HashAggregationOperator implements Operator {
             result++;
         }
         return result;
+    }
+
+    private static int getBucketCount(BlockHash.NumericEmptyBucketDef group) {
+        double roundTo = group.rounding();
+        double from = group.from();
+        double to = group.to();
+        int result = 0;
+        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
+            result++;
+        }
+        return result;
+    }
+
+    private static double round(double value, int n) {
+        return new BigDecimal(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
     @Override

@@ -372,7 +372,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
-    private double pickRounding(int buckets, double from, double to) {
+    public double pickRounding(int buckets, double from, double to) {
         double precise = (to - from) / buckets;
         double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
         double halfPower = nextPowerOfTen / 2;

@@ -353,8 +353,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
     private static Pattern pattern = Pattern.compile("BUCKET\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*" +      // field
         "([^\"]+)\\s*,\\s*" +                                      // buckets
-        "\"([^\"]+)\"\\s*,\\s*" +                                  // from
-        "\"([^\"]+)\"\\s*,\\s*" +                                  // to
+        "[\"]?([^\"]+)[\"]?\\s*,\\s*" +                                  // from
+        "[\"]?([^\"]+)[\"]?\\s*,\\s*" +                                  // to
         "(true|false)\\s*\\)"                                      // emitEmptyBuckets
     );
 
@@ -371,32 +371,66 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         try {
             buckets = Integer.parseInt(datePeriod);
         } catch (NumberFormatException ex) {}
-        Instant from = Instant.parse(matcher.group(3));
-        Instant to = Instant.parse(matcher.group(4));
         Boolean emitEmptyBuckets = Booleans.parseBoolean(matcher.group(5));
-        return new Bucket(
-            unwrappedExpression.source(),
-            new Literal(Source.EMPTY, field, DataType.DATETIME),
-            buckets != -1
-                ? new Literal(Source.EMPTY, buckets, DataType.INTEGER)
-                : new Literal(
-                    Source.EMPTY,
-                    EsqlDataTypeConverter.parseTemporalAmount(datePeriod, DataType.DATE_PERIOD),
-                    DataType.DATE_PERIOD
-                ),
-            new Literal(Source.EMPTY, from.toEpochMilli(), DataType.DATETIME),
-            new Literal(Source.EMPTY, to.toEpochMilli(), DataType.DATETIME),
-            new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
-        );
+        switch (unwrappedExpression.dataType()) {
+            case DATETIME -> {
+                Instant from = Instant.parse(matcher.group(3));
+                Instant to = Instant.parse(matcher.group(4));
+                return new Bucket(
+                    unwrappedExpression.source(),
+                    new Literal(Source.EMPTY, field, DataType.DATETIME),
+                    buckets != -1
+                        ? new Literal(Source.EMPTY, buckets, DataType.INTEGER)
+                        : new Literal(
+                            Source.EMPTY,
+                            EsqlDataTypeConverter.parseTemporalAmount(datePeriod, DataType.DATE_PERIOD),
+                            DataType.DATE_PERIOD
+                        ),
+                    new Literal(Source.EMPTY, from.toEpochMilli(), DataType.DATETIME),
+                    new Literal(Source.EMPTY, to.toEpochMilli(), DataType.DATETIME),
+                    new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
+                );
+            }
+            case DOUBLE -> {
+                double from = Double.parseDouble(matcher.group(3));
+                double to = Double.parseDouble(matcher.group(4));
+                return new Bucket(
+                    unwrappedExpression.source(),
+                    new Literal(Source.EMPTY, field, unwrappedExpression.dataType()),
+                    buckets != -1
+                        ? new Literal(Source.EMPTY, buckets, DataType.INTEGER)
+                        : new Literal(
+                            Source.EMPTY,
+                            EsqlDataTypeConverter.parseTemporalAmount(datePeriod, DataType.DATE_PERIOD),
+                            DataType.DATE_PERIOD
+                        ),
+                    new Literal(Source.EMPTY, from, DataType.DOUBLE),
+                    new Literal(Source.EMPTY, to, DataType.DOUBLE),
+                    new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
+                );
+            }
+            default -> throw new IllegalArgumentException("Unsupported data type [" + unwrappedExpression.dataType() + "]");
+        }
     }
 
     private static BlockHash.EmptyBucketDef toEmptyBucketDef(Bucket bucket) {
         FoldContext foldContext = new FoldContext(128);
-        return new BlockHash.EmptyBucketDef(
-            (Boolean) bucket.emitEmptyBuckets().fold(foldContext),
-            (Long) bucket.from().fold(foldContext),
-            (Long) bucket.to().fold(foldContext),
-            bucket.getDateRoundingOrNull(foldContext)
+        return DataType.DATETIME.equals(bucket.dataType())
+            ? new BlockHash.DatetimeEmptyBucketDef(
+                (Boolean) bucket.emitEmptyBuckets().fold(foldContext),
+                (Long) bucket.from().fold(foldContext),
+                (Long) bucket.to().fold(foldContext),
+                bucket.getDateRoundingOrNull(foldContext)
+            )
+            : new BlockHash.NumericEmptyBucketDef(
+                (Boolean) bucket.emitEmptyBuckets().fold(foldContext),
+                (double) bucket.from().fold(foldContext),
+                (double) bucket.to().fold(foldContext),
+                bucket.pickRounding(
+                    (int) bucket.buckets().fold(foldContext),
+                    (double) bucket.from().fold(foldContext),
+                    (double) bucket.to().fold(foldContext)
+                )
         );
     }
 

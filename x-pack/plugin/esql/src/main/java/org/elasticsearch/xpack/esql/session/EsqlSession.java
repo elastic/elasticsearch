@@ -459,12 +459,7 @@ public class EsqlSession {
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
                 var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(result.indices.failures());
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, unavailableClusters);
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indices,
-                    unavailableClusters.keySet(),
-                    null
-                );
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -782,13 +777,7 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(result.indices.failures()).keySet();
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indices,
-                    unavailableClusters,
-                    requestFilter
-                );
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
             }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {

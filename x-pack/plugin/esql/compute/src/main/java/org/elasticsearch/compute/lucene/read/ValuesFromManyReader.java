@@ -131,6 +131,9 @@ class ValuesFromManyReader extends ValuesReader {
                 }
                 operator.sanityCheckBlock(rowStride[f], backwards.length, target[f], f);
             }
+            if (target[0].getPositionCount() != docs.getPositionCount()) {
+                throw new IllegalStateException("partial pages not yet supported");
+            }
         }
 
         private void verifyBuilders(ComputeBlockLoaderFactory loaderBlockFactory, int shard) {

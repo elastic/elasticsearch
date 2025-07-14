@@ -142,7 +142,8 @@ public class PolicyManager {
         }
 
         Logger logger(Class<?> requestingClass) {
-            var loggerSuffix = "." + componentName + "." + requestingClass.getPackageName();
+            var packageName = requestingClass.getPackageName();
+            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName) + "." + packageName;
             return LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
         }
     }

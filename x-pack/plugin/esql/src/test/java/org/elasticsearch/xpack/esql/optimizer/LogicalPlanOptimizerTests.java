@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -2439,7 +2440,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort salary, x
             | limit 15""");
 
-        var keep = as(plan, EsqlProject.class);
+        var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(15));
         assertThat(orderNames(topN), contains("salary", "first_name"));
@@ -5728,39 +5729,240 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(aggregate.child(), EsRelation.class);
     }
 
-    /**
-     * Expects
-     * Limit[1000[INTEGER]]
-     * \_InlineJoin[LEFT OUTER,[emp_no % 2{r}#1793],[emp_no % 2{r}#1793],[emp_no % 2{r}#1793]]
-     *   |_Eval[[emp_no{f}#1794 % 2[INTEGER] AS emp_no % 2]]
-     *   | \_EsRelation[test][_meta_field{f}#1800, emp_no{f}#1794, first_name{f}#..]
-     *   \_Aggregate[STANDARD,[emp_no % 2{r}#1793],[COUNT(salary{f}#1799,true[BOOLEAN]) AS c, emp_no % 2{r}#1793]]
-     *     \_StubRelation[[_meta_field{f}#1800, emp_no{f}#1794, first_name{f}#1795, gender{f}#1796, job{f}#1801, job.raw{f}#1802, langua
-     * ges{f}#1797, last_name{f}#1798, long_noidx{f}#1803, salary{f}#1799, emp_no % 2{r}#1793]]
+    /*
+     * Limit[1000[INTEGER],true]
+     * \_InlineJoin[LEFT,[emp_no % 2{r}#6],[emp_no % 2{r}#6],[emp_no % 2{r}#6]]
+     *   |_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no % 2#6]]
+     *   | \_Limit[1000[INTEGER],false]  <-- TODO: this needs to go
+     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_Aggregate[[emp_no % 2{r}#6],[COUNT(salary{f}#12,true[BOOLEAN]) AS c#4, emp_no % 2{r}#6]]
+     *     \_StubRelation[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
+     *          uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, emp_no % 2{r}#6]]
      */
-    @AwaitsFix(bugUrl = "Needs updating to join plan per above")
     public void testInlinestatsNestedExpressionsInGroups() {
         var query = """
             FROM test
             | INLINESTATS c = COUNT(salary) by emp_no % 2
             """;
-        if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'INLINESTATS' expecting {"));
+        if (releaseBuildForInlinestats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
-        var limit = as(plan, Limit.class);
+        var limit = as(plan, Limit.class); // TODO: this needs to go
         var inline = as(limit.child(), InlineJoin.class);
-        var agg = as(inline.left(), Aggregate.class);
+        var eval = as(inline.left(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(Expressions.attribute(eval.fields().get(0)).name(), is("emp_no % 2"));
+        limit = asLimit(eval.child(), 1000, false);
+        var agg = as(inline.right(), Aggregate.class);
         var groupings = agg.groupings();
         var aggs = agg.aggregates();
         var ref = as(groupings.get(0), ReferenceAttribute.class);
         assertThat(aggs.get(1), is(ref));
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
         assertThat(eval.fields().get(0).toAttribute(), is(ref));
         assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    private static boolean releaseBuildForInlinestats(String query) {
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> analyze(query));
+            assertThat(e.getMessage(), containsString("mismatched input 'INLINESTATS' expecting"));
+            return true;
+        }
+        return false;
+    }
+
+    /*
+     * Project[[emp_no{f}#12 AS x#8, emp_no{f}#12]]
+     * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],1[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testInlinestatsGetsPrunedEntirely() {
+        var query = """
+            FROM employees
+            | INLINESTATS x = avg(salary) BY emp_no
+            | EVAL x = emp_no
+            | SORT x
+            | KEEP x, emp_no
+            | LIMIT 1
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(2));
+        assertThat(projections.get(0).name(), equalTo("x"));
+        assertThat(projections.get(1).name(), equalTo("emp_no"));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var relation = as(topN.child(), EsRelation.class);
+    }
+
+    // same as above
+    public void testDoubleInlinestatsGetsPrunedEntirely() {
+        var query = """
+            FROM employees
+            | INLINESTATS x = avg(salary) BY emp_no
+            | INLINESTATS y = avg(salary) BY languages
+            | EVAL y = emp_no
+            | EVAL x = y
+            | SORT x
+            | KEEP x, emp_no
+            | LIMIT 1
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(2));
+        assertThat(projections.get(0).name(), equalTo("x"));
+        assertThat(projections.get(1).name(), equalTo("emp_no"));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var relation = as(topN.child(), EsRelation.class);
+    }
+
+    /*
+     * Project[[emp_no{f}#15 AS x#11, a{r}#7, emp_no{f}#15]]
+     * \_Limit[1[INTEGER],true]
+     *   \_InlineJoin[LEFT,[emp_no{f}#15],[emp_no{f}#15],[emp_no{r}#15]]
+     *     |_Limit[1[INTEGER],false]  <-- TODO: this needs to go
+     *     | \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *     \_Aggregate[[emp_no{f}#15],[COUNTDISTINCT(languages{f}#18,true[BOOLEAN]) AS a#7, emp_no{f}#15]]
+     *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
+     *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     */
+    public void testInlinestatsGetsPrunedPartially() {
+        var query = """
+            FROM employees
+            | INLINESTATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
+            | EVAL x = emp_no
+            | KEEP x, a, emp_no
+            | LIMIT 1
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(3));
+        assertThat(projections.get(0).name(), equalTo("x"));
+        assertThat(projections.get(1).name(), equalTo("a"));
+        assertThat(projections.get(2).name(), equalTo("emp_no"));
+        var upperLimit = asLimit(project.child(), 1, true);
+        var inlineJoin = as(upperLimit.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("emp_no{f}")));
+        // Left
+        var limit = as(inlineJoin.left(), Limit.class); // TODO: this needs to go
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
+        var relation = as(limit.child(), EsRelation.class);
+        // Right
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertMap(
+            agg.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("a{r}")).item(startsWith("emp_no{f}"))
+        );
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    // same as above
+    public void testTrippleInlinestatsGetsPrunedPartially() {
+        var query = """
+            FROM employees
+            | INLINESTATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
+            | INLINESTATS y = AVG(salary), b = COUNT_DISTINCT(languages) BY emp_no
+            | EVAL x = emp_no
+            | INLINESTATS z = AVG(salary), c = COUNT_DISTINCT(languages), d = AVG(languages) BY last_name
+            | KEEP x, a, emp_no
+            | LIMIT 1
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(3));
+        assertThat(projections.get(0).name(), equalTo("x"));
+        assertThat(projections.get(1).name(), equalTo("a"));
+        assertThat(projections.get(2).name(), equalTo("emp_no"));
+        var upperLimit = asLimit(project.child(), 1, true);
+        var inlineJoin = as(upperLimit.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("emp_no{f}")));
+        // Left
+        var limit = as(inlineJoin.left(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
+        var relation = as(limit.child(), EsRelation.class);
+        // Right
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertMap(
+            agg.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("a{r}")).item(startsWith("emp_no{f}"))
+        );
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * EsqlProject[[avg{r}#4, emp_no{f}#9, first_name{f}#10]]
+     * \_Limit[10[INTEGER],true]
+     *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{f}#9],[emp_no{r}#9]]
+     *     |_Limit[10[INTEGER],false]  <-- TODO: this needs to go
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_Project[[avg{r}#4, emp_no{f}#9]]
+     *       \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#4]]
+     *         \_Aggregate[[emp_no{f}#9],[SUM(salary{f}#14,true[BOOLEAN]) AS $$SUM$avg$0#20, COUNT(salary{f}#14,true[BOOLEAN]) AS $$COUNT$
+     *              avg$1#21, emp_no{f}#9]]
+     *           \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
+     *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
+     */
+    public void testInlinestatsWithAvg() {
+        var query = """
+            FROM employees
+            | INLINESTATS avg = AVG(salary) BY emp_no
+            | KEEP avg, emp_no, first_name
+            | LIMIT 10
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var esqlProject = as(plan, EsqlProject.class);
+        var projections = esqlProject.projections();
+        assertThat(projections.size(), equalTo(3));
+        assertThat(projections.get(0).name(), equalTo("avg"));
+        assertThat(projections.get(1).name(), equalTo("emp_no"));
+        assertThat(projections.get(2).name(), equalTo("first_name"));
+        var upperLimit = asLimit(esqlProject.child(), 10, true);
+        var inlineJoin = as(upperLimit.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("emp_no{f}")));
+        // Left
+        var limit = as(inlineJoin.left(), Limit.class); // TODO: this needs to go
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
+        var relation = as(limit.child(), EsRelation.class);
+        // Right
+        var project = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(project.projections()), contains("avg", "emp_no"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var field = eval.fields().getFirst();
+        assertThat(field.toAttribute().name(), equalTo("avg"));
+        var agg = as(eval.child(), Aggregate.class);
+        assertMap(
+            agg.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("$$SUM$avg$0")).item(startsWith("$$COUNT$avg$1")).item(startsWith("emp_no{f}"))
+        );
+        var stub = as(agg.child(), StubRelation.class);
     }
 
     /**

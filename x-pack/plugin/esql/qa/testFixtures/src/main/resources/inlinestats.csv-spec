@@ -671,6 +671,21 @@ emp_no:integer
 10100     
 ;
 
+shadowEntireInlinestats
+required_capability: inlinestats_v8
+
+FROM employees
+| INLINESTATS x = avg(salary), y = min(salary) BY emp_no
+| EVAL x = emp_no, y = x
+| SORT x
+| KEEP x, y, emp_no
+| LIMIT 1
+;
+
+x:integer |y:integer |emp_no:integer
+10001     |10001     |10001
+;
+
 byConstant
 required_capability: inlinestats_v8
 

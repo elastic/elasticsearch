@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -185,7 +186,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         String outputFormatString = (String) optionsMap.get("output_format");
         if (outputFormatString != null) {
             try {
-                outputFormat = OutputFormat.valueOf(outputFormatString.toUpperCase());
+                outputFormat = OutputFormat.valueOf(outputFormatString.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(
                     format(null, "invalid output format [{}], expecting one of [REGEX, TOKENS]", outputFormatString)

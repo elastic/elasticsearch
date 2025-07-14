@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -44,8 +44,6 @@ import static org.elasticsearch.compute.aggregation.blockhash.BlockHash.Categori
 import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -165,34 +163,13 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @Override
     protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT).and(resolveOptions());
-    }
-
-    private TypeResolution resolveOptions() {
-        if (options != null) {
-            TypeResolution resolution = isNotNull(options, sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options, sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            try {
-                categorizeDef();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return isString(field(), sourceText(), DEFAULT).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS));
     }
 
     public CategorizeDef categorizeDef() {
         Map<String, Object> optionsMap = new HashMap<>();
         if (options != null) {
-            // TODO: refactor
-            FullTextFunction.populateOptionsMap((MapExpression) options, optionsMap, SECOND, source().text(), ALLOWED_OPTIONS);
+            Options.populateMap((MapExpression) options, optionsMap, source(), SECOND, ALLOWED_OPTIONS);
         }
         Integer similarityThreshold = (Integer) optionsMap.get("similarity_threshold");
         if (similarityThreshold != null) {

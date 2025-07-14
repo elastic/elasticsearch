@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.integration.RoleMappingFileSettingsIT;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
@@ -113,6 +114,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final String masterNode = internalCluster().startMasterOnlyNode();
+        awaitMasterNode();
         var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
 
         awaitFileSettingsWatcher();
@@ -193,7 +195,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final String masterNode = internalCluster().startMasterOnlyNode();
-
+        awaitMasterNode();
+        
         Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();
         logger.info("--> write some role mappings, no other file settings");
@@ -315,5 +318,9 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+    }
+
+    public void awaitMasterNode() {
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
     }
 }

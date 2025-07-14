@@ -9,6 +9,9 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+/**
+ * Quantile estimation for {@link ExponentialHistogram}s.
+ */
 public class ExponentialHistogramQuantile {
 
     /**
@@ -41,6 +44,7 @@ public class ExponentialHistogramQuantile {
         long upperRank = (long) Math.ceil(exactRank);
         double upperFactor = exactRank - lowerRank;
 
+        // TODO: if we want more performance here, we could iterate the buckets once instead of twice
         return getElementAtRank(histo, lowerRank, negCount, zeroCount) * ( 1 - upperFactor)
             +getElementAtRank(histo, upperRank, negCount, zeroCount) * upperFactor;
     }
@@ -60,10 +64,7 @@ public class ExponentialHistogramQuantile {
         while (buckets.hasNext()) {
             seenCount += buckets.peekCount();
             if (rank < seenCount) {
-                double prev = ExponentialHistogramUtils.getLowerBucketBoundary(buckets.peekIndex(), buckets.scale());
-                double next = ExponentialHistogramUtils.getLowerBucketBoundary(buckets.peekIndex()+1, buckets.scale());
-                double result = ExponentialHistogramUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
-                return result;
+                return ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
             }
             buckets.advance();
         }

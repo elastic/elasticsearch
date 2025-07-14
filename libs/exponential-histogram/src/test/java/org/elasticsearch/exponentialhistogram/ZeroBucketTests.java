@@ -9,11 +9,13 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-public interface ExponentialHistogramBuilder {
+import org.elasticsearch.test.ESTestCase;
 
-    void setZeroBucket(ZeroBucket zeroBucket);
+import static org.hamcrest.Matchers.equalTo;
 
-    boolean tryAddBucket(long index, long count, boolean isPositive);
+public class ZeroBucketTests extends ESTestCase {
 
-    void resetBuckets(int newScale);
+    public void testMinimalBucketHasZeroThreshold() {
+        assertThat(ZeroBucket.minimalWithCount(42).zeroThreshold(), equalTo(0.0));
+    }
 }

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.adjustScale;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 
-public final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
+final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
 
     private final ExponentialHistogram.BucketIterator delegate;
     private final int scaleAdjustment;
@@ -20,7 +20,7 @@ public final class ScaleAdjustingBucketIterator implements ExponentialHistogram.
     private long currentCount;
     boolean hasNextValue;
 
-    public ScaleAdjustingBucketIterator(ExponentialHistogram.BucketIterator delegate, int targetScale) {
+    ScaleAdjustingBucketIterator(ExponentialHistogram.BucketIterator delegate, int targetScale) {
         this.delegate = delegate;
         scaleAdjustment = targetScale - delegate.scale();
         hasNextValue = true;
@@ -51,10 +51,10 @@ public final class ScaleAdjustingBucketIterator implements ExponentialHistogram.
         if (hasNextValue == false) {
             return;
         }
-        currentIndex = adjustScale(delegate.peekIndex(), scaleAdjustment);
+        currentIndex = adjustScale(delegate.peekIndex(), delegate.scale(), scaleAdjustment);
         currentCount = delegate.peekCount();
         delegate.advance();
-        while (delegate.hasNext() && adjustScale(delegate.peekIndex(), scaleAdjustment) == currentIndex) {
+        while (delegate.hasNext() && adjustScale(delegate.peekIndex(), delegate.scale(), scaleAdjustment) == currentIndex) {
             currentCount += delegate.peekCount();
             delegate.advance();
         }

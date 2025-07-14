@@ -9,18 +9,28 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-public class DownscaleStats {
+import java.util.Arrays;
 
-    // collapsedCount[i] represents the number of assitional
-    // collapsed buckets when increasing the scale by (i+1) instead of (i)
-    int[] collapsedCount = new int[63];
+/**
+ * Data structure for effectively computing by how much the scale of a histogram needs to be reduced to reach a target bucket count.
+ * This works by looking at each pair of neighboring buckets and checking at which scale reduction they would collapse to a single bucket.
+ */
+class DownscaleStats {
+
+    // collapsedBucketCount[i] represents the number of additional
+    // collapsed buckets when increasing the scale by (i+1) instead of just by (i)
+    int[] collapsedBucketCount = new int[63];
+
+    void reset() {
+        Arrays.fill(collapsedBucketCount, 0);
+    }
 
     void add(long previousBucketIndex, long currentBucketIndex) {
         if (currentBucketIndex <= previousBucketIndex) {
             throw new IllegalArgumentException("currentBucketIndex must be bigger than previousBucketIndex");
         }
         /* Below is an efficient variant of the following algorithm:
-        for (int i=0; i<64; i++) {
+        for (int i=0; i<63; i++) {
             if (prevIndex>>(i+1) == currIndex>>(i+1)) {
                 collapsedBucketCount[i]++;
                 break;
@@ -35,28 +45,28 @@ public class DownscaleStats {
             return;
         }
         int requiredScaleChange = 64 - numEqualLeadingBits;
-        collapsedCount[requiredScaleChange - 1]++;
+        collapsedBucketCount[requiredScaleChange - 1]++;
     }
 
     int getCollapsedBucketCountAfterScaleReduction(int reduction) {
         int totalCollapsed = 0;
         for (int i = 0; i < reduction; i++) {
-            totalCollapsed += collapsedCount[i];
+            totalCollapsed += collapsedBucketCount[i];
         }
         return totalCollapsed;
     }
 
-    public int getRequiredScaleReductionToReduceBucketCountBy(int desiredReduction) {
-        if (desiredReduction == 0) {
+    int getRequiredScaleReductionToReduceBucketCountBy(int desiredCollapsedBucketCount) {
+        if (desiredCollapsedBucketCount == 0) {
             return 0;
         }
         int totalCollapsed = 0;
-        for (int i = 0; i < collapsedCount.length; i++) {
-            totalCollapsed += collapsedCount[i];
-            if (totalCollapsed >= desiredReduction) {
+        for (int i = 0; i < collapsedBucketCount.length; i++) {
+            totalCollapsed += collapsedBucketCount[i];
+            if (totalCollapsed >= desiredCollapsedBucketCount) {
                 return i + 1;
             }
         }
-        throw new IllegalArgumentException("it is not possible to reduce the bucket count by " + desiredReduction);
+        throw new IllegalArgumentException("it is not possible to reduce the bucket count by " + desiredCollapsedBucketCount);
     }
 }

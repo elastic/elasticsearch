@@ -19,17 +19,16 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.exponentialhistogram.FixedSizeExponentialHistogramTests.printMidpoints;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramMergerTests extends ESTestCase {
 
     public void testZeroThresholdCollapsesOverlappingBuckets() {
-        FixedSizeExponentialHistogram first = new FixedSizeExponentialHistogram(100);
+        FixedCapacityExponentialHistogram first = new FixedCapacityExponentialHistogram(100);
         first.setZeroBucket(new ZeroBucket(2.0001, 10));
 
-        FixedSizeExponentialHistogram second = new FixedSizeExponentialHistogram(100);
+        FixedCapacityExponentialHistogram second = new FixedCapacityExponentialHistogram(100);
         first.resetBuckets(0); // scale 0 means base 2
         first.tryAddBucket(0, 1, false); // bucket (-2, 1]
         first.tryAddBucket(1, 1, false); // bucket (-4, 2]
@@ -59,7 +58,7 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         assertThat(posBuckets.hasNext(), equalTo(false));
 
         // ensure buckets of the accumulated histogram are collapsed too if needed
-        FixedSizeExponentialHistogram third = new FixedSizeExponentialHistogram(100);
+        FixedCapacityExponentialHistogram third = new FixedCapacityExponentialHistogram(100);
         third.setZeroBucket(new ZeroBucket(45.0, 1));
 
         mergeResult = mergeWithMinimumScale(100, 0, mergeResult, third);
@@ -70,12 +69,12 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
     }
 
     public void testEmptyZeroBucketIgnored() {
-        FixedSizeExponentialHistogram first = new FixedSizeExponentialHistogram(100);
+        FixedCapacityExponentialHistogram first = new FixedCapacityExponentialHistogram(100);
         first.setZeroBucket(new ZeroBucket(2.0, 10));
         first.resetBuckets(0); // scale 0 means base 2
         first.tryAddBucket(2, 42L, true); // bucket (4, 8]
 
-        FixedSizeExponentialHistogram second = new FixedSizeExponentialHistogram(100);
+        FixedCapacityExponentialHistogram second = new FixedCapacityExponentialHistogram(100);
         second.setZeroBucket(new ZeroBucket(100.0, 0));
 
         ExponentialHistogram mergeResult = mergeWithMinimumScale(100, 0, first, second);
@@ -112,8 +111,6 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
             assertBucketsEqual(shuffled.negativeBuckets(), reference.negativeBuckets());
             assertBucketsEqual(shuffled.positiveBuckets(), reference.positiveBuckets());
         }
-        printMidpoints(reference);
-
     }
 
     private void assertBucketsEqual(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB) {

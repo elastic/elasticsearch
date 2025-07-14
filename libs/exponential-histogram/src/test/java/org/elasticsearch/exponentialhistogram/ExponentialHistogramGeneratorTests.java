@@ -23,8 +23,8 @@ public class ExponentialHistogramGeneratorTests extends ESTestCase {
         long index = histo.positiveBuckets().peekIndex();
         int scale = histo.scale();
 
-        double lowerBound = ExponentialHistogramUtils.getLowerBucketBoundary(index, scale);
-        double upperBound = ExponentialHistogramUtils.getUpperBucketBoundary(index, scale);
+        double lowerBound = ExponentialScaleUtils.getLowerBucketBoundary(index, scale);
+        double upperBound = ExponentialScaleUtils.getUpperBucketBoundary(index, scale);
 
         assertThat("Lower bucket boundary should be smaller than value", lowerBound, lessThanOrEqualTo(value));
         assertThat("Upper bucket boundary should be greater than value", upperBound, greaterThanOrEqualTo(value));

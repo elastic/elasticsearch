@@ -12,28 +12,39 @@ package org.elasticsearch.exponentialhistogram;
 import java.util.Arrays;
 import java.util.stream.DoubleStream;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.computeIndex;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 
 /**
- * Class for generating a histogram from raw values.
+ * Class for accumulating raw values into an {@link ExponentialHistogram} with a given maximum bucket count.
+ *
+ * If the number of values is less than or equal the bucket capacity, the resulting histogram is guaranteed
+ * to represent the exact raw values with a relative error less than <code>2^(2^-MAX_SCALE) - 1</code>
  */
 public class ExponentialHistogramGenerator {
 
+    // Merging individual values into a histogram would way to slow with our sparse, array-backed histogram representation
+    // Therefore for a bucket capacity of c, we first buffer c raw values to be inserted
+    // we then turn those into an "exact" histogram, which in turn we merge with our actual result accumulator
+    // This yields an amortized runtime of O( log(c) )
     private final double[] rawValueBuffer;
     int valueCount;
 
     private final ExponentialHistogramMerger resultMerger;
-    private final FixedSizeExponentialHistogram valueBuffer;
+    private final FixedCapacityExponentialHistogram valueBuffer;
 
     private boolean isFinished = false;
 
-    public ExponentialHistogramGenerator(int numBuckets) {
-        rawValueBuffer = new double[numBuckets];
+    public ExponentialHistogramGenerator(int maxBucketCount) {
+        rawValueBuffer = new double[maxBucketCount];
         valueCount = 0;
-        valueBuffer = new FixedSizeExponentialHistogram(numBuckets);
-        resultMerger = new ExponentialHistogramMerger(numBuckets);
+        valueBuffer = new FixedCapacityExponentialHistogram(maxBucketCount);
+        resultMerger = new ExponentialHistogramMerger(maxBucketCount);
     }
 
+    /**
+     * Add the given value to the histogram.
+     * Must not be calles after {@link #get()} has been called.
+     */
     public void add(double value) {
         if (isFinished) {
             throw new IllegalStateException("get() has already been called");
@@ -45,19 +56,28 @@ public class ExponentialHistogramGenerator {
         valueCount++;
     }
 
+    /**
+     * @return the histogram representing the distribution of all accumulated values.
+     */
     public ExponentialHistogram get() {
-        if (isFinished) {
-            throw new IllegalStateException("get() has already been called");
-        }
         isFinished = true;
         mergeValuesToHistogram();
         return resultMerger.get();
     }
 
+    /**
+     * Create a histogram representing the distribution of the given values.
+     * The histogram will have a bucket count of at most the length of the provided array
+     * and will have a relative error less than <code>2^(2^-MAX_SCALE) - 1</code>.
+     */
     public static ExponentialHistogram createFor(double... values) {
         return createFor(values.length, Arrays.stream(values));
     }
-
+    /**
+     * Create a histogram representing the distribution of the given values with at most the given number of buckets.
+     * If the given bucketCount is greater or equal to the number of values, the resulting histogram will have a
+     * relative error of less than <code>2^(2^-MAX_SCALE) - 1</code>.
+     */
     public static ExponentialHistogram createFor(int bucketCount, DoubleStream values) {
         ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(bucketCount);
         values.forEach(generator::add);

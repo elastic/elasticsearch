@@ -9,7 +9,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-public final class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
+final class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
 
     private final ExponentialHistogram.BucketIterator itA;
     private final ExponentialHistogram.BucketIterator itB;
@@ -18,7 +18,7 @@ public final class MergingBucketIterator implements ExponentialHistogram.BucketI
     private long currentIndex;
     private long currentCount;
 
-    public MergingBucketIterator(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB, int targetScale) {
+    MergingBucketIterator(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB, int targetScale) {
         this.itA = new ScaleAdjustingBucketIterator(itA, targetScale);
         this.itB = new ScaleAdjustingBucketIterator(itB, targetScale);
         endReached = false;

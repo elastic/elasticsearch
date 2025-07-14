@@ -10,9 +10,9 @@
 package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.compareLowerBoundaries;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.computeIndex;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils.getLowerBucketBoundary;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareLowerBoundaries;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getLowerBucketBoundary;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 
 public record ZeroBucket(long index, int scale, long count) {

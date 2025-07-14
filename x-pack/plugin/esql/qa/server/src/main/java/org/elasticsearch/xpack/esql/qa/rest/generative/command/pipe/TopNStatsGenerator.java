@@ -14,13 +14,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator.addStatsAggregations;
 
-public class StatsGenerator implements CommandGenerator {
+public class TopNStatsGenerator implements CommandGenerator {
 
-    public static final String STATS = "stats";
-    public static final CommandGenerator INSTANCE = new StatsGenerator();
+    public static final String TOP_N_STATS = "top_n_stats";
+    public static final CommandGenerator INSTANCE = new TopNStatsGenerator();
 
     @Override
     public CommandDescription generate(
@@ -37,13 +38,17 @@ public class StatsGenerator implements CommandGenerator {
         }
         StringBuilder cmd = new StringBuilder(" | stats ");
         addStatsAggregations(previousOutput, nonNull, cmd);
-        if (randomBoolean()) {
-            var col = EsqlQueryGenerator.randomGroupableName(nonNull);
-            if (col != null) {
-                cmd.append(" by " + col);
-            }
+
+        var col = EsqlQueryGenerator.randomGroupableName(nonNull);
+        if (col == null) {
+            // Either a TopN + Stats with groupings, or nothing
+            return EMPTY_DESCRIPTION;
         }
-        return new CommandDescription(STATS, this, cmd.toString(), Map.of());
+        cmd.append(" by " + col);
+        cmd.append(" | sort " + col + " " + randomFrom("", " ASC", " DESC"));
+        cmd.append(" | limit " + randomIntBetween(1, 1000));
+
+        return new CommandDescription(TOP_N_STATS, this, cmd.toString(), Map.of());
     }
 
     @Override
@@ -57,34 +62,5 @@ public class StatsGenerator implements CommandGenerator {
     ) {
         // TODO validate columns
         return VALIDATION_OK;
-    }
-
-    public static void addStatsAggregations(
-        List<EsqlQueryGenerator.Column> previousOutput,
-        List<EsqlQueryGenerator.Column> nonNullColumns,
-        StringBuilder cmd
-    ) {
-        assert nonNullColumns.isEmpty() == false : "nonNullColumns should not be empty";
-
-        int nStats = randomIntBetween(1, 5);
-        for (int i = 0; i < nStats; i++) {
-            String name;
-            if (randomBoolean()) {
-                name = EsqlQueryGenerator.randomIdentifier();
-            } else {
-                name = EsqlQueryGenerator.randomName(previousOutput);
-                if (name == null) {
-                    name = EsqlQueryGenerator.randomIdentifier();
-                }
-            }
-            String expression = EsqlQueryGenerator.agg(nonNullColumns);
-            if (i > 0) {
-                cmd.append(",");
-            }
-            cmd.append(" ");
-            cmd.append(name);
-            cmd.append(" = ");
-            cmd.append(expression);
-        }
     }
 }

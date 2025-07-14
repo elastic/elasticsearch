@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
@@ -32,6 +33,8 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
 
     public static final String TYPE = "streams";
     public static final StreamsMetadata EMPTY = new StreamsMetadata(false);
+
+    public static TransportVersionSet STREAMS_LOGS_SUPPORT = TransportVersionSet.get("streams-logs-support");
 
     public boolean logsEnabled;
 
@@ -59,13 +62,12 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.STREAMS_LOGS_SUPPORT_8_19;
+        return STREAMS_LOGS_SUPPORT.oldest();
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.STREAMS_LOGS_SUPPORT)
-            || version.isPatchFrom(TransportVersions.STREAMS_LOGS_SUPPORT_8_19);
+        return STREAMS_LOGS_SUPPORT.isCompatible(version);
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {

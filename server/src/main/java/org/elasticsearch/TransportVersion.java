@@ -203,8 +203,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             }
 
             ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
-
-            CURRENT = new TransportVersion(9118000); // TODO: fix - ALL_VERSIONS.getLast();
+            CURRENT = ALL_VERSIONS.stream().max(TransportVersion::compareTo).get();
         }
     }
 }

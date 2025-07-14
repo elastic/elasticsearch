@@ -98,10 +98,16 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * all pages.
      */
     public final void testSimpleCircuitBreaking() {
-        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
-        Operator.OperatorFactory simple = simple(new SimpleOptions(true));
+        /*
+         * Build the input before building `simple` to handle the rare
+         * cases where `simple` need some state from the input - mostly
+         * this is ValuesSourceReaderOperator.
+         */
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+
+        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
+        Operator.OperatorFactory simple = simple(new SimpleOptions(true));
         try {
             ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(memoryLimitForSimple, l -> runWithLimit(simple, input, l));
             ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));

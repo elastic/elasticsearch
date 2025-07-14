@@ -158,6 +158,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, SparseVectorIndexOptions value) {
             return includeDefaults || (SparseVectorIndexOptions.isDefaultOptions(value, indexVersionCreated) == false);
         }
+
+        public void setIndexOptions(SparseVectorIndexOptions sparseVectorIndexOptions) {
+            indexOptions.setValue(sparseVectorIndexOptions);
+        }
     }
 
     public SparseVectorIndexOptions getIndexOptions() {

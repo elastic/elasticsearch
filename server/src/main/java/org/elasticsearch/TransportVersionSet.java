@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,7 +64,7 @@ public class TransportVersionSet {
         Map<String, TransportVersionSet> transportVersionSets = new HashMap<>();
 
         String latestLocation = "transport/" + Version.CURRENT.major + "." + Version.CURRENT.minor + "-LATEST.json";
-        int latestId = 0;
+        int latestId;
         try (InputStream inputStream = TransportVersionSet.class.getResourceAsStream(latestLocation)) {
             TransportVersionSet latest = fromXContent(inputStream, Integer.MAX_VALUE);
             // TODO: validation of latest tranport version set
@@ -75,7 +76,7 @@ public class TransportVersionSet {
         String manifestLocation = "META-INF/transport-versions-files-manifest.txt";
         List<String> versionNames;
         try (InputStream transportVersionManifest = TransportVersionSet.class.getClassLoader().getResourceAsStream(manifestLocation)) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionManifest));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionManifest, StandardCharsets.UTF_8));
             versionNames = reader.lines().filter(line -> line.isBlank() == false).toList();
         } catch (IOException ioe) {
             throw new UncheckedIOException("transport version metadata manifest file not found at [" + manifestLocation + "]", ioe);

@@ -298,8 +298,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/117805
-- class: org.elasticsearch.xpack.security.authc.ldap.UserAttributeGroupsResolverTests
-  issue: https://github.com/elastic/elasticsearch/issues/116537
 - class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
   method: testNonexistentBucketReadonlyFalse
   issue: https://github.com/elastic/elasticsearch/issues/118225
@@ -324,8 +322,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/119396
-- class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
-  issue: https://github.com/elastic/elasticsearch/issues/119882
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/119911
@@ -471,3 +467,21 @@ tests:
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/126124
+- class: org.elasticsearch.xpack.restart.MlHiddenIndicesFullClusterRestartIT
+  method: testMlIndicesBecomeHidden {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/130766
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.xpack.restart.MlHiddenIndicesFullClusterRestartIT
+  method: testMlIndicesBecomeHidden {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131016
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/115528
+- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  method: test20DockerAutoFormCluster
+  issue: https://github.com/elastic/elasticsearch/issues/128113

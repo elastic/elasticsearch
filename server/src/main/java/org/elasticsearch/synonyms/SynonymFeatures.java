@@ -7,25 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search;
+package org.elasticsearch.synonyms;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 
 import java.util.Set;
 
-public final class SearchFeatures implements FeatureSpecification {
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(KnnVectorQueryBuilder.K_PARAM_SUPPORTED);
-    }
-
-    public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
-    public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+public class SynonymFeatures implements FeatureSpecification {
+    private static final NodeFeature RETURN_EMPTY_SYNONYM_SETS = new NodeFeature("synonyms_set.get.return_empty_synonym_sets");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETRIEVER_RESCORER_ENABLED, SEARCH_WITH_NO_DIMENSIONS_BUGFIX);
+        return Set.of(RETURN_EMPTY_SYNONYM_SETS);
     }
 }

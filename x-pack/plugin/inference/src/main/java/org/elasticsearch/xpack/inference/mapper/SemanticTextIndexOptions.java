@@ -137,11 +137,6 @@ public class SemanticTextIndexOptions implements ToXContent {
 
     private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {
         try {
-            Object type = map.remove(TYPE_FIELD);
-            if (type == null) {
-                throw new IllegalArgumentException("Required " + TYPE_FIELD);
-            }
-
             return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);

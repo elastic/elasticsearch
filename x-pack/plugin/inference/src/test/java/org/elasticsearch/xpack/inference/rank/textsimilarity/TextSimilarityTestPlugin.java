@@ -198,7 +198,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
             if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
-                return new RankFeaturePhaseRankShardContext(field(), null) {
+                return new RankFeaturePhaseRankShardContext(field()) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
                         throw new UnsupportedOperationException("rfs - simulated failure");

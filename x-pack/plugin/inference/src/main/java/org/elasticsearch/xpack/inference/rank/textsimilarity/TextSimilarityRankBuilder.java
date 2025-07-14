@@ -29,7 +29,6 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
 import org.elasticsearch.search.rank.feature.SnippetRankInput;
-import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -159,7 +158,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    public RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         TextSimilarityRankBuilder rewritten = this;
         RerankSnippetConfig snippets = snippetRankInput != null ? snippetRankInput.snippets() : null;
         if (snippets != null) {
@@ -245,7 +244,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new RerankingRankFeaturePhaseRankShardContext(field, snippetRankInput);
+        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, snippetRankInput);
     }
 
     @Override

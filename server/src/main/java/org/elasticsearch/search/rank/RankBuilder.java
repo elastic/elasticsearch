@@ -61,11 +61,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         doWriteTo(out);
     }
 
-    public final RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        return doRewrite(queryRewriteContext);
-    }
-
-    protected RankBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    public RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 

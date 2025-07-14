@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank.feature;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -18,7 +19,7 @@ import java.util.Objects;
 /**
  * Defines a custom rank input to rerank results based on snippets rather than full field contents.
  */
-public class SnippetRankInput implements CustomRankInput {
+public class SnippetRankInput implements Writeable {
 
     private final RerankSnippetConfig snippets;
     private final String inferenceText;

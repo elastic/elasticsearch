@@ -17,17 +17,12 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-
-import static org.elasticsearch.search.rank.feature.RerankSnippetConfig.DEFAULT_NUM_SNIPPETS;
 
 /**
  * The {@code RankFeatureShardPhase} executes the rank feature phase on the shard, iff there is a {@code RankBuilder} that requires it.
@@ -56,28 +51,7 @@ public final class RankFeatureShardPhase {
             String field = rankFeaturePhaseRankShardContext.getField();
             assert field != null : "field must not be null";
             searchContext.fetchFieldsContext(new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(field, null))));
-            CustomRankInput customRankInput = rankFeaturePhaseRankShardContext.getCustomRankInput();
-            if (customRankInput instanceof SnippetRankInput snippetRankInput && snippetRankInput.snippets() != null) {
-                try {
-                    HighlightBuilder highlightBuilder = new HighlightBuilder();
-                    highlightBuilder.highlightQuery(snippetRankInput.snippets().snippetQueryBuilder());
-                    // Stripping pre/post tags as they're not useful for snippet creation
-                    highlightBuilder.field(field).preTags("").postTags("");
-                    // Return highest scoring fragments
-                    highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                    int numSnippets = snippetRankInput.snippets().numSnippets() != null
-                        ? snippetRankInput.snippets().numSnippets()
-                        : DEFAULT_NUM_SNIPPETS;
-                    highlightBuilder.numOfFragments(numSnippets);
-                    // Rely on the model to determine the fragment size
-                    // TODO highlighter should be able to set fragment size by token not length
-                    highlightBuilder.fragmentSize(snippetRankInput.tokenSizeLimit());
-                    SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
-                    searchContext.highlight(searchHighlightContext);
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to generate snippet request", e);
-                }
-            }
+            rankFeaturePhaseRankShardContext.prepareForFetch(searchContext);
             searchContext.storedFieldsContext(StoredFieldsContext.fromList(Collections.singletonList(StoredFieldsContext._NONE_)));
             searchContext.addFetchResult();
             Arrays.sort(request.getDocIds());

@@ -11,8 +11,6 @@ package org.elasticsearch.search.rank.context;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 
 import java.util.Arrays;
@@ -32,35 +30,16 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final int from;
     protected final int rankWindowSize;
     protected final boolean failuresAllowed;
-    protected final CustomRankInput customRankInput;
 
     public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean failuresAllowed) {
-        this(size, from, rankWindowSize, failuresAllowed, null);
-    }
-
-    public RankFeaturePhaseRankCoordinatorContext(
-        int size,
-        int from,
-        int rankWindowSize,
-        boolean failuresAllowed,
-        @Nullable CustomRankInput customRankInput
-    ) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
         this.rankWindowSize = rankWindowSize;
         this.failuresAllowed = failuresAllowed;
-        this.customRankInput = customRankInput;
     }
 
     public boolean failuresAllowed() {
         return failuresAllowed;
-    }
-
-    /**
-     * If non-null, we will use this custom input when computing reranked results
-     */
-    public CustomRankInput customRankInput() {
-        return customRankInput;
     }
 
     /**

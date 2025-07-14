@@ -75,4 +75,9 @@ public record PathLookupImpl(
             .toList();
         return getBaseDirPaths(baseDir).flatMap(path -> relativePaths.stream().map(path::resolve));
     }
+
+    @Override
+    public boolean isPathOnDefaultFilesystem(Path path) {
+        return path.getFileSystem().getClass() == DEFAULT_FILESYSTEM_CLASS;
+    }
 }

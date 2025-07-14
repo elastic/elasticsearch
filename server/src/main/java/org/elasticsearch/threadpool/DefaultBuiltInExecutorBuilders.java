@@ -56,7 +56,11 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 allocatedProcessors,
                 // 10,000 for all nodes with 8 cores or fewer. Scale up once we have more than 8 cores.
                 Math.max(allocatedProcessors * 750, 10000),
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackMaxQueueLatency()
+                    .trackExecutionTime(indexAutoscalingEWMA)
+                    .build()
             )
         );
         int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
@@ -81,7 +85,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SEARCH,
                 searchOrGetThreadPoolSize,
                 searchOrGetThreadPoolSize * 1000,
-                new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(searchAutoscalingEWMA).build()
             )
         );
         result.put(
@@ -91,7 +95,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SEARCH_COORDINATION,
                 halfProc,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(searchAutoscalingEWMA).build()
             )
         );
         result.put(
@@ -195,7 +199,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE,
                 halfProcMaxAt5,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build(),
                 true
             )
         );
@@ -228,7 +232,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
                 halfProcMaxAt5,
                 1500,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build(),
                 true
             )
         );

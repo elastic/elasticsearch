@@ -1778,6 +1778,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
 
         SearchListenerPlugin.waitLocalSearchStarted();
+        SearchListenerPlugin.waitRemoteSearchStarted();
 
         // ensure tasks are present on both clusters and not cancelled
         try {

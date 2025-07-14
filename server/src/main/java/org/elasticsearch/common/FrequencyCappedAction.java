@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cluster.routing.allocation.allocator;
+package org.elasticsearch.common;
 
 import org.elasticsearch.core.TimeValue;
 

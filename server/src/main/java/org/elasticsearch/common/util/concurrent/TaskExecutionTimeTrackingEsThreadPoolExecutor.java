@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
@@ -37,7 +38,6 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
-
     public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
 
@@ -47,9 +47,17 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    private volatile long lastPollTime = System.nanoTime();
-    private volatile long lastTotalExecutionTime = 0;
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
+    private final boolean trackMaxQueueLatency;
+    private LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
+
+    public enum UtilizationTrackingPurpose {
+        APM,
+        ALLOCATION,
+    }
+
+    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
+    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -65,9 +73,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         TaskTrackingConfig trackingConfig
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
+
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
+        this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -95,7 +105,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(), Map.of())
+                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
             )
         );
     }
@@ -136,24 +146,30 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         return getQueue().size();
     }
 
+    public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
+        if (trackMaxQueueLatency == false) {
+            return 0;
+        }
+        return maxQueueLatencyMillisSinceLastPoll.getThenReset();
+    }
+
     /**
-     * Returns the fraction of the maximum possible thread time that was actually used since the last time
-     * this method was called.
+     * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
+     * There are two periodic pulling mechanisms that access utilization reporting: {@link UtilizationTrackingPurpose} distinguishes the
+     * caller.
      *
-     * @return the utilization as a fraction, in the range [0, 1]
+     * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
+     * earlier, contributing a larger execution time.
      */
-    public double pollUtilization() {
-        final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
-        final long currentPollTimeNanos = System.nanoTime();
-
-        final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-        final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
-        final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
-        final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
-
-        lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-        lastPollTime = currentPollTimeNanos;
-        return utilizationSinceLastPoll;
+    public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
+        switch (utilizationTrackingPurpose) {
+            case APM:
+                return apmUtilizationTracker.pollUtilization();
+            case ALLOCATION:
+                return allocationUtilizationTracker.pollUtilization();
+            default:
+                throw new IllegalStateException("No operation defined for [" + utilizationTrackingPurpose + "]");
+        }
     }
 
     @Override
@@ -161,12 +177,18 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackOngoingTasks) {
             ongoingTasks.put(r, System.nanoTime());
         }
+
         assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         timedRunnable.beforeExecute();
         final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
         assert taskQueueLatency >= 0;
-        queueLatencyMillisHistogram.addObservation(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
+        var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
+        queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
+
+        if (trackMaxQueueLatency) {
+            maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
+        }
     }
 
     @Override
@@ -222,7 +244,39 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     // Used for testing
-    public double getEwmaAlpha() {
+    public double getExecutionEwmaAlpha() {
         return executionEWMA.getAlpha();
+    }
+
+    // Used for testing
+    public boolean trackingMaxQueueLatency() {
+        return trackMaxQueueLatency;
+    }
+
+    /**
+     * Supports periodic polling for thread pool utilization. Tracks state since the last polling request so that the average utilization
+     * since the last poll can be calculated for the next polling request.
+     *
+     * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
+     */
+    private class UtilizationTracker {
+        long lastPollTime = System.nanoTime();
+        long lastTotalExecutionTime = 0;
+
+        public synchronized double pollUtilization() {
+            final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
+            final long currentPollTimeNanos = System.nanoTime();
+
+            final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
+            final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
+
+            final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
+            final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
+
+            lastTotalExecutionTime = currentTotalExecutionTimeNanos;
+            lastPollTime = currentPollTimeNanos;
+
+            return utilizationSinceLastPoll;
+        }
     }
 }

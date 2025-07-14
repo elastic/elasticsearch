@@ -39,13 +39,13 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
+    public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         try (BooleanBlock filterResult = ((BooleanBlock) filter.eval(page))) {
             ToMask mask = filterResult.toMask();
             // TODO warn on mv fields
             AddInput nextAdd = null;
             try {
-                nextAdd = next.prepareProcessPage(seenGroupIds, page);
+                nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;

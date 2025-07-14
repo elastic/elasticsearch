@@ -81,7 +81,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;

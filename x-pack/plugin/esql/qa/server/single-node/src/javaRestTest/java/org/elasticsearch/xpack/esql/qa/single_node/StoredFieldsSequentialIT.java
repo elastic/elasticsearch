@@ -195,6 +195,15 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         bulk.setJsonEntity(b.toString());
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
+
+        // Forcemerge to one segment to get more consistent results.
+        Request forcemerge = new Request("POST", "/_forcemerge");
+        forcemerge.addParameter("max_num_segments", "1");
+        Response forcemergeResponse = client().performRequest(forcemerge);
+        assertThat(
+            entityToMap(forcemergeResponse.getEntity(), XContentType.JSON),
+            matchesMap().entry("_shards", matchesMap().entry("failed", 0).entry("successful", greaterThanOrEqualTo(1)).extraOk()).extraOk()
+        );
     }
 
     @Override

@@ -1,5 +1,5 @@
 FROM c2id/c2id-server-demo:16.1.1 AS c2id
-FROM openjdk:21-jdk-buster
+FROM eclipse-temurin:17-noble
 
 # Using this to launch a fake server on container start; see `setup.sh`
 RUN apt-get update -qqy && apt-get install -qqy python3

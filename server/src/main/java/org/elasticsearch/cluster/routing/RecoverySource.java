@@ -355,7 +355,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         public void addAdditionalFields(XContentBuilder builder, Params params) throws IOException {
-            sourceShardId.toXContent(builder, params);
+            builder.field("sourceShardId", sourceShardId);
         }
     }
 }

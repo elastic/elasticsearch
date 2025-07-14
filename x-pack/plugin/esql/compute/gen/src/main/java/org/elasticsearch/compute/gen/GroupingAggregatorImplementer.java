@@ -22,6 +22,7 @@ import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationState;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -199,7 +200,7 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(ctor());
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
-        builder.addMethod(prepareProcessPage());
+        builder.addMethod(prepareProcessRawInputPage());
         for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
             builder.addMethod(addRawInputLoop(groupIdClass, blockType(aggParam.type())));
             builder.addMethod(addRawInputLoop(groupIdClass, vectorType(aggParam.type())));
@@ -314,10 +315,10 @@ public class GroupingAggregatorImplementer {
     }
 
     /**
-     * Prepare to process a single page of results.
+     * Prepare to process a single raw input page.
      */
-    private MethodSpec prepareProcessPage() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessPage");
+    private MethodSpec prepareProcessRawInputPage() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessRawInputPage");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 
@@ -411,10 +412,16 @@ public class GroupingAggregatorImplementer {
 
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            if (groupsIsBlock) {
-                builder.beginControlFlow("if (groups.isNull(groupPosition))");
+            if (groupsIsBlock || valuesIsBlock) {
+                String conditions = Stream.of(
+                    groupsIsBlock ? "groups.isNull(groupPosition)" : null,
+                    valuesIsBlock ? "values.isNull(groupPosition + positionOffset)" : null
+                ).filter(Objects::nonNull).collect(Collectors.joining(" || "));
+                builder.beginControlFlow("if (" + conditions + ")");
                 builder.addStatement("continue");
                 builder.endControlFlow();
+            }
+            if (groupsIsBlock) {
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
@@ -430,9 +437,6 @@ public class GroupingAggregatorImplementer {
             }
 
             if (valuesIsBlock) {
-                builder.beginControlFlow("if (values.isNull(groupPosition + positionOffset))");
-                builder.addStatement("continue");
-                builder.endControlFlow();
                 builder.addStatement("int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset)");
                 builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset)");
                 if (aggParam.isArray()) {

@@ -70,7 +70,7 @@ public class GroupingAggregator implements Releasable {
                 public void close() {}
             };
         } else {
-            return aggregatorFunction.prepareProcessPage(seenGroupIds, page);
+            return aggregatorFunction.prepareProcessRawInputPage(seenGroupIds, page);
         }
     }
 

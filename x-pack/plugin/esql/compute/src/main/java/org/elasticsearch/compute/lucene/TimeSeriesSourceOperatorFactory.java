@@ -45,7 +45,7 @@ public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
             taskConcurrency,
             limit,
             false,
-            ScoreMode.COMPLETE_NO_SCORES
+            shardContext -> ScoreMode.COMPLETE_NO_SCORES
         );
         this.contexts = contexts;
         this.maxPageSize = maxPageSize;

@@ -250,3 +250,6 @@ Work around this limitation by converting the field to single value with one of 
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/processing-commands.md#esql-drop) or [`KEEP`](/reference/query-languages/esql/commands/processing-commands.md#esql-keep) to limit the number of fields returned.
 
+## Known issues [esql-known-issues]
+
+Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for {{esql}}.

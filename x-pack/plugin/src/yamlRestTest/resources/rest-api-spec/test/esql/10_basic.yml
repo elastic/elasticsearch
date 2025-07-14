@@ -555,11 +555,11 @@ FROM EVAL SORT LIMIT with documents_found:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ parameter_for_limit ]
+          capabilities: [ normalized_limit_error_message ]
       reason: "named or positional parameters for field names"
 
   - do:
-      catch: "/Invalid value for LIMIT \\[foo: String\\], expecting a non negative integer/"
+      catch: "/value of \\[limit \\?l\\] must be a non negative integer, found value \\[\\?l\\] type \\[keyword\\]/"
       esql.query:
         body:
           query: 'from test | limit ?l'

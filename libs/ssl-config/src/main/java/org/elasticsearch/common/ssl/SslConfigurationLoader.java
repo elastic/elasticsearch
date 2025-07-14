@@ -10,6 +10,7 @@
 package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -27,6 +28,7 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CIPHERS;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CLIENT_AUTH;
+import static org.elasticsearch.common.ssl.SslConfigurationKeys.HANDSHAKE_TIMEOUT;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.KEY;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.KEYSTORE_ALGORITHM;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD;
@@ -151,6 +153,8 @@ public abstract class SslConfigurationLoader {
     static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
     private static final char[] EMPTY_PASSWORD = new char[0];
     public static final List<X509Field> GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS = List.of(X509Field.SAN_OTHERNAME_COMMONNAME);
+
+    public static final TimeValue DEFAULT_HANDSHAKE_TIMEOUT = TimeValue.timeValueSeconds(10);
 
     private final String settingPrefix;
 
@@ -302,6 +306,11 @@ public abstract class SslConfigurationLoader {
             X509Field::parseForRestrictedTrust,
             defaultRestrictedTrustFields
         );
+        final long handshakeTimeoutMillis = resolveSetting(
+            HANDSHAKE_TIMEOUT,
+            s -> TimeValue.parseTimeValue(s, HANDSHAKE_TIMEOUT),
+            DEFAULT_HANDSHAKE_TIMEOUT
+        ).millis();
 
         final SslKeyConfig keyConfig = buildKeyConfig(basePath);
         final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode, keyConfig, Set.copyOf(trustRestrictionsX509Fields));
@@ -321,7 +330,8 @@ public abstract class SslConfigurationLoader {
             verificationMode,
             clientAuth,
             ciphers,
-            protocols
+            protocols,
+            handshakeTimeoutMillis
         );
     }
 

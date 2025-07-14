@@ -1171,6 +1171,11 @@ public class EsqlCapabilities {
         PARAMETER_FOR_LIMIT,
 
         /**
+         * Changed and normalized the LIMIT error message.
+         */
+        NORMALIZED_LIMIT_ERROR_MESSAGE,
+
+        /**
          * Dense vector field type support
          */
         DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),

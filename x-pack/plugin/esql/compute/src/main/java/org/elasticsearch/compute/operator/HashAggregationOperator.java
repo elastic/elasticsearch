@@ -371,7 +371,10 @@ public class HashAggregationOperator implements Operator {
             )
         ) {
             int i = 0;
-            for (double bucket = round(Math.floor(group.from() / roundTo) * roundTo, 2); bucket < group.to(); bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
+            for (double bucket = round(Math.floor(group.from() / roundTo) * roundTo, 2); bucket < group.to(); bucket = round(
+                Math.floor((bucket + roundTo) / roundTo) * roundTo,
+                2
+            )) {
                 newBlockBuilder.appendDouble(bucket);
                 i++;
             }
@@ -384,12 +387,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     private Block copyValues(Block block, int maxBucketCount) {
-        try (
-            Block.Builder newBlockBuilder = block.elementType().newBlockBuilder(
-                block.getPositionCount(),
-                driverContext.blockFactory()
-            )
-        ) {
+        try (Block.Builder newBlockBuilder = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
             newBlockBuilder.copyFrom(block, 0, block.getPositionCount());
             for (int i = block.getPositionCount(); i < maxBucketCount; i++) {
                 newBlockBuilder.appendNull();
@@ -434,7 +432,10 @@ public class HashAggregationOperator implements Operator {
         double from = group.from();
         double to = group.to();
         int result = 0;
-        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(Math.floor((bucket + roundTo)/roundTo)*roundTo, 2)) {
+        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(
+            Math.floor((bucket + roundTo) / roundTo) * roundTo,
+            2
+        )) {
             result++;
         }
         return result;

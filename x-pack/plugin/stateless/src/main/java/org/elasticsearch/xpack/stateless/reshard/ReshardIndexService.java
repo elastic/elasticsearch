@@ -24,15 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -176,54 +172,50 @@ public class ReshardIndexService {
 
     public void reshardIndex(
         final TimeValue masterNodeTimeout,
-        final TimeValue ackTimeout,
         final ReshardIndexClusterStateUpdateRequest request,
         final ActionListener<ShardsAcknowledgedResponse> listener
     ) {
         logger.trace("reshardIndex[{}]", request);
-        onlyReshardIndex(masterNodeTimeout, ackTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged()) {
-                logger.trace("[{}] index reshard acknowledged", request.index().getName());
-                ClusterStateObserver observer = new ClusterStateObserver(
-                    clusterService,
-                    null,
-                    logger,
-                    clusterService.threadPool().getThreadContext()
-                );
+        onlyReshardIndex(masterNodeTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
+            logger.trace("[{}] index reshard acknowledged", request.index().getName());
+            ClusterStateObserver observer = new ClusterStateObserver(
+                clusterService,
+                null,
+                logger,
+                clusterService.threadPool().getThreadContext()
+            );
 
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        finishReshard(
-                            request.projectId(),
-                            request.index(),
-                            delegate.map((voidResult) -> ShardsAcknowledgedResponse.of(true, true))
-                        );
-                    }
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    finishReshard(
+                        request.projectId(),
+                        request.index(),
+                        delegate.map((voidResult) -> ShardsAcknowledgedResponse.of(true, true))
+                    );
+                }
 
-                    @Override
-                    public void onClusterServiceClose() {
-                        listener.onFailure(new AlreadyClosedException("Cluster service closed."));
-                    }
+                @Override
+                public void onClusterServiceClose() {
+                    logger.error("Cluster service closed");
+                    listener.onFailure(new AlreadyClosedException("Cluster service closed."));
+                }
 
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        assert false;
-                    }
-                }, newState -> {
-                    IndexReshardingMetadata reshardingMetadata = newState.metadata().indexMetadata(request.index()).getReshardingMetadata();
-                    if (reshardingMetadata != null) {
-                        var split = reshardingMetadata.getSplit();
-                        return split.targetStates().allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE)
-                            && split.sourceStates().allMatch(source -> source == IndexReshardingState.Split.SourceShardState.DONE);
-                    } else {
-                        return false;
-                    }
-                });
-            } else {
-                logger.trace("index reshard not acknowledged for [{}]", request);
-                delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
-            }
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    logger.error("Timeout");
+                    assert false;
+                }
+            }, newState -> {
+                IndexReshardingMetadata reshardingMetadata = newState.metadata().indexMetadata(request.index()).getReshardingMetadata();
+                if (reshardingMetadata != null) {
+                    var split = reshardingMetadata.getSplit();
+                    return split.targetStates().allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE)
+                        && split.sourceStates().allMatch(source -> source == IndexReshardingState.Split.SourceShardState.DONE);
+                } else {
+                    return false;
+                }
+            });
         }));
     }
 
@@ -282,15 +274,10 @@ public class ReshardIndexService {
 
     private void onlyReshardIndex(
         final TimeValue masterNodeTimeout,
-        final TimeValue ackTimeout,
         final ReshardIndexClusterStateUpdateRequest request,
-        final ActionListener<AcknowledgedResponse> listener
+        final ActionListener<Void> listener
     ) {
-        reshardQueue.submitTask(
-            "reshard-index [" + request.index().getName() + "]",
-            new ReshardTask(request, listener, ackTimeout),
-            masterNodeTimeout
-        );
+        reshardQueue.submitTask("reshard-index [" + request.index().getName() + "]", new ReshardTask(request, listener), masterNodeTimeout);
     }
 
     private static void handleTargetPrimaryTermAdvanced(
@@ -422,22 +409,19 @@ public class ReshardIndexService {
         return routingTableBuilder;
     }
 
-    private static class ReshardTask extends AckedBatchedClusterStateUpdateTask {
-        private final ReshardIndexClusterStateUpdateRequest request;
+    private record ReshardTask(ReshardIndexClusterStateUpdateRequest request, ActionListener<Void> listener)
+        implements
+            ClusterStateTaskListener {
 
-        ReshardTask(
-            ReshardIndexClusterStateUpdateRequest request,
-            ActionListener<AcknowledgedResponse> stateUpdateListener,
-            TimeValue ackTimeout
-        ) {
-            super(ackTimeout, stateUpdateListener);
-            this.request = request;
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
         }
     }
 
     // TODO investigate if this executor can be non-acked. There should be no need to wait for all nodes to ack the
     // cluster state update performed here.
-    private static class ReshardIndexExecutor extends SimpleBatchedAckListenerTaskExecutor<ReshardTask> {
+    private static class ReshardIndexExecutor extends SimpleBatchedExecutor<ReshardTask, Void> {
         private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
         private final RerouteService rerouteService;
 
@@ -447,7 +431,7 @@ public class ReshardIndexService {
         }
 
         @Override
-        public Tuple<ClusterState, ClusterStateAckListener> executeTask(ReshardTask task, ClusterState clusterState) {
+        public Tuple<ClusterState, Void> executeTask(ReshardTask task, ClusterState clusterState) {
             final ProjectId projectId = task.request.projectId();
             final Index index = task.request.index();
 
@@ -476,7 +460,12 @@ public class ReshardIndexService {
                 .build();
             logger.info("resharding index [{}]", index);
 
-            return new Tuple<>(updated, task);
+            return new Tuple<>(updated, null);
+        }
+
+        @Override
+        public void taskSucceeded(ReshardTask task, Void unused) {
+            task.listener.onResponse(null);
         }
 
         @Override
@@ -520,6 +509,27 @@ public class ReshardIndexService {
                 handleTargetPrimaryTermAdvanced(currentTargetPrimaryTerm, startingTargetPrimaryTerm, shardId, splitStateRequest);
             }
 
+            assert reshardingMetadata.isSplit();
+            IndexReshardingState.Split.TargetShardState currentState = reshardingMetadata.getSplit().getTargetShardState(shardId.id());
+            IndexReshardingState.Split.TargetShardState targetState = task.splitStateRequest.getNewTargetShardState();
+
+            assert currentState.ordinal() <= targetState.ordinal() : "Skipped state transition of target shard";
+
+            if (currentState == targetState) {
+                // This is possible if target shard failed after submitting this state update request.
+                // Then during recovery the state transition was not done and a second request to do it was submitted,
+                // and we are handling that second request now.
+                logger.info(
+                    format(
+                        "Attempting to advance target shard %s to [%s] but it is already in [%s]. Proceeding.",
+                        shardId,
+                        targetState,
+                        currentState
+                    )
+                );
+                return new Tuple<>(clusterState, null);
+            }
+
             ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
 
             ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
@@ -554,14 +564,42 @@ public class ReshardIndexService {
         public Tuple<ClusterState, Void> executeTask(TransitionSourceStateTask task, ClusterState clusterState) throws Exception {
             final ShardId shardId = task.shardId();
             final Index index = shardId.getIndex();
+            IndexReshardingState.Split.SourceShardState targetState = task.state;
 
             final ProjectMetadata project = clusterState.metadata().projectFor(index);
             final ProjectState projectState = clusterState.projectState(project.id());
             final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
             IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-            // TODO handle more gracefully
+
             if (reshardingMetadata == null) {
-                throw new IllegalStateException("no existing resharding operation on " + index + ".");
+                // This is possible if a source shard failed right after sending a request to move to DONE
+                // and this is the last shard to move to DONE.
+                // It can then recover before source shard state is DONE in cluster state
+                // and will initiate an update to DONE again.
+                // In the meantime the initial update to DONE it processed and resharding metadata is removed
+                // by the cluster state observer waiting for all shards to be DONE.
+                assert targetState == IndexReshardingState.Split.SourceShardState.DONE;
+                return new Tuple<>(clusterState, null);
+            }
+
+            assert reshardingMetadata.isSplit();
+            var currentState = reshardingMetadata.getSplit().getSourceShardState(shardId.id());
+
+            assert currentState.ordinal() <= targetState.ordinal() : "Skipped state transition of source shard";
+
+            if (currentState == targetState) {
+                // This is possible if a source shard failed after submitting a state update request.
+                // Then during recovery the state transition was not done and a second request to do it was submitted,
+                // and we are handling that second request now.
+                logger.info(
+                    format(
+                        "Attempting to advance source shard %s to [%s] but it is already in [%s]. Proceeding.",
+                        shardId,
+                        targetState,
+                        currentState
+                    )
+                );
+                return new Tuple<>(clusterState, null);
             }
 
             ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
@@ -598,8 +636,7 @@ public class ReshardIndexService {
 
             final ProjectMetadata project = clusterState.metadata().projectFor(shardId.getIndex());
             final ProjectState projectState = clusterState.projectState(project.id());
-            final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
-            IndexReshardingMetadata reshardingMetadata = sourceMetadata.getReshardingMetadata();
+            IndexReshardingMetadata reshardingMetadata = projectState.metadata().getIndexSafe(index).getReshardingMetadata();
             if (reshardingMetadata == null) {
                 throw new IllegalStateException("no existing resharding operation on " + index + ".");
             }

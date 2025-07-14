@@ -110,7 +110,6 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
 
         reshardIndexService.reshardIndex(
             request.masterNodeTimeout(),
-            request.ackTimeout(),
             updateRequest,
             listener.map(response -> new ReshardIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()))
         );

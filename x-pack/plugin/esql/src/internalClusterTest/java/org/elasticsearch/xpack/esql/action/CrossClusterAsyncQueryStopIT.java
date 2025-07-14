@@ -13,7 +13,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Iterator;
 import java.util.List;
@@ -132,14 +135,21 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
-
+        // By default, ES|QL uses all workers in the esql_worker threadpool to execute drivers on data nodes.
+        // If a node is both data and coordinator, and all drivers are blocked by the allowEmitting latch,
+        // there are no workers left to execute the final driver or fetch pages from remote clusters.
+        // This can prevent remote clusters from being marked as successful on the coordinator, even if they
+        // have completed. To avoid this, we reserve at least one worker for the final driver and page fetching.
+        // A single worker is enough, as these two tasks can be paused and yielded.
+        var threadpool = cluster(LOCAL_CLUSTER).getInstance(TransportService.class).getThreadPool();
+        int maxEsqlWorkers = threadpool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
         LOGGER.info("--> Launching async query");
-        final String asyncExecutionId = startAsyncQuery(
+        final String asyncExecutionId = startAsyncQueryWithPragmas(
             client(),
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
-            includeCCSMetadata.v1()
+            includeCCSMetadata.v1(),
+            Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), between(1, maxEsqlWorkers - 1))
         );
-
         try {
             // wait until we know that the local query against 'blocking' has started
             LOGGER.info("--> Waiting for {} to start", asyncExecutionId);

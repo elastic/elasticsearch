@@ -8019,13 +8019,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // First KNN should have the second OR as its filter
         List<Expression> firstKnnFilters = firstKnn.filterExpressions();
         assertThat(firstKnnFilters.size(), equalTo(1));
-        var secondOrWithoutFilters = secondOr.replaceChildren(List.of(secondOr.left(), secondKnn.withFilters(List.of())));
-        assertTrue(firstKnnFilters.contains(secondOrWithoutFilters));
+        var secondOrWithoutKnn = secondOr.replaceChildren(List.of(secondOr.left(), Literal.TRUE));
+        assertTrue(firstKnnFilters.contains(secondOrWithoutKnn));
 
         // Second KNN should have the first OR as its filter
         List<Expression> secondKnnFilters = secondKnn.filterExpressions();
         assertThat(secondKnnFilters.size(), equalTo(1));
-        var firstOrWithoutFilters = firstOr.replaceChildren(List.of(firstKnn.withFilters(List.of()), firstOr.right()));
+        var firstOrWithoutFilters = firstOr.replaceChildren(List.of(Literal.TRUE, firstOr.right()));
         assertTrue(secondKnnFilters.contains(firstOrWithoutFilters));
     }
 }

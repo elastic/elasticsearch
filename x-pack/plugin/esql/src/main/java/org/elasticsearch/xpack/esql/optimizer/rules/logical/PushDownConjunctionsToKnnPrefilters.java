@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Stack;
 
 /**
  * Rewrites an expression tree to push down conjunctions in the prefilter of {@link Knn} functions.
+ * knn functions won't contain other knn functions as a prefilter, to avoid circular dependencies.
  *  Given an expression tree like {@code (A OR B) AND (C AND knn())} this rule will rewrite it to
  *     {@code (A OR B) AND (C AND knn(filterExpressions = [(A OR B), C]))}
 */
@@ -56,12 +59,12 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
                 }
                 yield and.replaceChildrenSameSize(List.of(newLeft, newRight));
             case Knn knn:
-                // Create a copy of the filters, and check the number of existing filters. We don't check for equality
-                // as having two knn functions on opposite sides of the And is valid, but could lead to infinite number
-                // of changes as the knn functions would receive the other knn functions as filters and would be constantly
-                // updating
-                List<Expression> newFilters = new ArrayList<>(filters);
-                if (newFilters.size() == knn.filterExpressions().size()) {
+                // We don't want knn expressions to have other knn expressions as a prefilter to avoid circular dependencies
+                List<Expression> newFilters = filters.stream()
+                    .map(PushDownConjunctionsToKnnPrefilters::removeKnn)
+                    .filter(Objects::nonNull)
+                    .toList();
+                if (newFilters.equals(knn.filterExpressions())) {
                     yield knn;
                 }
                 yield knn.withFilters(newFilters);
@@ -93,5 +96,35 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
         }
 
         return result;
+    }
+
+    /**
+     * Removes knn functions from the expression tree
+     * @param expression expression to process
+     * @return expression without knn functions, or null if the expression is a knn function
+     */
+    private static Expression removeKnn(Expression expression) {
+        if (expression.children().isEmpty()) {
+            return expression;
+        }
+        if (expression instanceof Knn) {
+            return null;
+        }
+
+        List<Expression> filteredChildren = expression.children()
+            .stream()
+            .map(PushDownConjunctionsToKnnPrefilters::removeKnn)
+            .filter(Objects::nonNull)
+            .toList();
+        if (filteredChildren.equals(expression.children())) {
+            return expression;
+        } else if (filteredChildren.isEmpty()) {
+            return null;
+        } else if (expression instanceof BinaryLogic && filteredChildren.size() == 1) {
+            // Simplify an AND / OR expression to a single child
+            return filteredChildren.getFirst();
+        } else {
+            return expression.replaceChildrenSameSize(filteredChildren);
+        }
     }
 }

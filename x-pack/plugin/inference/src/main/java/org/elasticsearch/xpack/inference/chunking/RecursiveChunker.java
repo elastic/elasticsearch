@@ -113,7 +113,7 @@ public class RecursiveChunker implements Chunker {
         }
 
         List<ChunkOffsetAndCount> mergedOffsetsAndCounts = new ArrayList<>();
-        var mergedChunk = chunkOffsets.getFirst();
+        var mergedChunk = chunkOffsets.get(0);
         for (int i = 1; i < chunkOffsets.size(); i++) {
             var chunkOffsetAndCountToMerge = chunkOffsets.get(i);
             var potentialMergedChunk = new ChunkOffsetAndCount(

@@ -61,9 +61,9 @@ public class RecursiveChunkerTests extends ESTestCase {
     public void testChunkInputRequiresOneSplitWithMerges() {
         List<String> separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(20, separators);
-        String input = generateTestText(3, List.of(separators.getFirst(), separators.getFirst()));
+        String input = generateTestText(3, List.of(separators.get(0), separators.get(0)));
 
-        var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.getFirst().length();
+        var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(0).length();
         assertExpectedChunksGenerated(
             input,
             settings,
@@ -97,7 +97,7 @@ public class RecursiveChunkerTests extends ESTestCase {
     public void testChunkInputRequiresMultipleSplitsWithMerges() {
         var separators = generateRandomSeparators();
         RecursiveChunkingSettings settings = generateChunkingSettings(25, separators);
-        String input = generateTestText(4, List.of(separators.get(1), separators.getFirst(), separators.get(1)));
+        String input = generateTestText(4, List.of(separators.get(1), separators.get(0), separators.get(1)));
 
         var expectedFirstChunkOffsetEnd = TEST_SENTENCE.length() * 2 + separators.get(1).length();
         assertExpectedChunksGenerated(

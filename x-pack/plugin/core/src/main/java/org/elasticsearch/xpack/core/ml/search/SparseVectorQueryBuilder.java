@@ -62,7 +62,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private static final boolean DEFAULT_PRUNE = false;
 
     public static final TransportVersionSet SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersionSet.get(
-        "sparse_vector_field_pruning_options"
+        "sparse-vector-field-pruning-options"
     );
 
     private final String fieldName;

@@ -289,7 +289,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
 
-        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isNotCompatible(in.getTransportVersion())) {
+        if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
+            && in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
             // Read the error parsing fields for backwards compatibility
             in.readString();
             in.readString();
@@ -445,7 +446,8 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
 
-        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isNotCompatible(out.getTransportVersion())) {
+        if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
+            && out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
             // Write empty strings for backwards compatibility for the error parsing fields
             out.writeString("");
             out.writeString("");

@@ -82,7 +82,7 @@ class ValuesFromSingleReader extends ValuesReader {
     }
 
     private void loadFromSingleLeaf(long jumboBytes, Block[] target, ValuesReaderDocs docs, int offset) throws IOException {
-        int firstDoc = docs.get(0);
+        int firstDoc = docs.get(offset);
         operator.positionFieldWork(shard, segment, firstDoc);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         LeafReaderContext ctx = operator.ctx(shard, segment);
@@ -112,8 +112,8 @@ class ValuesFromSingleReader extends ValuesReader {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
-                target[r.offset] = (Block) r.reader.read(loaderBlockFactory, docs, offset);
-                operator.sanityCheckBlock(r.reader, docs.count(), target[r.offset], r.offset);
+                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset);
+                operator.sanityCheckBlock(r.reader, docs.count(), target[r.idx], r.idx);
             }
             if (log.isDebugEnabled()) {
                 long total = 0;
@@ -171,13 +171,13 @@ class ValuesFromSingleReader extends ValuesReader {
             log.trace("{}: bytes loaded {}/{}", p, estimated, jumboBytes);
         }
         for (RowStrideReaderWork work : rowStrideReaders) {
-            target[work.offset] = work.build();
-            operator.sanityCheckBlock(work.reader, p - offset, target[work.offset], work.offset);
+            target[work.idx] = work.build();
+            operator.sanityCheckBlock(work.reader, p - offset, target[work.idx], work.idx);
         }
         if (log.isDebugEnabled()) {
             long actual = 0;
             for (RowStrideReaderWork work : rowStrideReaders) {
-                actual += target[work.offset].ramBytesUsed();
+                actual += target[work.idx].ramBytesUsed();
             }
             log.debug("loaded {} positions row stride estimated/actual {}/{} bytes", p - offset, estimated, actual);
         }
@@ -197,9 +197,21 @@ class ValuesFromSingleReader extends ValuesReader {
         return range * storedFieldsSequentialProportion <= count;
     }
 
-    private record ColumnAtATimeWork(BlockLoader.ColumnAtATimeReader reader, int offset) {}
+    /**
+     * Work for building a column-at-a-time.
+     * @param reader reads the values
+     * @param idx destination in array of {@linkplain Block}s we build
+     */
+    private record ColumnAtATimeWork(BlockLoader.ColumnAtATimeReader reader, int idx) {}
 
-    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int offset)
+    /**
+     * Work for
+     * @param reader
+     * @param builder
+     * @param loader
+     * @param idx
+     */
+    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)
         implements
             Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {

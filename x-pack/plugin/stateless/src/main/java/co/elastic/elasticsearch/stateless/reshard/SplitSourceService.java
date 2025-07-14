@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -166,12 +167,22 @@ public class SplitSourceService {
         IndexReshardingMetadata reshardingMetadata,
         ActionListener<Void> listener
     ) {
+
         IndexReshardingState.Split split = reshardingMetadata.getSplit();
 
         if (split.getSourceShardState(indexShard.shardId().getId()) == IndexReshardingState.Split.SourceShardState.DONE) {
             // Nothing to do.
             // TODO eventually we should initiate deletion of resharding metadata here if all source shards are DONE.
             // This is in case master dropped the cluster state observer that does that.
+            listener.onResponse(null);
+            return;
+        }
+
+        // It is possible that the shard is already STARTED at this point, see IndicesClusterStateService#updateShard.
+        // As such it is possible that we are already accepting requests to start split from targets.
+        // If any of them already set up tracking of the split process we don't need to do anything here.
+        if (onGoingSplits.putIfAbsent(indexShard, new Split()) != null) {
+            listener.onResponse(null);
             return;
         }
 
@@ -185,9 +196,6 @@ public class SplitSourceService {
             moveToDone(indexShard, listener);
             return;
         }
-
-        assert onGoingSplits.containsKey(indexShard) == false;
-        onGoingSplits.put(indexShard, new Split());
 
         setupSplitProgressTracking(indexShard);
         listener.onResponse(null);
@@ -241,7 +249,17 @@ public class SplitSourceService {
                 // It is possible that shard gets closed right after this line.
                 // It is not really a problem since delete of unowned documents is idempotent.
                 // TODO track the result of this operation, fail shard if it fails?
-                clusterService.threadPool().generic().submit(() -> moveToDone(indexShard, ActionListener.noop()));
+                clusterService.threadPool().generic().submit(() -> moveToDone(indexShard, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        logger.info(Strings.format("Split source shard %s successfully transitioned to DONE", indexShard.shardId()));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(Strings.format("Error while tracking split progress in source shard %s: %s", indexShard.shardId(), e));
+                    }
+                }));
             }
 
             @Override
@@ -261,6 +279,8 @@ public class SplitSourceService {
     }
 
     private void moveToDone(IndexShard indexShard, ActionListener<Void> listener) {
+        // Note that a shard can be closed (due to a failure) at any moment during the below flow.
+        // It is not a problem since all operations are idempotent.
         SubscribableListener.<Void>newForked(l -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), l))
             .<Void>andThen(
                 l -> client.execute(
@@ -271,6 +291,7 @@ public class SplitSourceService {
                     ),
                     l.map(r -> null)
                 )
+
             )
             .andThenAccept(ignored -> onGoingSplits.remove(indexShard))
             .addListener(listener);

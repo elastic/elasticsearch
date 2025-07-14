@@ -745,9 +745,6 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             } else {
                 source = sourceSupplier.get();
             }
-            if (sourceSupplier != null) {
-                source = sourceSupplier.get();
-            }
             bulkRequest.add(indexRequest.setSource(source));
         }
         var bulkResponse = bulkRequestOperator.apply(bulkRequest).get();

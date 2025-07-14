@@ -20,7 +20,7 @@ package co.elastic.elasticsearch.stateless.reshard;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -33,9 +33,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to reshard an index.
  */
-public class ReshardIndexRequest extends AcknowledgedRequest<ReshardIndexRequest> implements IndicesRequest {
-    private String index;
-    private int multiple;
+public class ReshardIndexRequest extends MasterNodeRequest<ReshardIndexRequest> implements IndicesRequest {
+    private final String index;
+    private final int multiple;
 
     public ReshardIndexRequest(StreamInput in) throws IOException {
         super(in);
@@ -44,7 +44,7 @@ public class ReshardIndexRequest extends AcknowledgedRequest<ReshardIndexRequest
     }
 
     public ReshardIndexRequest(String index, int multiple) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.index = index;
         this.multiple = multiple;
     }

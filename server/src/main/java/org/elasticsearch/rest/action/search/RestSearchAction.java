@@ -173,7 +173,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
 
-        var routingTags = request.param("routing_tags", null);
+        var routingTags = request.param("query_routing", null);
         if (routingTags != null) {
             searchRequest.routingTags(
                 Arrays.stream(Strings.splitStringByCommaToArray(routingTags)).map(RemoteClusterService.RemoteTag::fromString).toList()

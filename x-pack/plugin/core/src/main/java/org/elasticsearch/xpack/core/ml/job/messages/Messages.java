@@ -290,7 +290,8 @@ public final class Messages {
         "Cannot update inference endpoint [{}] for model deployment [{}] as it was created by another inference endpoint. "
             + "The model can only be updated using inference endpoint id [{}].";
     public static final String INFERENCE_CAN_ONLY_UPDATE_MODELS_IT_CREATED =
-        "Cannot update inference endpoint [{}] using model deployment [{}]. The model deployment must be updated through the trained models API.";
+        "Cannot update inference endpoint [{}] using model deployment [{}]. "
+            + "The model deployment must be updated through the trained models API.";
 
     private Messages() {}
 

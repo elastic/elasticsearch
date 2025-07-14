@@ -7,22 +7,33 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -30,6 +41,30 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         "WildcardLikeList",
         WildcardLikeList::new
     );
+
+    Supplier<Automaton> automatonSupplier = new Supplier<>() {
+        Automaton cached;
+
+        @Override
+        public Automaton get() {
+            if (cached == null) {
+                cached = pattern().createAutomaton(caseInsensitive());
+            }
+            return cached;
+        }
+    };
+
+    Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = new Supplier<>() {
+        CharacterRunAutomaton cached;
+
+        @Override
+        public CharacterRunAutomaton get() {
+            if (cached == null) {
+                cached = new CharacterRunAutomaton(automatonSupplier.get());
+            }
+            return cached;
+        }
+    };
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
@@ -89,12 +124,12 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (pattern().patternList().size() != 1) {
-            // we only support a single pattern in the list for pushdown for now
+        if (supportsPushdown(pushdownPredicates.minTransportVersion())) {
+            return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
+        } else {
+            // The ExpressionQuery we use isn't serializable to all nodes in the cluster.
             return Translatable.NO;
         }
-        return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
-
     }
 
     /**
@@ -105,7 +140,33 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+        String targetFieldName = handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field);
+        return translateField(targetFieldName);
+    }
+
+    private boolean supportsPushdown(TransportVersion version) {
+        return version == null || version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE);
+    }
+
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        return fieldType.automatonQuery(
+            automatonSupplier,
+            characterRunAutomatonSupplier,
+            constantScoreRewrite,
+            context,
+            getLuceneQueryDescription()
+        );
+    }
+
+    private String getLuceneQueryDescription() {
+        // we use the information used to create the automaton to describe the query here
+        String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
+        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }
 
     /**
@@ -113,9 +174,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        if (pattern().patternList().size() != 1) {
-            throw new IllegalArgumentException("WildcardLikeList can only be translated when it has a single pattern");
-        }
-        return new WildcardQuery(source(), targetFieldName, pattern().patternList().getFirst().asLuceneWildcard(), caseInsensitive());
+        return new ExpressionQuery(source(), targetFieldName, this);
     }
 }

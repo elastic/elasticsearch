@@ -165,7 +165,6 @@ POST my-image-index/_search
 
 Knn query can be used as a part of hybrid search, where knn query is combined with other lexical queries. For example, the query below finds documents with `title` matching `mountain lake`, and combines them with the top 10 documents that have the closest image vectors to the `query_vector`. The combined documents are then scored and the top 3 top scored documents are returned.
 
-+
 
 ```console
 POST my-image-index/_search
@@ -228,6 +227,36 @@ A sample query can look like below:
 ```
 
 Note that nested `knn` only supports `score_mode=max`.
+
+## Knn query on a semantic_text field [knn-query-with-semantic-text]
+
+Elasticsearch supports knn queries over a [
+`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md).
+
+Here is an example using the `query_vector_builder`:
+
+```json
+{
+  "query": {
+    "knn": {
+      "field": "inference_field",
+      "k": 10,
+      "num_candidates": 100,
+      "query_vector_builder": {
+        "text_embedding": {
+          "model_text": "test"
+        }
+      }
+    }
+  }
+}
+```
+
+Note that for `semantic_text` fields, the `model_id` does not have to be
+provided as it can be inferred from the `semantic_text` field mapping.
+
+Knn search using query vectors over `semantic_text` fields is also supported,
+with no change to the API.
 
 ## Knn query with aggregations [knn-query-aggregations]
 

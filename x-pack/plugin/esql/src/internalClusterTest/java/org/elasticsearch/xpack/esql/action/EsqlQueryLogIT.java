@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -195,7 +196,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                     assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                     assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
 
-                    boolean success = Boolean.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
+                    boolean success = Booleans.parseBoolean(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
                     assertThat(success, is(expectedException == null));
                     if (expectedErrorMsg == null) {
                         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), is(nullValue()));

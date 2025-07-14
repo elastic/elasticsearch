@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -756,8 +756,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 context,
                 isIndexed
             );
-            assertThat(query, instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class));
-            Query fallbackQuery = ((XIndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+            assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
+            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
 
             if (isIndexed) {
                 assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));

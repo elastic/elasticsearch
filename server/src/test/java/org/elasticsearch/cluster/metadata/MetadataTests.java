@@ -629,7 +629,7 @@ public class MetadataTests extends ESTestCase {
         final Metadata originalMeta = Metadata.builder().put(ProjectMetadata.builder(projectId).indexGraveyard(graveyard)).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        Metadata.FORMAT.toXContent(builder, originalMeta);
+        ChunkedToXContent.wrapAsToXContent(originalMeta).toXContent(builder, formatParams());
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
@@ -647,7 +647,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        Metadata.FORMAT.toXContent(builder, originalMeta);
+        ChunkedToXContent.wrapAsToXContent(originalMeta).toXContent(builder, formatParams());
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final Metadata fromXContentMeta = Metadata.fromXContent(parser);
@@ -732,7 +732,7 @@ public class MetadataTests extends ESTestCase {
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        Metadata.FORMAT.toXContent(builder, metadata);
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, formatParams());
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -3343,6 +3343,10 @@ public class MetadataTests extends ESTestCase {
         }
         b.put(newInstance(dataStreamName, backingIndices, lastBackingIndexNum, null));
         return new CreateIndexResult(indices, backingIndices, b.build());
+    }
+
+    private static ToXContent.Params formatParams() {
+        return new ToXContent.MapParams(Map.of("binary", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
     }
 
     private static class CreateIndexResult {

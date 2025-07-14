@@ -332,7 +332,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         float[] centroid(int centroidOrdinal) throws IOException;
 
-        float score(int centroidOrdinal) throws IOException;
+        void bulkScore(NeighborQueue queue) throws IOException;
     }
 
     interface PostingVisitor {

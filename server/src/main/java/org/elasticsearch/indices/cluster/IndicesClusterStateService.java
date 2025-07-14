@@ -1004,8 +1004,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ShardRouting sourceShardRouting = routingTable.shardRoutingTable(sourceShardId).primaryShard();
 
         if (sourceShardRouting.active() == false) {
-            assert false : sourceShardRouting;
-            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting);
+            // Source shard is unassigned (likely due to failure), we will retry.
+            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting.shortSummary());
             return null;
         }
 
@@ -1014,7 +1014,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
             logger.trace(
                 "can't find reshard split source node because source shard {} is assigned to an unknown node.",
-                sourceShardRouting
+                sourceShardRouting.shortSummary()
             );
             return null;
         }

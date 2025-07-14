@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.SetOnce;
@@ -22,6 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -29,6 +33,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -52,6 +57,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -72,6 +78,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
@@ -84,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -116,14 +124,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
+    private static final Logger logger = LogManager.getLogger(IndexShardIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class);
+        return pluginList(
+            InternalSettingsPlugin.class,
+            BogusEstimatedHeapUsagePlugin.class,
+            BogusNodeUsageStatsForThreadPoolsCollectorPlugin.class
+        );
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -290,6 +304,53 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Settings.builder()
                     .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
                     .build()
+            );
+        }
+    }
+
+    public void testNodeWriteLoadsArePresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
+            .getNodeUsageStatsForThreadPools();
+        assertNotNull(nodeThreadPoolStats);
+        /** Not collecting stats yet because allocation write load stats collection is disabled by default.
+         *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
+        assertTrue(nodeThreadPoolStats.isEmpty());
+
+        // Enable collection for node write loads.
+        updateClusterSettings(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                )
+                .build()
+        );
+        try {
+            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
+
+            /** Verify that each node has usage stats reported. The test {@link BogusNodeUsageStatsForThreadPoolsCollector} implementation
+             * generates random usage values */
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+                NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
+                assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
+                NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
+                    .threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE);
+                assertNotNull(writeThreadPoolStats);
+                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+                assertThat(writeThreadPoolStats.averageThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
             );
         }
     }
@@ -680,7 +741,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             null,
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
     }
 
@@ -860,6 +922,63 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {
+
+        private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            clusterService.set(services.clusterService());
+            return List.of();
+        }
+
+        public ClusterService getClusterService() {
+            return clusterService.get();
+        }
+    }
+
+    /**
+     * A simple {@link NodeUsageStatsForThreadPoolsCollector} implementation that creates and returns random
+     * {@link NodeUsageStatsForThreadPools} for each node in the cluster.
+     * <p>
+     * Note: there's an 'org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector' file that declares this implementation so that the
+     * plugin system can pick it up and use it for the test set-up.
+     */
+    public static class BogusNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
+
+        private final BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin;
+
+        public BogusNodeUsageStatsForThreadPoolsCollector(BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin) {
+            this.plugin = plugin;
+        }
+
+        @Override
+        public void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
+            ActionListener.completeWith(
+                listener,
+                () -> plugin.getClusterService()
+                    .state()
+                    .nodes()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> makeRandomNodeUsageStats(node.getId())))
+            );
+        }
+
+        private NodeUsageStatsForThreadPools makeRandomNodeUsageStats(String nodeId) {
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+                randomNonNegativeInt(),
+                randomFloat(),
+                randomNonNegativeLong()
+            );
+            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
+            statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
+            return new NodeUsageStatsForThreadPools(nodeId, statsForThreadPools);
+        }
+    }
+
+    /**
+     * Make a plugin to gain access to the {@link ClusterService} instance.
+     */
+    public static class BogusNodeUsageStatsForThreadPoolsCollectorPlugin extends Plugin implements ClusterPlugin {
 
         private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 

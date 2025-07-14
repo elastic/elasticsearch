@@ -209,9 +209,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/41_knn_search_byte_quantized/kNN search plus query}
-  issue: https://github.com/elastic/elasticsearch/issues/124687
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
@@ -546,9 +543,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/131154
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
+  issue: https://github.com/elastic/elasticsearch/issues/131165
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testNotLikeListKeyword
-  issue: https://github.com/elastic/elasticsearch/issues/131155
+  method: testLookupJoinAliases
+  issue: https://github.com/elastic/elasticsearch/issues/131166
 
 # Examples:
 #

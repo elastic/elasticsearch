@@ -395,6 +395,8 @@ public class ComputeService {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
+                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
+                                        // or encountered resolution or execution failures.
                                         var status = localClusterWasInterrupted.get()
                                             || (failedShards != null && failedShards > 0)
                                             || v.getFailures().isEmpty() == false

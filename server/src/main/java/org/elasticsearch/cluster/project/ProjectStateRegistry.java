@@ -220,7 +220,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         return new Builder();
     }
 
-    static class ProjectStatusRegistryDiff implements NamedDiff<Custom> {
+    static class ProjectStateRegistryDiff implements NamedDiff<Custom> {
         private static final DiffableUtils.DiffableValueReader<ProjectId, Entry> VALUE_READER = new DiffableUtils.DiffableValueReader<>(
             Entry::readFrom,
             Entry.EntryDiff::readFrom

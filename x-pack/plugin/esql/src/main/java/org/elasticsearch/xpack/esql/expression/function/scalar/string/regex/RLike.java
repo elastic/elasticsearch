@@ -33,18 +33,25 @@ public class RLike extends RegexMatch<RLikePattern> {
         Use `RLIKE` to filter data based on string patterns using using
         <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
         the left-hand side of the operator, but it can also act on a constant (literal)
-        expression. The right-hand side of the operator represents the pattern or a list of patterns.""", detailedDescription = """
+        expression. The right-hand side of the operator represents the pattern.""", detailedDescription = """
         Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
         The escape character is backslash `\\`. Since also backslash is a special character in string literals,
         it will require further escaping.
 
         <<load-esql-example, file=string tag=rlikeEscapingSingleQuotes>>
 
-        <<load-esql-example, file=where-like tag=rlikeListDocExample>>
-
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
+        ```{applies_to}
+        stack: ga 9.1
+        serverless: ga
+        ```
+
+        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+        the expression will return true if any of the patterns match.
+
+        <<load-esql-example, file=where-like tag=rlikeListDocExample>>
         """, operator = NAME, examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,

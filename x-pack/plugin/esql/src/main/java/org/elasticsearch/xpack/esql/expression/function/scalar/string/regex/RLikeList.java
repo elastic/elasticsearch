@@ -7,23 +7,29 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
-import org.elasticsearch.xpack.esql.core.querydsl.query.EsqlAutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class RLikeList extends RegexMatch<RLikePatternList> {
@@ -32,6 +38,30 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
         "RLikeList",
         RLikeList::new
     );
+
+    Supplier<Automaton> automatonSupplier = new Supplier<>() {
+        Automaton cached;
+
+        @Override
+        public Automaton get() {
+            if (cached == null) {
+                cached = pattern().createAutomaton(caseInsensitive());
+            }
+            return cached;
+        }
+    };
+
+    Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = new Supplier<>() {
+        CharacterRunAutomaton cached;
+
+        @Override
+        public CharacterRunAutomaton get() {
+            if (cached == null) {
+                cached = new CharacterRunAutomaton(automatonSupplier.get());
+            }
+            return cached;
+        }
+    };
 
     /**
      * The documentation for this function is in RLike, and shown to the users as `RLIKE` in the docs.
@@ -97,7 +127,22 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
     }
 
     private Query translateField(String targetFieldName) {
-        return new EsqlAutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
+        return new ExpressionQuery(source(), targetFieldName, this);
+    }
+
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        return fieldType.automatonQuery(
+            automatonSupplier,
+            characterRunAutomatonSupplier,
+            constantScoreRewrite,
+            context,
+            getLuceneQueryDescription()
+        );
     }
 
     @Override
@@ -105,7 +150,7 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
         return NodeInfo.create(this, RLikeList::new, field(), pattern(), caseInsensitive());
     }
 
-    private String getAutomatonDescription() {
+    private String getLuceneQueryDescription() {
         // we use the information used to create the automaton to describe the query here
         String patternDesc = pattern().patternList().stream().map(RLikePattern::pattern).collect(Collectors.joining("\", \""));
         return "RLIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();

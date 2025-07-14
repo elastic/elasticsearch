@@ -2,12 +2,7 @@
 setup:
   - requires:
       test_runner_features: [ capabilities, contains ]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [ ]
-          capabilities: [ agg_top ]
-      reason: "uses TOP function in STATS aggregation"
+      reason: "make sure new functions run where supported only"
   - do:
       indices.create:
         index: employees
@@ -43,7 +38,16 @@ setup:
           - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ] }
 
 ---
-Top function with constant folding:
+TOP function with constant folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "Uses TOP function"
+
   - do:
       esql.query:
         body:
@@ -70,7 +74,15 @@ Top function with constant folding:
 
 ---
 
-Top function with negative limit value after folding:
+TOP function with negative limit value after folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "Uses TOP function"
   - do:
       catch: bad_request
       esql.query:
@@ -89,6 +101,14 @@ Top function with negative limit value after folding:
 ---
 
 Top function with invalid sort order:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "Uses TOP function"
   - do:
       catch: bad_request
       esql.query:
@@ -106,7 +126,7 @@ Top function with invalid sort order:
 
 ---
 
-Sample function with constant folding:
+SAMPLE function with constant folding:
   - do:
       esql.query:
         body:
@@ -173,7 +193,7 @@ Match function with non-foldable query:
 
 ---
 
-Foldable query using PHRASE_MATCH on name:
+Foldable query using MATCH_PHRASE on name:
   - do:
       esql.query:
         body:
@@ -196,7 +216,7 @@ Foldable query using PHRASE_MATCH on name:
 
 ---
 
-Foldable query using PHRASE_MATCH on name but with non-foldable expression:
+Foldable query using MATCH_PHRASE on name but with non-foldable expression:
   - do:
       catch: bad_request
       esql.query:
@@ -211,7 +231,31 @@ Foldable query using PHRASE_MATCH on name but with non-foldable expression:
 
 ---
 
+Foldable query using MATCH_PHRASE on name but with non constant query:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MATCH_PHRASE(name, name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Query must be a valid string in [MATCH_PHRASE(name, name)], found [name" }
+
+---
+
+
 Foldable query using MULTI_MATCH on name:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ multi_match_function ]
+      reason: "Uses MULTI_MATCH function"
   - do:
       esql.query:
         body:
@@ -235,6 +279,14 @@ Foldable query using MULTI_MATCH on name:
 ---
 
 Foldable query using MULTI_MATCH on name but with non-foldable expression:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ multi_match_function ]
+      reason: "Uses MULTI_MATCH function"
   - do:
       catch: bad_request
       esql.query:
@@ -246,6 +298,29 @@ Foldable query using MULTI_MATCH on name but with non-foldable expression:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Query must be a valid string in [MULTI_MATCH(CONCAT(\"Bob \", name), name)], found [CONCAT(\"Bob \", name)]" }
+
+---
+
+Query using MULTI_MATCH on name but with non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ multi_match_function ]
+      reason: "Uses MULTI_MATCH function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MULTI_MATCH(name, name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Query must be a valid string in [MULTI_MATCH(name, name)], found [name" }
 
 ---
 
@@ -287,7 +362,30 @@ Foldable query using QSTR on name but with non-foldable expression:
 
 ---
 
+Foldable query using KQL on name but with non-foldable expression:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KQL(name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Query must be a valid string in [KQL(name)], found [name" }
+
+---
+
 Foldable query using KNN on image_vector:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v2 ]
+      reason: "Uses KNN function"
   - do:
       esql.query:
         body:
@@ -310,6 +408,14 @@ Foldable query using KNN on image_vector:
 ---
 
 Foldable query using KNN on image_vector but with non-foldable expression:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v2 ]
+      reason: "Uses KNN function"
   - do:
       catch: bad_request
       esql.query:
@@ -321,3 +427,73 @@ Foldable query using KNN on image_vector but with non-foldable expression:
             | LIMIT 5
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "third argument of [KNN(image_vector, [0.4, 0.5, 0.9], 1+salary)] must be a constant, received [1+salary]" }
+
+---
+
+KNN on non constant k():
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v2 ]
+      reason: "Uses KNN function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, [0.4, 0.5, 0.9], salary)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "third argument of [KNN(image_vector, [0.4, 0.5, 0.9], salary)] must be a constant, received [salary" }
+
+---
+
+KNN on non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v2 ]
+      reason: "Uses KNN function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, image_vector, 1)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Query must be a valid string in [KNN(image_vector, image_vector, 1)], found [image_vector" }
+
+---
+
+Query using TERM function on name but with non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ term_function ]
+      reason: "Uses TERM function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE TERM(name, salary)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [TERM(name, salary)] must be [string], found value [salary] type [integer]" }
+

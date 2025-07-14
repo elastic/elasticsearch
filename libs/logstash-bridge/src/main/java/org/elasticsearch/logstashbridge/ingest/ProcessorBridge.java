@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
@@ -141,7 +142,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 final Map<String, Object> config
             ) throws Exception {
                 return ProcessorBridge.wrap(
-                    this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config, null)
+                    this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config, ProjectId.DEFAULT)
                 );
             }
 

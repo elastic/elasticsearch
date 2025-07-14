@@ -17,7 +17,10 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(':modules:lang-mustache')
   compileOnly project(':modules:ingest-common')
-//  compileOnly project(':modules:ingest-geoip')
+  compileOnly project(':modules:ingest-geoip')
+  //compileOnly project(':x-pack:plugin:wildcard')
+  //compileOnly project(':x-pack:plugin:mapper-constant-keyword')
+  //compileOnly project(':x-pack:plugin:spatial')
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -16,6 +16,7 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.mustache;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.ingest.common;
 
     exports org.elasticsearch.logstashbridge;
     exports org.elasticsearch.logstashbridge.common;

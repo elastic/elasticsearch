@@ -22,6 +22,10 @@ public class ValidateTransportVersionsPlugin implements Plugin<Project> {
             var dir = project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/");
             t.getDataFileDirectory().set(dir);
             t.getTransportVersionSetNamesFile().set(project.getLayout().getBuildDirectory().file(TRANSPORT_VERSION_NAMES_FILE));
+            // TODO is this correct? Needs to have both global/per-plugin versions and dependencies
+            t.dependsOn(project.getTasks().withType(LocateTransportVersionsTask.class));
+            t.setGroup("Transport Versions"); // TODO
+            t.setDescription("Validates that the transport versions used in the project are correct and up to date."); // TODO
         });
     }
 }

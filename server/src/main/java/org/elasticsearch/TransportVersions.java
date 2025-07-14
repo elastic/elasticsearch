@@ -320,7 +320,7 @@ public class TransportVersions {
     public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = def(9_107_0_00);
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
 
-    public static final TransportVersionSet TEST = TransportVersionSet.get("test-potato");
+
 
     /*
      * STOP! READ THIS FIRST! No, really,

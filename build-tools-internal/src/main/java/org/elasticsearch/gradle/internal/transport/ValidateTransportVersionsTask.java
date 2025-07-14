@@ -26,6 +26,9 @@ import java.util.Set;
 
 /**
  * Validates that each transport version declaration has an associated metadata file.
+ * TODO:
+ *  - make this depend on the LocateTransportVersions task/plugin
+ *  - make this both a local (per module/plugin) and global task
  */
 public abstract class ValidateTransportVersionsTask extends DefaultTask {
 
@@ -59,8 +62,8 @@ public abstract class ValidateTransportVersionsTask extends DefaultTask {
         try (var reader = new BufferedReader(new FileReader(tvSetDeclaredNamesFile))) {
             reader.lines().forEach(declaredName -> {
                 if (tvSetNamesInDataFiles.contains(declaredName) == false) {
-                    throw new RuntimeException("TransportVersionSet.get(\"" + declaredName + "\") was used, but lacks a" +
-                        "data file with a corresponding transport version. This can be generated with the <TODO> task"); //TODO
+                    throw new RuntimeException("TransportVersionSetData.get(\"" + declaredName + "\") was used, but lacks a" +
+                        " data file with a corresponding transport version. This can be generated with the <TODO> task"); //TODO
                 }
             });
         }

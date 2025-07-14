@@ -36,22 +36,22 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * This task locates all method invocations of org.elasticsearch.TransportVersionSet#get(java.lang.String) in the
+ * This task locates all method invocations of org.elasticsearch.TransportVersionSetData#get(java.lang.String) in the
  * provided directory, and then records the value of string literals passed as arguments. It then records each
  * String on a newline in the provided output file.
  */
 public abstract class LocateTransportVersionsTask extends DefaultTask {
-    public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersionSet";
+    public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersionSetData";
     public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "get";
 
     /**
-     * The directory to scan for TransportVersionSet#get invocations.
+     * The directory to scan for TransportVersionSetData#get invocations.
      */
     @InputFiles
     public abstract Property<FileCollection> getClassDirs();
 
     /**
-     * The output file, with each newline containing the string literal argument of each TransportVersionSet#get
+     * The output file, with each newline containing the string literal argument of each TransportVersionSetData#get
      * invocation.
      */
     @OutputFile

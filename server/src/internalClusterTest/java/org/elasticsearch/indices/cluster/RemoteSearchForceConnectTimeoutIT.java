@@ -120,6 +120,7 @@ public class RemoteSearchForceConnectTimeoutIT extends AbstractMultiClustersTest
             );
             assertThat(failureReason, Matchers.containsString("SubscribableListener"));
             latch.countDown();
+            result.decRef();
         }
     }
 }

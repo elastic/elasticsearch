@@ -40,6 +40,7 @@ If the document is not OpenTelemetry-compliant, the processor normalizes it as f
   | `trace.id`  | `trace_id`                     |
   | `message`   | `body.text`                    |
   | `log.level` | `severity_text`                |
+
   The processor first looks for the nested form of the ECS field and if such does not exist, it looks for a top-level field with the dotted field name.
 * Other specific ECS fields that describe resources and have corresponding counterparts in the OpenTelemetry Semantic Conventions are moved to the `resource.attribtues` map. Fields that are considered resource attributes are such that conform to the following conditions:
     * They are ECS fields that have corresponding counterparts (either with

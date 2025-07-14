@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -65,7 +66,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             clusterService.getClusterSettings(),
             Set.of()
         );
-        final var nodeClient = new NodeClient(clusterService.getSettings(), threadPool);
+        final var nodeClient = new NodeClient(clusterService.getSettings(), threadPool, TestProjectResolvers.alwaysThrow());
         repositoriesService = new RepositoriesService(
             clusterService.getSettings(),
             clusterService,
@@ -81,7 +82,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             threadPool,
             repositoriesService,
             nodeClient,
-            new ActionFilters(Set.of())
+            new ActionFilters(Set.of()),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
 
@@ -197,6 +199,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
 
         action.buildResponse(
             SnapshotsInProgress.EMPTY,
+            ProjectId.DEFAULT,
             new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
             currentSnapshotEntries,
             nodeSnapshotStatuses,
@@ -356,6 +359,7 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
 
         action.buildResponse(
             SnapshotsInProgress.EMPTY,
+            ProjectId.DEFAULT,
             new SnapshotsStatusRequest(TEST_REQUEST_TIMEOUT),
             currentSnapshotEntries,
             nodeSnapshotStatuses,

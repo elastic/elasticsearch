@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -52,9 +53,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -91,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -131,8 +135,12 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -165,20 +173,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
     };
 
     private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
 
         @Override
-        public String constantValue(String name) {
-            return name.startsWith("constant_keyword") ? "foo" : null;
+        public String constantValue(FieldAttribute.FieldName name) {
+            return name.string().startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -565,8 +573,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testLocalAggOptimizedToLocalRelation() {
         var stats = new TestSearchStats() {
             @Override
-            public boolean exists(String field) {
-                return "emp_no".equals(field) == false;
+            public boolean exists(FieldAttribute.FieldName field) {
+                return "emp_no".equals(field.string()) == false;
             }
         };
 
@@ -1362,10 +1370,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnOptionsPushDown() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+
         String query = """
             from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                { "k": 5, "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], 5,
+                { "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
@@ -2024,10 +2035,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(2, projections.size());
         FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
         assertEquals(DATE_NANOS, fa.dataType());
-        assertEquals("date_and_date_nanos", fa.fieldName());
+        assertEquals("date_and_date_nanos", fa.fieldName().string());
         assertTrue(isMultiTypeEsField(fa)); // mixed date and date_nanos are auto-casted
         UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
-        assertEquals("date_and_date_nanos_and_long", ua.fieldName());
+        assertEquals("date_and_date_nanos_and_long", ua.fieldName().string());
         var limit = as(project.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         project = as(exchange.child(), ProjectExec.class);
@@ -2038,7 +2049,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         GreaterThanOrEqual gt = as(filter.condition(), GreaterThanOrEqual.class);
         fa = as(gt.left(), FieldAttribute.class);
         assertTrue(isMultiTypeEsField(fa));
-        assertEquals("date_and_date_nanos_and_long", fa.fieldName());
+        assertEquals("date_and_date_nanos_and_long", fa.fieldName().string());
         fieldExtract = as(filter.child(), FieldExtractExec.class); // extract date_and_date_nanos_and_long
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         var source = ((SingleValueQuery.Builder) esQuery.query()).source();
@@ -2051,6 +2062,42 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             source
         ); // date_and_date_nanos is pushed down
         assertThat(expected.toString(), is(esQuery.query().toString()));
+    }
+
+    public void testVerifierOnMissingReferences() throws Exception {
+
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        // emulate a rule that adds a missing attribute
+        FieldAttribute missingAttr = getFieldAttribute("missing attr");
+        List<Order> orders = List.of(new Order(plan.source(), missingAttr, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        TopNExec topNExec = new TopNExec(plan.source(), plan, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
+
+        // We want to verify that the localOptimize detects the missing attribute.
+        // However, it also throws an error in one of the rules before we get to the verifier.
+        // So we use an implementation of LocalPhysicalPlanOptimizer that does not have any rules.
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+            new EsqlFlags(true),
+            config,
+            FoldContext.small(),
+            SearchStats.EMPTY
+        );
+        LocalPhysicalPlanOptimizer optimizerWithNoopExecute = new LocalPhysicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return List.of();
+            }
+        };
+        Exception e = expectThrows(IllegalStateException.class, () -> optimizerWithNoopExecute.localOptimize(topNExec));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [missing attr"));
     }
 
     private boolean isMultiTypeEsField(Expression e) {
@@ -2097,7 +2144,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
 
         protected FullTextFunctionTestCase(Class<? extends FullTextFunction> fullTextFunction) {
-            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(1, 10));
+            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(5, 10));
         }
 
         public Class<? extends FullTextFunction> fullTextFunction() {

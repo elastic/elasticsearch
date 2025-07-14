@@ -11,6 +11,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.ssl.SslHandshakeTimeoutException;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -42,6 +44,9 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.mocksocket.MockSocket;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +70,7 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationSe
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -902,7 +908,15 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         }
     }
 
+    @TestLogging(reason = "inbound timeout is reported at TRACE", value = "org.elasticsearch.transport.netty4.ESLoggingHandler:TRACE")
     public void testTlsHandshakeTimeout() throws IOException {
+        runOutboundTlsHandshakeTimeoutTest(null);
+        runOutboundTlsHandshakeTimeoutTest(randomLongBetween(1, 500));
+        runInboundTlsHandshakeTimeoutTest(null);
+        runInboundTlsHandshakeTimeoutTest(randomLongBetween(1, 500));
+    }
+
+    private void runOutboundTlsHandshakeTimeoutTest(@Nullable /* to use the default */ Long handshakeTimeoutMillis) throws IOException {
         final CountDownLatch doneLatch = new CountDownLatch(1);
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
@@ -928,13 +942,53 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            final var future = new TestPlainActionFuture<Releasable>();
-            serviceA.connectToNode(dummy, builder.build(), future);
-            final var ex = expectThrows(ExecutionException.class, ConnectTransportException.class, future::get); // long wait
-            assertEquals("[][" + dummy.getAddress() + "] connect_exception", ex.getMessage());
-            assertNotNull(ExceptionsHelper.unwrap(ex, SslHandshakeTimeoutException.class));
+            final ConnectTransportException exception;
+            final var transportSettings = Settings.builder();
+            if (handshakeTimeoutMillis == null) {
+                handshakeTimeoutMillis = 10000L; // default
+            } else {
+                transportSettings.put("xpack.security.transport.ssl.handshake_timeout", TimeValue.timeValueMillis(handshakeTimeoutMillis));
+            }
+            try (var service = buildService(getTestName(), version0, transportVersion0, transportSettings.build())) {
+                final var future = new TestPlainActionFuture<Releasable>();
+                service.connectToNode(dummy, builder.build(), future);
+                exception = expectThrows(ExecutionException.class, ConnectTransportException.class, future::get); // long wait
+                assertEquals("[][" + dummy.getAddress() + "] connect_exception", exception.getMessage());
+                assertThat(
+                    asInstanceOf(SslHandshakeTimeoutException.class, exception.getCause()).getMessage(),
+                    equalTo("handshake timed out after " + handshakeTimeoutMillis + "ms")
+                );
+            }
         } finally {
             doneLatch.countDown();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs a simple TCP connection")
+    private void runInboundTlsHandshakeTimeoutTest(@Nullable /* to use the default */ Long handshakeTimeoutMillis) throws IOException {
+        final var transportSettings = Settings.builder();
+        if (handshakeTimeoutMillis == null) {
+            handshakeTimeoutMillis = 10000L; // default
+        } else {
+            transportSettings.put("xpack.security.transport.ssl.handshake_timeout", TimeValue.timeValueMillis(handshakeTimeoutMillis));
+        }
+        try (
+            var service = buildService(getTestName(), version0, transportVersion0, transportSettings.build());
+            Socket clientSocket = new MockSocket();
+            MockLog mockLog = MockLog.capture("org.elasticsearch.transport.netty4.ESLoggingHandler")
+        ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "timeout event message",
+                    "org.elasticsearch.transport.netty4.ESLoggingHandler",
+                    Level.TRACE,
+                    "SslHandshakeTimeoutException: handshake timed out after " + handshakeTimeoutMillis + "ms"
+                )
+            );
+
+            clientSocket.connect(service.boundAddress().boundAddresses()[0].address());
+            expectThrows(EOFException.class, () -> clientSocket.getInputStream().skipNBytes(Long.MAX_VALUE));
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

@@ -55,7 +55,7 @@ In many cases, a brute-force kNN search is not efficient enough. For this reason
 
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similariy of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields and indexed as `int8_hnsw`. When indexing is enabled, you can define the vector similarity to use in kNN search:
+Indexing is enabled by default for dense vector fields and indexed as `bbq_hnsw` if dimensions are greater than or equal to 384, otherwise they are indexed as `int8_hnsw`. When indexing is enabled, you can define the vector similarity to use in kNN search:
 
 ```console
 PUT my-index-2
@@ -105,7 +105,7 @@ The `dense_vector` type supports quantization to reduce the memory footprint req
 
 When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for more information.
 
-To use a quantized index, you can set your index type to `int8_hnsw`, `int4_hnsw`, or `bbq_hnsw`. When indexing `float` vectors, the current default index type is `int8_hnsw`.
+To use a quantized index, you can set your index type to `int8_hnsw`, `int4_hnsw`, or `bbq_hnsw`. When indexing `float` vectors, the current default index type is `bbq_hnsw` for vectors with greater than or equal to 384 dimensions, otherwise it's `int8_hnsw`.
 
 Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
@@ -255,9 +255,9 @@ $$$dense-vector-index-options$$$
 `type`
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
     * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
-    * `int8_hnsw` - The default index type for float vectors. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `int8_hnsw` - The default index type for float vectors with less than 384 dimensions. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `bbq_hnsw` - The default index type for float vectors with greater than or equal to 384 dimensions. This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports `element_type` of `float`.
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports `element_type` of `float`.
@@ -397,10 +397,10 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):
 
 ```txt
-flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
+flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ```
 
-For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`) the number of connections `m` must either stay the same or increase. For scalar quantized formats  (`int8_flat`, `int4_flat`, `int8_hnsw`, `int4_hnsw`) the `confidence_interval` must always be consistent (once defined, it cannot change).
+For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase. For the scalar quantized formats  `int8_flat`, `int4_flat`, `int8_hnsw` and `int4_hnsw` the `confidence_interval` must always be consistent (once defined, it cannot change).
 
 Updating `type` in `index_options` will fail in all other scenarios.
 

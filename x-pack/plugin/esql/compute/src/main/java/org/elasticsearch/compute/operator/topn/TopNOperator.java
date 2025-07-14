@@ -15,11 +15,14 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -71,6 +74,21 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
+        /**
+         * Reference counter for the shard this row belongs to, used for rows containing a {@link DocVector} to ensure that the shard
+         * context before we build the final result.
+         */
+        @Nullable
+        RefCounted shardRefCounter;
+
+        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
+            if (this.shardRefCounter != null) {
+                this.shardRefCounter.decRef();
+            }
+            this.shardRefCounter = shardRefCounter;
+            this.shardRefCounter.mustIncRef();
+        }
+
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
             boolean success = false;
             try {
@@ -92,7 +110,15 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
+            clearRefCounters();
             Releasables.closeExpectNoException(keys, values, bytesOrder);
+        }
+
+        public void clearRefCounters() {
+            if (shardRefCounter != null) {
+                shardRefCounter.decRef();
+            }
+            shardRefCounter = null;
         }
     }
 
@@ -174,7 +200,7 @@ public class TopNOperator implements Operator, Accountable {
          */
         void row(int position, Row destination) {
             writeKey(position, destination);
-            writeValues(position, destination.values);
+            writeValues(position, destination);
         }
 
         private void writeKey(int position, Row row) {
@@ -187,9 +213,13 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        private void writeValues(int position, BreakingBytesRefBuilder values) {
+        private void writeValues(int position, Row destination) {
             for (ValueExtractor e : valueExtractors) {
-                e.writeValue(values, position);
+                var refCounted = e.getRefCountedForShard(position);
+                if (refCounted != null) {
+                    destination.setShardRefCountersAndShard(refCounted);
+                }
+                e.writeValue(destination.values, position);
             }
         }
     }
@@ -376,6 +406,7 @@ public class TopNOperator implements Operator, Accountable {
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
+                    spare.clearRefCounters();
                 }
                 rowFiller.row(i, spare);
 
@@ -438,48 +469,49 @@ public class TopNOperator implements Operator, Accountable {
                     p = 0;
                 }
 
-                Row row = list.get(i);
-                BytesRef keys = row.keys.bytesRefView();
-                for (SortOrder so : sortOrders) {
-                    if (keys.bytes[keys.offset] == so.nul()) {
+                try (Row row = list.get(i)) {
+                    BytesRef keys = row.keys.bytesRefView();
+                    for (SortOrder so : sortOrders) {
+                        if (keys.bytes[keys.offset] == so.nul()) {
+                            keys.offset++;
+                            keys.length--;
+                            continue;
+                        }
                         keys.offset++;
                         keys.length--;
-                        continue;
+                        builders[so.channel].decodeKey(keys);
                     }
-                    keys.offset++;
-                    keys.length--;
-                    builders[so.channel].decodeKey(keys);
-                }
-                if (keys.length != 0) {
-                    throw new IllegalArgumentException("didn't read all keys");
-                }
-
-                BytesRef values = row.values.bytesRefView();
-                for (ResultBuilder builder : builders) {
-                    builder.decodeValue(values);
-                }
-                if (values.length != 0) {
-                    throw new IllegalArgumentException("didn't read all values");
-                }
-
-                list.set(i, null);
-                row.close();
-
-                p++;
-                if (p == size) {
-                    Block[] blocks = new Block[builders.length];
-                    try {
-                        for (int b = 0; b < blocks.length; b++) {
-                            blocks[b] = builders[b].build();
-                        }
-                    } finally {
-                        if (blocks[blocks.length - 1] == null) {
-                            Releasables.closeExpectNoException(blocks);
-                        }
+                    if (keys.length != 0) {
+                        throw new IllegalArgumentException("didn't read all keys");
                     }
-                    result.add(new Page(blocks));
-                    Releasables.closeExpectNoException(builders);
-                    builders = null;
+
+                    BytesRef values = row.values.bytesRefView();
+                    for (ResultBuilder builder : builders) {
+                        builder.setNextRefCounted(row.shardRefCounter);
+                        builder.decodeValue(values);
+                    }
+                    if (values.length != 0) {
+                        throw new IllegalArgumentException("didn't read all values");
+                    }
+
+                    list.set(i, null);
+
+                    p++;
+                    if (p == size) {
+                        Block[] blocks = new Block[builders.length];
+                        try {
+                            for (int b = 0; b < blocks.length; b++) {
+                                blocks[b] = builders[b].build();
+                            }
+                        } finally {
+                            if (blocks[blocks.length - 1] == null) {
+                                Releasables.closeExpectNoException(blocks);
+                            }
+                        }
+                        result.add(new Page(blocks));
+                        Releasables.closeExpectNoException(builders);
+                        builders = null;
+                    }
                 }
             }
             assert builders == null;

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
@@ -58,7 +57,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TE
  */
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class PolicyCheckerImpl implements PolicyChecker {
-    static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
+
     protected final Set<Package> suppressFailureLogPackages;
     /**
      * Frames originating from this module are ignored in the permission logic.
@@ -81,15 +80,14 @@ public class PolicyCheckerImpl implements PolicyChecker {
         this.pathLookup = pathLookup;
     }
 
-    private static boolean isPathOnDefaultFilesystem(Path path) {
-        var pathFileSystemClass = path.getFileSystem().getClass();
-        if (path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS) {
+    private boolean isPathOnDefaultFilesystem(Path path) {
+        if (pathLookup.isPathOnDefaultFilesystem(path) == false) {
             PolicyManager.generalLogger.trace(
                 () -> Strings.format(
                     "File entitlement trivially allowed: path [%s] is for a different FileSystem class [%s], default is [%s]",
                     path.toString(),
-                    pathFileSystemClass.getName(),
-                    DEFAULT_FILESYSTEM_CLASS.getName()
+                    path.getFileSystem().getClass().getName(),
+                    PathLookup.DEFAULT_FILESYSTEM_CLASS.getName()
                 )
             );
             return false;
@@ -135,7 +133,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
                 entitlements.componentName(),
-                PolicyCheckerImpl.getModuleName(requestingClass),
+                entitlements.moduleName(),
                 requestingClass,
                 operationDescription.get()
             ),
@@ -217,7 +215,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     @Override
     public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException {
-        if (PolicyCheckerImpl.isPathOnDefaultFilesystem(path) == false) {
+        if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
         var requestingClass = requestingClass(callerClass);
@@ -247,7 +245,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    entitlements.moduleName(),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
@@ -265,7 +263,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     @Override
     public void checkFileWrite(Class<?> callerClass, Path path) {
-        if (PolicyCheckerImpl.isPathOnDefaultFilesystem(path) == false) {
+        if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
         var requestingClass = requestingClass(callerClass);
@@ -279,7 +277,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    entitlements.moduleName(),
                     requestingClass,
                     path
                 ),
@@ -383,7 +381,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                     () -> Strings.format(
                         "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                         entitlements.componentName(),
-                        PolicyCheckerImpl.getModuleName(requestingClass),
+                        entitlements.moduleName(),
                         requestingClass,
                         property
                     )
@@ -394,7 +392,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
-                PolicyCheckerImpl.getModuleName(requestingClass),
+                entitlements.moduleName(),
                 requestingClass,
                 property
             ),
@@ -447,7 +445,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    classEntitlements.moduleName(),
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 ),
@@ -460,7 +458,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 () -> Strings.format(
                     "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    PolicyCheckerImpl.getModuleName(requestingClass),
+                    classEntitlements.moduleName(),
                     requestingClass,
                     PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 )

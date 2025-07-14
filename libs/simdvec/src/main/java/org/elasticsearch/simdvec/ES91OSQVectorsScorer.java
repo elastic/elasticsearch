@@ -95,7 +95,10 @@ public class ES91OSQVectorsScorer {
      * Computes the score by applying the necessary corrections to the provided quantized distance.
      */
     public float score(
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float lowerInterval,
@@ -107,19 +110,19 @@ public class ES91OSQVectorsScorer {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
         float lx = upperInterval - ax;
-        float ay = queryCorrections.lowerInterval();
-        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-        float y1 = queryCorrections.quantizedComponentSum();
+        float ay = queryLowerInterval;
+        float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
+        float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is
         // assumed to be the squared l2norm of the centroid centered vectors.
         if (similarityFunction == EUCLIDEAN) {
-            score = queryCorrections.additionalCorrection() + additionalCorrection - 2 * score;
+            score = queryAdditionalCorrection + additionalCorrection - 2 * score;
             return Math.max(1 / (1f + score), 0);
         } else {
             // For cosine and max inner product, we need to apply the additional correction, which is
             // assumed to be the non-centered dot-product between the vector and the centroid
-            score += queryCorrections.additionalCorrection() + additionalCorrection - centroidDp;
+            score += queryAdditionalCorrection + additionalCorrection - centroidDp;
             if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                 return VectorUtil.scaleMaxInnerProductScore(score);
             }
@@ -140,7 +143,10 @@ public class ES91OSQVectorsScorer {
      */
     public void scoreBulk(
         byte[] q,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float[] scores
@@ -154,7 +160,10 @@ public class ES91OSQVectorsScorer {
         in.readFloats(additionalCorrections, 0, BULK_SIZE);
         for (int i = 0; i < BULK_SIZE; i++) {
             scores[i] = score(
-                queryCorrections,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
                 lowerIntervals[i],

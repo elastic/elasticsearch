@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
@@ -369,7 +370,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
         activeProject = "active00" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
-        multiProjectEnabled = Boolean.parseBoolean(System.getProperty("tests.multi_project.enabled"));
+        multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
     }
 
     @Before
@@ -1056,7 +1057,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteAllNodeShutdownMetadata();
     }
 
-    private void waitForClusterUpdates() throws Exception {
+    public void waitForClusterUpdates() throws Exception {
         logger.info("Waiting for all cluster updates up to this moment to be processed");
 
         try {
@@ -2362,7 +2363,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return switch (id) {
             case "logs-default-pipeline", "logs@default-pipeline", "logs@json-message", "logs@json-pipeline" -> true;
-            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline" -> true;
+            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline", "logs-apm@pipeline" -> true;
             case "behavioral_analytics-events-final_pipeline", "ent-search-generic-ingestion", "search-default-ingestion" -> true;
             case "reindex-data-stream-pipeline" -> true;
             default -> false;
@@ -2713,9 +2714,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static MapMatcher getProfileMatcher() {
-        return matchesMap().entry("query", instanceOf(Map.class))
+        return matchesMap() //
+            .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
-            .entry("drivers", instanceOf(List.class));
+            .entry("drivers", instanceOf(List.class))
+            .entry("plans", instanceOf(List.class));
     }
 
     protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {

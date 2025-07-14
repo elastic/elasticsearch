@@ -398,7 +398,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public void assertSecurityIndexActive(TestCluster testCluster) throws Exception {
         for (Client client : testCluster.getClients()) {
             assertBusy(() -> {
-                ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+                ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 Index securityIndex = resolveSecurityIndex(clusterState.metadata());
                 assertNotNull(securityIndex);

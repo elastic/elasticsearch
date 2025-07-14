@@ -14,11 +14,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParserVisitor;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -72,21 +76,32 @@ public class CommandLicenseTests extends ESTestCase {
     private static void checkLicense(String commandName, LogicalPlan command) throws Exception {
         log.info("Running function license checks");
         TestCheckLicense checkLicense = new TestCheckLicense();
+        ObservabilityTier observabilityTier = null;
+        SupportsObservabilityTier supportsObservabilityTier = command.getClass().getAnnotation(SupportsObservabilityTier.class);
+        if (supportsObservabilityTier != null) {
+            observabilityTier = supportsObservabilityTier.tier();
+        }
         if (command instanceof LicenseAware licenseAware) {
             log.info("Command " + commandName + " implements LicenseAware.");
-            saveLicenseState(commandName, command, checkLicense.licenseLevel(licenseAware));
+            saveLicenseState(commandName, command, checkLicense.licenseLevel(licenseAware), observabilityTier);
         } else {
             log.info("Command " + commandName + " does not implement LicenseAware.");
-            saveLicenseState(commandName, command, checkLicense.basicLicense);
+            saveLicenseState(commandName, command, checkLicense.basicLicense, observabilityTier);
         }
     }
 
-    private static void saveLicenseState(String name, LogicalPlan command, XPackLicenseState licenseState) throws Exception {
+    private static void saveLicenseState(
+        String name,
+        LogicalPlan command,
+        XPackLicenseState licenseState,
+        SupportsObservabilityTier.ObservabilityTier observabilityTier
+    ) throws Exception {
         DocsV3Support.CommandsDocsSupport docs = new DocsV3Support.CommandsDocsSupport(
             name.toLowerCase(Locale.ROOT),
             CommandLicenseTests.class,
             command,
-            licenseState
+            licenseState,
+            observabilityTier
         );
         docs.renderDocs();
     }
@@ -179,9 +194,8 @@ public class CommandLicenseTests extends ESTestCase {
             .min(Comparator.comparingInt(c -> c.getParameterTypes().length))
             .orElseThrow(() -> new IllegalArgumentException("No suitable constructor found for class " + clazz.getName()));
 
-        Class<?>[] paramTypes = constructor.getParameterTypes();
-        Object[] args = new Object[paramTypes.length];
-        args[0] = source;
+        @SuppressWarnings("unchecked")
+        Object[] args = EsqlNodeSubclassTests.ctorArgs((Constructor<? extends Node<?>>) constructor);
         args[1] = child;
         log.info("Creating instance of " + clazz.getName() + " with constructor: " + constructor);
         return (LogicalPlan) constructor.newInstance(args);

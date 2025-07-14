@@ -441,3 +441,6 @@ tests:
   - class: org.elasticsearch.search.CCSDuelIT
     method: testTerminateAfter
     issue: https://github.com/elastic/elasticsearch/issues/126085
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/search/retriever/line_906}
+    issue: https://github.com/elastic/elasticsearch/issues/131041

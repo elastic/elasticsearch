@@ -554,7 +554,7 @@ public class IndicesAndAliasesResolver {
         return (list == null) ? null : Arrays.asList(list);
     }
 
-    private static class RemoteClusterResolver extends RemoteClusterAware {
+    static class RemoteClusterResolver extends RemoteClusterAware {
 
         private final CopyOnWriteArraySet<String> clusters;
 

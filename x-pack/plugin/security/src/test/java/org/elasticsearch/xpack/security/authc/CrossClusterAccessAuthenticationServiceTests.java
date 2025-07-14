@@ -68,7 +68,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         crossClusterAccessAuthenticationService = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
-            authenticationService
+            authenticationService,
+            false
         );
     }
 

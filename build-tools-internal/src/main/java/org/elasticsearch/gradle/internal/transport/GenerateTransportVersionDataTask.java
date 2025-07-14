@@ -78,7 +78,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         var major = Integer.parseInt(versionParts[0]);
         var minor = Integer.parseInt(versionParts[1]);
 
-        // Get the latest transport version data from the loc.
+        // Get the latest transport version data for the local version.
         var latestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, majorMinor);
 
         // Get the latest transport version data for the prior release version.

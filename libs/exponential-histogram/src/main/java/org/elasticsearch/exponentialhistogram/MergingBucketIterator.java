@@ -79,11 +79,6 @@ final class MergingBucketIterator implements ExponentialHistogram.BucketIterator
         return itA.scale();
     }
 
-    @Override
-    public ExponentialHistogram.BucketIterator copy() {
-        throw new UnsupportedOperationException();
-    }
-
     private void assertEndNotReached() {
         if (endReached) {
             throw new IllegalStateException("No more buckets");

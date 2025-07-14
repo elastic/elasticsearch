@@ -40,7 +40,7 @@ public interface ExponentialHistogram {
     // One option would be to use "Quadruple": https://github.com/m-vokhm/Quadruple
     int MAX_SCALE = 38;
 
-    // Add this scale all double values already fall into a single bucket
+    // At this scale all double values already fall into a single bucket
     int MIN_SCALE = -11;
 
     // Only use 62 bit at max to allow to compute the difference between the smallest and largest index without causing overflow
@@ -122,8 +122,6 @@ public interface ExponentialHistogram {
          * @return the scale, which is guaranteed to be constant over the lifetime of this iterator.
          */
         int scale();
-
-        BucketIterator copy();
     }
 
     /**

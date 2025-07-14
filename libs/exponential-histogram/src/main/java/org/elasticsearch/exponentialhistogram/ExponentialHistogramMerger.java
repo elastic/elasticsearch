@@ -62,26 +62,16 @@ public class ExponentialHistogramMerger {
         return result;
     }
 
-    public static ExponentialHistogram merge(int bucketCount, ExponentialHistogram... histograms) {
-        return merge(bucketCount, Arrays.stream(histograms));
-    }
-
-    public static ExponentialHistogram merge(int bucketCount, Stream<ExponentialHistogram> histograms) {
-        ExponentialHistogramMerger merger = new ExponentialHistogramMerger(bucketCount);
-        histograms.forEach(merger::add);
-        return merger.get();
-    }
-
     // TODO: this algorithm is very efficient if b has roughly as many buckets as a
     // However, if b is much smaller we still have to iterate over all buckets of a which is very wasteful
     // This can be optimized by buffering multiple histograms to accumulate first, then in O(log(b)) turn them into a single, merged histogram
     // (b is the number of buffered buckets)
 
     private void merge(FixedCapacityExponentialHistogram output, ExponentialHistogram a, ExponentialHistogram b) {
-        ExponentialHistogram.BucketIterator posBucketsA = a.positiveBuckets();
-        ExponentialHistogram.BucketIterator negBucketsA = a.negativeBuckets();
-        ExponentialHistogram.BucketIterator posBucketsB = b.positiveBuckets();
-        ExponentialHistogram.BucketIterator negBucketsB = b.negativeBuckets();
+        ExponentialHistogram.CopyableBucketIterator posBucketsA = a.positiveBuckets();
+        ExponentialHistogram.CopyableBucketIterator negBucketsA = a.negativeBuckets();
+        ExponentialHistogram.CopyableBucketIterator posBucketsB = b.positiveBuckets();
+        ExponentialHistogram.CopyableBucketIterator negBucketsB = b.negativeBuckets();
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
         zeroBucket = zeroBucket.collapseOverlappingBuckets(posBucketsA, negBucketsA, posBucketsB, negBucketsB);

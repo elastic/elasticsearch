@@ -70,9 +70,4 @@ final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketI
     public int scale() {
         return delegate.scale() + scaleAdjustment;
     }
-
-    @Override
-    public ExponentialHistogram.BucketIterator copy() {
-        throw new UnsupportedOperationException();
-    }
 }

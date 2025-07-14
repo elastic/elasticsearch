@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.mistral;
+package org.elasticsearch.xpack.inference.services.ai21.completion;
 
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -20,11 +20,11 @@ import java.util.Locale;
  * Handles streaming chat completion responses and error parsing for Mistral inference endpoints.
  * Adapts the OpenAI handler to support Mistral's error schema.
  */
-public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
+public class Ai21ChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
-    private static final String MISTRAL_ERROR = "mistral_error";
+    private static final String AI_21_ERROR = "ai21_error";
 
-    public MistralUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
+    public Ai21ChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, ErrorResponse::fromResponse);
     }
 
@@ -34,6 +34,6 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
         var restStatus = toRestStatus(responseStatusCode);
-        return new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
+        return new UnifiedChatCompletionException(restStatus, errorMessage, AI_21_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
 }

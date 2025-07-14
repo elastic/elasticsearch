@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
@@ -173,6 +174,7 @@ public class InferenceNamedWriteablesProvider {
         addJinaAINamedWriteables(namedWriteables);
         addVoyageAINamedWriteables(namedWriteables);
         addCustomNamedWriteables(namedWriteables);
+        addAi21NamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -273,7 +275,19 @@ public class InferenceNamedWriteablesProvider {
             )
         );
 
-        // note - no task settings for Mistral embeddings...
+        // note - no task settings for Mistral tasks...
+    }
+
+    private static void addAi21NamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                Ai21ChatCompletionServiceSettings.NAME,
+                Ai21ChatCompletionServiceSettings::new
+            )
+        );
+
+        // note - no task settings for AI21 tasks...
     }
 
     private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

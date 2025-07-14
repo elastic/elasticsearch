@@ -211,6 +211,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
+    public static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED_8_19 = def(8_841_0_64);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -338,6 +339,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
     public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
     public static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = def(9_121_0_00);
+    public static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = def(9_122_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

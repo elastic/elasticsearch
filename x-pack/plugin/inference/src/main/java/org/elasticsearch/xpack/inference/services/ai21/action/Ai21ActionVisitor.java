@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.ai21.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 
 /**
  * Interface for creating {@link ExecutableAction} instances for AI21 models {@link Ai21ChatCompletionModel}.

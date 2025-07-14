@@ -71,7 +71,11 @@ public class AzureOpenAiService extends SenderService {
     private static final String SERVICE_NAME = "Azure OpenAI";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
-    public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public AzureOpenAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

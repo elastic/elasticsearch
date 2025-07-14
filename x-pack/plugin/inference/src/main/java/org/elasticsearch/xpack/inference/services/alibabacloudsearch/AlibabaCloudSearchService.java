@@ -87,12 +87,20 @@ public class AlibabaCloudSearchService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    public AlibabaCloudSearchService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public AlibabaCloudSearchService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 
     // for testing
-    public AlibabaCloudSearchService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+    public AlibabaCloudSearchService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService
+    ) {
         super(factory, serviceComponents, clusterService);
     }
 

@@ -85,7 +85,11 @@ public class IbmWatsonxService extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public IbmWatsonxService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public IbmWatsonxService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

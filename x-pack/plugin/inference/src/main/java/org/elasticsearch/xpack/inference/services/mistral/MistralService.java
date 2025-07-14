@@ -86,7 +86,11 @@ public class MistralService extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public MistralService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

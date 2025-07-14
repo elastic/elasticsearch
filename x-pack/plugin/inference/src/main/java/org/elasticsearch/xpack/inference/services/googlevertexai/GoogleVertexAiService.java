@@ -99,7 +99,11 @@ public class GoogleVertexAiService extends SenderService {
         return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
     }
 
-    public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public GoogleVertexAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

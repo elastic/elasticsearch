@@ -73,7 +73,11 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public HuggingFaceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

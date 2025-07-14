@@ -86,7 +86,11 @@ public class CohereService extends SenderService {
     // The reason it needs to be done here is that the batching logic needs to hold state but the *RequestManagers are instantiated
     // on every request
 
-    public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public CohereService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

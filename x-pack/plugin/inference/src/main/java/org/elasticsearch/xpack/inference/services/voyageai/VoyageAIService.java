@@ -98,7 +98,11 @@ public class VoyageAIService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    public VoyageAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public VoyageAIService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

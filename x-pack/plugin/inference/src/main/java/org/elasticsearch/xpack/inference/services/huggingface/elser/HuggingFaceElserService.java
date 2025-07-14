@@ -59,7 +59,11 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     private static final String SERVICE_NAME = "Hugging Face ELSER";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
-    public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, InferenceServiceExtension.InferenceServiceFactoryContext context) {
+    public HuggingFaceElserService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
         super(factory, serviceComponents, context);
     }
 

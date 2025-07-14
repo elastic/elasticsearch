@@ -65,8 +65,9 @@ public class Options {
         for (EntryExpression entry : options.entryExpressions()) {
             Expression optionExpr = entry.key();
             Expression valueExpr = entry.value();
-            Expression.TypeResolution resolution =
-                isFoldable(optionExpr, source.text(), paramOrdinal).and(isFoldable(valueExpr, source.text(), paramOrdinal));
+            Expression.TypeResolution resolution = isFoldable(optionExpr, source.text(), paramOrdinal).and(
+                isFoldable(valueExpr, source.text(), paramOrdinal)
+            );
             if (resolution.unresolved()) {
                 throw new InvalidArgumentException(resolution.message());
             }
@@ -77,24 +78,16 @@ public class Options {
             // validate the optionExpr is supported
             DataType dataType = allowedOptions.get(optionName);
             if (dataType == null) {
-                throw new InvalidArgumentException(format(
-                    null,
-                    "Invalid option [{}] in [{}], expected one of {}",
-                    optionName,
-                    source.text(),
-                    allowedOptions.keySet()
-                ));
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, source.text(), allowedOptions.keySet())
+                );
             }
             try {
                 optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
             } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(format(
-                    null,
-                    "Invalid option [{}] in [{}], {}",
-                    optionName,
-                    source.text(),
-                    e.getMessage()
-                ));
+                throw new InvalidArgumentException(
+                    format(null, "Invalid option [{}] in [{}], {}", optionName, source.text(), e.getMessage())
+                );
             }
         }
     }

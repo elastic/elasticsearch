@@ -299,8 +299,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField()
-            .and(resolveQuery())
+        return resolveField().and(resolveQuery())
             .and(Options.resolve(options(), source(), THIRD, ALLOWED_OPTIONS))
             .and(checkParamCompatibility());
     }
@@ -354,7 +353,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         Map<String, Object> matchOptions = new HashMap<>();
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
-
 
         Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, ALLOWED_OPTIONS);
         return matchOptions;

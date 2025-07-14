@@ -130,7 +130,9 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CATEGORIZE_OPTIONS)
+                ? in.readOptionalNamedWriteable(Expression.class)
+                : null
         );
     }
 

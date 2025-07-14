@@ -200,8 +200,8 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         assertThat(
             responseException.getMessage(),
             containsString(
-                "Cannot update inference [test_num_allocations_updated] for model deployment [update_num_allocations]. "
-                    + "This model deployment must be updated through the trained models API."
+                "Cannot update inference endpoint [test_num_allocations_updated] using model deployment [update_num_allocations]. "
+                    + "The model deployment must be updated through the trained models API."
             )
         );
 

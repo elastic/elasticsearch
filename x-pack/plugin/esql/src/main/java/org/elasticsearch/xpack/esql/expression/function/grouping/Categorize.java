@@ -166,7 +166,14 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @Override
     protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS));
+        return isString(field(), sourceText(), DEFAULT).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS)).and(() -> {
+            try {
+                categorizeDef();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+            return TypeResolution.TYPE_RESOLVED;
+        });
     }
 
     public CategorizeDef categorizeDef() {

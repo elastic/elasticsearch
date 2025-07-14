@@ -44,7 +44,6 @@ public class Options {
             if (resolution.unresolved()) {
                 return resolution;
             }
-
             try {
                 Map<String, Object> optionsMap = new HashMap<>();
                 populateMap((MapExpression) options, optionsMap, source, paramOrdinal, allowedOptions);

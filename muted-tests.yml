@@ -546,6 +546,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testNotLikeListKeyword
   issue: https://github.com/elastic/elasticsearch/issues/131155
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
+  issue: https://github.com/elastic/elasticsearch/issues/131165
+- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
+  method: testLookupJoinAliases
+  issue: https://github.com/elastic/elasticsearch/issues/131166
 
 # Examples:
 #

@@ -429,6 +429,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.synonyms.SynonymFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,

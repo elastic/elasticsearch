@@ -1500,12 +1500,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         @Deprecated(forRemoval = true)
-        public Builder removeComponentTemplate(String name) {
-            getSingleProject().removeComponentTemplate(name);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
             getSingleProject().componentTemplates(componentTemplates);
             return this;
@@ -1520,12 +1514,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         @Deprecated(forRemoval = true)
         public Builder put(String name, ComposableIndexTemplate indexTemplate) {
             getSingleProject().put(name, indexTemplate);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder removeIndexTemplate(String name) {
-            getSingleProject().removeIndexTemplate(name);
             return this;
         }
 
@@ -1555,11 +1543,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         public Builder removeDataStream(String name) {
             getSingleProject().removeDataStream(name);
             return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
-            return getSingleProject().removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }
 
         public Builder putCustom(String type, ClusterCustom custom) {

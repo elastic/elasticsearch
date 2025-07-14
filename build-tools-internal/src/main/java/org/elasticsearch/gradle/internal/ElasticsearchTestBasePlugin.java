@@ -177,6 +177,10 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
+            if (test.getName().equals("internalClusterTest")) {
+                // configure a node home directory independent of the Java temp dir so that entitlements can be properly enforced
+                nonInputProperties.systemProperty("tempDir", test.getWorkingDir().toPath().resolve("nodesTemp"));
+            }
 
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);

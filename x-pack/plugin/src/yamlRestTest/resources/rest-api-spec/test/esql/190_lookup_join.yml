@@ -145,13 +145,13 @@ basic:
   - match: {values.1: [2, "yellow"]}
 
 ---
-fails with non-lookup index:
+fails with non-lookup index v2:
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [update_lookup_join_error_messages]
+          capabilities: [enable_lookup_join_on_remote]
       reason: "checks updated error messages"
   - do:
       esql.query:
@@ -160,7 +160,7 @@ fails with non-lookup index:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Found 1 problem\nline 1:45: Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode" }
+  - contains: { error.reason: "Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode" }
 
 ---
 pattern-multiple:

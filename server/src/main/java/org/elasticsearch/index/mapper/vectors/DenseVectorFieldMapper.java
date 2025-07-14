@@ -25,7 +25,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -36,6 +35,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -2531,6 +2531,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            if (dims == null) {
+                return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
+            }
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
@@ -2853,10 +2856,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         this.isSyntheticVector = isSyntheticVector;
     }
 
-    public boolean isSyntheticVector() {
-        return isSyntheticVector;
-    }
-
     @Override
     public DenseVectorFieldType fieldType() {
         return (DenseVectorFieldType) super.fieldType();
@@ -3032,9 +3031,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        return isSyntheticVector()
-            ? new SyntheticDenseVectorPatchLoader(new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity))
-            : null;
+        if (isSyntheticVector) {
+            var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
+            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
+        }
+        return null;
     }
 
     @Override
@@ -3131,7 +3132,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          *
          * @throws IOException if reading fails
          */
-        public Object copyVectorAsList() throws IOException {
+        private List<?> copyVectorAsList() throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
             if (floatValues != null) {
                 float[] raw = floatValues.vectorValue(ord);
@@ -3219,30 +3220,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public String fieldName() {
             return fullPath();
-        }
-    }
-
-    public class SyntheticDenseVectorPatchLoader implements SourceLoader.SyntheticVectorsLoader {
-        private final IndexedSyntheticFieldLoader syntheticFieldLoader;
-
-        public SyntheticDenseVectorPatchLoader(IndexedSyntheticFieldLoader syntheticFieldLoader) {
-            this.syntheticFieldLoader = syntheticFieldLoader;
-        }
-
-        public SourceLoader.SyntheticVectorsLoader.Leaf leaf(LeafReaderContext context) throws IOException {
-            var dvLoader = syntheticFieldLoader.docValuesLoader(context.reader(), null);
-            return (doc, acc) -> {
-                if (dvLoader == null) {
-                    return;
-                }
-                dvLoader.advanceToDoc(doc);
-                if (syntheticFieldLoader.hasValue()) {
-                    // add vectors as list since that's how they're parsed from xcontent.
-                    acc.add(
-                        new SourceLoader.LeafSyntheticVectorPath(syntheticFieldLoader.fieldName(), syntheticFieldLoader.copyVectorAsList())
-                    );
-                }
-            };
         }
     }
 

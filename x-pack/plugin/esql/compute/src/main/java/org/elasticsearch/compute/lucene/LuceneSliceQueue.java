@@ -112,12 +112,14 @@ public final class LuceneSliceQueue {
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
         int taskConcurrency,
-        ScoreMode scoreMode
+        Function<ShardContext, ScoreMode> scoreModeFunction
     ) {
         List<LuceneSlice> slices = new ArrayList<>();
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>(contexts.size());
+
         for (ShardContext ctx : contexts) {
             for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
+                var scoreMode = scoreModeFunction.apply(ctx);
                 Query query = queryAndExtra.query;
                 query = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
                 /*

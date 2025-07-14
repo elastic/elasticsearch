@@ -1183,6 +1183,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         (SparseVectorFieldMapper.SparseVectorIndexOptions) indexOptions.indexOptions();
 
                     sparseVectorMapperBuilder.setIndexOptions(sparseVectorIndexOptions);
+                } else {
+                    SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions =
+                        SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
+                    if (defaultIndexOptions != null) {
+                        sparseVectorMapperBuilder.setIndexOptions(defaultIndexOptions);
+                    }
                 }
 
                 yield sparseVectorMapperBuilder;

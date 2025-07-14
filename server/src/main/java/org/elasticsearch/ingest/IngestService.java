@@ -579,8 +579,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public static void validateNoSystemPropertiesInPipelineConfig(final Map<String, Object> pipelineConfig) {
-        if (pipelineConfig.containsKey(Pipeline.CREATED_DATE_KEY) || pipelineConfig.containsKey(Pipeline.MODIFIED_DATE_KEY)) {
-            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system, e.g. `created_date`.");
+        if (pipelineConfig.containsKey(Pipeline.CREATED_DATE_KEY)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: created_date.");
+        } else if (pipelineConfig.containsKey(Pipeline.MODIFIED_DATE_KEY)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: modified_date.");
         }
     }
 

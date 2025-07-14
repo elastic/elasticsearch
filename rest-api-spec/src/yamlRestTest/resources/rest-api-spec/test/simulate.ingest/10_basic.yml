@@ -751,6 +751,15 @@ setup:
 
 ---
 "Test simulate with pipeline with created_date":
+  - requires:
+        test_runner_features: capabilities
+        capabilities:
+          - method: PUT
+            path: /_ingest/pipeline/{id}
+            capabilities: [ pipeline_tracking_info ]
+        reason: "Pipelines have tracking info: modified_date and created_date"
+  - requires:
+      test_runner_features: contains
   - skip:
       features: headers
   - do:
@@ -777,4 +786,4 @@ setup:
             }
           }
   - match: { status: 500 }
-  - match: { error.reason: "/(runtime_exception:\\ )?org\\.elasticsearch\\.ElasticsearchParseException:\\ Provided\\ a\\ pipeline\\ property\\ which\\ is\\ managed\\ by\\ the\\ system,\\ e\\.g\\.\\ `created_date`\\./" }
+  - contains: { error.reason: "Provided a pipeline property which is managed by the system: created_date." }

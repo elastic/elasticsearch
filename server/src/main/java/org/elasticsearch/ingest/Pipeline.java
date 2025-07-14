@@ -53,9 +53,9 @@ public final class Pipeline {
     @Nullable
     private final Boolean deprecated;
     @Nullable
-    private final Long createdDate;
+    private final Long createdDateMillis;
     @Nullable
-    private final Long modifiedDate;
+    private final Long modifiedDateMillis;
 
     public Pipeline(
         String id,
@@ -75,8 +75,8 @@ public final class Pipeline {
         CompoundProcessor compoundProcessor,
         IngestPipelineFieldAccessPattern fieldAccessPattern,
         @Nullable Boolean deprecated,
-        @Nullable Long createdDate,
-        @Nullable Long modifiedDate
+        @Nullable Long createdDateMillis,
+        @Nullable Long modifiedDateMillis
     ) {
         this(
             id,
@@ -87,8 +87,8 @@ public final class Pipeline {
             System::nanoTime,
             fieldAccessPattern,
             deprecated,
-            createdDate,
-            modifiedDate
+            createdDateMillis,
+            modifiedDateMillis
         );
     }
 
@@ -102,8 +102,8 @@ public final class Pipeline {
         LongSupplier relativeTimeProvider,
         IngestPipelineFieldAccessPattern fieldAccessPattern,
         @Nullable Boolean deprecated,
-        @Nullable Long createdDate,
-        @Nullable Long modifiedDate
+        @Nullable Long createdDateMillis,
+        @Nullable Long modifiedDateMillis
     ) {
         this.id = id;
         this.description = description;
@@ -114,8 +114,8 @@ public final class Pipeline {
         this.relativeTimeProvider = relativeTimeProvider;
         this.fieldAccessPattern = fieldAccessPattern;
         this.deprecated = deprecated;
-        this.createdDate = createdDate;
-        this.modifiedDate = modifiedDate;
+        this.createdDateMillis = createdDateMillis;
+        this.modifiedDateMillis = modifiedDateMillis;
     }
 
     /**
@@ -305,12 +305,12 @@ public final class Pipeline {
         return Boolean.TRUE.equals(deprecated);
     }
 
-    public OptionalLong getCreatedDate() {
-        return createdDate == null ? OptionalLong.empty() : OptionalLong.of(createdDate);
+    public OptionalLong getCreatedDateMillis() {
+        return createdDateMillis == null ? OptionalLong.empty() : OptionalLong.of(createdDateMillis);
     }
 
-    public OptionalLong getModifiedDate() {
-        return modifiedDate == null ? OptionalLong.empty() : OptionalLong.of(modifiedDate);
+    public OptionalLong getModifiedDateMillis() {
+        return modifiedDateMillis == null ? OptionalLong.empty() : OptionalLong.of(modifiedDateMillis);
     }
 
     @Override
@@ -325,8 +325,8 @@ public final class Pipeline {
         sb.append(", relativeTimeProvider=").append(relativeTimeProvider);
         sb.append(", fieldAccessPattern=").append(fieldAccessPattern);
         sb.append(", deprecated=").append(deprecated);
-        sb.append(", createdDate=").append(createdDate);
-        sb.append(", modifiedDate=").append(modifiedDate);
+        sb.append(", createdDateMillis=").append(createdDateMillis);
+        sb.append(", modifiedDateMillis=").append(modifiedDateMillis);
         sb.append('}');
         return sb.toString();
     }

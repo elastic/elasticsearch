@@ -53,9 +53,9 @@ public class PipelineConfigurationSyncIT extends ESIntegTestCase {
         assertThat(node2Pipeline.getDescription(), equalTo(node3Pipeline.getDescription()));
 
         // created_date
-        final long node1CreatedDate = node1Pipeline.getCreatedDate().orElseThrow();
-        final long node2CreatedDate = node2Pipeline.getCreatedDate().orElseThrow();
-        final long node3CreatedDate = node3Pipeline.getCreatedDate().orElseThrow();
+        final long node1CreatedDate = node1Pipeline.getCreatedDateMillis().orElseThrow();
+        final long node2CreatedDate = node2Pipeline.getCreatedDateMillis().orElseThrow();
+        final long node3CreatedDate = node3Pipeline.getCreatedDateMillis().orElseThrow();
 
         assertThat(node1CreatedDate, equalTo(node2CreatedDate));
         assertThat(node2CreatedDate, equalTo(node3CreatedDate));
@@ -64,9 +64,9 @@ public class PipelineConfigurationSyncIT extends ESIntegTestCase {
         assertThat(node1CreatedDate, lessThanOrEqualTo(timeAfterPut));
 
         // modified_date
-        final long node1ModifiedDate = node1Pipeline.getModifiedDate().orElseThrow();
-        final long node2ModifiedDate = node2Pipeline.getModifiedDate().orElseThrow();
-        final long node3ModifiedDate = node3Pipeline.getModifiedDate().orElseThrow();
+        final long node1ModifiedDate = node1Pipeline.getModifiedDateMillis().orElseThrow();
+        final long node2ModifiedDate = node2Pipeline.getModifiedDateMillis().orElseThrow();
+        final long node3ModifiedDate = node3Pipeline.getModifiedDateMillis().orElseThrow();
 
         assertThat(node1ModifiedDate, equalTo(node2ModifiedDate));
         assertThat(node2ModifiedDate, equalTo(node3ModifiedDate));

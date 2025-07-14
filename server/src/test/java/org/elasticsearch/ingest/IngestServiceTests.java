@@ -838,9 +838,9 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), nullValue());
         assertThat(pipeline.getProcessors().size(), equalTo(0));
-        assertThat(pipeline.getCreatedDate().orElseThrow(), greaterThanOrEqualTo(beforeInitialPut.toEpochMilli()));
-        assertThat(pipeline.getCreatedDate().orElseThrow(), lessThanOrEqualTo(afterInitialPut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDate().orElseThrow(), is(pipeline.getCreatedDate().orElseThrow()));
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforeInitialPut.toEpochMilli()));
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), lessThanOrEqualTo(afterInitialPut.toEpochMilli()));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(pipeline.getCreatedDateMillis().orElseThrow()));
 
         // overwrite existing pipeline:
         final Instant beforeSecondPut = Instant.now();
@@ -855,10 +855,10 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(0));
-        assertThat(pipeline.getCreatedDate().orElseThrow(), greaterThanOrEqualTo(beforeInitialPut.toEpochMilli()));
-        assertThat(pipeline.getCreatedDate().orElseThrow(), lessThanOrEqualTo(afterInitialPut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDate().orElseThrow(), greaterThanOrEqualTo(beforeSecondPut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDate().orElseThrow(), lessThanOrEqualTo(afterSecondPut.toEpochMilli()));
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforeInitialPut.toEpochMilli()));
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), lessThanOrEqualTo(afterInitialPut.toEpochMilli()));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforeSecondPut.toEpochMilli()));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), lessThanOrEqualTo(afterSecondPut.toEpochMilli()));
     }
 
     public void testPutWithTrackingExistingPipelineWithoutCreatedAtOnlyHasModifiedAt() {
@@ -892,9 +892,9 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), nullValue());
         assertThat(pipeline.getProcessors().size(), equalTo(0));
-        assertTrue(pipeline.getCreatedDate().isEmpty());
-        assertThat(pipeline.getModifiedDate().orElseThrow(), greaterThanOrEqualTo(beforePut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDate().orElseThrow(), lessThanOrEqualTo(afterPut.toEpochMilli()));
+        assertTrue(pipeline.getCreatedDateMillis().isEmpty());
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforePut.toEpochMilli()));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), lessThanOrEqualTo(afterPut.toEpochMilli()));
     }
 
     public void testPutWithErrorResponse() throws IllegalAccessException {

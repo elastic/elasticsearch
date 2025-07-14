@@ -1104,7 +1104,8 @@ public class ThreadContextTests extends ESTestCase {
             final String authorizationHeader = randomCase("authorization");
             final String authorizationHeader2 = randomCase("es-secondary-authorization");
             final String authorizationHeader3 = randomCase("ES-Client-Authentication");
-            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3);
+            final String authorizationHeader4 = randomCase("X-Client-Authentication");
+            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3, authorizationHeader4);
             Set<String> headers = randomizeHeaders
                 ? randomSet(0, possibleHeaders.size(), () -> randomFrom(possibleHeaders))
                 : possibleHeaders;

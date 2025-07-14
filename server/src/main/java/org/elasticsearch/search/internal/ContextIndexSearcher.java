@@ -187,8 +187,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable.clear();
     }
 
-    // remove all registered cancellation callbacks to prevent them from leaking into other phases
-    public void removeQueryCancellations() {
+    // clear all registered cancellation callbacks to prevent them from leaking into other phases
+    public void clearQueryCancellations() {
         this.cancellable.clear();
     }
 

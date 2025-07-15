@@ -20,8 +20,6 @@ public interface CrossProjectRequest extends IndicesRequest {
 
     void qualified(List<QualifiedExpression> qualifiedExpressions);
 
-    List<QualifiedExpression> qualified();
-
     @Nullable
     String queryRouting();
 

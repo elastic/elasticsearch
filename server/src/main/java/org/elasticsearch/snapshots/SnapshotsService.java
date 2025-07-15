@@ -3612,6 +3612,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         "snapshot aborted"
                     );
                 } else {
+                    // TODO: For stateless snapshot, if the update is PAUSED_FOR_NODE_REMOVAL, we can directly move it back to INIT
+                    // if the shard has relocated and started on a different node.
                     updatedShardSnapshotStatus = shardSnapshotStatusUpdate.updatedState;
                 }
 

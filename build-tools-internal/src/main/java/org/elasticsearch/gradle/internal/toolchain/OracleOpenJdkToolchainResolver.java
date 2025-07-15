@@ -62,8 +62,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         @Override
         public String url(String os, String arch, String extension) {
             // example:
-            // https://storage.googleapis.com/elasticsearch-jdk-archive/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_linux-aarch64_bin.tar.gz
-            return "https://storage.googleapis.com/elasticsearch-jdk-archive/jdks/openjdk/"
+            // http://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_linux-aarch64_bin.tar.gz
+            return "http://builds.es-jdk-archive.com/jdks/openjdk/"
                 + languageVersion.asInt()
                 + "/"
                 + "openjdk-"

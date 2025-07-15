@@ -44,7 +44,7 @@ public interface InferenceRunner {
      */
     void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener);
 
-    public static Factory factory(Client client, ThreadPool threadPool) {
+    static Factory factory(Client client, ThreadPool threadPool) {
         return new ThrottledInferenceRunner.Factory(client, threadPool);
     }
 

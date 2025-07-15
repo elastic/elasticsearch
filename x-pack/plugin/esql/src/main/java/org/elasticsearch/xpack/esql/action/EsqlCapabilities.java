@@ -991,6 +991,8 @@ public class EsqlCapabilities {
          */
         LIKE_WITH_LIST_OF_PATTERNS,
 
+        LIKE_LIST_ON_INDEX_FIELDS,
+
         /**
          * Support for the SAMPLE command
          */
@@ -1014,6 +1016,11 @@ public class EsqlCapabilities {
          */
         NO_PLAIN_STRINGS_IN_LITERALS,
 
+        /**
+        /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
         /**
          * Support avg with aggregate metric doubles
          */

@@ -28,7 +28,7 @@ import java.util.Map;
  * This class extends RateLimitGroupingModel to handle rate limiting based on model and API key.
  */
 public class Ai21ChatCompletionModel extends Ai21Model {
-    private static final String API_COMPLETIONS_PATH = "https://api.ai21.com/studio/v1/chat/completions";
+    public static final String API_COMPLETIONS_PATH = "https://api.ai21.com/studio/v1/chat/completions";
 
     /**
      * Constructor for Ai21ChatCompletionModel.

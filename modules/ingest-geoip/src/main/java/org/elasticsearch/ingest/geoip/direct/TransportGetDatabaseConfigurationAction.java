@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -89,13 +88,11 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
                 "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
             );
         }
-        ProjectId projectId = projectResolver.getProjectId();
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
-        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(
-            clusterService.state().metadata().getProject(projectId)
-        );
-        String geoIpTaskId = GeoIpDownloaderTaskExecutor.getTaskId(projectId, projectResolver.supportsMultipleProjects());
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(projectMetadata);
+        String geoIpTaskId = GeoIpDownloaderTaskExecutor.getTaskId(projectMetadata.id(), projectResolver.supportsMultipleProjects());
+
         for (String id : ids) {
             results.addAll(getWebDatabases(geoIpTaskId, tasksMetadata, id));
             results.addAll(getMaxmindDatabases(projectMetadata, id));

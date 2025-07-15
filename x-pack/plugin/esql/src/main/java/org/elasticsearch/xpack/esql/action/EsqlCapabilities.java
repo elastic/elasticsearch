@@ -989,6 +989,9 @@ public class EsqlCapabilities {
         /**
          * Support for LIKE operator with a list of patterns
          */
+        /**
+         * Support for the LIKE operator with a list of wildcards.
+         */
         LIKE_WITH_LIST_OF_PATTERNS,
 
         LIKE_LIST_ON_INDEX_FIELDS,
@@ -1017,6 +1020,10 @@ public class EsqlCapabilities {
         NO_PLAIN_STRINGS_IN_LITERALS,
 
         /**
+        /**
+         * Support for the RLIKE operator with a list of regexes.
+         */
+        RLIKE_WITH_LIST_OF_PATTERNS,
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */

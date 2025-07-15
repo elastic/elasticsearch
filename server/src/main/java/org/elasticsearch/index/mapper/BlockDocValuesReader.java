@@ -645,9 +645,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (ordinals.advanceExact(docId)) {
                 BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
                 // the returned BytesRef can be reused
-                return factory.constantBytes(BytesRef.deepCopyOf(v));
+                return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
             } else {
-                return factory.constantNulls();
+                return factory.constantNulls(1);
             }
         }
 

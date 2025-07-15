@@ -76,7 +76,7 @@ class ValuesFromManyReader extends ValuesReader {
                 converters[f] = new BlockLoader[operator.shardContexts.size()];
             }
             try (
-                ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory, docs.getPositionCount())
+                ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory)
             ) {
                 int p = forwards[offset];
                 int shard = docs.shards().getInt(p);

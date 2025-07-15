@@ -27,7 +27,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class TestBlock implements BlockLoader.Block {
-    public static BlockLoader.BlockFactory factory(int pageSize) {
+    public static BlockLoader.BlockFactory factory() {
         return new BlockLoader.BlockFactory() {
             @Override
             public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
@@ -177,18 +177,18 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.Block constantNulls() {
-                BlockLoader.LongBuilder builder = longs(pageSize);
-                for (int i = 0; i < pageSize; i++) {
+            public BlockLoader.Block constantNulls(int count) {
+                BlockLoader.LongBuilder builder = longs(count);
+                for (int i = 0; i < count; i++) {
                     builder.appendNull();
                 }
                 return builder.build();
             }
 
             @Override
-            public BlockLoader.Block constantBytes(BytesRef value) {
-                BlockLoader.BytesRefBuilder builder = bytesRefs(pageSize);
-                for (int i = 0; i < pageSize; i++) {
+            public BlockLoader.Block constantBytes(BytesRef value, int count) {
+                BlockLoader.BytesRefBuilder builder = bytesRefs(count);
+                for (int i = 0; i < count; i++) {
                     builder.appendBytesRef(value);
                 }
                 return builder.build();

@@ -113,7 +113,7 @@ public class BlockLoaderTestRunner {
                 }
             }
             BlockLoader.Docs docs = TestBlock.docs(docArray);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(docArray.length - offset), docs, offset);
+            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset);
             assertThat(block.size(), equalTo(docArray.length - offset));
             return block.get(0);
         }
@@ -133,7 +133,7 @@ public class BlockLoaderTestRunner {
         );
         storedFieldsLoader.advanceTo(1);
 
-        BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(1), 1);
+        BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
         blockLoader.rowStrideReader(context).read(1, storedFieldsLoader, builder);
         var block = (TestBlock) builder.build();
         assertThat(block.size(), equalTo(1));

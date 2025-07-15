@@ -126,7 +126,7 @@ public class ForkGenerator implements CommandGenerator {
         }
         forkCmd.append(" | WHERE _fork == \"fork").append(branchToRetain).append("\" | DROP _fork");
 
-        //System.out.println("Generated fork command: " + forkCmd);
+        // System.out.println("Generated fork command: " + forkCmd);
         return new CommandDescription(FORK, this, forkCmd.toString(), Map.of());
     }
 

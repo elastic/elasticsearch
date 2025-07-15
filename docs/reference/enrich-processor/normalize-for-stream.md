@@ -168,25 +168,15 @@ For example, if the `message` field is an ECS-JSON, as follows:
 ```json
 {
   "@timestamp": "2023-10-01T12:00:00Z",
-  "message": {
-    "@timestamp": "2023-10-02T12:00:00Z",
-    "log.level": "INFO",
-    "service.name": "my-service",
-    "message": "The actual log message",
-    "http": {
-      "method": "GET",
-      "url": {
-        "path": "/api/v1/resource"
-      }
-    }
-  }
+  "message": "{\"@timestamp\":\"2023-10-01T12:01:00Z\",\"log.level\":\"INFO\",\"service.name\":\"my-service\",\"message\":\"The actual log message\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
+
 }
 ```
 it will be normalized into the following form:
 
 ```json
 {
-  "@timestamp": "2023-10-02T12:00:00Z",
+  "@timestamp": "2023-10-01T12:01:00Z",
   "severity_text": "INFO",
   "body": {
     "text": "The actual log message"
@@ -215,15 +205,7 @@ However, if the `message` field is not recognized as ECS format, as follows:
     "name": "my-service"
   },
   "tags": ["user-action", "api-call"],
-  "message": {
-    "root_cause": "Network error",
-    "http": {
-      "method": "GET",
-      "url": {
-        "path": "/api/v1/resource"
-      }
-    }
-  }
+  "message": "{\"root_cause\":\"Network error\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
 }
 ```
 it will be normalized into the following form:

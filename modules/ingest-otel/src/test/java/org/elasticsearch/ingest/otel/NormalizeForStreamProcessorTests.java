@@ -606,6 +606,33 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         assertEquals(message, get(get(result, "body"), "structured"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testOtherPrimitiveMessage() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("message", 42);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        processor.execute(document);
+
+        Map<String, Object> result = document.getSource();
+        assertEquals(42, ((Map<String, Object>) result.get("body")).get("text"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testObjectMessage() {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> message = new HashMap<>();
+        message.put("key1", "value1");
+        message.put("key2", "value2");
+        source.put("message", message);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        processor.execute(document);
+
+        Map<String, Object> result = document.getSource();
+        assertEquals(message, ((Map<String, Object>) result.get("body")).get("text"));
+    }
+
     private static String representJsonAsString(Map<String, Object> json) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             return Strings.toString(xContentBuilder.map(json));

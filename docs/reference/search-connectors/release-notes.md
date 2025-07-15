@@ -13,6 +13,9 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.0.4 [connectors-9.0.4-release-notes]
+No changes since 9.0.3
+
 ## 9.0.3 [connectors-9.0.3-release-notes]
 
 ### Features and enhancements [connectors-9.0.3-features-enhancements]

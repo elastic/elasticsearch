@@ -82,7 +82,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             request,
             listener,
-            Collections.singletonList(new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, false)),
+            Collections.singletonList(new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null)),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
@@ -153,8 +153,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 clusterAlias,
                 new ShardId(new Index("name", "foo"), 1),
                 Collections.emptyList(),
-                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand()),
-                false
+                new OriginalIndices(new String[] { "name", "name1" }, IndicesOptions.strictExpand())
             );
             ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
             assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());

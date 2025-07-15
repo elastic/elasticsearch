@@ -640,8 +640,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ShardId(index, 0),
                 Collections.emptyList(),
-                originalIndices,
-                false
+                originalIndices
             );
             // Skip all the shards
             searchShardIterator.skip(true);
@@ -761,7 +760,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
             Collections.shuffle(started, random());
             started.addAll(initializing);
-            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices, false));
+            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices));
         }
         return list;
     }

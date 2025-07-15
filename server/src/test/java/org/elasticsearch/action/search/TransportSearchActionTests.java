@@ -41,8 +41,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -135,8 +133,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -158,7 +154,7 @@ public class TransportSearchActionTests extends ESTestCase {
     ) {
         ShardId shardId = new ShardId(index, id);
         List<ShardRouting> shardRoutings = SearchShardIteratorTests.randomShardRoutings(shardId);
-        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices, false);
+        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
     }
 
     private static ResolvedIndices createMockResolvedIndices(
@@ -1817,103 +1813,34 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testSkippedIteratorsForIndicesWithRefreshBlock() {
+    public void testIgnoreBlockedIndices() {
+        int numIndices = randomIntBetween(1, 10);
+        String[] concreteIndices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            concreteIndices[i] = "index" + i;
+        }
+
+        List<String> shuffledIndices = Arrays.asList(concreteIndices);
+        Collections.shuffle(shuffledIndices, random());
+        concreteIndices = shuffledIndices.toArray(new String[0]);
+
         final ProjectId projectId = randomProjectIdOrDefault();
-
-        String normalIndexName = "test-normal";
-        String blockedIndexName = "test-blocked";
-        final String[] indexNames = { normalIndexName, blockedIndexName };
-        final Index normalIndex = new Index(normalIndexName, UUIDs.randomBase64UUID());
-        final Index blockedIndex = new Index(blockedIndexName, UUIDs.randomBase64UUID());
-        final int numberOfShards = randomIntBetween(1, 3);
-        final int numberOfReplicas = randomIntBetween(0, 1);
-        final int totalShards = numberOfShards + numberOfShards * numberOfReplicas;
-
-        ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
-            projectId,
-            indexNames,
-            numberOfShards,
-            numberOfReplicas
-        );
-        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(clusterState.blocks());
-        blocksBuilder.addIndexBlock(projectId, "test-blocked", IndexMetadata.INDEX_REFRESH_BLOCK);
-        clusterState = ClusterState.builder(clusterState).blocks(blocksBuilder).build();
-        List<ShardIterator> shardIts = new ArrayList<>();
-        for (int i = 0; i < totalShards; i++) {
-            shardIts.add(new ShardIterator(new ShardId(normalIndex, randomInt()), Collections.emptyList()));
-            shardIts.add(new ShardIterator(new ShardId(blockedIndex, randomInt()), Collections.emptyList()));
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
+        int numBlockedIndices = randomIntBetween(0, numIndices);
+        for (int i = 0; i < numBlockedIndices; i++) {
+            blocksBuilder.addIndexBlock(projectId, concreteIndices[i], IndexMetadata.INDEX_REFRESH_BLOCK);
         }
-        final OperationRouting operationRouting = mock(OperationRouting.class);
-        when(
-            operationRouting.searchShards(
-                eq(clusterState.projectState(projectId)),
-                eq(indexNames),
-                any(),
-                nullable(String.class),
-                any(),
-                any()
-            )
-        ).thenReturn(shardIts);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.operationRouting()).thenReturn(operationRouting);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .blocks(blocksBuilder)
+            .build();
+        final ProjectState projectState = clusterState.projectState(projectId);
 
-        Settings settings = Settings.builder().put("node.name", TransportSearchAction.class.getSimpleName()).build();
-        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
-        try {
-            TransportService transportService = MockTransportService.createNewService(
-                Settings.EMPTY,
-                VersionInformation.CURRENT,
-                transportVersion,
-                threadPool
-            );
-            NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
-            SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any(), anyBoolean())).thenReturn(
-                new QueryRewriteContext(null, null, null, null, null, null)
-            );
+        String[] actual = TransportSearchAction.ignoreBlockedIndices(projectState, concreteIndices);
+        String[] expected = Arrays.stream(concreteIndices)
+            .filter(index -> clusterState.blocks().hasIndexBlock(projectId, index, IndexMetadata.INDEX_REFRESH_BLOCK) == false)
+            .toArray(String[]::new);
 
-            TransportSearchAction transportSearchAction = new TransportSearchAction(
-                threadPool,
-                new NoneCircuitBreakerService(),
-                transportService,
-                searchService,
-                null,
-                new SearchTransportService(transportService, client, null),
-                null,
-                clusterService,
-                new ActionFilters(Collections.emptySet()),
-                TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()),
-                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                null,
-                null,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                client,
-                new UsageService()
-            );
-
-            SearchRequest searchRequest = new SearchRequest(indexNames);
-            searchRequest.allowPartialSearchResults(true);
-            List<SearchShardIterator> searchShardIts = transportSearchAction.getLocalShardsIterator(
-                clusterState.projectState(projectId),
-                searchRequest,
-                searchRequest.getLocalClusterAlias(),
-                new HashSet<>(),
-                indexNames
-            );
-
-            assertThat(searchShardIts.size(), equalTo(shardIts.size()));
-            for (SearchShardIterator searchShardIt : searchShardIts) {
-                if (searchShardIt.skip()) {
-                    assertThat(searchShardIt.shardId().getIndexName(), equalTo("test-blocked"));
-                } else {
-                    assertThat(searchShardIt.shardId().getIndexName(), equalTo("test-normal"));
-                }
-            }
-        } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
-        }
+        assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
     }
 }

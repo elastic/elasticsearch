@@ -12,7 +12,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
@@ -73,29 +72,24 @@ abstract sealed class SystemResourceMigrationInfo implements Comparable<SystemRe
 
     /**
      * Invokes the pre-migration hook for the feature that owns this index.
-     * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
-     * @param clusterService For retrieving the state.
+     * See {@link SystemIndexPlugin#prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}.
+     * @param project The project metadata
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when preparation for migration is complete.
      */
-    void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        owningFeature.getPreMigrationFunction().prepareForIndicesMigration(clusterService, client, listener);
+    void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        owningFeature.getPreMigrationFunction().prepareForIndicesMigration(project, client, listener);
     }
 
     /**
      * Invokes the post-migration hooks for the feature that owns this index.
-     * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+     * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, Client, ActionListener)}.
+     *
      * @param metadata The metadata that was passed into the listener by the pre-migration hook.
-     * @param clusterService For retrieving the state.
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when the hook is finished.
      */
-    void indicesMigrationComplete(
-        Map<String, Object> metadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
-        owningFeature.getPostMigrationFunction().indicesMigrationComplete(metadata, clusterService, client, listener);
+    void indicesMigrationComplete(Map<String, Object> metadata, Client client, ActionListener<Boolean> listener) {
+        owningFeature.getPostMigrationFunction().indicesMigrationComplete(metadata, client, listener);
     }
 }

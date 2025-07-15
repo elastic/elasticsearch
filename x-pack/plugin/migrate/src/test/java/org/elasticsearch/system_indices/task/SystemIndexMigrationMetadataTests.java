@@ -96,8 +96,9 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
             clusterTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
             containsInAnyOrder("health-node")
         );
-        assertThat(metadata.getProject().customs().keySet(), containsInAnyOrder("persistent_tasks", "index-graveyard"));
-        final var projectTasks = PersistentTasksCustomMetadata.get(metadata.getProject());
+        final var project = metadata.getProject(ProjectId.DEFAULT);
+        assertThat(project.customs().keySet(), containsInAnyOrder("persistent_tasks", "index-graveyard"));
+        final var projectTasks = PersistentTasksCustomMetadata.get(project);
         assertThat(
             projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
             containsInAnyOrder("upgrade-system-indices")

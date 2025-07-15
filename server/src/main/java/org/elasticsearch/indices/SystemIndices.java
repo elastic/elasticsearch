@@ -1008,18 +1008,13 @@ public class SystemIndices {
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.
-        private static void noopPreMigrationFunction(
-            ClusterService clusterService,
-            Client client,
-            ActionListener<Map<String, Object>> listener
-        ) {
+        private static void noopPreMigrationFunction(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
             listener.onResponse(Collections.emptyMap());
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.
         private static void noopPostMigrationFunction(
             Map<String, Object> preUpgradeMetadata,
-            ClusterService clusterService,
             Client client,
             ActionListener<Boolean> listener
         ) {
@@ -1028,25 +1023,20 @@ public class SystemIndices {
 
         /**
          * Type for the handler that's invoked prior to migrating a Feature's system indices.
-         * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
+         * See {@link SystemIndexPlugin#prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}.
          */
         @FunctionalInterface
         public interface MigrationPreparationHandler {
-            void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
+            void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener);
         }
 
         /**
          * Type for the handler that's invoked when all of a feature's system indices have been migrated.
-         * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+         * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, Client, ActionListener)}.
          */
         @FunctionalInterface
         public interface MigrationCompletionHandler {
-            void indicesMigrationComplete(
-                Map<String, Object> preUpgradeMetadata,
-                ClusterService clusterService,
-                Client client,
-                ActionListener<Boolean> listener
-            );
+            void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener);
         }
 
         public interface CleanupFunction {

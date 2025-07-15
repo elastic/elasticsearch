@@ -79,7 +79,7 @@ public class CheckLicenseTests extends ESTestCase {
             }
         };
 
-        var plan = parser.createStatement(esql);
+        var plan = parser.createStatement(esql, EsqlTestUtils.TEST_CFG);
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)

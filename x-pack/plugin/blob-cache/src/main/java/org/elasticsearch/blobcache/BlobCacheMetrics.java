@@ -47,7 +47,11 @@ public class BlobCacheMetrics {
         /**
          * When the data we need is not in the cache
          */
-        CacheMiss
+        CacheMiss,
+        /**
+         * When data is prefetched upon new commit notifications
+         */
+        PreFetchingNewCommit
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {

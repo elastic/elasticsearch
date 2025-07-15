@@ -125,7 +125,12 @@ public class ValuesAggregatorBenchmark {
             List.of(supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
             driverContext
-        );
+        ) {
+            @Override
+            public Page getOutput() {
+                return super.getOutput();
+            }
+        };
     }
 
     private static AggregatorFunctionSupplier supplier(String dataType) {

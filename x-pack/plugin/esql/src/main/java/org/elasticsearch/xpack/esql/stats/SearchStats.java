@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.stats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
  * Interface for determining information about fields in the index.
@@ -33,9 +32,9 @@ public interface SearchStats {
 
     long count(FieldName field, BytesRef value);
 
-    byte[] min(FieldName field, DataType dataType);
+    Object min(FieldName field);
 
-    byte[] max(FieldName field, DataType dataType);
+    Object max(FieldName field);
 
     boolean isSingleValue(FieldName field);
 
@@ -90,12 +89,12 @@ public interface SearchStats {
         }
 
         @Override
-        public byte[] min(FieldName field, DataType dataType) {
+        public Object min(FieldName field) {
             return null;
         }
 
         @Override
-        public byte[] max(FieldName field, DataType dataType) {
+        public Object max(FieldName field) {
             return null;
         }
 

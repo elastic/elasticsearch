@@ -14,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.SearchService;
@@ -88,7 +87,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             """);
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(createAsyncRequest, TimeValue.ZERO);
+        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
         if (createAsyncResponseEntity.get("is_running").equals("true")) {
             String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
             Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -115,7 +114,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncRequest.addParameter("error_trace", "true");
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(createAsyncRequest, TimeValue.ZERO);
+        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
         if (createAsyncResponseEntity.get("is_running").equals("true")) {
             String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
             Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -143,7 +142,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncRequest.addParameter("error_trace", "false");
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(createAsyncRequest, TimeValue.ZERO);
+        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
         if (createAsyncResponseEntity.get("is_running").equals("true")) {
             String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
             Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -184,10 +183,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         int numShards = getNumShards(errorTriggeringIndex).numPrimaries;
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
-            Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(
-                createAsyncRequest,
-                TimeValue.ZERO
-            );
+            Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
             if (createAsyncResponseEntity.get("is_running").equals("true")) {
                 String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
                 Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -221,10 +217,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncSearchRequest.addParameter("error_trace", "false");
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(
-            createAsyncSearchRequest,
-            TimeValue.ZERO
-        );
+        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
         if (createAsyncResponseEntity.get("is_running").equals("true")) {
             String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
             Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -252,10 +245,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncSearchRequest.addParameter("error_trace", "true");
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
-        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(
-            createAsyncSearchRequest,
-            TimeValue.ZERO
-        );
+        Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
         if (createAsyncResponseEntity.get("is_running").equals("true")) {
             String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
             Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
@@ -266,9 +256,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         assertTrue(transportMessageHasStackTrace.getAsBoolean());
     }
 
-    private Map<String, Object> performRequestAndGetResponseEntityAfterDelay(Request r, TimeValue sleep) throws IOException,
-        InterruptedException {
-        Thread.sleep(sleep.millis());
+    private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {
         Response response = getRestClient().performRequest(r);
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         return XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(), false);
@@ -276,10 +264,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     private void awaitAsyncRequestDoneRunning(Request getAsyncRequest) throws Exception {
         assertBusy(() -> {
-            Map<String, Object> getAsyncResponseEntity = performRequestAndGetResponseEntityAfterDelay(
-                getAsyncRequest,
-                TimeValue.timeValueSeconds(1L)
-            );
+            Map<String, Object> getAsyncResponseEntity = performRequestAndGetResponseEntity(getAsyncRequest);
             assertFalse((Boolean) getAsyncResponseEntity.get("is_running"));
         });
     }

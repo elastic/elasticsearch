@@ -25,6 +25,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -616,12 +618,78 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    private void setSparseVectorIndexOptionInMapper(XContentBuilder b, Boolean shouldPrune, TokenPruningConfig pruningConfig)
+        throws IOException
+    {
+        if (shouldPrune != null) {
+            b.field(SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNE_FIELD_NAME.getPreferredName(), shouldPrune);
+        }
+
+        if (pruningConfig != null) {
+            b.startObject(
+                SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNING_CONFIG_FIELD_NAME.getPreferredName()
+            );
+            {
+                b.field(
+                    TokenPruningConfig.TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(),
+                    pruningConfig.getTokensFreqRatioThreshold()
+                );
+                b.field(
+                    TokenPruningConfig.TOKENS_WEIGHT_THRESHOLD.getPreferredName(),
+                    pruningConfig.getTokensWeightThreshold()
+                );
+            }
+            b.endObject();
+        }
+    }
+
+
     public void testSparseVectorIndexOptionsValidation() throws IOException {
-        SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions = SparseVectorFieldTypeTests.randomSparseVectorIndexOptions();
         for (int depth = 1; depth < 5; depth++) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions = SparseVectorFieldTypeTests.randomSparseVectorIndexOptions();
             String inferenceId = "test_model";
             String fieldName = randomFieldName(depth);
 
+            // should not throw an exception
+            createMapperService(mapping(b -> {
+                b.startObject(fieldName);
+                {
+                    b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                    b.field(INFERENCE_ID_FIELD, inferenceId);
+                    b.startObject(INDEX_OPTIONS_FIELD);
+                    {
+                        b.startObject("sparse_vector");
+                        {
+                            setSparseVectorIndexOptionInMapper(b, indexOptions.getPrune(), indexOptions.getPruningConfig());
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            Exception exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+                b.startObject(fieldName);
+                {
+                    b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                    b.field(INFERENCE_ID_FIELD, inferenceId);
+                    b.startObject(INDEX_OPTIONS_FIELD);
+                    {
+                        b.startObject("sparse_vector");
+                        {
+                            setSparseVectorIndexOptionInMapper(b, indexOptions.getPrune(), indexOptions.getPruningConfig());
+                            b.field("unknown_parameter", "test");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertSame(exc.getCause().getClass(), ElasticsearchException.class);
+            assertSame(exc.getCause().getCause().getClass(), IllegalArgumentException.class);
+            assertTrue(exc.getMessage().contains("Unsupported index option field for sparse_vector: unknown_parameter"));
         }
     }
 

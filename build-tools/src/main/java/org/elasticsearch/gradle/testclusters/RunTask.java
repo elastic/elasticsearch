@@ -303,7 +303,6 @@ public abstract class RunTask extends DefaultTestClustersTask {
         if (cliDebug) {
             enableCliDebug();
         }
-        enableEntitlements();
     }
 
     @TaskAction

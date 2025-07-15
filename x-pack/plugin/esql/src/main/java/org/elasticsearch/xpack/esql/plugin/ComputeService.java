@@ -355,6 +355,7 @@ public class ComputeService {
                 return;
             }
         }
+
         Map<String, OriginalIndices> clusterToOriginalIndices = transportService.getRemoteClusterService()
             .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
@@ -466,6 +467,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
+
+                // * -> (*, _local), (my_remote:*, my_remote)
+
+                // clusterToOriginalIndices: [*]
+                // clusterToConcreteIndices: my_remote: [*]
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {

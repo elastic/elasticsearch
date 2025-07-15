@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.CrossProjectRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -36,11 +37,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class FieldCapabilitiesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class FieldCapabilitiesRequest extends LegacyActionRequest
+    implements
+        CrossProjectRequest,
+        IndicesRequest.Replaceable,
+        ToXContentObject {
     public static final String NAME = "field_caps_request";
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -58,6 +64,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
+    private List<QualifiedExpression> qualifiedExpressions;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -372,5 +379,27 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
                 return FieldCapabilitiesRequest.this.getDescription();
             }
         };
+    }
+
+    @Override
+    public boolean alreadyQualified() {
+        return qualifiedExpressions != null;
+    }
+
+    @Override
+    public void qualified(List<QualifiedExpression> qualifiedExpressions) {
+        assert false == alreadyQualified();
+        this.qualifiedExpressions = qualifiedExpressions;
+        indices(
+            qualifiedExpressions.stream()
+                .flatMap(indexExpression -> indexExpression.qualified().stream().map(ExpressionWithProject::expression))
+                .toArray(String[]::new)
+        );
+    }
+
+    @Override
+    public String queryRouting() {
+        // TODO how would this look in ES|QL?
+        return null;
     }
 }

@@ -16,12 +16,18 @@ import java.util.List;
 
 public interface CrossProjectRequest extends IndicesRequest {
     // TODO naming for all these methods...
-    boolean alreadyHandled();
+    boolean alreadyQualified();
 
     void qualified(List<QualifiedExpression> qualifiedExpressions);
+
+    List<QualifiedExpression> qualified();
 
     @Nullable
     String queryRouting();
 
-    record QualifiedExpression(String original, List<String> qualified) {}
+    record QualifiedExpression(String original, List<ExpressionWithProject> qualified) {}
+
+    // * -> (*, _local), (my_remote:*, my_remote)
+
+    record ExpressionWithProject(String expression, String project) {}
 }

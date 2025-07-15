@@ -79,7 +79,7 @@ public class SearchRequest extends LegacyActionRequest
     private String queryRouting = null;
 
     @Nullable
-    private List<QualifiedExpression> indexExpressions;
+    private List<QualifiedExpression> qualifiedExpressions;
 
     @Nullable
     private String routing;
@@ -871,15 +871,19 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean alreadyHandled() {
-        return indexExpressions != null;
+    public boolean alreadyQualified() {
+        return qualifiedExpressions != null;
     }
 
     @Override
     public void qualified(List<QualifiedExpression> qualifiedExpressions) {
-        assert false == alreadyHandled();
-        this.indexExpressions = qualifiedExpressions;
-        indices(qualifiedExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
+        assert false == alreadyQualified();
+        this.qualifiedExpressions = qualifiedExpressions;
+        indices(
+            qualifiedExpressions.stream()
+                .flatMap(indexExpression -> indexExpression.qualified().stream().map(ExpressionWithProject::expression))
+                .toArray(String[]::new)
+        );
     }
 
     @Override

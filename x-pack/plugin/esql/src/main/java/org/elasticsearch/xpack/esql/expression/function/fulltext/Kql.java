@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Full text function that performs a {@link KqlQuery} .

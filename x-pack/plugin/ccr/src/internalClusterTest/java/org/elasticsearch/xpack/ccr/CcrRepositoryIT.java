@@ -21,10 +21,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,6 +52,7 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
@@ -658,35 +659,32 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
             final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = new PlainActionFuture<>();
-            final ClusterStateListener listener = new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
-                        try {
-                            final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
-                            // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService
-                            // and ClusterService preserves the order of listeners.
-                            assertBusy(() -> {
-                                List<Long> sizes = indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)
-                                    .stream()
-                                    .filter(shard -> shard.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
-                                    .sorted(Comparator.comparingInt(ShardRouting::getId))
-                                    .map(shard -> snapshotsInfoService.snapshotShardSizes().getShardSize(shard))
-                                    .filter(Objects::nonNull)
-                                    .filter(size -> ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE == size)
-                                    .collect(Collectors.toList());
-                                assertThat(sizes, hasSize(numberOfShards));
-                            });
-                            clusterService.removeListener(this);
-                            waitForAllShardSnapshotSizesFailures.onResponse(null);
-                        } catch (Exception e) {
-                            throw new AssertionError("Failed to retrieve all snapshot shard sizes", e);
-                        }
-                    }
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService,
+                state -> RestoreInProgress.get(state).isEmpty() == false && state.routingTable().hasIndex(followerIndex)
+            ).addListener(ActionTestUtils.assertNoFailureListener(ignore -> {
+                try {
+                    // This listener runs synchronously in the same thread so that clusterService.state() returns the same state
+                    // that satisfied the predicate.
+                    final IndexRoutingTable indexRoutingTable = clusterService.state().routingTable().index(followerIndex);
+                    // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService
+                    // and ClusterService preserves the order of listeners.
+                    assertBusy(() -> {
+                        List<Long> sizes = indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)
+                            .stream()
+                            .filter(shard -> shard.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
+                            .sorted(Comparator.comparingInt(ShardRouting::getId))
+                            .map(shard -> snapshotsInfoService.snapshotShardSizes().getShardSize(shard))
+                            .filter(Objects::nonNull)
+                            .filter(size -> ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE == size)
+                            .collect(Collectors.toList());
+                        assertThat(sizes, hasSize(numberOfShards));
+                    });
+                    waitForAllShardSnapshotSizesFailures.onResponse(null);
+                } catch (Exception e) {
+                    throw new AssertionError("Failed to retrieve all snapshot shard sizes", e);
                 }
-            };
-
-            clusterService.addListener(listener);
+            }));
 
             logger.debug("--> creating follower index [{}]", followerIndex);
             followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex, ActiveShardCount.NONE));

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -177,7 +178,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * if applicable for this deployment, otherwise the raw version number.
      */
     public String toReleaseVersion() {
-        return TransportVersions.VERSION_LOOKUP.apply(id);
+        return VersionsHolder.VERSION_LOOKUP.apply(id);
     }
 
     @Override
@@ -186,6 +187,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     }
 
     private static class VersionsHolder {
+        private static final IntFunction<String> VERSION_LOOKUP;
         private static final List<TransportVersion> ALL_VERSIONS;
         private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
         private static final TransportVersion CURRENT;
@@ -203,8 +205,8 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             }
 
             ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
-
-            CURRENT = new TransportVersion(9118000); // TODO: fix - ALL_VERSIONS.getLast();
+            CURRENT = ALL_VERSIONS.stream().max(TransportVersion::compareTo).get();
+            VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, CURRENT.id());
         }
     }
 }

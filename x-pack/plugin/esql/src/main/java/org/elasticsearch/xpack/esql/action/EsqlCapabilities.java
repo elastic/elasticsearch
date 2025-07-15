@@ -1078,6 +1078,11 @@ public class EsqlCapabilities {
         LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * score function
+         */
+        SCORE_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the SAMPLE command
          */
         SAMPLE_V3,
@@ -1249,7 +1254,12 @@ public class EsqlCapabilities {
          * Forbid usage of brackets in unquoted index and enrich policy names
          * https://github.com/elastic/elasticsearch/issues/130378
          */
-        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES;
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
+
+        /*
+         * Cosine vector similarity function
+         */
+        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

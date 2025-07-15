@@ -121,6 +121,10 @@ public class TransportVersionSet {
         return get(name).local();
     }
 
+    public static TransportVersion oldest(String name) {
+        return get(name).oldest();
+    }
+
     public static boolean isCompatible(String name, TransportVersion version) {
         return get(name).isCompatible(version);
     }
@@ -139,6 +143,10 @@ public class TransportVersionSet {
 
     public TransportVersion local() {
         return versions.get(0);
+    }
+
+    public TransportVersion oldest() {
+        return versions.get(versions.size() - 1);
     }
 
     public boolean isCompatible(TransportVersion version) {

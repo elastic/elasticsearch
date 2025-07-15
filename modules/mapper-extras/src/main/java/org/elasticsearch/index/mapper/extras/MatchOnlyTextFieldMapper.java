@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -66,6 +67,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -246,6 +248,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 String parentField = searchExecutionContext.parentPath(name());
                 var parent = searchExecutionContext.lookup().fieldType(parentField);
                 if (parent.isStored()) {
+                    if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
+                        && keywordParent.ignoreAbove() != Integer.MAX_VALUE) {
+                        return storedFieldFetcher(parentField, keywordParent.originalName());
+                    }
                     return storedFieldFetcher(parentField);
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
@@ -259,7 +265,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 if (kwd != null) {
                     var fieldType = kwd.fieldType();
                     if (fieldType.isStored()) {
-                        return storedFieldFetcher(fieldType.name());
+                        if (fieldType.ignoreAbove() != Integer.MAX_VALUE) {
+                            return storedFieldFetcher(fieldType.name(), fieldType.originalName());
+                        } else {
+                            return storedFieldFetcher(fieldType.name());
+                        }
                     } else if (fieldType.hasDocValues()) {
                         var ifd = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                         return docValuesFieldFetcher(ifd);
@@ -306,13 +316,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             };
         }
 
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String name) {
-            var loader = StoredFieldLoader.create(false, Set.of(name));
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String... names) {
+            var loader = StoredFieldLoader.create(false, Set.of(names));
             return context -> {
                 var leafLoader = loader.getLoader(context, null);
                 return docId -> {
                     leafLoader.advanceTo(docId);
-                    return leafLoader.storedFields().get(name);
+                    var storedFields = leafLoader.storedFields();
+                    if (names.length == 1) {
+                        return storedFields.get(names[0]);
+                    }
+                    return Arrays.stream(names).map(storedFields::get).filter(Objects::nonNull).flatMap(List::stream).toList();
                 };
             };
         }

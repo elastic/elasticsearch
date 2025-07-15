@@ -504,7 +504,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                         pipelineHasGeoProcessorById.put(pipelineName, false);
                     }
                 } else {
-                    List<Map<String, Object>> childProcessors = Optional.ofNullable((String) processorConfig.get("name"))
+                    List<Map<String, Object>> childProcessors = Optional.ofNullable(pipelineName)
                         .map(pipelineConfigById::get)
                         .map(PipelineConfiguration::getConfig)
                         .map(config -> (List<Map<String, Object>>) config.get(Pipeline.PROCESSORS_KEY))

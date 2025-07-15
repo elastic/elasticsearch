@@ -174,7 +174,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
+    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
             Map<String, Object> a = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
@@ -194,7 +194,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
+    private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
         List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
         if (cols == null) {
             return null;

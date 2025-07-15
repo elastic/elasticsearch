@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
 
 import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 
 import java.util.ArrayList;
@@ -53,7 +54,19 @@ public class ForkGenerator implements CommandGenerator {
             var exec = new EsqlQueryGenerator.Executor() {
                 @Override
                 public void run(CommandGenerator generator, CommandDescription current) {
-                    previousCommands.add(current);
+                    final String command = current.commandString();
+
+                    // Try appending new command to parent of Fork. If we successfully execute (without exception) AND still retain the same
+                    // schema (all Fork branches must have the same schema), we append the command.
+                    final EsqlQueryGenerator.QueryExecuted result = previousResult == null
+                        ? GenerativeRestTest.execute(command, 0)
+                        : GenerativeRestTest.execute(previousResult.query() + command, previousResult.depth());
+                    previousResult = result;
+
+                    continueExecuting = result.exception() == null && result.outputSchema().equals(previousOutput);
+                    if (continueExecuting) {
+                        previousCommands.add(current);
+                    }
                 }
 
                 @Override
@@ -63,7 +76,7 @@ public class ForkGenerator implements CommandGenerator {
 
                 @Override
                 public boolean continueExecuting() {
-                    return true;
+                    return continueExecuting;
                 }
 
                 @Override
@@ -72,6 +85,8 @@ public class ForkGenerator implements CommandGenerator {
                 }
 
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                boolean continueExecuting;
+                EsqlQueryGenerator.QueryExecuted previousResult;
             };
 
             var gen = new CommandGenerator() {
@@ -111,6 +126,7 @@ public class ForkGenerator implements CommandGenerator {
         }
         forkCmd.append(" | WHERE _fork == \"fork").append(branchToRetain).append("\" | DROP _fork");
 
+        //System.out.println("Generated fork command: " + forkCmd);
         return new CommandDescription(FORK, this, forkCmd.toString(), Map.of());
     }
 

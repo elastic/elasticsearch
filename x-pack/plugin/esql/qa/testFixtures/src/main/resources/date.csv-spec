@@ -1581,4 +1581,149 @@ x:date                      | y:date
 
 ;
 
+evalDateTruncMonthIntervalWithGTEInRange
+from employees
+| sort hire_date
+| where hire_date >= "1990-01-01"
+| eval x = date_trunc(1 month, hire_date)
+| keep emp_no, hire_date, x
+| limit 5;
 
+emp_no:integer | hire_date:date           | x:date
+10082          | 1990-01-03T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+10096          | 1990-01-14T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+10011          | 1990-01-22T00:00:00.000Z | 1990-01-01T00:00:00.000Z
+10056          | 1990-02-01T00:00:00.000Z | 1990-02-01T00:00:00.000Z
+10086          | 1990-02-16T00:00:00.000Z | 1990-02-01T00:00:00.000Z
+;
+
+evalDateTruncHoursIntervalWithLTEInRange
+from employees
+| sort hire_date desc
+| where hire_date <= "1990-01-01"
+| eval x = date_trunc(240 hours, hire_date)
+| keep emp_no, hire_date, x
+| limit 5;
+
+emp_no:integer | hire_date:date           | x:date
+10023          | 1989-12-17T00:00:00.000Z | 1989-12-17T00:00:00.000Z
+10041          | 1989-11-12T00:00:00.000Z | 1989-11-07T00:00:00.000Z
+10069          | 1989-11-05T00:00:00.000Z | 1989-10-28T00:00:00.000Z
+10092          | 1989-09-22T00:00:00.000Z | 1989-09-18T00:00:00.000Z
+10038          | 1989-09-20T00:00:00.000Z | 1989-09-18T00:00:00.000Z
+;
+
+evalDateTruncWeeklyIntervalWithLTGTInRange
+from employees
+| sort hire_date
+| where hire_date > "1986-01-01" and hire_date < "1988-01-01"
+| eval x = date_trunc(1 week, hire_date)
+| keep emp_no, hire_date, x
+| limit 5;
+
+emp_no:integer | hire_date:date           | x:date
+10053          | 1986-02-04T00:00:00.000Z | 1986-02-03T00:00:00.000Z
+10066          | 1986-02-26T00:00:00.000Z | 1986-02-24T00:00:00.000Z
+10090          | 1986-03-14T00:00:00.000Z | 1986-03-10T00:00:00.000Z
+10079          | 1986-03-27T00:00:00.000Z | 1986-03-24T00:00:00.000Z
+10001          | 1986-06-26T00:00:00.000Z | 1986-06-23T00:00:00.000Z
+;
+
+evalDateTruncQuarterlyIntervalWithGTInRange
+from employees
+| sort hire_date
+| where hire_date > "1980-01-01"
+| eval x = date_trunc(3 month, hire_date)
+| keep emp_no, hire_date, x
+| limit 5;
+
+emp_no:integer | hire_date:date                | x:date
+10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z      | 1985-01-01T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z      | 1985-04-01T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+;
+
+dateTruncGroupingYearIntervalWithLTInRange
+from employees
+| where hire_date < "2025-01-01"
+| eval y = date_trunc(1 year, hire_date)
+| stats c = count(emp_no) by y
+| sort y
+| keep y, c
+| limit 5;
+
+y:date                   | c:long
+1985-01-01T00:00:00.000Z | 11
+1986-01-01T00:00:00.000Z | 11
+1987-01-01T00:00:00.000Z | 15
+1988-01-01T00:00:00.000Z | 9
+1989-01-01T00:00:00.000Z | 13
+;
+
+dateTruncGroupingYearIntervalWithLTOutOfRange
+from employees
+| where hire_date < "1980-01-01"
+| eval y = date_trunc(1 year, hire_date)
+| stats c = count(emp_no) by y
+| sort y
+| keep y, c
+| limit 5;
+
+y:date                        | c:long
+;
+
+dateTruncGroupingYearIntervalWithGTOutOfRange
+from employees
+| where hire_date > "2000-01-01"
+| eval y = date_trunc(1 year, hire_date)
+| stats c = count(emp_no) by y
+| sort y
+| keep y, c
+| limit 5;
+
+y:date                        | c:long
+;
+
+dateTruncGroupingMonthIntervalWithLTGTInRange
+from employees
+| where hire_date > "1987-01-01" and hire_date < "1988-01-01"
+| eval y = date_trunc(1 month, hire_date)
+| stats c = count(emp_no) by y
+| sort y
+| keep y, c
+| limit 5;
+
+y:date                   | c:long
+1987-03-01T00:00:00.000Z | 5
+1987-04-01T00:00:00.000Z | 3
+1987-05-01T00:00:00.000Z | 1
+1987-07-01T00:00:00.000Z | 1
+1987-08-01T00:00:00.000Z | 2
+;
+
+dateTruncGroupingDayIntervalWithEQInRange
+from employees
+| where hire_date == "1988-02-10"
+| eval y = date_trunc(1 day, hire_date)
+| stats c = count(emp_no) by y
+| sort y
+| keep y, c
+| limit 5;
+
+y:date                   | c:long
+1988-02-10T00:00:00.000Z | 1
+;
+
+dateTruncGroupingDayIntervalWithEQOutOfRange
+from employees
+| where hire_date == "2025-01-01"
+| eval y = date_trunc(1 day, hire_date)
+| stats c = count(emp_no) by y
+| sort y
+| keep y, c
+| limit 5;
+
+y:date                   | c:long
+;

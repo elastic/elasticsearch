@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
-import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +31,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.randomCasing;
-import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -197,10 +194,5 @@ public class RLikeListTests extends AbstractScalarFunctionTestCase {
             : (randomBoolean()
                 ? new RLikeList(source, expression, new RLikePatternList(List.of(new RLikePattern(patternString))))
                 : new RLikeList(source, expression, new RLikePatternList(List.of(new RLikePattern(patternString))), false));
-    }
-
-    @AfterClass
-    public static void renderNotRLike() throws Exception {
-        renderNegatedOperator(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d, getTestClass());
     }
 }

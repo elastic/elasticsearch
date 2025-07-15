@@ -793,7 +793,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             .toList();
         // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
         Expression e = rLikePatterns.size() == 1
-            ? new RLike(source, left, rLikePatterns.getFirst())
+            ? new RLike(source, left, rLikePatterns.get(0))
             : new RLikeList(source, left, new RLikePatternList(rLikePatterns));
         return ctx.NOT() == null ? e : new Not(source, e);
     }

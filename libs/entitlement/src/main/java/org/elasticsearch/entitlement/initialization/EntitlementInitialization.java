@@ -91,24 +91,17 @@ public class EntitlementInitialization {
      * we have no way to pass arguments directly, so we stuff them in here.
      *
      * @param pathLookup
-     * @param suppressFailureLogPackages
      * @param policyManager
      */
-    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
+    public record InitializeArgs(PathLookup pathLookup, PolicyManager policyManager) {
         public InitializeArgs {
             requireNonNull(pathLookup);
-            requireNonNull(suppressFailureLogPackages);
             requireNonNull(policyManager);
         }
     }
 
     private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
-        return new PolicyCheckerImpl(
-            initializeArgs.suppressFailureLogPackages(),
-            ENTITLEMENTS_MODULE,
-            policyManager,
-            initializeArgs.pathLookup()
-        );
+        return new PolicyCheckerImpl(ENTITLEMENTS_MODULE, policyManager, initializeArgs.pathLookup());
     }
 
     /**

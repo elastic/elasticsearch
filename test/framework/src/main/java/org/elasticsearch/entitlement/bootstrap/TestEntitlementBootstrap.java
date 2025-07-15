@@ -73,7 +73,7 @@ public class TestEntitlementBootstrap {
         assert previousTempDir == null : "Test entitlement bootstrap called multiple times";
         TestPathLookup pathLookup = new TestPathLookup(baseDirPaths);
         policyManager = createPolicyManager(pathLookup);
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }

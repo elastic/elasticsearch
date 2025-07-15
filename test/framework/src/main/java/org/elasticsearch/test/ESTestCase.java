@@ -499,7 +499,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfSuccessful() throws Exception {}
 
     /**
-     * Marks a test suite or a test method that should run without checking for entitlements.
+     * Marks a test suite or a test utility that should run without checking for entitlements.
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
@@ -508,7 +508,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Marks a test suite or a test method that enforce entitlements on the test code itself.
+     * Marks a test suite to enforce entitlements on the test code itself.
      * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
      */
     @Retention(RetentionPolicy.RUNTIME)

@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.NO_ENTITLEMENTS_MODULE;
@@ -55,7 +54,7 @@ public class PolicyCheckerImplTests extends ESTestCase {
     }
 
     private static PolicyCheckerImpl checker(Module entitlementsModule) {
-        return new PolicyCheckerImpl(Set.of(), entitlementsModule, null, TEST_PATH_LOOKUP);
+        return new PolicyCheckerImpl(entitlementsModule, null, TEST_PATH_LOOKUP);
     }
 
 }

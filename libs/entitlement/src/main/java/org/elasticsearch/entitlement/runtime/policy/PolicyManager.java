@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusiveFileEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -143,7 +144,7 @@ public class PolicyManager {
             return entitlements.stream().map(entitlementClass::cast);
         }
 
-        Logger logger(Class<?> requestingClass) {
+        private Logger logger(Class<?> requestingClass) {
             var packageName = requestingClass.getPackageName();
             var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName) + "." + packageName;
             return LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
@@ -182,6 +183,7 @@ public class PolicyManager {
 
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
+    private final Set<Package> suppressFailureLogPackages;
     private final Map<String, List<Entitlement>> serverEntitlements;
     private final List<Entitlement> apmAgentEntitlements;
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
@@ -232,7 +234,8 @@ public class PolicyManager {
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, PolicyScope> scopeResolver,
         Function<String, Collection<Path>> pluginSourcePathsResolver,
-        PathLookup pathLookup
+        PathLookup pathLookup,
+        Set<Package> suppressFailureLogPackages
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -242,6 +245,7 @@ public class PolicyManager {
         this.scopeResolver = scopeResolver;
         this.pluginSourcePathsResolver = pluginSourcePathsResolver;
         this.pathLookup = requireNonNull(pathLookup);
+        this.suppressFailureLogPackages = suppressFailureLogPackages;
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
@@ -348,6 +352,15 @@ public class PolicyManager {
             );
             return List.of();
         }
+    }
+
+    void notEntitled(String message, Class<?> requestingClass, ModuleEntitlements entitlements) {
+        var exception = new NotEntitledException(message);
+        // Don't emit a log for suppressed packages, e.g. packages containing self tests
+        if (suppressFailureLogPackages.contains(requestingClass.getPackage()) == false) {
+            entitlements.logger(requestingClass).warn("Not entitled: {}", message, exception);
+        }
+        throw exception;
     }
 
     private ModuleEntitlements getModuleScopeEntitlements(

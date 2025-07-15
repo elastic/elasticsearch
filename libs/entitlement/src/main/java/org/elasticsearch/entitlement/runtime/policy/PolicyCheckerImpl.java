@@ -57,8 +57,6 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TE
  */
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class PolicyCheckerImpl implements PolicyChecker {
-
-    protected final Set<Package> suppressFailureLogPackages;
     /**
      * Frames originating from this module are ignored in the permission logic.
      */
@@ -68,13 +66,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     private final PathLookup pathLookup;
 
-    public PolicyCheckerImpl(
-        Set<Package> suppressFailureLogPackages,
-        Module entitlementsModule,
-        PolicyManager policyManager,
-        PathLookup pathLookup
-    ) {
-        this.suppressFailureLogPackages = suppressFailureLogPackages;
+    public PolicyCheckerImpl(Module entitlementsModule, PolicyManager policyManager, PathLookup pathLookup) {
         this.entitlementsModule = entitlementsModule;
         this.policyManager = policyManager;
         this.pathLookup = pathLookup;
@@ -129,7 +121,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         }
 
         ModuleEntitlements entitlements = policyManager.getEntitlements(requestingClass);
-        notEntitled(
+        policyManager.notEntitled(
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
                 entitlements.componentName(),
@@ -241,7 +233,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         }
 
         if (canRead == false) {
-            notEntitled(
+            policyManager.notEntitled(
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
@@ -273,7 +265,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
         ModuleEntitlements entitlements = policyManager.getEntitlements(requestingClass);
         if (entitlements.fileAccess().canWrite(path) == false) {
-            notEntitled(
+            policyManager.notEntitled(
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
@@ -387,7 +379,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
             );
             return;
         }
-        notEntitled(
+        policyManager.notEntitled(
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
@@ -439,7 +431,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         Class<?> requestingClass
     ) {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
-            notEntitled(
+            policyManager.notEntitled(
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
@@ -460,15 +452,6 @@ public class PolicyCheckerImpl implements PolicyChecker {
                 PolicyParser.buildEntitlementNameFromClass(entitlementClass)
             )
         );
-    }
-
-    private void notEntitled(String message, Class<?> requestingClass, ModuleEntitlements entitlements) {
-        var exception = new NotEntitledException(message);
-        // Don't emit a log for suppressed packages, e.g. packages containing self tests
-        if (suppressFailureLogPackages.contains(requestingClass.getPackage()) == false) {
-            entitlements.logger(requestingClass).warn("Not entitled: {}", message, exception);
-        }
-        throw exception;
     }
 
     @Override

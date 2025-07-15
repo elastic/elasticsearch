@@ -420,14 +420,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType)
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
         throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
-                // NOCOMMIT test with offset
-                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx), 0);
+                .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(ctx), offset);
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }

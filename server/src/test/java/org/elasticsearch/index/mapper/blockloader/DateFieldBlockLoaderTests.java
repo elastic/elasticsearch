@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
+wpublic class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
     public DateFieldBlockLoaderTests(Params params) {
         super(FieldType.DATE.toString(), params);
     }

@@ -125,7 +125,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -174,7 +174,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
@@ -260,7 +260,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -309,7 +309,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
@@ -409,7 +409,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -462,7 +462,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
@@ -656,7 +656,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docs.count() == 1) {
                 return readSingleDoc(factory, docs.get(0));
             }
-            try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
+            try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {
@@ -701,7 +701,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BytesRefBuilder builder = factory.bytesRefsFromDocValues(docs.count())) {
+            try (BytesRefBuilder builder = factory.bytesRefsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {
@@ -781,7 +781,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count())) {
+            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < docID) {
@@ -964,7 +964,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count())) {
+            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -1013,7 +1013,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count())) {
+            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {

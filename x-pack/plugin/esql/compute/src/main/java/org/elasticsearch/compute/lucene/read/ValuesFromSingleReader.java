@@ -89,7 +89,7 @@ class ValuesFromSingleReader extends ValuesReader {
 
         List<ColumnAtATimeWork> columnAtATimeReaders = new ArrayList<>(operator.fields.length);
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(operator.fields.length);
-        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory, docs.count())) {
+        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory, docs.count() - offset)) {
             for (int f = 0; f < operator.fields.length; f++) {
                 ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
@@ -99,7 +99,7 @@ class ValuesFromSingleReader extends ValuesReader {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
                             field.rowStride(ctx),
-                            (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count()),
+                            (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count() - offset),
                             field.loader,
                             f
                         )

@@ -51,7 +51,7 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
         // Note that we don't pre-sort our output so we can't use longsFromDocValues
-        try (BlockLoader.LongBuilder builder = factory.longs(docs.count())) {
+        try (BlockLoader.LongBuilder builder = factory.longs(docs.count() - offset)) {
             for (int i = offset; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }

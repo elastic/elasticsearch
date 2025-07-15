@@ -51,7 +51,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
         // Note that we don't sort the values sort, so we can't use factory.longsFromDocValues
-        try (BlockLoader.LongBuilder builder = factory.longs(docs.count())) {
+        try (BlockLoader.LongBuilder builder = factory.longs(docs.count() - offset)) {
             for (int i = offset; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }

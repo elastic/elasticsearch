@@ -572,7 +572,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
                     @Override
                     public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count())) {
+                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count() - offset)) {
                             copyDoubleValuesToBuilder(docs, offset, builder.min(), minValues);
                             copyDoubleValuesToBuilder(docs, offset, builder.max(), maxValues);
                             copyDoubleValuesToBuilder(docs, offset, builder.sum(), sumValues);

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -37,10 +38,10 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -899,8 +900,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertBusy(
                 () -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()))
             );
-            List<ThreadPoolMergeScheduler.MergeTask> tasksRunList = Collections.synchronizedList(new ArrayList<>());
-            List<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = Collections.synchronizedList(new ArrayList<>());
+            Set<ThreadPoolMergeScheduler.MergeTask> tasksRunList = ConcurrentCollections.newConcurrentSet();
+            Set<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = ConcurrentCollections.newConcurrentSet();
             int submittedMergesCount = randomIntBetween(1, 5);
             long[] mergeSizeEstimates = new long[submittedMergesCount];
             for (int i = 0; i < submittedMergesCount; i++) {
@@ -955,17 +956,13 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             });
             // assert all merge tasks are either run or aborted
             assertBusy(() -> {
-                synchronized (tasksRunList) {
-                    for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksRunList) {
-                        verify(mergeTask, times(1)).run();
-                        verify(mergeTask, times(0)).abort();
-                    }
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksRunList) {
+                    verify(mergeTask, times(1)).run();
+                    verify(mergeTask, times(0)).abort();
                 }
-                synchronized (tasksAbortList) {
-                    for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksAbortList) {
-                        verify(mergeTask, times(0)).run();
-                        verify(mergeTask, times(1)).abort();
-                    }
+                for (ThreadPoolMergeScheduler.MergeTask mergeTask : tasksAbortList) {
+                    verify(mergeTask, times(0)).run();
+                    verify(mergeTask, times(1)).abort();
                 }
             });
         }

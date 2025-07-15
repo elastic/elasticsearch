@@ -1006,8 +1006,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ShardRouting sourceShardRouting = routingTable.shardRoutingTable(sourceShardId).primaryShard();
 
         if (sourceShardRouting.active() == false) {
-            assert false : sourceShardRouting.shortSummary();
-            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting);
+            // Source shard is unassigned (likely due to failure), we will retry.
+            logger.trace("can't find reshard split source node because source shard {} is not active.", sourceShardRouting.shortSummary());
             return null;
         }
 

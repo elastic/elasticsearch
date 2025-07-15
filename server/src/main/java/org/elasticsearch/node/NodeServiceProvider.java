@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -79,12 +80,17 @@ class NodeServiceProvider {
             EstimatedHeapUsageCollector.class,
             () -> EstimatedHeapUsageCollector.EMPTY
         );
+        final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = pluginsService.loadSingletonServiceProvider(
+            NodeUsageStatsForThreadPoolsCollector.class,
+            () -> NodeUsageStatsForThreadPoolsCollector.EMPTY
+        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             clusterService,
             threadPool,
             client,
-            estimatedHeapUsageCollector
+            estimatedHeapUsageCollector,
+            nodeUsageStatsForThreadPoolsCollector
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
@@ -114,9 +120,10 @@ class NodeServiceProvider {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer
+        Tracer tracer,
+        String nodeId
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
     }
 
     HttpServerTransport newHttpTransport(PluginsService pluginsService, NetworkModule networkModule) {

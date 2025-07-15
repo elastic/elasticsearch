@@ -34,6 +34,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     private static final String BLANK_INDEX_ERROR_MESSAGE = "Blank index specified in index pattern";
 
+    private static final String INVALID_ESQL_CHARS = Strings.INVALID_FILENAME_CHARS.replace("'*',", "");
+
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
         return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
@@ -305,17 +307,16 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 return;
             }
 
-            InvalidIndexNameException errorToThrow = e;
             /*
              * We only modify this particular message because it mentions '*' as an invalid char.
              * However, we do allow asterisk in the index patterns: wildcarded patterns. Let's not
              * mislead the user by mentioning this char in the error message.
              */
             if (e.getMessage().contains("must not contain the following characters")) {
-                errorToThrow = new InvalidIndexNameException(index, e.getMessage().replace("'*',", ""));
+                throwInvalidIndexNameException(index, "must not contain the following characters " + INVALID_ESQL_CHARS, ctx);
             }
 
-            throw new ParsingException(errorToThrow, source(ctx), errorToThrow.getMessage());
+            throw new ParsingException(e, source(ctx), e.getMessage());
         }
     }
 

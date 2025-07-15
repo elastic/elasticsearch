@@ -158,7 +158,7 @@ public class RemoteClusterPortSettings {
     public static TcpTransport.ProfileSettings buildRemoteAccessProfileSettings(Settings settings) {
         validateRemoteAccessSettings(settings);
 
-        // Build a synthetic settings object with the `_remote_access` profile properly configured per the friendlier settings,
+        // Build a synthetic settings object with the REMOTE_CLUSTER_PROFILE properly configured per the friendlier settings,
         Settings syntheticRemoteAccessProfile = Settings.builder()
             .put(settings)
             .put(TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), TCP_KEEP_ALIVE.get(settings))

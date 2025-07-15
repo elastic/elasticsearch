@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
 
 /**
  * The compute result of {@link DataNodeRequest}
@@ -33,7 +35,7 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+        if (supportsCompletionInfo(in.getTransportVersion())) {
             this.completionInfo = DriverCompletionInfo.readFrom(in);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
@@ -49,7 +51,7 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+        if (supportsCompletionInfo(out.getTransportVersion())) {
             completionInfo.writeTo(out);
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
             return;
@@ -63,6 +65,11 @@ final class DataNodeComputeResponse extends TransportResponse {
             throw new IllegalStateException("shard level failures are not supported in old versions");
         }
         new ComputeResponse(completionInfo).writeTo(out);
+    }
+
+    private static boolean supportsCompletionInfo(TransportVersion version) {
+        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
+            || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
     }
 
     public DriverCompletionInfo completionInfo() {

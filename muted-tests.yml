@@ -433,6 +433,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFullTextFunctionsOnlyAllowedInWhere
   issue: https://github.com/elastic/elasticsearch/issues/131335
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testMatchInsideEval
+  issue: https://github.com/elastic/elasticsearch/issues/131336
 
 # Examples:
 #

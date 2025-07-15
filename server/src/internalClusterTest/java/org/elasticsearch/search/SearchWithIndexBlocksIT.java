@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
@@ -39,7 +37,6 @@ import static org.elasticsearch.cluster.block.ClusterBlocks.EMPTY_CLUSTER_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-@Repeat(iterations = 100)
 public class SearchWithIndexBlocksIT extends ESIntegTestCase {
 
     public void testSearchIndicesWithIndexRefreshBlocks() {

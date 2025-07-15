@@ -1901,7 +1901,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
         boolean hasIndexBlocks = projectState.blocks().indices(projectState.projectId()).isEmpty() == false;
         if (hasIndexBlocks) {
-            logger.info("Has index block: {}", projectState.blocks().toString());
             return Arrays.stream(concreteIndices)
                 .filter(
                     index -> projectState.blocks()

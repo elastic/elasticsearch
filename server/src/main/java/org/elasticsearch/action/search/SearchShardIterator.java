@@ -41,7 +41,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
 
     /**
      * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
-     * this the given <code>shardId</code>.
+     * this the a given <code>shardId</code>.
      *
      * @param clusterAlias    the alias of the cluster where the shard is located
      * @param shardId         shard id of the group

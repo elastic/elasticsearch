@@ -201,7 +201,7 @@ If you’re running the connector service against a Dockerized version of Elasti
 
 ```yaml
 # When connecting to your cloud deployment you should edit the host value
-elasticsearch.host: http://host.docker.internal:9200
+elasticsearch.host: <DOCKER_HOST_URL>
 elasticsearch.api_key: <ELASTICSEARCH_API_KEY>
 
 connectors:

@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -99,6 +100,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
+    private ESONSource structuredSource;
 
     private OpType opType = OpType.INDEX;
 
@@ -413,6 +415,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public BytesReference source() {
         return source;
+    }
+
+    public void setStructuredSource(ESONSource esonSource) {
+        this.structuredSource = esonSource;
+        source = null;
     }
 
     public Map<String, Object> sourceAsMap() {

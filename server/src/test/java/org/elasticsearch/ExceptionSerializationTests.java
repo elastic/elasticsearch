@@ -217,7 +217,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         };
 
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final Path testStartPath = PathUtils.get(
+            ElasticsearchExceptionTests.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+        ).resolve("org").resolve("elasticsearch");
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));

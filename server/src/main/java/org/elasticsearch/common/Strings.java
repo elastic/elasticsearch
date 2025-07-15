@@ -282,6 +282,7 @@ public class Strings {
     static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
 
     public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
+        .sorted()
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
 
@@ -818,7 +819,7 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {

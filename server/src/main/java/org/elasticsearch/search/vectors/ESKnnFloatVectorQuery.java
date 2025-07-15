@@ -9,10 +9,14 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+
+import java.io.IOException;
 
 public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
@@ -21,6 +25,17 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     public ESKnnFloatVectorQuery(String field, float[] target, Integer k, int numCands, Query filter) {
         super(field, target, numCands, filter);
         this.kParam = k;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewrittenQuery = super.rewrite(searcher);
+        if (rewrittenQuery instanceof MatchNoDocsQuery) {
+            // If the rewritten query is a MatchNoDocsQuery, we can return it directly.
+            return rewrittenQuery;
+        }
+        // We don't rewrite this query, so we return it as is.
+        return KnnScoreDocQuery.fromQuery(rewrittenQuery, kParam == null ? k : kParam, searcher);
     }
 
     @Override

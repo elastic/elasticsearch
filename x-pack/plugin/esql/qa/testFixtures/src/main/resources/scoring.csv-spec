@@ -500,11 +500,12 @@ required_capability: metadata_score
 from books metadata _score
 | where match_phrase(title, "J. R. R. Tolkien")
 | keep book_no, title, author, _score
+| sort _score desc
 ;
 
 book_no:keyword | title:text                            | author:text                                      | _score:double    
-    5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 9.017186164855957
-    2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 8.412636756896973
+    5335        | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 9.017186164855957
+    2130        | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 8.412636756896973
 ;
 
 testMatchPhraseWithScoreBoost
@@ -513,9 +514,10 @@ required_capability: match_phrase_function
 from books metadata _score
 | where match_phrase(title, "J. R. R. Tolkien", {"boost": 5})
 | keep book_no, title, author, _score
+| sort _score desc
 ;
 
 book_no:keyword | title:text                            | author:text                                      | _score:double    
-    5335            | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 45.0859260559082 
-    2130            | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 42.06318283081055
+    5335        | Letters of J R R Tolkien              | J.R.R. Tolkien                                   | 45.0859260559082 
+    2130        | The J. R. R. Tolkien Audio Collection | [Christopher Tolkien, John Ronald Reuel Tolkien] | 42.06318283081055
 ;

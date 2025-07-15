@@ -73,7 +73,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     implements
         LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
-    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(3);
+    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(6);
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";

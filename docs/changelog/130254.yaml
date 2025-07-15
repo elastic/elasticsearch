@@ -1,0 +1,5 @@
+pr: 130254
+summary: Patch for Lucene bug 14857
+area: Vector Search
+type: bug
+issues: []

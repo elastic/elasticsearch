@@ -1,0 +1,13 @@
+{
+    "properties" : {
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "system" : {
+          "type" : "keyword"
+        },
+        "message" : {
+            "type" : "keyword"
+        }
+    }
+}

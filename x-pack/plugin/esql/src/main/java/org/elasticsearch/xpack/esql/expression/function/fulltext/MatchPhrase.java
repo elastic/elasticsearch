@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -58,10 +57,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery} .
@@ -90,9 +87,8 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = """
-            Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
+            Use `MATCH_PHRASE` to perform a <<query-dsl-match-query-phrase,`match_phrase` query>> on the
             specified field.
             Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
 
@@ -101,7 +97,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
             MatchPhrase can use <<esql-function-named-params,function named parameters>> to specify additional options for the
             match_phrase query.
-            All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
+            All <<query-dsl-match-query-phrase,`match_phrase` query>> query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
         examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field") }
@@ -248,19 +244,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(MatchPhrase.class, mp -> {
-                if (mp.fieldAsFieldAttribute() == null) {
-                    failures.add(
-                        Failure.fail(
-                            mp.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            functionName(),
-                            functionType(),
-                            mp.field().sourceText()
-                        )
-                    );
-                }
-            });
+            FullTextFunction.fieldVerifier(plan, this, field, failures);
         };
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
@@ -248,7 +249,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -502,6 +503,11 @@ public class EsqlCapabilities {
         BUCKET_INCLUSIVE_UPPER_BOUND,
 
         /**
+         * Enhanced DATE_TRUNC with arbitrary month and year intervals. (#120302)
+         */
+        DATE_TRUNC_WITH_ARBITRARY_INTERVALS,
+
+        /**
          * Changed error messages for fields with conflicting types in different indices.
          */
         SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
@@ -529,7 +535,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -860,7 +866,13 @@ public class EsqlCapabilities {
         REPORT_ORIGINAL_TYPES,
 
         /**
-         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * Are the {@code documents_found} and {@code values_loaded} fields available
+         * in the response and profile?
+         */
+        DOCUMENTS_FOUND_AND_VALUES_LOADED,
+
+        /**
+         * When creating constant null blocks in {@link ValuesSourceReaderOperator}, we also handed off
          * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
          * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
          */
@@ -883,6 +895,11 @@ public class EsqlCapabilities {
         TO_LOWER_MV,
 
         /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -892,6 +909,13 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
          */
         DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * Correctly ask for all fields from lookup indices even when there is e.g. a {@code DROP *field} after.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/129561">
+         *     ES|QL: missing columns for wildcard drop after lookup join  #129561</a>
+         */
+        DROP_WITH_WILDCARD_AFTER_LOOKUP_JOIN,
 
         /**
          * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
@@ -928,9 +952,14 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
+
+        /**
+         * Changed and normalized the LIMIT error message.
+         */
+        NORMALIZED_LIMIT_ERROR_MESSAGE,
 
         /**
          * Enable support for index aliases in lookup joins
@@ -955,7 +984,53 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION;
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support for LIKE operator with a list of patterns
+         */
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        LIKE_LIST_ON_INDEX_FIELDS,
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE_V3,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /*
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+        /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Forbid usage of brackets in unquoted index and enrich policy names
+         * https://github.com/elastic/elasticsearch/issues/130378
+         */
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES;
 
         private final boolean enabled;
 

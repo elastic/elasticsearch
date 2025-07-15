@@ -63,7 +63,7 @@ public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factor
             taskConcurrency,
             limit,
             false,
-            ScoreMode.COMPLETE_NO_SCORES
+            shardContext -> ScoreMode.COMPLETE_NO_SCORES
         );
         this.maxPageSize = maxPageSize;
     }

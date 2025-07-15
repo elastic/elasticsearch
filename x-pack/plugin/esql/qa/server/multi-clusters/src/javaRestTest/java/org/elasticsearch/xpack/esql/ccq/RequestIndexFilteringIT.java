@@ -39,6 +39,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
@@ -97,6 +98,12 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        return runEsql(requestObject, true);
+    }
+
+    @Override
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
+        throws IOException {
         if (requestObject.allowPartialResults() != null) {
             assumeTrue(
                 "require allow_partial_results on local cluster",
@@ -104,7 +111,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             );
         }
         requestObject.includeCCSMetadata(true);
-        return super.runEsql(requestObject);
+        return super.runEsql(requestObject, checkPartialResults);
     }
 
     @After
@@ -160,7 +167,30 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
         Map<String, Object> result = runEsql(
-            timestampFilter("gte", "2020-01-01").query("FROM *:foo,*:test1 METADATA _index | SORT id1 | KEEP _index, id*")
+            timestampFilter("gte", "2020-01-01").query("FROM *:foo,*:test1 METADATA _index | SORT id1 | KEEP _index, id*"),
+            false
+        );
+
+        // `foo` index doesn't exist, so the request will currently be successful, but with partial results
+        var isPartial = result.get("is_partial");
+        assertThat(isPartial, is(true));
+        assertThat(
+            result,
+            matchesMap().entry(
+                "_clusters",
+                matchesMap().entry(
+                    "details",
+                    matchesMap().entry(
+                        "remote_cluster",
+                        matchesMap().entry(
+                            "failures",
+                            matchesList().item(
+                                matchesMap().entry("reason", matchesMap().entry("reason", "no such index [foo]").extraOk()).extraOk()
+                            )
+                        ).extraOk()
+                    ).extraOk()
+                ).extraOk()
+            ).extraOk()
         );
         @SuppressWarnings("unchecked")
         var columns = (List<List<Object>>) result.get("columns");

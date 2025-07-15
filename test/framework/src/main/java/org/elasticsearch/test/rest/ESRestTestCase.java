@@ -1228,7 +1228,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
-                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
             );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
@@ -2116,9 +2116,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns a list of the data stream's backing index names.
      */
-    @SuppressWarnings("unchecked")
     protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
-        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        return getDataStreamBackingIndexNames(client(), dataStreamName);
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(RestClient client, String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client, "/_data_stream/" + dataStreamName);
         List<?> dataStreams = (List<?>) response.get("data_streams");
         assertThat(dataStreams.size(), equalTo(1));
         Map<?, ?> dataStream = (Map<?, ?>) dataStreams.get(0);
@@ -2692,13 +2699,20 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static MapMatcher getProfileMatcher() {
-        return matchesMap().entry("query", instanceOf(Map.class))
+        return matchesMap() //
+            .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
-            .entry("drivers", instanceOf(List.class));
+            .entry("drivers", instanceOf(List.class))
+            .entry("plans", instanceOf(List.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
+    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {
         MapMatcher mapMatcher = matchesMap();
+        if (includeDocumentsFound) {
+            // Older versions may not return documents_found and values_loaded.
+            mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
         if (includeMetadata) {
             mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         }
@@ -2713,7 +2727,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"));
+        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"), result.containsKey("documents_found"));
     }
 
     /**

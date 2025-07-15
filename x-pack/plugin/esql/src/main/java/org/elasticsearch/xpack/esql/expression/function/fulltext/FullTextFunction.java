@@ -14,6 +14,7 @@ import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -314,6 +315,45 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
+    public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        var fieldAttribute = fieldAsFieldAttribute(field);
+        if (fieldAttribute == null) {
+            plan.forEachExpression(function.getClass(), m -> {
+                if (function.children().contains(field)) {
+                    failures.add(
+                        fail(
+                            field,
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            m.functionName(),
+                            m.functionType(),
+                            field.sourceText()
+                        )
+                    );
+                }
+            });
+        } else {
+            // Traverse the plan to find the EsRelation outputting the field
+            plan.forEachDown(p -> {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                    // Check if this EsRelation supplies the field
+                    if (esRelation.outputSet().contains(fieldAttribute)) {
+                        failures.add(
+                            fail(
+                                field,
+                                "[{}] {} cannot operate on [{}], supplied by an index [{}] in non-STANDARD mode [{}]",
+                                function.functionName(),
+                                function.functionType(),
+                                field.sourceText(),
+                                esRelation.indexPattern(),
+                                esRelation.indexMode()
+                            )
+                        );
+                    }
+                }
+            });
+        }
+    }
+
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
@@ -396,6 +436,8 @@ public abstract class FullTextFunction extends Function
         return Map.of();
     }
 
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
     public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {

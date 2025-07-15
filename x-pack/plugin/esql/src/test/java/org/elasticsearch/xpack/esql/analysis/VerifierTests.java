@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -358,7 +359,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -2197,7 +2198,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(parser.createStatement(query, TEST_CFG));
     }
 
     private String error(String query) {
@@ -2228,7 +2229,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters), TEST_CFG))
         );
         assertThat(e, instanceOf(exception));
 

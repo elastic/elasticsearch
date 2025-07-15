@@ -194,6 +194,8 @@ Which returns:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 5,
+  "values_loaded": 20,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},

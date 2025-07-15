@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -87,6 +88,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -532,7 +534,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
+        LogicalPlan parsed = parser.createStatement(testCase.query, EsqlTestUtils.TEST_CFG);
         var testDatasets = testDatasets(parsed);
         LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 
@@ -679,7 +681,7 @@ public class CsvTests extends ESTestCase {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
+                new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, foldCtx, searchStats)
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
@@ -705,6 +707,9 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
+        runner.runToCompletion(
+            drivers,
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+        );
     }
 }

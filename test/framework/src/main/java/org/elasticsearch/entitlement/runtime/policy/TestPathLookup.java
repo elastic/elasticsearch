@@ -9,10 +9,21 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.apache.lucene.tests.mockfile.FilterFileSystem;
+
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public class TestPathLookup implements PathLookup {
+    final Map<BaseDir, Collection<Path>> baseDirPaths;
+
+    public TestPathLookup(Map<BaseDir, Collection<Path>> baseDirPaths) {
+        this.baseDirPaths = baseDirPaths;
+    }
+
     @Override
     public Path pidFile() {
         return null;
@@ -20,12 +31,7 @@ public class TestPathLookup implements PathLookup {
 
     @Override
     public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
-        return Stream.empty();
-    }
-
-    @Override
-    public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
-        return Stream.empty();
+        return baseDirPaths.getOrDefault(baseDir, List.of()).stream();
     }
 
     @Override
@@ -33,4 +39,14 @@ public class TestPathLookup implements PathLookup {
         return Stream.empty();
     }
 
+    @Override
+    public boolean isPathOnDefaultFilesystem(Path path) {
+        var fileSystem = path.getFileSystem();
+        if (fileSystem.getClass() != DEFAULT_FILESYSTEM_CLASS) {
+            while (fileSystem instanceof FilterFileSystem ffs) {
+                fileSystem = ffs.getDelegate();
+            }
+        }
+        return fileSystem.getClass() == DEFAULT_FILESYSTEM_CLASS;
+    }
 }

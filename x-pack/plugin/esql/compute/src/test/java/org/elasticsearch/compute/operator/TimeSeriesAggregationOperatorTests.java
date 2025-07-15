@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;

@@ -249,7 +249,8 @@ GET /_xpack/usage
       "lookup_join" : 0,
       "change_point" : 0,
       "completion": 0,
-      "rerank": 0
+      "rerank": 0,
+      "sample": 0
     },
     "queries" : {
       "rest" : {

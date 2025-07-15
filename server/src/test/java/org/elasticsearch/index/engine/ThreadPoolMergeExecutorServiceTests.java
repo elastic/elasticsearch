@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -211,6 +210,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         });
         assertThat(countingListener.aborted.get() + countingListener.completed.get(), equalTo(doneMergesCount.get()));
         assertThat(countingListener.aborted.get(), equalTo(abortedMergesCount.get()));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {
@@ -298,6 +300,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testIORateIsAdjustedForAllRunningMergeTasks() throws Exception {
@@ -321,7 +326,6 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
             Semaphore runMergeSemaphore = new Semaphore(0);
             Set<MergeTask> currentlyRunningMergeTasksSet = ConcurrentCollections.newConcurrentSet();
-            Set<MergeTask> currentlyRunningOrAbortingMergeTasksSet = ConcurrentCollections.newConcurrentSet();
             while (mergesStillToComplete > 0) {
                 if (mergesStillToSubmit > 0 && (currentlyRunningMergeTasksSet.isEmpty() || randomBoolean())) {
                     MergeTask mergeTask = mock(MergeTask.class);
@@ -339,27 +343,17 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     }).when(mergeTask).schedule();
                     doAnswer(mock -> {
                         currentlyRunningMergeTasksSet.add(mergeTask);
-                        currentlyRunningOrAbortingMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
                         runMergeSemaphore.acquire();
-                        currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         currentlyRunningMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).run();
                     doAnswer(mock -> {
-                        currentlyRunningOrAbortingMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
                         runMergeSemaphore.acquire();
-                        currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).abort();
-                    assertThat(runMergeSemaphore.availablePermits(), is(0));
-                    boolean isAnyExecutorAvailable = currentlyRunningOrAbortingMergeTasksSet.size() < mergeExecutorThreadCount;
-                    boolean mergeTaskSubmitted = threadPoolMergeExecutorService.submitMergeTask(mergeTask);
-                    assertTrue(mergeTaskSubmitted);
-                    if (isAnyExecutorAvailable) {
-                        assertBusy(() -> assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask)));
-                    }
+                    assertTrue(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
                     long latestIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                     // all currently running merge tasks must be IO throttled to the latest IO Rate
                     assertBusy(() -> {
@@ -386,6 +380,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSpeedy() throws IOException {
@@ -567,6 +564,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testThreadPoolStatsWithBackloggedMergeTasks() throws Exception {
@@ -626,6 +626,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
@@ -697,6 +700,9 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testMergeTasksExecuteInSizeOrder() throws IOException {

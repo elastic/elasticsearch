@@ -70,6 +70,7 @@ LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
@@ -91,6 +92,7 @@ DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION
 DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
 DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 DEV_RERANK :       {this.isDevVersion()}? 'rerank'        -> pushMode(EXPRESSION_MODE);
+
 // list of all JOIN commands
 DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
 DEV_JOIN_LEFT :    {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
@@ -298,7 +300,7 @@ METADATA : 'metadata';
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
 fragment UNQUOTED_SOURCE_PART
-    : ~[:"=|,[\]/ \t\r\n]
+    : ~[:"=|,[\]/() \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment -- used in index pattern date spec
     ;
 
@@ -398,7 +400,7 @@ ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
 fragment ENRICH_POLICY_NAME_BODY
-    : ~[\\/?"<>| ,#\t\r\n:]
+    : ~[\\/?"<>| ,#\t\r\n:()]
     ;
 
 ENRICH_POLICY_NAME
@@ -409,6 +411,8 @@ ENRICH_POLICY_NAME
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
+
+ENRICH_QUOTED_POLICY_NAME : QUOTED_STRING -> type(QUOTED_STRING);
 
 ENRICH_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)

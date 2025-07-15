@@ -61,7 +61,10 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
             assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdt__1.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdm__0.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdx__4.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;

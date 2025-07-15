@@ -20,6 +20,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
  */
 public class KnnScoreDocQuery extends Query {
+    private final float maxScore;
     private final int[] docs;
     private final float[] scores;
 
@@ -46,6 +48,18 @@ public class KnnScoreDocQuery extends Query {
 
     // an object identifying the reader context that was used to build this query
     private final Object contextIdentity;
+
+    static Query fromQuery(Query query, int k, IndexSearcher searcher) throws IOException {
+        if (query instanceof MatchNoDocsQuery) {
+            // If the rewritten query is a MatchNoDocsQuery, we can return it directly.
+            return query;
+        }
+        if (query instanceof KnnScoreDocQuery knnQuery) {
+            return knnQuery;
+        }
+        TopDocs topDocs = searcher.search(query, k);
+        return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
+    }
 
     /**
      * Creates a query.
@@ -58,10 +72,13 @@ public class KnnScoreDocQuery extends Query {
         Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
         this.docs = new int[scoreDocs.length];
         this.scores = new float[scoreDocs.length];
+        float maxScore = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < scoreDocs.length; i++) {
             docs[i] = scoreDocs[i].doc;
             scores[i] = scoreDocs[i].score;
+            maxScore = Math.max(maxScore, scores[i]);
         }
+        this.maxScore = maxScore;
         this.segmentStarts = findSegmentStarts(reader, docs);
         this.contextIdentity = reader.getContext().id();
     }
@@ -157,34 +174,12 @@ public class KnnScoreDocQuery extends Query {
 
                     @Override
                     public float getMaxScore(int docId) {
-                        // NO_MORE_DOCS indicates the maximum score for all docs in this segment
-                        // Anything less than must be accounted for via the docBase.
-                        if (docId != NO_MORE_DOCS) {
-                            docId += context.docBase;
-                        }
-                        float maxScore = 0;
-                        for (int idx = Math.max(lower, upTo); idx < upper && docs[idx] <= docId; idx++) {
-                            maxScore = Math.max(maxScore, scores[idx] * boost);
-                        }
-                        return maxScore;
+                        return maxScore * boost;
                     }
 
                     @Override
                     public float score() {
                         return scores[upTo] * boost;
-                    }
-
-                    @Override
-                    public int advanceShallow(int docId) {
-                        int start = Math.max(upTo, lower);
-                        int docIdIndex = Arrays.binarySearch(docs, start, upper, docId + context.docBase);
-                        if (docIdIndex < 0) {
-                            docIdIndex = -1 - docIdIndex;
-                        }
-                        if (docIdIndex >= upper) {
-                            return NO_MORE_DOCS;
-                        }
-                        return docs[docIdIndex];
                     }
 
                     @Override
@@ -224,7 +219,7 @@ public class KnnScoreDocQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ScoreAndDocQuery";
+        return "DocAndScoreQuery[" + docs[0] + ",...][" + scores[0] + ",...]," + maxScore;
     }
 
     @Override

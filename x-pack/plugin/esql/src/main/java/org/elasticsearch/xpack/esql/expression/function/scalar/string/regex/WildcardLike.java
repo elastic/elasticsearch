@@ -38,7 +38,8 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
         usually acts on a field placed on the left-hand side of the operator, but it can
         also act on a constant (literal) expression. The right-hand side of the operator
-        represents the pattern.
+        represents the pattern or a list of patterns. If a list of patterns is provided,
+        the expression will return true if any of the patterns match.
 
         The following wildcard characters are supported:
 
@@ -52,6 +53,8 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         ----
         include::{esql-specs}/string.csv-spec[tag=likeEscapingSingleQuotes]
         ----
+
+        <<load-esql-example, file=where-like tag=likeListDocExample>>
 
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
@@ -118,11 +121,14 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+        return translateField(
+            handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
+            pushdownPredicates.flags().stringLikeOnIndex()
+        );
     }
 
     // TODO: see whether escaping is needed
-    private Query translateField(String targetFieldName) {
-        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive());
+    private Query translateField(String targetFieldName, boolean forceStringMatch) {
+        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
     }
 }

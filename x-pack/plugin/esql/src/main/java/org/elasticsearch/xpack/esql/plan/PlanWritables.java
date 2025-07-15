@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -85,6 +87,7 @@ public class PlanWritables {
             OrderBy.ENTRY,
             Project.ENTRY,
             Rerank.ENTRY,
+            Sample.ENTRY,
             TopN.ENTRY
         );
     }
@@ -111,6 +114,7 @@ public class PlanWritables {
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
+            SampleExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TopNExec.ENTRY

@@ -85,7 +85,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
-    private static final TestDataset LOOKUP_SAMPLE_DATA_TS_NANOS = SAMPLE_DATA_TS_NANOS.withIndex("lookup_sample_data_ts_nanos")
+    // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
+    private static final TestDataset SAMPLE_DATA_TS_NANOS_LOOKUP = SAMPLE_DATA_TS_NANOS.withIndex("sample__data_ts_nanos_lookup")
         .withSetting("lookup-settings.json");
     private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
@@ -120,6 +121,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
@@ -142,7 +144,7 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
         Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
-        Map.entry(LOOKUP_SAMPLE_DATA_TS_NANOS.indexName, LOOKUP_SAMPLE_DATA_TS_NANOS),
+        Map.entry(SAMPLE_DATA_TS_NANOS_LOOKUP.indexName, SAMPLE_DATA_TS_NANOS_LOOKUP),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
@@ -172,6 +174,7 @@ public class CsvTestsDataLoader {
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        Map.entry(LOGS.indexName, LOGS),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(COLORS.indexName, COLORS)
@@ -339,10 +342,22 @@ public class CsvTestsDataLoader {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static void deleteInferenceEndpoints(RestClient client) throws IOException {
-        deleteSparseEmbeddingInferenceEndpoint(client);
-        deleteRerankInferenceEndpoint(client);
-        deleteCompletionInferenceEndpoint(client);
+        Response response = client.performRequest(new Request("GET", "_inference/_all"));
+
+        try (InputStream content = response.getEntity().getContent()) {
+            XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+            Map<String, ?> responseMap = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+            List<Map<String, ?>> endpoints = (List<Map<String, ?>>) responseMap.get("endpoints");
+            for (Map<String, ?> endpoint : endpoints) {
+                String inferenceId = (String) endpoint.get("inference_id");
+                String taskType = (String) endpoint.get("task_type");
+                if (inferenceId != null && taskType != null && inferenceId.startsWith(".") == false) {
+                    deleteInferenceEndpoint(client, inferenceId, TaskType.fromString(taskType));
+                }
+            }
+        }
     }
 
     /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
@@ -357,7 +372,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_sparse_inference");
+        deleteInferenceEndpoint(client, "test_sparse_inference", TaskType.SPARSE_EMBEDDING);
     }
 
     public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
@@ -375,7 +390,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteRerankInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_reranker");
+        deleteInferenceEndpoint(client, "test_reranker", TaskType.RERANK);
     }
 
     public static boolean clusterHasRerankInferenceEndpoint(RestClient client) throws IOException {
@@ -393,7 +408,7 @@ public class CsvTestsDataLoader {
     }
 
     public static void deleteCompletionInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_completion");
+        deleteInferenceEndpoint(client, "test_completion", TaskType.COMPLETION);
     }
 
     public static boolean clusterHasCompletionInferenceEndpoint(RestClient client) throws IOException {
@@ -420,9 +435,9 @@ public class CsvTestsDataLoader {
         return true;
     }
 
-    private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
+    private static void deleteInferenceEndpoint(RestClient client, String inferenceId, TaskType taskType) throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "_inference/" + inferenceId));
+            client.performRequest(new Request("DELETE", "_inference/" + taskType + "/" + inferenceId));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

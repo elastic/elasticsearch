@@ -38,7 +38,7 @@
       },
       "register_operation_count":{
         "type":"number",
-        "description":"The minimum number of linearizable register operations to perform in total. For realistic experiments, you should set it to at least `100`. Defaults to 10."
+        "description":"The minimum number of linearizable register operations to perform in total. Defaults to 10."
       },
       "read_node_count":{
         "type":"number",

@@ -61,7 +61,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             --retrieverCount;
         }
 
-        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant);
+        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, null);
     }
 
     @Override

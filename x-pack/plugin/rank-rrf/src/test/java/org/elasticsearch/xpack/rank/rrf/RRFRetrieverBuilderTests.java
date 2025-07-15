@@ -103,7 +103,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -119,7 +120,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -135,7 +137,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_*", "*_field_1"),
             "bar",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -151,7 +154,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("*"),
             "baz",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -182,7 +186,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
 
         IllegalArgumentException iae = expectThrows(

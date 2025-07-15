@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.Random;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
@@ -182,15 +183,16 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
 
     public void testScaleUpTableUpToDate() {
 
-        MathContext mc = new MathContext(200);
+        MathContext mc = new MathContext(1000);
         BigDecimal one = new BigDecimal(1, mc);
         BigDecimal two = new BigDecimal(2, mc);
 
         for (int scale = MIN_SCALE; scale <= MAX_SCALE; scale++) {
             BigDecimal base = BigDecimalMath.pow(two, two.pow(-scale, mc), mc);
             BigDecimal factor = one.add(two.pow(scale, mc).multiply(one.subtract(BigDecimalMath.log2(one.add(base), mc))));
-            assertThat(SCALE_UP_CONSTANT_TABLE[scale - MIN_SCALE], equalTo(factor.doubleValue()));
 
+            BigDecimal scaledFactor = factor.multiply(two.pow(63, mc)).setScale(0, RoundingMode.FLOOR);
+            assertThat(SCALE_UP_CONSTANT_TABLE[scale - MIN_SCALE], equalTo(scaledFactor.longValue()));
         }
     }
 

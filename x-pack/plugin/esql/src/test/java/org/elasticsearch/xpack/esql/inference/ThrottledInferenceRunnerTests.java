@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.bulk;
+package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BulkInferenceExecutorTests extends ESTestCase {
+public class ThrottledInferenceRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
@@ -61,7 +62,50 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testSuccessfulExecution() throws Exception {
+    public void testInferenceExecution() throws Exception {
+        InferenceAction.Request request = mockInferenceRequest();
+        InferenceAction.Response response = mockInferenceResponse();
+
+        Client client = mockClient(invocation -> {
+            runWithRandomDelay(() -> {
+                ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
+                l.onResponse(response);
+            });
+            return null;
+        });
+
+        AtomicReference<InferenceAction.Response> output = new AtomicReference<>();
+        ActionListener<InferenceAction.Response> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
+
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).execute(request, listener);
+
+        assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(response))));
+    }
+
+    public void testInferenceExecutionFailure() throws Exception {
+        InferenceAction.Request request = mockInferenceRequest();
+        InferenceAction.Response response = mockInferenceResponse();
+
+        Client client = mockClient(invocation -> {
+            runWithRandomDelay(() -> {
+                ActionListener<InferenceAction.Response> listener = invocation.getArgument(2);
+                listener.onFailure(new RuntimeException("inference failure"));
+            });
+            return null;
+        });
+
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<InferenceAction.Response> listener = ActionListener.wrap(r -> fail("Expected exception"), exception::set);
+
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).execute(request, listener);
+
+        assertBusy(() -> {
+            assertThat(exception.get(), notNullValue());
+            assertThat(exception.get().getMessage(), equalTo("inference failure"));
+        });
+    }
+
+    public void testSuccessfulBulkExecution() throws Exception {
         List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
@@ -76,24 +120,24 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
 
-        bulkExecutor(client).execute(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(responses))));
     }
 
-    public void testSuccessfulExecutionOnEmptyRequest() throws Exception {
+    public void testSuccessfulBulkExecutionOnEmptyRequest() throws Exception {
         BulkInferenceRequestIterator requestIterator = mock(BulkInferenceRequestIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
 
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
 
-        bulkExecutor(mock(Client.class)).execute(requestIterator, listener);
+        inferenceRunnerFactory(mock(Client.class)).create(randomBulkExecutionConfig()).executeBulk(requestIterator, listener);
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), empty())));
     }
 
-    public void testInferenceRunnerAlwaysFails() throws Exception {
+    public void testBulkExecutionWhenInferenceRunnerAlwaysFails() throws Exception {
         List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
 
         Client client = mockClient(invocation -> {
@@ -105,9 +149,9 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expceted exception"), exception::set);
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected exception"), exception::set);
 
-        bulkExecutor(client).execute(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -115,7 +159,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
-    public void testInferenceRunnerSometimesFails() throws Exception {
+    public void testBulkExecutionWhenInferenceRunnerSometimesFails() throws Exception {
         List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
 
         Client client = mockClient(invocation -> {
@@ -132,9 +176,9 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expceted exception"), exception::set);
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected exception"), exception::set);
 
-        bulkExecutor(client).execute(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -142,8 +186,8 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
-    private BulkInferenceExecutor bulkExecutor(Client client) {
-        return new BulkInferenceExecutor.Factory(client, threadPool).create(randomBulkExecutionConfig());
+    private InferenceRunner.Factory inferenceRunnerFactory(Client client) {
+        return InferenceRunner.factory(client, threadPool);
     }
 
     private InferenceAction.Request mockInferenceRequest() {
@@ -156,8 +200,8 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         return response;
     }
 
-    private BulkInferenceExecutionConfig randomBulkExecutionConfig() {
-        return new BulkInferenceExecutionConfig(between(1, 100), between(1, 100));
+    private InferenceExecutionConfig randomBulkExecutionConfig() {
+        return new InferenceExecutionConfig(between(1, 100), between(1, 100));
     }
 
     private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {
@@ -172,7 +216,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     private List<InferenceAction.Request> randomInferenceRequestList(int size) {
         List<InferenceAction.Request> requests = new ArrayList<>(size);
         while (requests.size() < size) {
-            requests.add(this.mockInferenceRequest());
+            requests.add(mockInferenceRequest());
         }
         return requests;
 
@@ -181,7 +225,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     private List<InferenceAction.Response> randomInferenceResponseList(int size) {
         List<InferenceAction.Response> response = new ArrayList<>(size);
         while (response.size() < size) {
-            response.add(mock(InferenceAction.Response.class));
+            response.add(mockInferenceResponse());
         }
         return response;
     }

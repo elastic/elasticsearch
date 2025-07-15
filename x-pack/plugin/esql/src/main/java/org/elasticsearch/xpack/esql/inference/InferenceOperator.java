@@ -17,8 +17,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
@@ -35,27 +33,27 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.OngoingInferenceResult> {
     private final String inferenceId;
     private final BlockFactory blockFactory;
-    private final BulkInferenceExecutor bulkInferenceExecutor;
+    private final InferenceRunner inferenceRunner;
 
     /**
      * Constructs a new {@code InferenceOperator}.
      *
-     * @param driverContext        The driver context.
-     * @param threadContext        The thread context for executing async inference.
-     * @param bulkExecutorFactory  Factory for creating bulk inference executors.
-     * @param bulkExecutionConfig  Configuration for inference execution.
-     * @param inferenceId          The ID of the inference model to use.
+     * @param driverContext            The driver context.
+     * @param threadContext            The thread context for executing async inference.
+     * @param inferenceRunnerFactory   Factory for creating inference runners.
+     * @param inferenceExecutionConfig Configuration for inference execution.
+     * @param inferenceId              The ID of the inference model to use.
      */
     public InferenceOperator(
         DriverContext driverContext,
         ThreadContext threadContext,
-        BulkInferenceExecutor.Factory bulkExecutorFactory,
-        BulkInferenceExecutionConfig bulkExecutionConfig,
+        InferenceRunner.Factory inferenceRunnerFactory,
+        InferenceExecutionConfig inferenceExecutionConfig,
         String inferenceId
     ) {
-        super(driverContext, threadContext, bulkExecutionConfig.workers());
+        super(driverContext, threadContext, inferenceExecutionConfig.workers());
         this.blockFactory = driverContext.blockFactory();
-        this.bulkInferenceExecutor = bulkExecutorFactory.create(bulkExecutionConfig);
+        this.inferenceRunner = inferenceRunnerFactory.create(inferenceExecutionConfig);
         this.inferenceId = inferenceId;
     }
 
@@ -81,7 +79,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         try {
             BulkInferenceRequestIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
-            bulkInferenceExecutor.execute(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
+            inferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -15,9 +15,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.inference.InferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 
 import java.util.stream.IntStream;
 
@@ -41,13 +42,13 @@ public class RerankOperator extends InferenceOperator {
     public RerankOperator(
         DriverContext driverContext,
         ThreadContext threadContext,
-        BulkInferenceExecutor.Factory bulkInferenceExecutorFactory,
+        InferenceRunner.Factory inferenceRunnerFactory,
         String inferenceId,
         String queryText,
         ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
-        super(driverContext, threadContext, bulkInferenceExecutorFactory, BulkInferenceExecutionConfig.DEFAULT, inferenceId);
+        super(driverContext, threadContext, inferenceRunnerFactory, InferenceExecutionConfig.DEFAULT, inferenceId);
         this.queryText = queryText;
         this.rowEncoder = rowEncoder;
         this.scoreChannel = scoreChannel;
@@ -100,7 +101,8 @@ public class RerankOperator extends InferenceOperator {
      * Factory for creating {@link RerankOperator} instances
      */
     public record Factory(
-        BulkInferenceExecutor.Factory inferenceExecutorFactory,
+        InferenceRunner.Factory inferenceRunnerFactory,
+        ThreadPool threadPool,
         String inferenceId,
         String queryText,
         ExpressionEvaluator.Factory rowEncoderFactory,
@@ -116,11 +118,11 @@ public class RerankOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new RerankOperator(
                 driverContext,
-                inferenceExecutorFactory.threadPool().getThreadContext(),
-                inferenceExecutorFactory,
+                threadPool.getThreadContext(),
+                inferenceRunnerFactory,
                 inferenceId,
                 queryText,
-                rowEncoderFactory().get(driverContext),
+                rowEncoderFactory.get(driverContext),
                 scoreChannel
             );
         }

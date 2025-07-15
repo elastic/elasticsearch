@@ -10,27 +10,62 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
 
+/**
+ * Provides centralized access to inference-related services for ESQL execution.
+ * <p>
+ * This service aggregates factories and utilities needed for inference operations,
+ * including inference runners for executing individual and bulk inference requests,
+ * and inference resolvers for collecting inference IDs from logical plans.
+ * </p>
+ */
 public class InferenceServices {
     private final Client client;
-    private final BulkInferenceExecutor.Factory bulkInferenceExecutorFactory;
+    private final ThreadPool threadPool;
+    private final InferenceRunner.Factory inferenceRunnerFactory;
 
+    /**
+     * Creates a new instance of the inference services with the specified client and thread pool.
+     *
+     * @param client     The client for interacting with the Elasticsearch cluster
+     * @param threadPool The thread pool for executing inference operations
+     */
     public InferenceServices(Client client, ThreadPool threadPool) {
         this.client = client;
-        this.bulkInferenceExecutorFactory = new BulkInferenceExecutor.Factory(client, threadPool);
+        this.threadPool = threadPool;
+        this.inferenceRunnerFactory = InferenceRunner.factory(client, threadPool);
     }
 
-    public BulkInferenceExecutor bulkInferenceExecutor(BulkInferenceExecutionConfig bulkExecutionConfig) {
-        return bulkInferenceExecutorFactory.create(bulkExecutionConfig);
+    /**
+     * Creates an inference runner with the specified execution configuration.
+     *
+     * @param inferenceExecutionConfig Configuration specifying concurrency limits and execution parameters
+     * @return A configured inference runner capable of executing inference requests
+     */
+    public InferenceRunner inferenceRunner(InferenceExecutionConfig inferenceExecutionConfig) {
+        return inferenceRunnerFactory.create(inferenceExecutionConfig);
     }
 
-    public BulkInferenceExecutor.Factory bulkInferenceExecutorFactory() {
-        return bulkInferenceExecutorFactory;
+    /**
+     * Returns the inference runner factory for creating multiple configured runners.
+     *
+     * @return The factory for creating inference runners
+     */
+    public InferenceRunner.Factory inferenceRunnerFactory() {
+        return inferenceRunnerFactory;
     }
 
+    /**
+     * Creates an inference resolver for collecting inference IDs from logical plans.
+     *
+     * @param functionRegistry The function registry for resolving inference functions
+     * @return A resolver capable of extracting inference IDs from plans and expressions
+     */
     public InferenceResolver inferenceResolver(EsqlFunctionRegistry functionRegistry) {
         return new InferenceResolver(functionRegistry, client);
+    }
+
+    public ThreadPool threadPool() {
+        return threadPool;
     }
 }

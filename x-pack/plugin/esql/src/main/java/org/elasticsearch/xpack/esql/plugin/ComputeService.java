@@ -574,6 +574,7 @@ public class ComputeService {
                     if (failure.getCause() instanceof Exception e) {
                         failureCollector.unwrapAndCollect(e);
                     } else {
+                        assert false : "unexpected failure: " + new AssertionError(failure.getCause());
                         failureCollector.unwrapAndCollect(failure);
                     }
                 }

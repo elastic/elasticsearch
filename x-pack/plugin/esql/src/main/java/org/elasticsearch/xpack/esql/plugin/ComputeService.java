@@ -183,6 +183,7 @@ public class ComputeService {
     public void execute(
         String sessionId,
         CancellableTask rootTask,
+        EsqlFlags flags,
         PhysicalPlan physicalPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -195,7 +196,7 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
             return;
         }
 
@@ -222,6 +223,7 @@ public class ComputeService {
                 mainSessionId,
                 "main.final",
                 LOCAL_CLUSTER,
+                flags,
                 List.of(),
                 configuration,
                 foldContext,
@@ -254,6 +256,7 @@ public class ComputeService {
                     executePlan(
                         childSessionId,
                         rootTask,
+                        flags,
                         subplan,
                         configuration,
                         foldContext,
@@ -278,6 +281,7 @@ public class ComputeService {
     public void executePlan(
         String sessionId,
         CancellableTask rootTask,
+        EsqlFlags flags,
         PhysicalPlan physicalPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -322,6 +326,7 @@ public class ComputeService {
                 newChildSession(sessionId),
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
+                flags,
                 List.of(),
                 configuration,
                 foldContext,
@@ -390,9 +395,13 @@ public class ComputeService {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
-                                        var status = localClusterWasInterrupted.get() || (failedShards != null && failedShards > 0)
-                                            ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                            : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
+                                        // or encountered resolution or execution failures.
+                                        var status = localClusterWasInterrupted.get()
+                                            || (failedShards != null && failedShards > 0)
+                                            || v.getFailures().isEmpty() == false
+                                                ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                                : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
                                         builder.setStatus(status);
                                     }
                                     return builder.build();
@@ -408,6 +417,7 @@ public class ComputeService {
                             sessionId,
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
+                            flags,
                             List.of(),
                             configuration,
                             foldContext,
@@ -424,6 +434,7 @@ public class ComputeService {
                             sessionId,
                             LOCAL_CLUSTER,
                             rootTask,
+                            flags,
                             configuration,
                             dataNodePlan,
                             Set.of(localConcreteIndices.indices()),
@@ -438,7 +449,7 @@ public class ComputeService {
                                         .setSuccessfulShards(r.getSuccessfulShards())
                                         .setSkippedShards(r.getSkippedShards())
                                         .setFailedShards(r.getFailedShards())
-                                        .setFailures(r.failures)
+                                        .addFailures(r.failures)
                                         .build()
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
@@ -448,7 +459,7 @@ public class ComputeService {
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                        ).setFailures(List.of(new ShardSearchFailure(e))).build()
+                                        ).addFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
                                     dataNodesListener.onResponse(DriverCompletionInfo.EMPTY);
                                 } else {
@@ -576,7 +587,13 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            var localPlan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
+            var localPlan = PlannerUtils.localPlan(
+                context.flags(),
+                context.searchExecutionContexts(),
+                context.configuration(),
+                context.foldCtx(),
+                plan
+            );
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
@@ -592,23 +609,36 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-                ActionListener.releaseAfter(listener.map(ignored -> {
-                    if (context.configuration().profile()) {
-                        return DriverCompletionInfo.includingProfiles(
+            ActionListener<Void> driverListener = listener.map(ignored -> {
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug(
+                        "finished {}",
+                        DriverCompletionInfo.includingProfiles(
                             drivers,
                             context.description(),
                             clusterService.getClusterName().value(),
                             transportService.getLocalNode().getName(),
                             localPlan.toString()
-                        );
-                    } else {
-                        return DriverCompletionInfo.excludingProfiles(drivers);
-                    }
-                }), () -> Releasables.close(drivers))
+                        )
+                    );
+                }
+                if (context.configuration().profile()) {
+                    return DriverCompletionInfo.includingProfiles(
+                        drivers,
+                        context.description(),
+                        clusterService.getClusterName().value(),
+                        transportService.getLocalNode().getName(),
+                        localPlan.toString()
+                    );
+                } else {
+                    return DriverCompletionInfo.excludingProfiles(drivers);
+                }
+            });
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
             listener.onFailure(e);
@@ -650,6 +680,10 @@ public class ComputeService {
                 new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
             );
         }
+    }
+
+    public EsqlFlags createFlags() {
+        return new EsqlFlags(clusterService.getClusterSettings());
     }
 
     private static class ComputeGroupTaskRequest extends AbstractTransportRequest {

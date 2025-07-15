@@ -61,7 +61,10 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
     }
 
     public Map<String, Object> getIngestMetadata() {
-        return Objects.isNull(delegate.getIngestMetadata()) ? Map.of() : Map.copyOf(delegate.getIngestMetadata());
+        System.out.println("Is delegate null? " + Objects.isNull(delegate));
+        System.out.println("Is delegate ingest metadata null? " + Objects.isNull(delegate.getIngestMetadata()));
+        System.out.println("Is delegate keysets " + delegate.getIngestMetadata().keySet());
+        return delegate.getIngestMetadata();
     }
 
     public <T> T getFieldValue(final String fieldName, final Class<T> type) {

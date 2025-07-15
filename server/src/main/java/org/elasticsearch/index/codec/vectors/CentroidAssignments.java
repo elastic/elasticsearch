@@ -13,6 +13,7 @@ record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignme
 
     CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
         this(centroids.length, centroids, assignments, overspillAssignments);
-        assert assignments.length == overspillAssignments.length : "assignments and overspillAssignments must have the same length";
+        assert assignments.length == overspillAssignments.length
+            || overspillAssignments.length == 0 : "assignments and overspillAssignments must have the same length";
     }
 }

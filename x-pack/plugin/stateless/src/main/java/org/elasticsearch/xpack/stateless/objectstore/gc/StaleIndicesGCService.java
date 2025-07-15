@@ -136,9 +136,9 @@ public class StaleIndicesGCService {
                 // This could happen if the node performing the cleanup is behind the latest cluster state
                 // and a new index was created while the node was behind. If that's the case it means that
                 // the index is not stale, and it must not be deleted.
-                state.metadata().getProject(projectId).stream().map(IndexMetadata::getIndexUUID).forEach(localStateStaleIndexUUIDs::remove);
+                state.metadata().getProject(projectId).stream().map(IndexMetadata::getIndexUUID).forEach(staleIndexUUIDs::remove);
 
-                logger.debug("Delete stale indices [{}] from the object store", localStateStaleIndexUUIDs);
+                logger.debug("Delete stale indices [{}] from the object store", staleIndexUUIDs);
                 for (String staleIndexUUID : staleIndexUUIDs) {
 
                     final BlobContainer blobContainer;

@@ -117,9 +117,10 @@ public class TestPolicyManager extends PolicyManager {
         if (isTriviallyAllowingTestCode && isTestCode(requestingClass)) {
             return true;
         }
-        if(super.isTriviallyAllowed(requestingClass)){
+        if (super.isTriviallyAllowed(requestingClass)) {
             return true;
-        };
+        }
+        ;
         return isStackWithoutEntitlements();
     }
 
@@ -134,10 +135,11 @@ public class TestPolicyManager extends PolicyManager {
 
     private static boolean isStackWithoutEntitlements() {
         return StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
-            .walk(frames -> frames
-                .map(StackWalker.StackFrame::getDeclaringClass)
-                .filter(c -> isEntitlementClass(c) == false)
-                .anyMatch(TestPolicyManager::hasWithoutEntitlements));
+            .walk(
+                frames -> frames.map(StackWalker.StackFrame::getDeclaringClass)
+                    .filter(c -> isEntitlementClass(c) == false)
+                    .anyMatch(TestPolicyManager::hasWithoutEntitlements)
+            );
     }
 
     private static boolean isEntitlementClass(Class<?> requestingClass) {

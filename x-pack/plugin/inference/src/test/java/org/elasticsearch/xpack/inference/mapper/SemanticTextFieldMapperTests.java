@@ -619,30 +619,20 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     private void setSparseVectorIndexOptionInMapper(XContentBuilder b, Boolean shouldPrune, TokenPruningConfig pruningConfig)
-        throws IOException
-    {
+        throws IOException {
         if (shouldPrune != null) {
             b.field(SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNE_FIELD_NAME.getPreferredName(), shouldPrune);
         }
 
         if (pruningConfig != null) {
-            b.startObject(
-                SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNING_CONFIG_FIELD_NAME.getPreferredName()
-            );
+            b.startObject(SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNING_CONFIG_FIELD_NAME.getPreferredName());
             {
-                b.field(
-                    TokenPruningConfig.TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(),
-                    pruningConfig.getTokensFreqRatioThreshold()
-                );
-                b.field(
-                    TokenPruningConfig.TOKENS_WEIGHT_THRESHOLD.getPreferredName(),
-                    pruningConfig.getTokensWeightThreshold()
-                );
+                b.field(TokenPruningConfig.TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(), pruningConfig.getTokensFreqRatioThreshold());
+                b.field(TokenPruningConfig.TOKENS_WEIGHT_THRESHOLD.getPreferredName(), pruningConfig.getTokensWeightThreshold());
             }
             b.endObject();
         }
     }
-
 
     public void testSparseVectorIndexOptionsValidation() throws IOException {
         for (int depth = 1; depth < 5; depth++) {

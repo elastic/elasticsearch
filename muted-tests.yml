@@ -484,9 +484,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/130505
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {match-operator.MatchWithMoreComplexDisjunctionAndConjunction SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/130640
 - class: org.elasticsearch.gradle.LoggedExecFuncTest
   method: failed tasks output logged to console when spooling true
   issue: https://github.com/elastic/elasticsearch/issues/119509
@@ -523,9 +520,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnFromAfterStats ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/131148
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/131154
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
   issue: https://github.com/elastic/elasticsearch/issues/131165
@@ -535,9 +529,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/40_time_series/Get simple time series field caps}
   issue: https://github.com/elastic/elasticsearch/issues/131225
-- class: org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitorIT
-  method: testFloodStageExceeded
-  issue: https://github.com/elastic/elasticsearch/issues/131146
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107

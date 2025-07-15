@@ -27,8 +27,8 @@ public class BulkInferenceExecutionState {
     private final Map<Long, InferenceAction.Response> bufferedResponses;
     private final AtomicBoolean finished = new AtomicBoolean(false);
 
-    public BulkInferenceExecutionState(int bufferSize) {
-        this.bufferedResponses = new ConcurrentHashMap<>(bufferSize);
+    public BulkInferenceExecutionState() {
+        this.bufferedResponses = new ConcurrentHashMap<>();
     }
 
     /**

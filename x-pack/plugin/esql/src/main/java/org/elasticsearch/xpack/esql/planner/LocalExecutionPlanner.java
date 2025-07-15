@@ -319,7 +319,12 @@ public class LocalExecutionPlanner {
         );
 
         return source.with(
-            new CompletionOperator.Factory(inferenceServices.bulkInferenceExecutorFactory(), inferenceId, promptEvaluatorFactory),
+            new CompletionOperator.Factory(
+                inferenceServices.inferenceRunnerFactory(),
+                inferenceServices.threadPool(),
+                inferenceId,
+                promptEvaluatorFactory
+            ),
             outputLayout
         );
     }
@@ -658,7 +663,8 @@ public class LocalExecutionPlanner {
 
         return source.with(
             new RerankOperator.Factory(
-                inferenceServices.bulkInferenceExecutorFactory(),
+                inferenceServices.inferenceRunnerFactory(),
+                inferenceServices.threadPool(),
                 inferenceId,
                 queryText,
                 rowEncoderFactory,

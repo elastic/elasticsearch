@@ -14,9 +14,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.inference.InferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.stream.IntStream;
@@ -32,11 +33,11 @@ public class CompletionOperator extends InferenceOperator {
     public CompletionOperator(
         DriverContext driverContext,
         ThreadContext threadContext,
-        BulkInferenceExecutor.Factory bulkInferenceExecutorFactory,
+        InferenceRunner.Factory inferenceRunnerFactory,
         String inferenceId,
         ExpressionEvaluator promptEvaluator
     ) {
-        super(driverContext, threadContext, bulkInferenceExecutorFactory, BulkInferenceExecutionConfig.DEFAULT, inferenceId);
+        super(driverContext, threadContext, inferenceRunnerFactory, InferenceExecutionConfig.DEFAULT, inferenceId);
         this.promptEvaluator = promptEvaluator;
     }
 
@@ -89,7 +90,8 @@ public class CompletionOperator extends InferenceOperator {
      * Factory for creating {@link CompletionOperator} instances.
      */
     public record Factory(
-        BulkInferenceExecutor.Factory inferenceExecutorFactory,
+        InferenceRunner.Factory inferenceRunnerFactory,
+        ThreadPool threadPool,
         String inferenceId,
         ExpressionEvaluator.Factory promptEvaluatorFactory
     ) implements OperatorFactory {
@@ -102,8 +104,8 @@ public class CompletionOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new CompletionOperator(
                 driverContext,
-                inferenceExecutorFactory.threadPool().getThreadContext(),
-                inferenceExecutorFactory,
+                threadPool.getThreadContext(),
+                inferenceRunnerFactory,
                 inferenceId,
                 promptEvaluatorFactory.get(driverContext)
             );

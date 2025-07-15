@@ -186,6 +186,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
+        awaitMasterNode();
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
         ).get();
@@ -229,8 +230,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         writeJSONFile(dataNode, testJSON);
 
         logger.info("--> start master node");
-        final String masterNode = internalCluster().startMasterOnlyNode();
-        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
+        internalCluster().startMasterOnlyNode();
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 

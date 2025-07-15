@@ -17,7 +17,8 @@ package org.elasticsearch.index.shard;
  * @param totalFields the total number of fields across the segments
  * @param fieldUsages the number of usages for segment-level fields (e.g., doc_values, postings, norms, points)
  *                    -1 if unavailable
+ * @param postingsInMemoryBytes the total bytes in memory used for postings across all fields
  */
-public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages) {
+public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages, long postingsInMemoryBytes) {
 
 }

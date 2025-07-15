@@ -122,7 +122,7 @@ public class EntitlementBootstrap {
                 vm.detach();
             }
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
         }
     }
 
@@ -161,7 +161,7 @@ public class EntitlementBootstrap {
         PathLookup pathLookup,
         Policy serverPolicyPatch,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
-        Map<String, Collection<Path>> pluginSourcePaths
+        Map<String, Collection<Path>> pluginSourcePathsResolver
     ) {
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
@@ -170,7 +170,7 @@ public class EntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            pluginSourcePaths,
+            pluginSourcePathsResolver::get,
             pathLookup
         );
     }

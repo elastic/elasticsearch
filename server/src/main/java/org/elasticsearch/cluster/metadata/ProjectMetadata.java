@@ -2089,6 +2089,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         public static ProjectMetadata fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
             String currentFieldName = null;
 
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);

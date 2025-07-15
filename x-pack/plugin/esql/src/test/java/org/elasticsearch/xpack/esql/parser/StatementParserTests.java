@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -943,10 +944,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
-    }
-
-    public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
     }
 
     public void testBasicSortCommand() {
@@ -3176,7 +3173,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFromPatterns() {
-        var sourceCommands = new String[] { "FROM", "TS" };
+        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
         var indexIsBlank = "Blank index specified in index pattern";
         var remoteIsEmpty = "remote part is empty";
         var invalidDoubleColonUsage = "invalid usage of :: separator";
@@ -3230,9 +3227,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var randomInvalidChar = randomFrom(invalidChars);
 
             // Construct the new invalid index pattern.
-            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + "foo" + randomInvalidChar + "bar");
+            var invalidIndexName = "foo" + randomInvalidChar + "bar";
+            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + invalidIndexName);
             var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
-            expectError(query, "must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']");
+            expectError(
+                query,
+                "Invalid index name ["
+                    + invalidIndexName
+                    + "], must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']"
+            );
         }
 
         // Colon outside a quoted string should result in an ANTLR error: a comma is expected.
@@ -3291,6 +3294,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testValidJoinPatternWithRemote() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier());
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(fromPatterns)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+    }
+
     public void testInvalidJoinPatterns() {
         assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -3311,18 +3325,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported with LOOKUP JOIN"
             );
         }
-        {
-            // remote cluster on the left
-            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with LOOKUP JOIN"
-            );
-        }
-
-        // If one or more patterns participating in LOOKUP JOINs are partially quoted, we expect the partial quoting
-        // error messages to take precedence over any LOOKUP JOIN error messages.
 
         {
             // Generate a syntactically invalid (partial quoted) pattern.
@@ -3839,7 +3841,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
         );
         var rerank = as(
-            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams),
+            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams, EsqlTestUtils.TEST_CFG),
             Rerank.class
         );
 
@@ -3862,7 +3864,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var rerank = as(
             parser.createStatement(
                 "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
-                queryParams
+                queryParams,
+                EsqlTestUtils.TEST_CFG
             ),
             Rerank.class
         );
@@ -3910,7 +3913,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams, EsqlTestUtils.TEST_CFG),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3919,7 +3925,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams, EsqlTestUtils.TEST_CFG),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
@@ -3959,27 +3968,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return new Alias(EMPTY, name, value);
     }
 
-    public void testValidRrf() {
-        assumeTrue("RRF requires corresponding capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
-                | RRF
+                | FUSE
             """);
 
-        var orderBy = as(plan, OrderBy.class);
-        assertThat(orderBy.order().size(), equalTo(3));
-
-        assertThat(orderBy.order().get(0).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        var dedup = as(orderBy.child(), Dedup.class);
+        var dedup = as(plan, Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
@@ -4731,6 +4730,76 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | enrich a on b)" };
         for (String q : queries) {
             expectError(q, "Invalid query");
+        }
+    }
+
+    public void testBracketsInIndexNames() {
+
+        List<String> patterns = List.of(
+            "(",
+            ")",
+            "()",
+            "(((",
+            ")))",
+            "(test",
+            "test)",
+            "(test)",
+            "te()st",
+            "concat(foo,bar)",
+            "((((()))))",
+            "(((abc)))",
+            "*()*",
+            "*test()*"
+        );
+
+        for (String pattern : patterns) {
+            expectErrorForBracketsWithoutQuotes(pattern);
+            expectSuccessForBracketsWithinQuotes(pattern);
+        }
+
+        expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
+        expectError("from te()st", "line 1:8: token recognition error at: '('");
+        expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
+        expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
+    }
+
+    private void expectErrorForBracketsWithoutQuotes(String pattern) {
+        expectThrows(ParsingException.class, () -> processingCommand("from " + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from *:" + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from remote1:" + pattern + ",remote2:" + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join " + pattern + " on bar"));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from test | enrich " + pattern));
+    }
+
+    private void expectSuccessForBracketsWithinQuotes(String indexName) {
+        LogicalPlan plan = statement("from \"" + indexName + "\"");
+        UnresolvedRelation from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is(indexName));
+
+        plan = statement("from \"*:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("*:" + indexName));
+
+        plan = statement("from \"remote1:" + indexName + ",remote2:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("remote1:" + indexName + ",remote2:" + indexName));
+
+        plan = statement("from test | enrich \"" + indexName + "\"");
+        Enrich enrich = as(plan, Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        as(enrich.child(), UnresolvedRelation.class);
+
+        if (indexName.contains("*")) {
+            expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar"));
+        } else {
+            plan = statement("from test | lookup join \"" + indexName + "\" on bar");
+            LookupJoin lookup = as(plan, LookupJoin.class);
+            UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
+            assertThat(right.indexPattern().indexPattern(), is(indexName));
         }
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -184,7 +185,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         IndicesService indicesService = mock(IndicesService.class);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         releasables.add(clusterService::stop);
-        ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state("idx", 1, 1));
+        final var projectId = randomProjectIdOrDefault();
+        ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state(projectId, "idx", 1, 1));
         if (beCranky) {
             logger.info("building a cranky lookup");
         }
@@ -198,7 +200,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             transportService(clusterService),
             indexNameExpressionResolver,
             bigArrays,
-            blockFactory
+            blockFactory,
+            TestProjectResolvers.singleProject(projectId)
         );
     }
 

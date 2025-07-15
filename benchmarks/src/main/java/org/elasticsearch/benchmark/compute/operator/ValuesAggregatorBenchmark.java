@@ -95,7 +95,8 @@ public class ValuesAggregatorBenchmark {
         try {
             for (String groups : ValuesAggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {
                 for (String dataType : ValuesAggregatorBenchmark.class.getField("dataType").getAnnotationsByType(Param.class)[0].value()) {
-                    run(Integer.parseInt(groups), dataType, 10);
+                    run(Integer.parseInt(groups), dataType, 10, 0);
+                    run(Integer.parseInt(groups), dataType, 10, 1);
                 }
             }
         } catch (NoSuchFieldException e) {
@@ -113,7 +114,10 @@ public class ValuesAggregatorBenchmark {
     @Param({ BYTES_REF, INT, LONG })
     public String dataType;
 
-    private static Operator operator(DriverContext driverContext, int groups, String dataType) {
+    @Param({ "0", "1" })
+    public int numOrdinalMerges;
+
+    private static Operator operator(DriverContext driverContext, int groups, String dataType, int numOrdinalMerges) {
         if (groups == 1) {
             return new AggregationOperator(
                 List.of(supplier(dataType).aggregatorFactory(AggregatorMode.SINGLE, List.of(0)).apply(driverContext)),
@@ -125,7 +129,24 @@ public class ValuesAggregatorBenchmark {
             List.of(supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
             driverContext
-        );
+        ) {
+            @Override
+            public Page getOutput() {
+                mergeOrdinal();
+                return super.getOutput();
+            }
+
+            // simulate OrdinalsGroupingOperator
+            void mergeOrdinal() {
+                var merged = supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1)).apply(driverContext);
+                for (int i = 0; i < numOrdinalMerges; i++) {
+                    for (int p = 0; p < groups; p++) {
+                        merged.addIntermediateRow(p, aggregators.getFirst(), p);
+                    }
+                }
+                aggregators.set(0, merged);
+            }
+        };
     }
 
     private static AggregatorFunctionSupplier supplier(String dataType) {
@@ -331,12 +352,12 @@ public class ValuesAggregatorBenchmark {
 
     @Benchmark
     public void run() {
-        run(groups, dataType, OP_COUNT);
+        run(groups, dataType, OP_COUNT, numOrdinalMerges);
     }
 
-    private static void run(int groups, String dataType, int opCount) {
+    private static void run(int groups, String dataType, int opCount, int numOrdinalMerges) {
         DriverContext driverContext = driverContext();
-        try (Operator operator = operator(driverContext, groups, dataType)) {
+        try (Operator operator = operator(driverContext, groups, dataType, numOrdinalMerges)) {
             Page page = page(groups, dataType);
             for (int i = 0; i < opCount; i++) {
                 operator.addInput(page.shallowCopy());

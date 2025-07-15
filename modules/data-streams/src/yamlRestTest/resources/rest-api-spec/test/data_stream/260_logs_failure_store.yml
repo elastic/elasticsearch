@@ -1,0 +1,81 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "gte_v9.1.99" ]
+      reason: "failure store became enabled by default for log data streams in 9.2.0"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-app-default
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: logs-app-default
+        ignore: 404
+
+---
+"Test logs-*-* data streams have failure store enabled by default":
+  # index a valid document (string message)
+  - do:
+      index:
+        index: logs-app-default
+        refresh: true
+        body:
+          '@timestamp': '2023-01-01T12:00:00Z'
+          host:
+            name: 'server-01'
+          severity: 'INFO'
+          message: "Application started successfully"
+  - match: { result: created }
+
+  - do:
+      indices.get_data_stream:
+        name: logs-app-default
+  - match: { data_streams.0.name: logs-app-default }
+  - length: { data_streams.0.indices: 1 }
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 0 }
+
+  # index a document with (object message, causing a mapping conflict)
+  - do:
+      index:
+        index: logs-app-default
+        refresh: true
+        body:
+          '@timestamp': '2023-01-01T12:01:00Z'
+          host:
+            name: 'server-02'
+          severity: 'ERROR'
+          message:
+            struct:
+              value: 42
+  - match: { result: 'created' }
+  - match: { failure_store: used}
+
+  - do:
+      indices.get_data_stream:
+        name: logs-app-default
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - set: { data_streams.0.failure_store.indices.0.index_name: fs0name }
+
+  - do:
+      search:
+        index: $idx0name
+        body:
+          query:
+            match_all: {}
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.severity: "INFO" }
+  - match: { hits.hits.0._source.message: "Application started successfully" }
+
+  - do:
+      search:
+        index: $fs0name
+        body:
+          query:
+            match_all: {}
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.document.source.message.struct.value: 42 }
+  - match: { hits.hits.0._source.error.type: "document_parsing_exception" }

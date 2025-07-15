@@ -21,6 +21,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -39,6 +40,7 @@ import static java.nio.file.StandardOpenOption.WRITE;
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
+@WithoutEntitlements
 public class SecurityTestUtils {
 
     public static String writeFile(Path folder, String name, byte[] content) {

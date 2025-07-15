@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.util.Objects.requireNonNull;
 
 public class TestPolicyManager extends PolicyManager {
@@ -116,7 +117,10 @@ public class TestPolicyManager extends PolicyManager {
         if (isTriviallyAllowingTestCode && isTestCode(requestingClass)) {
             return true;
         }
-        return super.isTriviallyAllowed(requestingClass);
+        if(super.isTriviallyAllowed(requestingClass)){
+            return true;
+        };
+        return isStackWithoutEntitlements();
     }
 
     @Override
@@ -124,7 +128,19 @@ public class TestPolicyManager extends PolicyManager {
         return classpath; // required to grant read access to the production source and test resources
     }
 
-    private boolean isEntitlementClass(Class<?> requestingClass) {
+    private static boolean hasWithoutEntitlements(Class<?> clazz) {
+        return clazz.getAnnotation(ESTestCase.WithoutEntitlements.class) != null;
+    }
+
+    private static boolean isStackWithoutEntitlements() {
+        return StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+            .walk(frames -> frames
+                .map(StackWalker.StackFrame::getDeclaringClass)
+                .filter(c -> isEntitlementClass(c) == false)
+                .anyMatch(TestPolicyManager::hasWithoutEntitlements));
+    }
+
+    private static boolean isEntitlementClass(Class<?> requestingClass) {
         return requestingClass.getPackageName().startsWith("org.elasticsearch.entitlement")
             && (requestingClass.getName().contains("Test") == false);
     }

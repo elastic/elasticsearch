@@ -19,7 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -229,7 +230,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         Map<String, IndexMetadata> indicesMap = new HashMap<>();
         Map<String, IndexTemplateMetadata> v1Templates = new HashMap<>();
         Map<String, ComposableIndexTemplate> v2Templates = new HashMap<>();
-        Metadata.Builder metadataBuilder = new Metadata.Builder();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
         Set<String> indicesWithInvalidMappings = new HashSet<>();
         for (int i = 0; i < bulkItemCount; i++) {
             Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
@@ -275,10 +276,10 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 default -> throw new AssertionError("Illegal branch");
             }
         }
-        metadataBuilder.indices(indicesMap);
-        metadataBuilder.templates(v1Templates);
-        metadataBuilder.indexTemplates(v2Templates);
-        ClusterServiceUtils.setState(clusterService, new ClusterState.Builder(clusterService.state()).metadata(metadataBuilder));
+        projectBuilder.indices(indicesMap);
+        projectBuilder.templates(v1Templates);
+        projectBuilder.indexTemplates(v2Templates);
+        ClusterServiceUtils.setState(clusterService, ClusterState.builder(clusterService.state()).putProjectMetadata(projectBuilder));
         AtomicBoolean onResponseCalled = new AtomicBoolean(false);
         ActionListener<BulkResponse> listener = new ActionListener<>() {
             @Override

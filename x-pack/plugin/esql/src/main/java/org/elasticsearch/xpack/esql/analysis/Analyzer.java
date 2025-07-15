@@ -1444,14 +1444,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof In in) {
                 return processIn(in);
             }
+            if (f instanceof VectorFunction) {
+                return processVectorFunction(f);
+            }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
-            }
-            if (f instanceof VectorFunction vectorFunction) {
-                return processVectorFunction(f);
             }
             return f;
         }
@@ -1657,6 +1657,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
+        @SuppressWarnings("unchecked")
         private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
             List<Expression> args = vectorFunction.arguments();
             List<Expression> newArgs = new ArrayList<>();
@@ -1664,7 +1665,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
                     Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
                     if (folded instanceof List) {
-                        Literal denseVector = new Literal(arg.source(), folded, DataType.DENSE_VECTOR);
+                        // Convert to floats so blocks are created accordingly
+                        List<Float> floatVector;
+                        if (arg.dataType() == FLOAT) {
+                            floatVector = (List<Float>) folded;
+                        } else {
+                            floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+                        }
+                        Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
                         newArgs.add(denseVector);
                         continue;
                     }

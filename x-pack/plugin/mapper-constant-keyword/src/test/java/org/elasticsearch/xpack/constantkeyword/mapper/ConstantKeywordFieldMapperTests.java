@@ -286,7 +286,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                         public int get(int i) {
                             return 0;
                         }
-                    }, randomInt());
+                    }, 0);
                 assertThat(block.get(0), nullValue());
             }
         }

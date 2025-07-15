@@ -95,8 +95,9 @@ public record DriverCompletionInfo(
             in.readVLong(),
             in.readCollectionAsImmutableList(DriverProfile::readFrom),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                : List.of()
+                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
         );
     }
 
@@ -105,7 +106,8 @@ public record DriverCompletionInfo(
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
         out.writeCollection(driverProfiles);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
             out.writeCollection(planProfiles);
         }
     }

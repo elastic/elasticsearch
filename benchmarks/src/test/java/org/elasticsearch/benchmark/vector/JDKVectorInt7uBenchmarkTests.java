@@ -32,6 +32,10 @@ public class JDKVectorInt7uBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
+    static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
+    }
+
     public void testDotProduct() {
         for (int i = 0; i < 100; i++) {
             var bench = new JDKVectorInt7uBenchmark();
@@ -40,8 +44,10 @@ public class JDKVectorInt7uBenchmarkTests extends ESTestCase {
             try {
                 float expected = dotProductScalar(bench.byteArrayA, bench.byteArrayB);
                 assertEquals(expected, bench.dotProductLucene(), delta);
-                assertEquals(expected, bench.dotProductNativeWithHeapSeg(), delta);
                 assertEquals(expected, bench.dotProductNativeWithNativeSeg(), delta);
+                if (supportsHeapSegments()) {
+                    assertEquals(expected, bench.dotProductNativeWithHeapSeg(), delta);
+                }
             } finally {
                 bench.teardown();
             }

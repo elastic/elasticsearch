@@ -18,6 +18,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterName.DEFAULT;
+
 public class TransportPutDatabaseConfigurationActionTests extends ESTestCase {
 
     public void testValidatePrerequisites() {
@@ -25,7 +27,7 @@ public class TransportPutDatabaseConfigurationActionTests extends ESTestCase {
         // Test that we reject two configurations with the same database name but different ids:
         String name = randomAlphaOfLengthBetween(1, 50);
         IngestGeoIpMetadata ingestGeoIpMetadata = randomIngestGeoIpMetadata(name);
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+        ClusterState state = ClusterState.builder(DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestGeoIpMetadata.TYPE, ingestGeoIpMetadata).build())
             .build();
         DatabaseConfiguration databaseConfiguration = randomDatabaseConfiguration(randomIdentifier(), name);
@@ -40,7 +42,11 @@ public class TransportPutDatabaseConfigurationActionTests extends ESTestCase {
         TransportPutDatabaseConfigurationAction.validatePrerequisites(projectId, databaseConfigurationForDifferentName, state);
 
         // Test that we do not reject a configuration if none already exists:
-        TransportPutDatabaseConfigurationAction.validatePrerequisites(projectId, databaseConfiguration, ClusterState.EMPTY_STATE);
+        TransportPutDatabaseConfigurationAction.validatePrerequisites(
+            projectId,
+            databaseConfiguration,
+            ClusterState.builder(DEFAULT).putProjectMetadata(ProjectMetadata.builder(projectId)).build()
+        );
 
         // Test that we do not reject a configuration if one with the same database name AND id already exists:
         DatabaseConfiguration databaseConfigurationSameNameSameId = ingestGeoIpMetadata.getDatabases()

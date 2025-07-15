@@ -159,8 +159,8 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
 
             // wait until the remotes are done
-            waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
-            waitForCluster(client(), REMOTE_CLUSTER_2, asyncExecutionId);
+            waitForCluster(client, REMOTE_CLUSTER_1, asyncExecutionId);
+            waitForCluster(client, REMOTE_CLUSTER_2, asyncExecutionId);
 
             /* at this point:
              *  the query against remotes should be finished

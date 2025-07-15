@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -375,9 +376,10 @@ public class ComputeService {
             var computeListener = new ComputeListener(
                 transportService.getThreadPool(),
                 cancelQueryOnFailure,
-                listener.map(completionInfo -> {
+                listener.delegateFailureAndWrap((l, completionInfo) -> {
+                    failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-                    return new Result(outputAttributes, collectedPages, completionInfo, execInfo);
+                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
         ) {
@@ -538,6 +540,46 @@ public class ComputeService {
                 });
             }
         }
+    }
+
+    /**
+     * If all of target shards excluding the skipped shards failed, then we should fail the entire query regardless of the partial_results
+     * configuration or skip_unavailable setting. This behavior doesn't fully align with the search API as the skip_unavailable
+     * would ignore all the failures from the remote clusters; hence, only fail the request when all shards in the local cluster failed.
+     */
+    static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
+        // do not fail if any final result has results
+        if (finalResults.stream().anyMatch(p -> p.getPositionCount() > 0)) {
+            return;
+        }
+        int totalFailedShards = 0;
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            final Integer successfulShards = cluster.getSuccessfulShards();
+            if (successfulShards != null && successfulShards > 0) {
+                return;
+            }
+            if (cluster.getFailedShards() != null) {
+                totalFailedShards += cluster.getFailedShards();
+            }
+        }
+        if (totalFailedShards == 0) {
+            return;
+        }
+        final var failureCollector = new FailureCollector();
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            var failedShards = cluster.getFailedShards();
+            if (failedShards != null && failedShards > 0) {
+                assert cluster.getFailures().isEmpty() == false : "expected failures for cluster [" + cluster.getClusterAlias() + "]";
+                for (ShardSearchFailure failure : cluster.getFailures()) {
+                    if (failure.getCause() instanceof Exception e) {
+                        failureCollector.unwrapAndCollect(e);
+                    } else {
+                        failureCollector.unwrapAndCollect(failure);
+                    }
+                }
+            }
+        }
+        ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
     void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {

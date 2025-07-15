@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
@@ -17,17 +19,22 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 
 // FIXME(gal, NOCOMMIT) Come up with a better name for this class.
 class MySearchContext implements Releasable {
+    // FIXME(gal, NOCOMMIT) document
     private final int index;
+    private final IndexShard indexShard;
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
 
-    MySearchContext(int index, SearchContext searchContext) {
+    MySearchContext(int index, IndexShard indexShard, SearchContext searchContext) {
         this.index = index;
+        this.indexShard = indexShard;
         this.searchContext = searchContext;
     }
 
     ShardContext shardContext() {
-        shardContext.trySet(createShardContext());
+        if (shardContext.get() == null) {
+            shardContext.set(createShardContext());
+        }
         return shardContext.get();
     }
 
@@ -47,6 +54,10 @@ class MySearchContext implements Releasable {
 
     @Override
     public void close() {
-        searchContext.close();
+        Releasables.close(searchContext);
+    }
+
+    public IndexShard indexShard() {
+        return indexShard;
     }
 }

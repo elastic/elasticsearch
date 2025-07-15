@@ -58,6 +58,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.common.LazyList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -81,7 +82,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -143,12 +143,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
     }
 
-    private final List<ShardContext> shardContexts;
+    private final LazyList<ShardContext> shardContexts;
     private final DataPartitioning defaultDataPartitioning;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
-        List<ShardContext> shardContexts,
+        LazyList<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         DataPartitioning defaultDataPartitioning
     ) {
@@ -161,15 +161,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
-        List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.stream()
-            .map(
-                s -> new ValuesSourceReaderOperator.ShardContext(
-                    s.searcher().getIndexReader(),
-                    s::newSourceLoader,
-                    s.storedFieldsSequentialProportion()
-                )
-            )
-            .toList();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
@@ -179,6 +170,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // TODO: consolidate with ValuesSourceReaderOperator
             return source.with(new TimeSeriesExtractFieldOperator.Factory(fields, shardContexts), layout.build());
         } else {
+            List<ValuesSourceReaderOperator.ShardContext> readers = shardContexts.map(
+                s -> new ValuesSourceReaderOperator.ShardContext(
+                    s.searcher().getIndexReader(),
+                    s::newSourceLoader,
+                    s.storedFieldsSequentialProportion()
+                )
+            );
             return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
         }
     }
@@ -412,13 +410,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
-        // FIXME(gal, NOCOMMIT) for debugging
-        private static Set<Releasable> rs = new LinkedHashSet<>();
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
-            synchronized (rs) {
-                rs.add(releasable);
-            }
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.common.LazyList;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -7858,7 +7859,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null, DataPartitioning.AUTO),
+            new EsPhysicalOperationProviders(FoldContext.small(), LazyList.empty(), null, DataPartitioning.AUTO),
             List.of()
         );
 
@@ -7954,7 +7955,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT %d
             """, limit));
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2()).v1();
         TopNExec reductionTopN = as(reduction, TopNExec.class);
         assertThat(reductionTopN.estimatedRowSize(), equalTo(allFieldRowSize));
         assertThat(reductionTopN.limit().fold(FoldContext.small()), equalTo(limit));
@@ -7966,7 +7967,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats x = sum(salary) BY first_name
             """);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2()).v1();
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
     }
@@ -7974,7 +7975,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public void testReductionPlanForLimit() {
         var plan = physicalPlan("FROM test | LIMIT 10");
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
+        PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2()).v1();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(328));
     }

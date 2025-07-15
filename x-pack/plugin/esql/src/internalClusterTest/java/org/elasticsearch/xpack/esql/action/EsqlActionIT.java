@@ -989,7 +989,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, getValuesList(results).size());
             assertEquals(15L, getValuesList(results).get(0).get(0));
             assertEquals(120000L, getValuesList(results).get(0).get(1));
-
         }
 
         try (var results = run("from test_index_patterns_1,test_index_patterns_2 | stats count(data), sum(count)")) {

@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.common.LazyList;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -249,6 +250,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(
+            // FIXME(gal, NOCOMMIT) just for passing the tests
+            null,
+            null,
+            null,
             // FIXME(gal, NOCOMMIT) Empty search contexts here is very like to be wrong
             plan,
             true
@@ -275,14 +280,15 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         "remote_reduce",
                         clusterAlias,
                         flags,
-                        List.of(),
+                        LazyList.empty(),
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
-                    computeListener.acquireCompute()
+                    computeListener.acquireCompute(),
+                    false
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(
                     localSessionId,

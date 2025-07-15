@@ -34,8 +34,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -48,6 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.common.LazyList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -57,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -224,7 +225,7 @@ public class ComputeService {
                 "main.final",
                 LOCAL_CLUSTER,
                 flags,
-                List.of(),
+                LazyList.empty(),
                 configuration,
                 foldContext,
                 mainExchangeSource::createExchangeSource,
@@ -243,7 +244,13 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    mainPlan,
+                    localListener.acquireCompute(),
+                    false /* isDataNodeReduction, we are not running a data node reduction here */
+                );
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -327,7 +334,7 @@ public class ComputeService {
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
-                List.of(),
+                LazyList.empty(),
                 configuration,
                 foldContext,
                 null,
@@ -344,7 +351,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(), false);
                 return;
             }
         } else {
@@ -418,14 +425,15 @@ public class ComputeService {
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
-                            List.of(),
+                            LazyList.empty(),
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
-                        localListener.acquireCompute()
+                        localListener.acquireCompute(),
+                        false
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -540,33 +548,22 @@ public class ComputeService {
         }
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        ActionListener<DriverCompletionInfo> listener,
+        boolean shouldReduceDecRef // FIXME(gal, NOCOMMIT) yuck
+    ) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
-        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
-        for (int i = 0; i < context.searchContexts().size(); i++) {
-            SearchContext searchContext = context.searchContexts().get(i);
-            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-
-                @Override
-                public SourceProvider createSourceProvider() {
-                    return new ReinitializingSourceProvider(super::createSourceProvider);
-                }
-            };
-            contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext,
-                    searchExecutionContext,
-                    searchContext.request().getAliasFilter()
-                )
-            );
-        }
+        var shardContexts = context.searchContexts().map(MySearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
-            contexts,
+            shardContexts,
             searchService.getIndicesService().getAnalysis(),
             defaultDataPartitioning
         );
+
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -582,7 +579,7 @@ public class ComputeService {
                 lookupFromIndexService,
                 inferenceRunner,
                 physicalOperationProviders,
-                contexts
+                shardContexts
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
@@ -604,7 +601,9 @@ public class ComputeService {
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
             // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
             // will hold a reference to the contexts where relevant.
-            contexts.forEach(RefCounted::decRef);
+            if (shouldReduceDecRef) {
+                shardContexts.forEach(RefCounted::decRef);
+            }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
@@ -641,19 +640,59 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
+            // Releasables.close(context.searchContexts());
             listener.onFailure(e);
         }
     }
 
-    static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {
-        PhysicalPlan reducePlan = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-        if (enable) {
-            PhysicalPlan p = PlannerUtils.reductionPlan(plan);
-            if (p != null) {
-                reducePlan = p.replaceChildren(List.of(reducePlan));
-            }
+    static PhysicalPlan reductionPlan(
+        List<MySearchContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan,
+        boolean enable
+    ) {
+        PhysicalPlan source = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        if (enable == false) {
+            return plan.replaceChild(source);
         }
-        return new ExchangeSinkExec(plan.source(), plan.output(), plan.isIntermediateAgg(), reducePlan);
+
+        Tuple<PhysicalPlan, PlannerUtils.PlanReduction> res = PlannerUtils.reductionPlan(plan);
+        PhysicalPlan newPlan = switch (res.v2()) {
+            // case PlannerUtils.PlanReduction.TOP_N ->
+            // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node.
+            // FIXME(gal, NOCOMMIT) Explain TopN better
+            // FIXME(gal, NOCOMMIT) Remove duplication with below
+            // getChild(
+            // searchContexts.stream().map(s -> s.searchContext().getSearchExecutionContext()).toList(),
+            // configuration,
+            // foldCtx,
+            // plan
+            // ).orElse(res.v1().replaceChildren(List.of(source)));
+            case PlannerUtils.PlanReduction.TOP_N, PlannerUtils.PlanReduction.REGULAR, PlannerUtils.PlanReduction.AGGREGATE -> res.v1()
+                .replaceChildren(List.of(source));
+            case NO_REDUCTION -> source;
+        };
+        return plan.replaceChild(newPlan);
+    }
+
+    // FIXME(gal, NOCOMMIT) rename
+    // FIXME(gal, NOCOMMIT) unyuck (there should be a better way of figuring out if we need to use TOP_N or not)
+    private static Optional<PhysicalPlan> getChild(
+        EsqlFlags flags,
+        List<SearchExecutionContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan
+    ) {
+        var localPlan = PlannerUtils.localPlan(flags, searchContexts, configuration.withoutTopNHack(), foldCtx, plan);
+        var visitedTopN = new AtomicBoolean(false);
+        var result = ((ExchangeSinkExec) localPlan.transformUp(TopNExec.class, topN -> {
+            var child = topN.child();
+            visitedTopN.set(true);
+            return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
+        })).child();
+        return visitedTopN.get() ? Optional.of(result) : Optional.empty();
     }
 
     String newChildSession(String session) {

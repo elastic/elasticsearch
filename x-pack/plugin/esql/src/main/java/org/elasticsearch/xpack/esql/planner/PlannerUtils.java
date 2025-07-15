@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -112,25 +113,33 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static PhysicalPlan reductionPlan(PhysicalPlan plan) {
+    public enum PlanReduction {
+        NO_REDUCTION,
+        REGULAR,
+        AGGREGATE,
+        TOP_N,
+    }
+
+    // FIXME(gal, NOCOMMIT) reduce duplication, document, whatever. This is a silly hack.
+    public static Tuple<PhysicalPlan, PlanReduction> reductionPlan(PhysicalPlan plan) {
         // find the logical fragment
         var fragments = plan.collectFirstChildren(p -> p instanceof FragmentExec);
         if (fragments.isEmpty()) {
-            return null;
+            return Tuple.tuple(null, PlanReduction.NO_REDUCTION);
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
-
-        final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
+        List<LogicalPlan> pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
-            return null;
+            return Tuple.tuple(null, PlanReduction.NO_REDUCTION);
         }
-        final var pipelineBreaker = pipelineBreakers.getFirst();
+        final LogicalPlan pipelineBreaker = pipelineBreakers.getFirst();
         final LocalMapper mapper = new LocalMapper();
-        PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
-        if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
-        }
-        return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
+        var res = switch (mapper.map(pipelineBreaker)) {
+            case AggregateExec aggExec -> Tuple.tuple(aggExec.withMode(AggregatorMode.INTERMEDIATE), PlanReduction.AGGREGATE);
+            // case TopNExec unused -> Tuple.tuple(plan, PlanReduction.TOP_N);
+            case PhysicalPlan p -> Tuple.tuple(p, PlanReduction.REGULAR);
+        };
+        return Tuple.tuple(EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), res.v1()), res.v2());
     }
 
     /**

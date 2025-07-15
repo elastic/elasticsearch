@@ -160,13 +160,13 @@ public abstract class IndexRouting {
      * @return Updated shardId
      */
     protected final int rerouteForResharding(int shardId) {
-        if(indexReshardingMetadata != null && indexReshardingMetadata.getSplit().isTargetShard(shardId)) {
-            if (indexReshardingMetadata.getSplit().
-                targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
-                return(indexReshardingMetadata.getSplit().sourceShard(shardId));
+        if (indexReshardingMetadata != null && indexReshardingMetadata.getSplit().isTargetShard(shardId)) {
+            if (indexReshardingMetadata.getSplit()
+                .targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
+                return (indexReshardingMetadata.getSplit().sourceShard(shardId));
             }
         }
-        return(shardId);
+        return (shardId);
     }
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
@@ -216,21 +216,21 @@ public abstract class IndexRouting {
             }
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
-            return(rerouteForResharding(shardId));
+            return (rerouteForResharding(shardId));
         }
 
         @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
-            return(rerouteForResharding(shardId));
+            return (rerouteForResharding(shardId));
         }
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
-            return(rerouteForResharding(shardId));
+            return (rerouteForResharding(shardId));
         }
 
         @Override
@@ -338,7 +338,7 @@ public abstract class IndexRouting {
             checkNoRouting(routing);
             hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             int shardId = hashToShardId(hash);
-            return(rerouteForResharding(shardId));
+            return (rerouteForResharding(shardId));
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -479,14 +479,14 @@ public abstract class IndexRouting {
         public int deleteShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            return(rerouteForResharding(shardId));
+            return (rerouteForResharding(shardId));
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
             int shardId = idToHash(id);
-            return(rerouteForResharding(shardId));
+            return (rerouteForResharding(shardId));
         }
 
         private void checkNoRouting(@Nullable String routing) {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,9 +58,10 @@ public class ToCartesianShape extends AbstractConvertFunction {
             name = "field",
             type = { "cartesian_point", "cartesian_shape", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        super(source, field);
+        super(source, field, pragmas);
     }
 
     private ToCartesianShape(StreamInput in) throws IOException {
@@ -83,12 +85,12 @@ public class ToCartesianShape extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToCartesianShape(source(), newChildren.get(0));
+        return new ToCartesianShape(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToCartesianShape::new, field());
+        return NodeInfo.create(this, ToCartesianShape::new, field(), getPragmas());
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })

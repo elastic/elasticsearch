@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,17 +61,25 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
                 tag = "docsStatsSumNestedExpression"
             ) }
     )
-    public Sum(Source source, @Param(name = "number", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+    public Sum(
+        Source source,
+        @Param(name = "number", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field,
+        QueryPragmas pragmas
+    ) {
+        this(source, field, Literal.TRUE, pragmas);
     }
 
-    public Sum(Source source, Expression field, Expression filter) {
+    public Sum(Source source, Expression field, Expression filter, QueryPragmas pragmas) {
         super(source, field, filter, emptyList());
+        this.pragmas = pragmas;
     }
 
     private Sum(StreamInput in) throws IOException {
         super(in);
+        pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
+
+    private final QueryPragmas pragmas;
 
     @Override
     public String getWriteableName() {
@@ -79,17 +88,17 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Sum> info() {
-        return NodeInfo.create(this, Sum::new, field(), filter());
+        return NodeInfo.create(this, Sum::new, field(), filter(), pragmas);
     }
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(source(), newChildren.get(0), newChildren.get(1));
+        return new Sum(source(), newChildren.get(0), newChildren.get(1), pragmas);
     }
 
     @Override
     public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter);
+        return new Sum(source(), field(), filter, pragmas);
     }
 
     @Override
@@ -139,10 +148,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         var s = source();
         var field = field();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM));
+            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM), pragmas);
         }
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD))) : null;
+        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), pragmas)) : null;
     }
 }

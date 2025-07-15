@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -5083,7 +5084,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         ),
         new AggOfLiteralTestCase("min({})", c -> new MvMin(EMPTY, c), ints -> Arrays.stream(ints).min().getAsInt(), d -> d),
         new AggOfLiteralTestCase("max({})", c -> new MvMax(EMPTY, c), ints -> Arrays.stream(ints).max().getAsInt(), d -> d),
-        new AggOfLiteralTestCase("median({})", c -> new MvMedian(EMPTY, new ToDouble(EMPTY, c)), ints -> {
+        new AggOfLiteralTestCase("median({})", c -> new MvMedian(EMPTY, new ToDouble(EMPTY, c, QueryPragmas.EMPTY)), ints -> {
             var sortedInts = Arrays.stream(ints).sorted().toArray();
             int middle = ints.length / 2;
             double result = ints.length % 2 == 1 ? sortedInts[middle] : (sortedInts[middle] + sortedInts[middle - 1]) / 2.0;
@@ -5093,7 +5094,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "count_distinct({}, 1234)",
             c -> new ToLong(
                 EMPTY,
-                new Coalesce(EMPTY, new MvCount(EMPTY, new MvDedupe(EMPTY, c)), List.of(new Literal(EMPTY, 0, DataType.INTEGER)))
+                new Coalesce(EMPTY, new MvCount(EMPTY, new MvDedupe(EMPTY, c)), List.of(new Literal(EMPTY, 0, DataType.INTEGER))),
+                QueryPragmas.EMPTY
             ),
             ints -> Arrays.stream(ints).distinct().count(),
             d -> 1L
@@ -5472,7 +5474,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     static PushdownShadowingGeneratingPlanTestCase[] PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES = {
         // | EVAL y = to_integer(x), y = y + 1
         new PushdownShadowingGeneratingPlanTestCase((plan, attr) -> {
-            Alias y1 = new Alias(EMPTY, "y", new ToInteger(EMPTY, attr));
+            Alias y1 = new Alias(EMPTY, "y", new ToInteger(EMPTY, attr, QueryPragmas.EMPTY));
             Alias y2 = new Alias(EMPTY, "y", new Add(EMPTY, y1.toAttribute(), new Literal(EMPTY, 1, INTEGER)));
             return new Eval(EMPTY, plan, List.of(y1, y2));
         }, new PushDownEval()),
@@ -5489,7 +5491,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         ),
         // | GROK x "%{WORD:y} %{WORD:y}"
         new PushdownShadowingGeneratingPlanTestCase(
-            (plan, attr) -> new Grok(EMPTY, plan, attr, Grok.pattern(EMPTY, "%{WORD:y} %{WORD:y}")),
+            (plan, attr) -> new Grok(EMPTY, plan, attr, Grok.pattern(EMPTY, "%{WORD:y} %{WORD:y}", QueryPragmas.EMPTY)),
             new PushDownRegexExtract()
         ),
         // | ENRICH some_policy ON x WITH y = some_enrich_idx_field, y = some_other_enrich_idx_field

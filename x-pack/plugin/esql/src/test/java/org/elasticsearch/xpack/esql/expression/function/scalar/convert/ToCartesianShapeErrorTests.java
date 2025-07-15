@@ -27,7 +27,7 @@ public class ToCartesianShapeErrorTests extends ErrorsForCasesWithoutExamplesTes
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToCartesianShape(source, args.get(0));
+        return new ToCartesianShape(source, args.getFirst(), getPragmas());
     }
 
     @Override

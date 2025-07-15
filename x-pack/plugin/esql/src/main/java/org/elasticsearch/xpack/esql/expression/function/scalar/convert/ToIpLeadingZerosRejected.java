@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,8 +42,12 @@ public class ToIpLeadingZerosRejected extends AbstractConvertFunction {
         Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED)
     );
 
-    public ToIpLeadingZerosRejected(Source source, Expression field) {
-        super(source, field);
+    public ToIpLeadingZerosRejected(Source source, Expression field, Configuration config) {
+        this(source, field, config.pragmas());
+    }
+
+    public ToIpLeadingZerosRejected(Source source, Expression field, QueryPragmas pragmas) {
+        super(source, field, pragmas);
     }
 
     private ToIpLeadingZerosRejected(StreamInput in) throws IOException {
@@ -65,11 +71,11 @@ public class ToIpLeadingZerosRejected extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToIpLeadingZerosRejected(source(), newChildren.get(0));
+        return new ToIpLeadingZerosRejected(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToIpLeadingZerosRejected::new, field());
+        return NodeInfo.create(this, ToIpLeadingZerosRejected::new, field(), getPragmas());
     }
 }

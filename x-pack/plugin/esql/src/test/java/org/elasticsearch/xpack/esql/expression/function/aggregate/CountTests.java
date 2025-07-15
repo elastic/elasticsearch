@@ -86,7 +86,7 @@ public class CountTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Count(source, args.get(0));
+        return new Count(source, args.getFirst(), getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

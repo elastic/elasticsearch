@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,9 +62,10 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
             name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        super(source, field);
+        super(source, field, pragmas);
     }
 
     private ToDegrees(StreamInput in) throws IOException {
@@ -82,12 +84,12 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToDegrees(source(), newChildren.get(0));
+        return new ToDegrees(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToDegrees::new, field());
+        return NodeInfo.create(this, ToDegrees::new, field(), getPragmas());
     }
 
     @Override

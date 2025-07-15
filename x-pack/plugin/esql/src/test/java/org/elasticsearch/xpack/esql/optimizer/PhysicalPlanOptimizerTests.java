@@ -272,11 +272,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
-                f -> (EstimatesRowSize.estimateSize(f.getDataType().widenSmallNumeric()) + f.getProperties()
+                f -> (EstimatesRowSize.estimateSize(f.getDataType().widenSmallNumeric(QueryPragmas.EMPTY.native_float_type())) + f
+                    .getProperties()
                     .values()
                     .stream()
                     // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
-                    .mapToInt(x -> EstimatesRowSize.estimateSize(x.getDataType().widenSmallNumeric()))
+                    .mapToInt(x -> EstimatesRowSize.estimateSize(x.getDataType().widenSmallNumeric(QueryPragmas.EMPTY.native_float_type())))
                     .sum())
             )
             .sum();

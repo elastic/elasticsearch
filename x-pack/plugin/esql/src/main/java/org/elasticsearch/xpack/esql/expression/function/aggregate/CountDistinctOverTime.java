@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,20 +59,25 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."
-        ) Expression precision
+        ) Expression precision,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE, precision);
+        this(source, field, Literal.TRUE, precision, pragmas);
     }
 
-    public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression precision) {
+    public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression precision, QueryPragmas pragmas) {
         super(source, field, filter, precision == null ? List.of() : List.of(precision));
         this.precision = precision;
+        this.pragmas = pragmas;
     }
 
     private CountDistinctOverTime(StreamInput in) throws IOException {
         super(in);
         this.precision = parameters().isEmpty() ? null : parameters().getFirst();
+        this.pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
+
+    private final QueryPragmas pragmas;
 
     @Override
     public String getWriteableName() {
@@ -80,12 +86,12 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
 
     @Override
     public CountDistinctOverTime withFilter(Expression filter) {
-        return new CountDistinctOverTime(source(), field(), filter, precision);
+        return new CountDistinctOverTime(source(), field(), filter, precision, pragmas);
     }
 
     @Override
     protected NodeInfo<CountDistinctOverTime> info() {
-        return NodeInfo.create(this, CountDistinctOverTime::new, field(), filter(), precision);
+        return NodeInfo.create(this, CountDistinctOverTime::new, field(), filter(), precision, pragmas);
     }
 
     @Override
@@ -93,7 +99,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
         if (newChildren.size() < 3) {
             return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), null);
         }
-        return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), pragmas);
     }
 
     @Override
@@ -108,6 +114,6 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
 
     @Override
     public CountDistinct perTimeSeriesAggregation() {
-        return new CountDistinct(source(), field(), filter(), precision);
+        return new CountDistinct(source(), field(), filter(), precision, pragmas);
     }
 }

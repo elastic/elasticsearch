@@ -27,7 +27,7 @@ public class ToGeoPointErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToGeoPoint(source, args.get(0));
+        return new ToGeoPoint(source, args.getFirst(), getPragmas());
     }
 
     @Override

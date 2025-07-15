@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -224,6 +225,6 @@ public class ParsingTests extends ESTestCase {
     }
 
     private static IndexResolution loadIndexResolution(String name) {
-        return IndexResolution.valid(new EsIndex(INDEX_NAME, LoadMapping.loadMapping(name)));
+        return IndexResolution.valid(new EsIndex(INDEX_NAME, new LoadMapping(QueryPragmas.EMPTY).loadMapping(name)));
     }
 }

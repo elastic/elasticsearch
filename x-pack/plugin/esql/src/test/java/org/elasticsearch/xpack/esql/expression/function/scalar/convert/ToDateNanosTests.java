@@ -137,6 +137,6 @@ public class ToDateNanosTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToDateNanos(source, args.get(0));
+        return new ToDateNanos(source, args.getFirst(), getPragmas());
     }
 }

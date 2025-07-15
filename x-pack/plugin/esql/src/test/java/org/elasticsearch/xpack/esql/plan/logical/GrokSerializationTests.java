@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,21 +25,27 @@ public class GrokSerializationTests extends AbstractLogicalPlanSerializationTest
         Expression inputExpr = FieldAttributeTests.createFieldAttribute(3, false);
         String pattern = randomAlphaOfLength(5);
         List<Attribute> extracted = randomList(1, 10, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
-        return new Grok(source, child, inputExpr, Grok.pattern(source, pattern), extracted);
+        return new Grok(source, child, inputExpr, Grok.pattern(source, pattern, QueryPragmas.EMPTY), extracted);
     }
 
     @Override
     protected Grok mutateInstance(Grok instance) throws IOException {
         LogicalPlan child = instance.child();
         Expression inputExpr = instance.input();
-        String pattern = instance.parser().pattern();
+        String pattern = instance.parser().getPattern();
         List<Attribute> extracted = instance.extractedFields();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inputExpr = randomValueOtherThan(inputExpr, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 2 -> pattern = randomValueOtherThan(pattern, () -> randomAlphaOfLength(5));
         }
-        return new Grok(instance.source(), child, inputExpr, Grok.pattern(instance.source(), pattern), extracted);
+        return new Grok(
+            instance.source(),
+            child,
+            inputExpr,
+            Grok.pattern(instance.source(), pattern, instance.parser().getPragmas()),
+            extracted
+        );
     }
 
     @Override

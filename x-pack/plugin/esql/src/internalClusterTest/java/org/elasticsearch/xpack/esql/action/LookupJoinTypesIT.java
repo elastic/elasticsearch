@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -437,6 +438,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             this.configs = new LinkedHashMap<>();
         }
 
+        private QueryPragmas getPragmas() {
+            return QueryPragmas.EMPTY;
+        }
+
         public List<TestMapping> indices() {
             List<TestMapping> results = new ArrayList<>();
 
@@ -533,9 +538,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 Locale.ROOT,
                 "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
                 fieldName,
-                mainType.widenSmallNumeric(),
+                mainType.widenSmallNumeric(getPragmas().native_float_type()),
                 fieldName,
-                lookupType.widenSmallNumeric()
+                lookupType.widenSmallNumeric(getPragmas().native_float_type())
             );
             add(
                 new TestConfigFails<>(

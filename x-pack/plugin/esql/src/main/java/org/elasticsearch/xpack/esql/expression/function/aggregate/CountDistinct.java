@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedu
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -129,18 +130,20 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             description = "Precision threshold. Refer to <<esql-agg-count-distinct-approximate>>. "
                 + "The maximum supported value is 40000. Thresholds above this number will have the "
                 + "same effect as a threshold of 40000. The default value is 3000."
-        ) Expression precision
+        ) Expression precision,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE, precision);
+        this(source, field, Literal.TRUE, precision, pragmas);
     }
 
-    public CountDistinct(Source source, Expression field, Expression filter, Expression precision) {
-        this(source, field, filter, precision != null ? List.of(precision) : List.of());
+    public CountDistinct(Source source, Expression field, Expression filter, Expression precision, QueryPragmas pragmas) {
+        this(source, field, filter, precision != null ? List.of(precision) : List.of(), pragmas);
     }
 
-    private CountDistinct(Source source, Expression field, Expression filter, List<Expression> params) {
+    private CountDistinct(Source source, Expression field, Expression filter, List<Expression> params, QueryPragmas pragmas) {
         super(source, field, filter, params);
         this.precision = params.size() > 0 ? params.get(0) : null;
+        this.pragmas = pragmas;
     }
 
     private CountDistinct(StreamInput in) throws IOException {
@@ -150,9 +153,12 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : nullSafeList(in.readOptionalNamedWriteable(Expression.class))
+                : nullSafeList(in.readOptionalNamedWriteable(Expression.class)),
+            in.readNamedWriteable(QueryPragmas.class)
         );
     }
+
+    private final QueryPragmas pragmas;
 
     @Override
     protected void deprecatedWriteParams(StreamOutput out) throws IOException {
@@ -166,17 +172,23 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @Override
     protected NodeInfo<CountDistinct> info() {
-        return NodeInfo.create(this, CountDistinct::new, field(), filter(), precision);
+        return NodeInfo.create(this, CountDistinct::new, field(), filter(), precision, pragmas);
     }
 
     @Override
     public CountDistinct replaceChildren(List<Expression> newChildren) {
-        return new CountDistinct(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
+        return new CountDistinct(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.size() > 2 ? newChildren.get(2) : null,
+            pragmas
+        );
     }
 
     @Override
     public CountDistinct withFilter(Expression filter) {
-        return new CountDistinct(source(), field(), filter, precision);
+        return new CountDistinct(source(), field(), filter, precision, pragmas);
     }
 
     @Override
@@ -226,7 +238,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         var field = field();
 
         return field.foldable()
-            ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataType.INTEGER))))
+            ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataType.INTEGER))), pragmas)
             : null;
     }
 

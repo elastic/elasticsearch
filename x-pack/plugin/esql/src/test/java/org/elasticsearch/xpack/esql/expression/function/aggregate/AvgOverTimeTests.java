@@ -30,6 +30,6 @@ public class AvgOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new AvgOverTime(source, args.get(0));
+        return new AvgOverTime(source, args.getFirst(), getPragmas());
     }
 }

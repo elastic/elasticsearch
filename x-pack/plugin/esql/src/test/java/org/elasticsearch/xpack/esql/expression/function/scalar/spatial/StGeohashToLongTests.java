@@ -58,6 +58,6 @@ public class StGeohashToLongTests extends SpatialGridTypeConversionTestCases {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StGeohashToLong(source, args.get(0));
+        return new StGeohashToLong(source, args.getFirst(), getPragmas());
     }
 }

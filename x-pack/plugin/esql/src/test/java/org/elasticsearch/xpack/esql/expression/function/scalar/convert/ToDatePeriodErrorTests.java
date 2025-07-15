@@ -27,7 +27,7 @@ public class ToDatePeriodErrorTests extends ErrorsForCasesWithoutExamplesTestCas
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToDatePeriod(source, args.get(0));
+        return new ToDatePeriod(source, args.getFirst(), getPragmas());
     }
 
     @Override

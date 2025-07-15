@@ -692,3 +692,11 @@ null
 null
 null
 ;
+
+
+foo
+row d = [3.141] | eval dd = to_double(d);
+
+d:double |dd:double
+[3.141]  |3.142
+;

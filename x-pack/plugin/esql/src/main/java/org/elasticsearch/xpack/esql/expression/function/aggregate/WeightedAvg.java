@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +44,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     );
 
     private final Expression weight;
+    private final QueryPragmas pragmas;
 
     private static final String invalidWeightError = "{} argument of [{}] cannot be null or 0, received [{}]";
 
@@ -55,14 +57,16 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     public WeightedAvg(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,
-        @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight
+        @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE, weight);
+        this(source, field, Literal.TRUE, weight, pragmas);
     }
 
-    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight) {
+    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight, QueryPragmas pragmas) {
         super(source, field, filter, List.of(weight));
         this.weight = weight;
+        this.pragmas = pragmas;
     }
 
     private WeightedAvg(StreamInput in) throws IOException {
@@ -72,7 +76,8 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readNamedWriteable(Expression.class)
+                : in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(QueryPragmas.class)
         );
     }
 
@@ -137,17 +142,17 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     protected NodeInfo<WeightedAvg> info() {
-        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), weight);
+        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), weight, pragmas);
     }
 
     @Override
     public WeightedAvg replaceChildren(List<Expression> newChildren) {
-        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), pragmas);
     }
 
     @Override
     public WeightedAvg withFilter(Expression filter) {
-        return new WeightedAvg(source(), field(), filter, weight());
+        return new WeightedAvg(source(), field(), filter, weight(), pragmas);
     }
 
     @Override
@@ -160,9 +165,9 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return new MvAvg(s, field);
         }
         if (weight.foldable()) {
-            return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+            return new Div(s, new Sum(s, field, pragmas), new Count(s, field, pragmas), dataType());
         } else {
-            return new Div(s, new Sum(s, new Mul(s, field, weight)), new Sum(s, weight), dataType());
+            return new Div(s, new Sum(s, new Mul(s, field, weight), pragmas), new Sum(s, weight, pragmas), dataType());
         }
     }
 

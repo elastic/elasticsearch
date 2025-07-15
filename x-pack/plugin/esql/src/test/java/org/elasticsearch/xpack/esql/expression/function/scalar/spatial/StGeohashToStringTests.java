@@ -59,6 +59,6 @@ public class StGeohashToStringTests extends SpatialGridTypeConversionTestCases {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StGeohashToString(source, args.get(0));
+        return new StGeohashToString(source, args.getFirst(), getPragmas());
     }
 }

@@ -58,6 +58,6 @@ public class StGeotileToLongTests extends SpatialGridTypeConversionTestCases {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StGeotileToLong(source, args.get(0));
+        return new StGeotileToLong(source, args.getFirst(), getPragmas());
     }
 }

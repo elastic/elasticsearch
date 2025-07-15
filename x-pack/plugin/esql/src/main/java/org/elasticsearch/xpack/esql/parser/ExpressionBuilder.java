@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -123,7 +124,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
+    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, QueryPragmas pragmas) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -699,7 +700,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
-        var convertFunction = converterToFactory.apply(source, expr);
+        var convertFunction = converterToFactory.apply(source, expr, context.pragmas());
         context.telemetry().function(convertFunction.getClass());
         return convertFunction;
     }

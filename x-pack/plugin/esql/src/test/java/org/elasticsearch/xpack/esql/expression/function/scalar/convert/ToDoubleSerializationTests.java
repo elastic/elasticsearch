@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToDoubleSerializationTests extends AbstractUnaryScalarSerializationTests<ToDouble> {
     @Override
     protected ToDouble create(Source source, Expression child) {
-        return new ToDouble(source, child);
+        return new ToDouble(source, child, getPragmas());
     }
 }

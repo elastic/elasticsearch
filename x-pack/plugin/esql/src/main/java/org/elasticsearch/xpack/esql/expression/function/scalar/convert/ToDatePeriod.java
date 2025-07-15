@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.List;
 
@@ -32,9 +33,10 @@ public class ToDatePeriod extends FoldablesConvertFunction {
             name = "field",
             type = { "date_period", "keyword", "text" },
             description = "Input value. The input is a valid constant date period expression."
-        ) Expression v
+        ) Expression v,
+        QueryPragmas pragmas
     ) {
-        super(source, v);
+        super(source, v, pragmas);
     }
 
     @Override
@@ -44,11 +46,11 @@ public class ToDatePeriod extends FoldablesConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToDatePeriod(source(), newChildren.get(0));
+        return new ToDatePeriod(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToDatePeriod::new, field());
+        return NodeInfo.create(this, ToDatePeriod::new, field(), getPragmas());
     }
 }

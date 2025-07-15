@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +83,7 @@ public class SumTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Sum(source, args.get(0));
+        return new Sum(source, args.getFirst(), getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -92,7 +93,7 @@ public class SumTests extends AbstractAggregationTestCase {
             Object expected;
 
             try {
-                expected = switch (fieldTypedData.type().widenSmallNumeric()) {
+                expected = switch (fieldTypedData.type().widenSmallNumeric(QueryPragmas.EMPTY.native_float_type())) {
                     case INTEGER -> fieldTypedData.multiRowData()
                         .stream()
                         .map(v -> (Integer) v)

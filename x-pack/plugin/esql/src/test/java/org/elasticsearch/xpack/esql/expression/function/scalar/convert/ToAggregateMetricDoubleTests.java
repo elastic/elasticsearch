@@ -36,7 +36,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
         if (args.get(0).dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
             assumeTrue("Test sometimes wraps literals as fields", args.get(0).foldable());
         }
-        return new ToAggregateMetricDouble(source, args.get(0));
+        return new ToAggregateMetricDouble(source, args.getFirst(), getPragmas());
     }
 
     @ParametersFactory

@@ -97,7 +97,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new CountDistinct(source, args.get(0), args.size() > 1 ? args.get(1) : null);
+        return new CountDistinct(source, args.get(0), args.size() > 1 ? args.get(1) : null, getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(

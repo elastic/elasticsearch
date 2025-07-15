@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToDegreesSerializationTests extends AbstractUnaryScalarSerializationTests<ToDegrees> {
     @Override
     protected ToDegrees create(Source source, Expression child) {
-        return new ToDegrees(source, child);
+        return new ToDegrees(source, child, getPragmas());
     }
 }

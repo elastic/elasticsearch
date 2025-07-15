@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,18 +63,23 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
                 "text",
                 "unsigned_long",
                 "version" }
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, pragmas);
     }
 
-    public CountOverTime(Source source, Expression field, Expression filter) {
+    public CountOverTime(Source source, Expression field, Expression filter, QueryPragmas pragmas) {
         super(source, field, filter, emptyList());
+        this.pragmas = pragmas;
     }
 
     private CountOverTime(StreamInput in) throws IOException {
         super(in);
+        this.pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
+
+    private final QueryPragmas pragmas;
 
     @Override
     public String getWriteableName() {
@@ -82,17 +88,17 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), filter);
+        return new CountOverTime(source(), field(), filter, pragmas);
     }
 
     @Override
     protected NodeInfo<CountOverTime> info() {
-        return NodeInfo.create(this, CountOverTime::new, field(), filter());
+        return NodeInfo.create(this, CountOverTime::new, field(), filter(), pragmas);
     }
 
     @Override
     public CountOverTime replaceChildren(List<Expression> newChildren) {
-        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1), pragmas);
     }
 
     @Override
@@ -107,6 +113,6 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Count perTimeSeriesAggregation() {
-        return new Count(source(), field(), filter());
+        return new Count(source(), field(), filter(), pragmas);
     }
 }

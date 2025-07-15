@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToBooleanSerializationTests extends AbstractUnaryScalarSerializationTests<ToBoolean> {
     @Override
     protected ToBoolean create(Source source, Expression child) {
-        return new ToBoolean(source, child);
+        return new ToBoolean(source, child, getPragmas());
     }
 }

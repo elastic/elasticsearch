@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToCartesianShapeSerializationTests extends AbstractUnaryScalarSerializationTests<ToCartesianShape> {
     @Override
     protected ToCartesianShape create(Source source, Expression child) {
-        return new ToCartesianShape(source, child);
+        return new ToCartesianShape(source, child, getPragmas());
     }
 }

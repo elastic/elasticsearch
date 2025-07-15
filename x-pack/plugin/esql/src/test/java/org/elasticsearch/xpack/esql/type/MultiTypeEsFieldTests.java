@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
@@ -107,8 +108,14 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
         Map<String, Expression> indexToConvertExpressions = new HashMap<>();
         if (toString) {
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, dataType)));
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD)));
+            indexToConvertExpressions.put(
+                randomAlphaOfLength(4),
+                new ToString(Source.EMPTY, fieldAttribute(name, dataType), QueryPragmas.EMPTY)
+            );
+            indexToConvertExpressions.put(
+                randomAlphaOfLength(4),
+                new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), QueryPragmas.EMPTY)
+            );
         } else {
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, DataType.KEYWORD, dataType));
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, dataType, dataType));
@@ -148,21 +155,21 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     private static Expression testConvertExpression(String name, DataType fromType, DataType toType) {
         FieldAttribute fromField = fieldAttribute(name, fromType);
         if (isString(toType)) {
-            return new ToString(Source.EMPTY, fromField);
+            return new ToString(Source.EMPTY, fromField, QueryPragmas.EMPTY);
         } else {
             return switch (toType) {
-                case BOOLEAN -> new ToBoolean(Source.EMPTY, fromField);
-                case DATETIME -> new ToDatetime(Source.EMPTY, fromField);
-                case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField);
-                case INTEGER -> new ToInteger(Source.EMPTY, fromField);
-                case LONG -> new ToLong(Source.EMPTY, fromField);
-                case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField);
-                case KEYWORD -> new ToString(Source.EMPTY, fromField);
-                case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField);
-                case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField);
-                case CARTESIAN_POINT -> new ToCartesianPoint(Source.EMPTY, fromField);
-                case CARTESIAN_SHAPE -> new ToCartesianShape(Source.EMPTY, fromField);
-                case VERSION -> new ToVersion(Source.EMPTY, fromField);
+                case BOOLEAN -> new ToBoolean(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case DATETIME -> new ToDatetime(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case DOUBLE, FLOAT -> new ToDouble(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case INTEGER -> new ToInteger(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case LONG -> new ToLong(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case IP -> new ToIpLeadingZerosRejected(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case KEYWORD -> new ToString(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case GEO_POINT -> new ToGeoPoint(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case GEO_SHAPE -> new ToGeoShape(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case CARTESIAN_POINT -> new ToCartesianPoint(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case CARTESIAN_SHAPE -> new ToCartesianShape(Source.EMPTY, fromField, QueryPragmas.EMPTY);
+                case VERSION -> new ToVersion(Source.EMPTY, fromField, QueryPragmas.EMPTY);
                 default -> throw new UnsupportedOperationException("Conversion from " + fromType + " to " + toType + " is not supported");
             };
         }

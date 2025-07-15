@@ -183,7 +183,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
             Grok.Parser grokParser;
             try {
-                grokParser = Grok.pattern(source, pattern);
+                grokParser = Grok.pattern(source, pattern, context.pragmas());
             } catch (SyntaxException e) {
                 throw new ParsingException(source, "Invalid grok pattern [{}]: [{}]", pattern, e.getMessage());
             }
@@ -742,7 +742,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
             List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
+                new Alias(
+                    source,
+                    MetadataAttribute.SCORE,
+                    new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN), context.pragmas())
+                )
             );
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 

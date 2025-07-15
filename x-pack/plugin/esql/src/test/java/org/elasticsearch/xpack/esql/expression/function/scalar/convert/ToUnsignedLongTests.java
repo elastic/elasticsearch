@@ -254,6 +254,6 @@ public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToUnsignedLong(source, args.get(0));
+        return new ToUnsignedLong(source, args.getFirst(), getPragmas());
     }
 }

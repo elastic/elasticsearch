@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -187,7 +188,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        EsIndex idx = new EsIndex("idx", new LoadMapping(QueryPragmas.EMPTY).loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -2969,7 +2970,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("bar", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            QueryPragmas.EMPTY
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -2989,7 +2991,8 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesResponse(
                 List.of(fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")), fieldCapabilitiesIndexResponse("bar", Map.of())),
                 List.of()
-            )
+            ),
+            QueryPragmas.EMPTY
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3014,7 +3017,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("bazz", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            QueryPragmas.EMPTY
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3039,7 +3043,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("qux", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            QueryPragmas.EMPTY
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3063,7 +3068,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("bazz", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            QueryPragmas.EMPTY
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3514,7 +3520,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, QueryPragmas.EMPTY);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

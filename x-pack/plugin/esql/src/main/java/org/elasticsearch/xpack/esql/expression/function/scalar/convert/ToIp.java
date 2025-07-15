@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,6 +70,7 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
 
     private final Expression field;
     private final Expression options;
+    private final QueryPragmas pragmas;
 
     @FunctionInfo(
         returnType = "ip",
@@ -109,11 +111,18 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
                 ) },
             description = "(Optional) Additional options.",
             optional = true
-        ) Expression options
+        ) Expression options,
+        QueryPragmas pragmas
     ) {
         super(source, options == null ? List.of(field) : List.of(field, options));
         this.field = field;
         this.options = options;
+        this.pragmas = pragmas;
+    }
+
+    @Override
+    public QueryPragmas getPragmas() {
+        return pragmas;
     }
 
     @Override
@@ -133,12 +142,12 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToIp(source(), newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1));
+        return new ToIp(source(), newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1), pragmas);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToIp::new, field, options);
+        return NodeInfo.create(this, ToIp::new, field, options, pragmas);
     }
 
     @Override
@@ -148,7 +157,7 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
 
     @Override
     public Expression surrogate() {
-        return LeadingZeros.from((MapExpression) options).surrogate(source(), field);
+        return LeadingZeros.from((MapExpression) options).surrogate(source(), field, pragmas);
     }
 
     @Override
@@ -217,20 +226,20 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
     public enum LeadingZeros {
         REJECT {
             @Override
-            public Expression surrogate(Source source, Expression field) {
-                return new ToIpLeadingZerosRejected(source, field);
+            public Expression surrogate(Source source, Expression field, QueryPragmas pragmas) {
+                return new ToIpLeadingZerosRejected(source, field, pragmas);
             }
         },
         DECIMAL {
             @Override
-            public Expression surrogate(Source source, Expression field) {
-                return new ToIpLeadingZerosDecimal(source, field);
+            public Expression surrogate(Source source, Expression field, QueryPragmas pragmas) {
+                return new ToIpLeadingZerosDecimal(source, field, pragmas);
             }
         },
         OCTAL {
             @Override
-            public Expression surrogate(Source source, Expression field) {
-                return new ToIpLeadingZerosOctal(source, field);
+            public Expression surrogate(Source source, Expression field, QueryPragmas pragmas) {
+                return new ToIpLeadingZerosOctal(source, field, pragmas);
             }
         };
 
@@ -251,6 +260,6 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
             };
         }
 
-        public abstract Expression surrogate(Source source, Expression field);
+        public abstract Expression surrogate(Source source, Expression field, QueryPragmas pragmas);
     }
 }

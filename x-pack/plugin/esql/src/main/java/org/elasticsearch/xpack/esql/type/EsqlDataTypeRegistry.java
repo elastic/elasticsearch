@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 public class EsqlDataTypeRegistry {
 
@@ -16,7 +17,7 @@ public class EsqlDataTypeRegistry {
 
     private EsqlDataTypeRegistry() {}
 
-    public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
+    public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType, QueryPragmas pragmas) {
         DataType type = DataType.fromEs(typeName);
         /*
          * If we're handling a time series COUNTER type field then convert it
@@ -24,6 +25,6 @@ public class EsqlDataTypeRegistry {
          * have time series counters for `double`, `long` and `int`, not `float`
          * and `half_float`, etc.
          */
-        return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric().counter() : type;
+        return metricType == TimeSeriesParams.MetricType.COUNTER ? type.widenSmallNumeric(pragmas.native_float_type()).counter() : type;
     }
 }

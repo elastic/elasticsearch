@@ -77,6 +77,6 @@ public class ToRadiansTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToRadians(source, args.get(0));
+        return new ToRadians(source, args.getFirst(), getPragmas());
     }
 }

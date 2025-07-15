@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Locale;
 import java.util.Map;
@@ -29,8 +30,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemp
  */
 public abstract class FoldablesConvertFunction extends AbstractConvertFunction implements PostOptimizationVerificationAware {
 
-    protected FoldablesConvertFunction(Source source, Expression field) {
-        super(source, field);
+    protected FoldablesConvertFunction(Source source, Expression field, QueryPragmas pragmas) {
+        super(source, field, pragmas);
     }
 
     @Override

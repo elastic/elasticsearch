@@ -19,7 +19,7 @@ public class CountDistinctSerializationTests extends AbstractExpressionSerializa
         Source source = randomSource();
         Expression field = randomChild();
         Expression precision = randomBoolean() ? null : randomChild();
-        return new CountDistinct(source, field, precision);
+        return new CountDistinct(source, field, precision, getPragmas());
     }
 
     @Override
@@ -32,6 +32,6 @@ public class CountDistinctSerializationTests extends AbstractExpressionSerializa
         } else {
             precision = randomValueOtherThan(precision, () -> randomBoolean() ? null : randomChild());
         }
-        return new CountDistinct(source, field, precision);
+        return new CountDistinct(source, field, precision, getPragmas());
     }
 }

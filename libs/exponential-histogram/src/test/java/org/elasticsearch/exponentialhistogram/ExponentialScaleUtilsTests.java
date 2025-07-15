@@ -71,7 +71,7 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
             // generate values in the range 10^-100 to 10^100
             double exponent = rnd.nextDouble() * 200 - 100;
             double testValue = Math.pow(10, exponent);
-            int scale = rnd.nextInt(MIN_SCALE/2, MAX_SCALE/2);
+            int scale = rnd.nextInt(MIN_SCALE / 2, MAX_SCALE / 2);
             long index = computeIndex(testValue, scale);
 
             double lowerBound = getLowerBucketBoundary(index, scale);
@@ -160,12 +160,11 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
         for (int i = 0; i < 10_000; i++) {
 
             int startScale = rnd.nextInt(minScale, maxScale);
-            int scaleIncrease =  rnd.nextInt(1, maxScale-startScale + 1);
+            int scaleIncrease = rnd.nextInt(1, maxScale - startScale + 1);
 
             long index = MAX_INDEX >> scaleIncrease >> (int) (rnd.nextDouble() * (MAX_INDEX_BITS - scaleIncrease));
             index = Math.max(1, index);
             index = (long) (rnd.nextDouble() * index) * (rnd.nextBoolean() ? 1 : -1);
-
 
             double midPoint = getPointOfLeastRelativeError(index, startScale);
             // limit the numeric range, otherwise we get rounding errors causing the test to fail

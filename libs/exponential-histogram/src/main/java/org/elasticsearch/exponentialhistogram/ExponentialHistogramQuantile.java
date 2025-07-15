@@ -10,19 +10,20 @@
 package org.elasticsearch.exponentialhistogram;
 
 /**
- * Quantile estimation for {@link ExponentialHistogram}s.
+ * Provides quantile estimation for {@link ExponentialHistogram} instances.
  */
 public class ExponentialHistogramQuantile {
 
     /**
-     * Provides a quantile for the distribution represented by the given histogram.
+     * Estimates a quantile for the distribution represented by the given histogram.
      *
-     * It returns the value of the element at rank {@code max(0, min( n-1, (quantile * (n+1))-1))}, where rank starts at 0.
-     * If that value is fractional, we linearly interpolate based on the fraction the values of the two neighboring ranks.
+     * It returns the value of the element at rank {@code max(0, min(n - 1, (quantile * (n + 1)) - 1))}, where n is the total number of
+     * values and rank starts at 0. If the rank is fractional, the result is linearly interpolated from the values of the two
+     * neighboring ranks.
      *
-     * @param histo the histogram representing the distribution
-     * @param quantile the quantile to query, in the range [0,1]
-     * @return NaN if the histogram is empty, otherwise the quantile
+     * @param histo    the histogram representing the distribution
+     * @param quantile the quantile to query, in the range [0, 1]
+     * @return the estimated quantile value, or {@link Double#NaN} if the histogram is empty
      */
     public static double getQuantile(ExponentialHistogram histo, double quantile) {
         if (quantile < 0 || quantile > 1) {
@@ -35,7 +36,7 @@ public class ExponentialHistogramQuantile {
 
         long totalCount = zeroCount + negCount + posCount;
         if (totalCount == 0) {
-            // Can't compute quantile on empty histogram
+            // Can't compute quantile on an empty histogram
             return Double.NaN;
         }
 
@@ -44,9 +45,13 @@ public class ExponentialHistogramQuantile {
         long upperRank = (long) Math.ceil(exactRank);
         double upperFactor = exactRank - lowerRank;
 
-        // TODO: if we want more performance here, we could iterate the buckets once instead of twice
-        return getElementAtRank(histo, lowerRank, negCount, zeroCount) * ( 1 - upperFactor)
-            +getElementAtRank(histo, upperRank, negCount, zeroCount) * upperFactor;
+        // TODO: This can be optimized to iterate over the buckets once instead of twice.
+        return getElementAtRank(histo, lowerRank, negCount, zeroCount) * (1 - upperFactor) + getElementAtRank(
+            histo,
+            upperRank,
+            negCount,
+            zeroCount
+        ) * upperFactor;
     }
 
     private static double getElementAtRank(ExponentialHistogram histo, long rank, long negCount, long zeroCount) {
@@ -68,7 +73,7 @@ public class ExponentialHistogramQuantile {
             }
             buckets.advance();
         }
-        throw new IllegalStateException("buckets contain in total less elements than the desired rank");
+        throw new IllegalStateException("The total number of elements in the buckets is less than the desired rank.");
     }
 
     private static long getTotalCount(ExponentialHistogram.BucketIterator buckets) {

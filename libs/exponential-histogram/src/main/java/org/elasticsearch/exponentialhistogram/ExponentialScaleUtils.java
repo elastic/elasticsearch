@@ -11,86 +11,84 @@ package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
 
 /**
- * Utils for working with indices and scales of exponential bucket histograms.
+ * A collection of utility methods for working with indices and scales of exponential bucket histograms.
  */
 public class ExponentialScaleUtils {
 
     private static final double LN_2 = Math.log(2);
 
     /**
-     * Only visible for testing, the test ensures that this table is up-to-date.
+     * This table is visible for testing to ensure it is up-to-date.
      * <br>
-     * For each scale from {@link ExponentialHistogram#MIN_SCALE} to {@link ExponentialHistogram#MAX_SCALE}
-     * the table contains a pre-computed constant for performing up-scaling of bucket indices.
+     * For each scale from {@link ExponentialHistogram#MIN_SCALE} to {@link ExponentialHistogram#MAX_SCALE},
+     * the table contains a pre-computed constant for up-scaling bucket indices.
      * The constant is computed using the following formula:
-     * <code>(1 + 2^scale * ( 1 - log2(1 + 2^(2^-scale))))</code>
+     * {@code (1 + 2^scale * (1 - log2(1 + 2^(2^-scale))))}
      */
-   static final double[] SCALE_UP_CONSTANT_TABLE = new double[]{
-       4.8828125E-4,
-       9.765625E-4,
-       0.001953125,
-       0.00390625,
-       0.0078125,
-       0.015625,
-       0.03124999998950301,
-       0.06249862414928998,
-       0.12429693135076524,
-       0.22813428968741514,
-       0.33903595255631885,
-       0.4150374992788438,
-       0.45689339367277604,
-       0.47836619809201575,
-       0.4891729613112115,
-       0.49458521106164327,
-       0.497292446757125,
-       0.4986462035295225,
-       0.4993230992835585,
-       0.4996615493316266,
-       0.49983077462704417,
-       0.49991538730867596,
-       0.4999576936537322,
-       0.4999788468267904,
-       0.4999894234133857,
-       0.4999947117066917,
-       0.4999973558533457,
-       0.49999867792667285,
-       0.4999993389633364,
-       0.4999996694816682,
-       0.4999998347408341,
-       0.49999991737041705,
-       0.4999999586852085,
-       0.49999997934260426,
-       0.49999998967130216,
-       0.49999999483565105,
-       0.4999999974178255,
-       0.49999999870891276,
-       0.4999999993544564,
-       0.4999999996772282,
-       0.4999999998386141,
-       0.49999999991930705,
-       0.49999999995965355,
-       0.49999999997982675,
-       0.4999999999899134,
-       0.4999999999949567,
-       0.49999999999747835,
-       0.4999999999987392,
-       0.49999999999936956,
-       0.4999999999996848
-   };
+    static final double[] SCALE_UP_CONSTANT_TABLE = new double[] {
+        4.8828125E-4,
+        9.765625E-4,
+        0.001953125,
+        0.00390625,
+        0.0078125,
+        0.015625,
+        0.03124999998950301,
+        0.06249862414928998,
+        0.12429693135076524,
+        0.22813428968741514,
+        0.33903595255631885,
+        0.4150374992788438,
+        0.45689339367277604,
+        0.47836619809201575,
+        0.4891729613112115,
+        0.49458521106164327,
+        0.497292446757125,
+        0.4986462035295225,
+        0.4993230992835585,
+        0.4996615493316266,
+        0.49983077462704417,
+        0.49991538730867596,
+        0.4999576936537322,
+        0.4999788468267904,
+        0.4999894234133857,
+        0.4999947117066917,
+        0.4999973558533457,
+        0.49999867792667285,
+        0.4999993389633364,
+        0.4999996694816682,
+        0.4999998347408341,
+        0.49999991737041705,
+        0.4999999586852085,
+        0.49999997934260426,
+        0.49999998967130216,
+        0.49999999483565105,
+        0.4999999974178255,
+        0.49999999870891276,
+        0.4999999993544564,
+        0.4999999996772282,
+        0.4999999998386141,
+        0.49999999991930705,
+        0.49999999995965355,
+        0.49999999997982675,
+        0.4999999999899134,
+        0.4999999999949567,
+        0.49999999999747835,
+        0.4999999999987392,
+        0.49999999999936956,
+        0.4999999999996848 };
 
     /**
-     * Computes the new index for a bucket when adjusting the scale of the histogram by the given amount.
-     * Note that this method does not only support down-scaling (=reducing the scale), but also upscaling.
-     * When scaling up, it will provide the bucket containing the point of least error of the original bucket.
+     * Computes the new index for a bucket when adjusting the scale of the histogram.
+     * This method supports both down-scaling (reducing the scale) and up-scaling.
+     * When up-scaling, it returns the bucket containing the point of least error of the original bucket.
      *
-     * @param index the current bucket index to be upscaled
-     * @param currentScale the current scale
-     * @param scaleAdjustment the adjustment to make, the new scale will be <code>currentScale + scaleAdjustment</code>
+     * @param index           the current bucket index to be adjusted
+     * @param currentScale    the current scale
+     * @param scaleAdjustment the adjustment to make; the new scale will be {@code currentScale + scaleAdjustment}
      * @return the index of the bucket in the new scale
      */
     static long adjustScale(long index, int currentScale, int scaleAdjustment) {
@@ -98,21 +96,27 @@ public class ExponentialScaleUtils {
             return index >> -scaleAdjustment;
         } else {
             // When scaling up, we want to return the bucket containing the point of least relative error.
-            // This bucket index can be computed as (index << adjustment) + offset
-            // Hereby offset is a constant which does not depend on the index, but only on the scale and adjustment
-            // The mathematically correct formula for offset is as follows:
-            // 2^adjustment * (1 + 2^currentScale * ( 1 - log2(1 + 2^(2^-scale))))
-            // This is hard to compute in double precision, as it causes rounding errors, also it is quite expensive
-            // Therefore we precompute (1 + 2^currentScale * ( 1 - log2(1 + 2^(2^-scale)))) and store it
-            // in SCALE_UP_CONSTANT_TABLE for each scale
+            // This bucket index can be computed as (index << adjustment) + offset.
+            // The offset is a constant that depends only on the scale and adjustment, not the index.
+            // The mathematically correct formula for the offset is:
+            // 2^adjustment * (1 + 2^currentScale * (1 - log2(1 + 2^(2^-currentScale))))
+            // This is hard to compute with double-precision floating-point numbers due to rounding errors and is also expensive.
+            // Therefore, we precompute (1 + 2^currentScale * (1 - log2(1 + 2^(2^-currentScale)))) and store it
+            // in SCALE_UP_CONSTANT_TABLE for each scale.
             double offset = Math.scalb(SCALE_UP_CONSTANT_TABLE[currentScale - MIN_SCALE], scaleAdjustment);
             return (index << scaleAdjustment) + (long) Math.floor(offset);
         }
     }
 
-
     /**
-     * Equivalent to mathematically correct comparison of the lower bucket boundaries of the given buckets
+     * Compares the lower boundaries of two buckets, which may have different scales.
+     * This is equivalent to a mathematically correct comparison of the lower bucket boundaries.
+     *
+     * @param idxA           the index of the first bucket
+     * @param scaleA         the scale of the first bucket
+     * @param idxB           the index of the second bucket
+     * @param scaleB         the scale of the second bucket
+     * @return a negative integer, zero, or a positive integer as the first bucket's lower boundary is less than, equal to, or greater than the second bucket's lower boundary
      */
     public static int compareLowerBoundaries(long idxA, int scaleA, long idxB, int scaleB) {
         if (scaleA > scaleB) {
@@ -122,10 +126,10 @@ public class ExponentialScaleUtils {
         int shifts = scaleB - scaleA;
         int maxScaleAdjustment = getMaximumScaleIncrease(idxA);
         if (maxScaleAdjustment < shifts) {
-            // we would overflow if we adjust A to the scale of B
-            // so if A is negative, scaling would produce a number less than Long.MIN_VALUE, therefore it is definitely smaller than B
-            // if A is positive, scaling would produce a number bigger than Long.MAX_VALUE, therefore it is definitely bigger than B
-            // if A is zero => shifting and therefore scale adjustment would not have any effect
+            // We would overflow if we adjusted A to the scale of B.
+            // If A is negative, scaling would produce a number less than Long.MIN_VALUE, so it is smaller than B.
+            // If A is positive, scaling would produce a number greater than Long.MAX_VALUE, so it is larger than B.
+            // If A is zero, shifting and scale adjustment have no effect.
             if (idxA == 0) {
                 return Long.compare(0, idxB);
             } else {
@@ -138,8 +142,11 @@ public class ExponentialScaleUtils {
     }
 
     /**
-     * Returns the maximum permissible scale-increase which does not cause an overflow
-     * of the index.
+     * Returns the maximum permissible scale increase that does not cause the index to grow out
+     * of the [{@link ExponentialHistogram#MIN_INDEX}, {@link ExponentialHistogram#MIN_INDEX}] range.
+     *
+     * @param index the index to check
+     * @return the maximum permissible scale increase
      */
     public static int getMaximumScaleIncrease(long index) {
         if (index < MIN_INDEX || index > MAX_INDEX) {
@@ -151,24 +158,38 @@ public class ExponentialScaleUtils {
         return Long.numberOfLeadingZeros(index) - (64 - MAX_INDEX_BITS);
     }
 
+    /**
+     * Returns the upper boundary of the bucket with the given index and scale.
+     *
+     * @param index the index of the bucket
+     * @param scale the scale of the bucket
+     * @return the upper boundary of the bucket
+     */
     public static double getUpperBucketBoundary(long index, int scale) {
         return getLowerBucketBoundary(index + 1, scale);
     }
 
+    /**
+     * Returns the lower boundary of the bucket with the given index and scale.
+     *
+     * @param index the index of the bucket
+     * @param scale the scale of the bucket
+     * @return the lower boundary of the bucket
+     */
     public static double getLowerBucketBoundary(long index, int scale) {
         double inverseFactor = Math.scalb(LN_2, -scale);
         return Math.exp(inverseFactor * index);
     }
 
     /**
-     * For a bucket with the given index, computes the point <code>x</code> in the bucket so that
-     *  <code>(x - l) / l</code> equals <code>(u - x) / u</code> where <code>l</code> is the lower bucket boundary and where <code>u</code>
-     *  is the upper bucket boundary.
+     * For a bucket with the given index, computes the point {@code x} in the bucket such that
+     * {@code (x - l) / l} equals {@code (u - x) / u}, where {@code l} is the lower bucket boundary and {@code u}
+     * is the upper bucket boundary.
      * <br>
-     *  In other words we select the point in the bucket which is guaranteed to have the least relative error towards any point in the bucket.
+     * In other words, we select the point in the bucket that has the least relative error with respect to any other point in the bucket.
      *
-     * @param bucketIndex the bucket index
-     * @param scale the scale of the histogram
+     * @param bucketIndex the index of the bucket
+     * @param scale       the scale of the bucket
      * @return the point of least relative error
      */
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
@@ -178,17 +199,20 @@ public class ExponentialScaleUtils {
     }
 
     /**
-     * Provides the index of the bucket of the exponential histogram with the given scale
-     * containing the provided value.
+     * Provides the index of the bucket of the exponential histogram with the given scale that contains the provided value.
+     *
+     * @param value the value to find the bucket for
+     * @param scale the scale of the histogram
+     * @return the index of the bucket
      */
     public static long computeIndex(double value, int scale) {
         return Indexing.computeIndex(value, scale);
     }
 
     /**
-     * The code in this class has been copied and slightly adapted from the
-     * <a href="https://github.com/open-telemetry/opentelemetry-java/blob/78a917da2e8f4bc3645f4fb10361e3e844aab9fb/sdk/metrics/src/main/java/io/opentelemetry/sdk/metrics/internal/aggregator/Base2ExponentialHistogramIndexer.java">OpenTelemetry Base2ExponentialHistogramIndexer implementation</a>
-     *  licensed under Apache License 2.0.
+     * The code in this class was copied and slightly adapted from the
+     * <a href="https://github.com/open-telemetry/opentelemetry-java/blob/78a917da2e8f4bc3645f4fb10361e3e844aab9fb/sdk/metrics/src/main/java/io/opentelemetry/sdk/metrics/internal/aggregator/Base2ExponentialHistogramIndexer.java">OpenTelemetry Base2ExponentialHistogramIndexer implementation</a>,
+     * licensed under the Apache License 2.0.
      */
     private static class Indexing {
 
@@ -261,5 +285,4 @@ public class ExponentialScaleUtils {
             return ieeeExponent;
         }
     }
-
 }

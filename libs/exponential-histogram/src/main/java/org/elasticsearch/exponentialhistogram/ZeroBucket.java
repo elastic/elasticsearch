@@ -9,24 +9,49 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareLowerBoundaries;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getLowerBucketBoundary;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 
+/**
+ * Represents the bucket for values around zero in an exponential histogram.
+ * The range of this bucket is {@code [-zeroThreshold, +zeroThreshold]}.
+ *
+ * @param index The index used with the scale to determine the zero threshold.
+ * @param scale The scale used with the index to determine the zero threshold.
+ * @param count The number of values in the zero bucket.
+ */
 public record ZeroBucket(long index, int scale, long count) {
 
-    private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, Integer.MIN_VALUE / 256, 0);
+    // A singleton for an empty zero bucket with the smallest possible threshold.
+    private static final ZeroBucket MINIMAL_EMPTY = new ZeroBucket(MIN_INDEX, MIN_SCALE, 0);
 
+    /**
+     * Creates a new zero bucket with a specific threshold and count.
+     *
+     * @param zeroThreshold The threshold defining the bucket's range [-zeroThreshold, +zeroThreshold].
+     * @param count         The number of values in the bucket.
+     */
     public ZeroBucket(double zeroThreshold, long count) {
         this(computeIndex(zeroThreshold, MAX_SCALE) + 1, MAX_SCALE, count);
     }
 
+    /**
+     * @return A singleton instance of an empty zero bucket with the smallest possible threshold.
+     */
     public static ZeroBucket minimalEmpty() {
         return MINIMAL_EMPTY;
     }
 
+    /**
+     * Creates a zero bucket with the smallest possible threshold and a given count.
+     *
+     * @param count The number of values in the bucket.
+     * @return A new {@link ZeroBucket}.
+     */
     public static ZeroBucket minimalWithCount(long count) {
         if (count == 0) {
             return MINIMAL_EMPTY;
@@ -36,16 +61,21 @@ public record ZeroBucket(long index, int scale, long count) {
     }
 
     /**
-     * Merges this zero-bucket with a given other one:
-     *  * If the other zero-bucket is empty, the current one is returned unchanged
-     *  * Otherwise the zero-threshold is increased if required and the counts are summed up
+     * Merges this zero bucket with another one.
+     * <ul>
+     *     <li>If the other zero bucket is empty, this instance is returned unchanged.</li>
+     *     <li>Otherwise, the zero threshold is increased if necessary (by taking the maximum of the two), and the counts are summed.</li>
+     * </ul>
+     *
+     * @param other The other zero bucket to merge with.
+     * @return A new {@link ZeroBucket} representing the merged result.
      */
     public ZeroBucket merge(ZeroBucket other) {
         if (other.count == 0) {
             return this;
         } else {
             long totalCount = count + other.count;
-            // both are populate, we need to use the higher zero-threshold
+            // Both are populated, so we need to use the higher zero-threshold.
             if (this.compareZeroThreshold(other) >= 0) {
                 return new ZeroBucket(index, scale, totalCount);
             } else {
@@ -54,6 +84,13 @@ public record ZeroBucket(long index, int scale, long count) {
         }
     }
 
+    /**
+     * Collapses all buckets from the given iterators whose lower boundaries are smaller than the zero threshold.
+     * The iterators are advanced to point at the first, non-collapsed bucket.
+     *
+     * @param bucketIterators The iterators whose buckets may be collapsed.
+     * @return A potentially updated {@link ZeroBucket} with the collapsed buckets' counts and an adjusted threshold.
+     */
     public ZeroBucket collapseOverlappingBuckets(ExponentialHistogram.BucketIterator... bucketIterators) {
         ZeroBucket current = this;
         ZeroBucket previous;
@@ -66,17 +103,29 @@ public record ZeroBucket(long index, int scale, long count) {
         return current;
     }
 
+    /**
+     * Compares the zero threshold of this bucket with another one.
+     *
+     * @param other The other zero bucket to compare against.
+     * @return A negative integer, zero, or a positive integer if this bucket's threshold is less than, equal to, or greater than the other's.
+     */
     public int compareZeroThreshold(ZeroBucket other) {
         return compareLowerBoundaries(index, scale, other.index, other.scale);
     }
 
+    /**
+     * @return The value of the zero threshold.
+     */
     public double zeroThreshold() {
         return getLowerBucketBoundary(index, scale);
     }
 
     /**
-     * Collapses all buckets from the given iterator whose lower boundary is smaller than the zero threshold.
+     * Collapses all buckets from the given iterator whose lower boundaries are smaller than the zero threshold.
      * The iterator is advanced to point at the first, non-collapsed bucket.
+     *
+     * @param buckets The iterator whose buckets may be collapsed.
+     * @return A potentially updated {@link ZeroBucket} with the collapsed buckets' counts and an adjusted threshold.
      */
     public ZeroBucket collapseOverlappingBuckets(ExponentialHistogram.BucketIterator buckets) {
 
@@ -94,7 +143,7 @@ public record ZeroBucket(long index, int scale, long count) {
             // +1 because we need to adjust the zero threshold to the upper boundary of the collapsed bucket
             long collapsedUpperBoundIndex = Math.addExact(highestCollapsedIndex, 1);
             if (compareLowerBoundaries(index, scale, collapsedUpperBoundIndex, buckets.scale()) >= 0) {
-                // we still have a larger zero-threshold than the largest collapsed bucket's upper boundary
+                // Our current zero-threshold is larger than the upper boundary of the largest collapsed bucket, so we keep it.
                 return new ZeroBucket(index, scale, newZeroCount);
             } else {
                 return new ZeroBucket(collapsedUpperBoundIndex, buckets.scale(), newZeroCount);

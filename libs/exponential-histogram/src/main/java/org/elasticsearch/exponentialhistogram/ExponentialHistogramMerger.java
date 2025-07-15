@@ -9,9 +9,7 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import java.util.Arrays;
 import java.util.OptionalLong;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
 
@@ -29,6 +27,8 @@ public class ExponentialHistogramMerger {
     private boolean isFinished;
 
     /**
+     * Creates a new instance with the specified bucket limit.
+     *
      * @param bucketLimit the maximum number of buckets the result histogram is allowed to have
      */
     public ExponentialHistogramMerger(int bucketLimit) {
@@ -44,6 +44,12 @@ public class ExponentialHistogramMerger {
         buffer.resetBuckets(minScale);
     }
 
+    /**
+     * Merges the given histogram into the current result.
+     * Must not be called after {@link #get()} has been called.
+     *
+     * @param toAdd the histogram to merge
+     */
     public void add(ExponentialHistogram toAdd) {
         if (isFinished) {
             throw new IllegalStateException("get() has already been called");
@@ -54,6 +60,12 @@ public class ExponentialHistogramMerger {
         buffer = temp;
     }
 
+    /**
+     * Returns the merged histogram.
+     * Must not be called multiple times.
+     *
+     * @return the merged histogram
+     */
     public ExponentialHistogram get() {
         if (isFinished) {
             throw new IllegalStateException("get() has already been called");
@@ -64,7 +76,8 @@ public class ExponentialHistogramMerger {
 
     // TODO: this algorithm is very efficient if b has roughly as many buckets as a
     // However, if b is much smaller we still have to iterate over all buckets of a which is very wasteful
-    // This can be optimized by buffering multiple histograms to accumulate first, then in O(log(b)) turn them into a single, merged histogram
+    // This can be optimized by buffering multiple histograms to accumulate first,
+    // then in O(log(b)) turn them into a single, merged histogram
     // (b is the number of buffered buckets)
 
     private void merge(FixedCapacityExponentialHistogram output, ExponentialHistogram a, ExponentialHistogram b) {
@@ -78,9 +91,9 @@ public class ExponentialHistogramMerger {
 
         output.setZeroBucket(zeroBucket);
 
-        // we will attempt to bring everything to the scale of A
-        // this might involve increasing the scale for B, which in turn would increase the indices
-        // we need to make sure to not exceed MAX_INDEX / MIN_INDEX for those in this case
+        // We attempt to bring everything to the scale of A.
+        // This might involve increasing the scale for B, which would increase its indices.
+        // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
         int targetScale = a.scale();
         if (targetScale > b.scale()) {
             if (posBucketsB.hasNext()) {
@@ -97,9 +110,9 @@ public class ExponentialHistogramMerger {
             }
         }
 
-        // Now we are sure that everything fits numerically into targetScale
-        // however, we might exceed our limit for the total number of buckets
-        // therefore we try the merging optimistically, and if we fail we reduce the target scale accordingly to make everything fit
+        // Now we are sure that everything fits numerically into targetScale.
+        // However, we might exceed our limit for the total number of buckets.
+        // Therefore, we try the merge optimistically. If we fail, we reduce the target scale to make everything fit.
 
         MergingBucketIterator positiveMerged = new MergingBucketIterator(posBucketsA.copy(), posBucketsB.copy(), targetScale);
         MergingBucketIterator negativeMerged = new MergingBucketIterator(negBucketsA.copy(), negBucketsB.copy(), targetScale);
@@ -110,7 +123,7 @@ public class ExponentialHistogramMerger {
         overflowCount += putBuckets(output, positiveMerged, true, downscaleStats);
 
         if (overflowCount > 0) {
-            // UDD-sketch approach: we decrease the scale and retry
+            // UDD-sketch approach: decrease the scale and retry.
             int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
             targetScale -= reduction;
             output.resetBuckets(targetScale);

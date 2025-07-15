@@ -12,17 +12,17 @@ package org.elasticsearch.exponentialhistogram;
 import java.util.OptionalLong;
 
 /**
- * Implementation of a mutable {@link ExponentialHistogram} with a sparse, array-backed representation.
+ * An implementation of a mutable {@link ExponentialHistogram} with a sparse, array-backed representation.
  * <br>
- * Consumers must ensure that if the histogram is mutated, all previously acquired @{@link org.elasticsearch.exponentialhistogram.ExponentialHistogram.BucketIterator}
- * must not be used anymore.
+ * Consumers must ensure that if the histogram is mutated, all previously acquired {@link ExponentialHistogram.BucketIterator}
+ * instances are no longer used.
  */
 public final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
     // TODO: maybe switch to BigArrays?
 
-    // These arrays represent both the positive and the negative buckets
-    // They store first all negative buckets in ascending index order, followed by the positive buckets in ascending index order
+    // These arrays represent both the positive and the negative buckets.
+    // They store all negative buckets first, in ascending index order, followed by all positive buckets, also in ascending index order.
     private final long[] bucketIndices;
     private final long[] bucketCounts;
 
@@ -34,9 +34,9 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
 
     /**
      * Creates an empty histogram with the given capacity and a {@link ZeroBucket#minimalEmpty()} zero bucket.
-     * The scale is set to the maximum possible precisions ({@link #MAX_SCALE}).
+     * The scale is initialized to the maximum possible precision ({@link #MAX_SCALE}).
      *
-     * @param bucketCapacity the maximum number of positive and negative buckets this histogram can hold in total.
+     * @param bucketCapacity the maximum total number of positive and negative buckets this histogram can hold.
      */
     public FixedCapacityExponentialHistogram(int bucketCapacity) {
         bucketIndices = new long[bucketCapacity];
@@ -45,7 +45,7 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
     }
 
     /**
-     * Resets this histogram so it has the same state as a newly constructed one with the same capacity.
+     * Resets this histogram to the same state as a newly constructed one with the same capacity.
      */
     public void reset() {
         setZeroBucket(ZeroBucket.minimalEmpty());
@@ -53,11 +53,11 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
     }
 
     /**
-     * Removes all positive and negative buckets of this histogram. Sets the scale to the given value.
+     * Removes all positive and negative buckets from this histogram and sets the scale to the given value.
      */
     public void resetBuckets(int scale) {
         if (scale > MAX_SCALE || scale < MIN_SCALE) {
-            throw new IllegalArgumentException("scale must be in range ["+MIN_SCALE+".."+MAX_SCALE+"]");
+            throw new IllegalArgumentException("scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]");
         }
         negativeBucketCount = 0;
         positiveBucketCount = 0;
@@ -71,41 +71,41 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
 
     /**
      * Replaces the zero bucket of this histogram with the given one.
-     * Callers must ensure that the given @{@link ZeroBucket} does not overlap any of the positive or negative buckets of this histogram.
+     * Callers must ensure that the given {@link ZeroBucket} does not overlap with any of the positive or negative buckets of this histogram.
      */
     public void setZeroBucket(ZeroBucket zeroBucket) {
         this.zeroBucket = zeroBucket;
     }
 
     /**
-     * Attempts to add a bucket to the range of positive or negative buckets of this histogram.
+     * Attempts to add a bucket to the positive or negative range of this histogram.
      * <br>
-     * Callers have to adhere to the following rules:
+     * Callers must adhere to the following rules:
      * <ul>
-     *     <li>All buckets of the negative range must be provided before the first one from the positive range</li>
-     *     <li>For both the negative and positive range, buckets must be provided in ascending index order</li>
-     *     <li>It is not allowed to provide the same bucket more than once</li>
-     *     <li>It is not allowed to add empty buckets</li>
+     *     <li>All buckets from the negative range must be provided before the first one from the positive range.</li>
+     *     <li>For both the negative and positive ranges, buckets must be provided in ascending index order.</li>
+     *     <li>It is not allowed to provide the same bucket more than once.</li>
+     *     <li>It is not allowed to add empty buckets (count <= 0).</li>
      * </ul>
      *
-     * If any of the rules above are violated, this call fails with an exception.
-     * In contrast if the bucket cannot be added because the maximum capacity has been reached, the call will not modify the state
-     * of this histogram and return <code>false</code>.
+     * If any of these rules are violated, this call will fail with an exception.
+     * If the bucket cannot be added because the maximum capacity has been reached, the call will not modify the state
+     * of this histogram and will return {@code false}.
      *
-     * @param index the index of the bucket to add
-     * @param count the count to associate with the given bucket
-     * @param isPositive <code>true</code>, if the bucket to add belongs to the positive range, <code>false</code> if it belongs to the negative range
-     * @return <code>true</code> if the bucket was added, <code>false</code> if it could not be added due to insufficient capacity
+     * @param index      the index of the bucket to add
+     * @param count      the count to associate with the given bucket
+     * @param isPositive {@code true} if the bucket belongs to the positive range, {@code false} if it belongs to the negative range
+     * @return {@code true} if the bucket was added, {@code false} if it could not be added due to insufficient capacity
      */
     public boolean tryAddBucket(long index, long count, boolean isPositive) {
         if (index < MIN_INDEX || index > MAX_INDEX) {
             throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
         }
         if (isPositive == false && positiveBucketCount > 0) {
-            throw new IllegalArgumentException("Cannot add negative buckets after a positive bucket was added");
+            throw new IllegalArgumentException("Cannot add negative buckets after a positive bucket has been added");
         }
         if (count <= 0) {
-            throw new IllegalArgumentException("Cannot add an empty bucket");
+            throw new IllegalArgumentException("Cannot add an empty or negative bucket");
         }
         int slot = negativeBucketCount + positiveBucketCount;
         if (slot >= bucketCounts.length) {
@@ -114,13 +114,13 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
         bucketIndices[slot] = index;
         bucketCounts[slot] = count;
         if (isPositive) {
-            if (positiveBucketCount > 0 && bucketIndices[slot - 1] > index) {
-                throw new IllegalStateException("Buckets must be added in ascending index order!");
+            if (positiveBucketCount > 0 && bucketIndices[slot - 1] >= index) {
+                throw new IllegalStateException("Buckets must be added in strictly ascending index order");
             }
             positiveBucketCount++;
         } else {
-            if (negativeBucketCount > 0 && bucketIndices[slot - 1] > index) {
-                throw new IllegalStateException("Buckets must be added in ascending index order!");
+            if (negativeBucketCount > 0 && bucketIndices[slot - 1] >= index) {
+                throw new IllegalStateException("Buckets must be added in strictly ascending index order");
             }
             negativeBucketCount++;
         }
@@ -199,9 +199,8 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
 
         private void ensureEndNotReached() {
             if (hasNext() == false) {
-                throw new IllegalStateException("No more buckets");
+                throw new IllegalStateException("Iterator has no more buckets");
             }
         }
     }
-
 }

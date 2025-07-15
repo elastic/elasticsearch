@@ -10,8 +10,7 @@
 package org.elasticsearch.exponentialhistogram;
 
 /**
- * Iterates over two sets of buckets in parallel, bringing them to the same scale
- * and merging buckets which exist in both.
+ * An iterator that merges two bucket iterators, aligning them to a common scale and combining buckets with the same index.
  */
 final class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
 
@@ -22,6 +21,13 @@ final class MergingBucketIterator implements ExponentialHistogram.BucketIterator
     private long currentIndex;
     private long currentCount;
 
+    /**
+     * Creates a new merging iterator.
+     *
+     * @param itA         the first iterator to merge
+     * @param itB         the second iterator to merge
+     * @param targetScale the histogram scale to which both iterators should be aligned
+     */
     MergingBucketIterator(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB, int targetScale) {
         this.itA = new ScaleAdjustingBucketIterator(itA, targetScale);
         this.itB = new ScaleAdjustingBucketIterator(itB, targetScale);
@@ -85,7 +91,7 @@ final class MergingBucketIterator implements ExponentialHistogram.BucketIterator
 
     private void assertEndNotReached() {
         if (endReached) {
-            throw new IllegalStateException("No more buckets");
+            throw new IllegalStateException("Iterator has no more buckets");
         }
     }
 }

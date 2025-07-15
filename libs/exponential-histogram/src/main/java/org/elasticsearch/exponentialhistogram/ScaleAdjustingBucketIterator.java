@@ -12,9 +12,8 @@ package org.elasticsearch.exponentialhistogram;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 
 /**
- * Iterates over buckets while also adjusting the scale.
- * When scaling down, this can cause multiple buckets to collapse into a single one.
- * This iterator ensures that they are properly merged in this case.
+ * An iterator that wraps another bucket iterator and adjusts its scale.
+ * When scaling down, multiple buckets can collapse into a single one. This iterator ensures they are merged correctly.
  */
 final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
 
@@ -25,6 +24,12 @@ final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketI
     private long currentCount;
     boolean hasNextValue;
 
+    /**
+     * Creates a new scale-adjusting iterator.
+     *
+     * @param delegate    the iterator to wrap
+     * @param targetScale the target scale for the new iterator
+     */
     ScaleAdjustingBucketIterator(ExponentialHistogram.BucketIterator delegate, int targetScale) {
         this.delegate = delegate;
         scaleAdjustment = targetScale - delegate.scale();
@@ -67,7 +72,7 @@ final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketI
 
     private void assertEndNotReached() {
         if (hasNextValue == false) {
-            throw new IllegalStateException("no more buckets available");
+            throw new IllegalStateException("Iterator has no more buckets");
         }
     }
 

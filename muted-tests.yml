@@ -161,24 +161,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/120902
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test050BasicApiTests
-  issue: https://github.com/elastic/elasticsearch/issues/120911
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test140CgroupOsStatsAreAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/120914
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testReservedStatePersistsOnRestart
   issue: https://github.com/elastic/elasticsearch/issues/120923
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test070BindMountCustomPathConfAndJvmOptions
-  issue: https://github.com/elastic/elasticsearch/issues/120910
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test071BindMountCustomPathWithDifferentUID
-  issue: https://github.com/elastic/elasticsearch/issues/120918
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test171AdditionalCliOptionsAreForwarded
-  issue: https://github.com/elastic/elasticsearch/issues/120925
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
@@ -208,9 +193,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test151MachineDependentHeapWithSizeOverride
-  issue: https://github.com/elastic/elasticsearch/issues/123437
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/nodes/line_361}
   issue: https://github.com/elastic/elasticsearch/issues/124103
@@ -244,39 +226,15 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test011SecurityEnabledStatus
-  issue: https://github.com/elastic/elasticsearch/issues/124990
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test130JavaHasCorrectOwnership
-  issue: https://github.com/elastic/elasticsearch/issues/128174
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test024InstallPluginFromArchiveUsingConfigFile
-  issue: https://github.com/elastic/elasticsearch/issues/126936
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test120DockerLogsIncludeElasticsearchLogs
-  issue: https://github.com/elastic/elasticsearch/issues/128117
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test072RunEsAsDifferentUserAndGroup
-  issue: https://github.com/elastic/elasticsearch/issues/128031
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test010Install
-  issue: https://github.com/elastic/elasticsearch/issues/125680
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test600Interrupt
-  issue: https://github.com/elastic/elasticsearch/issues/128144
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/130205
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test080ConfigurePasswordThroughEnvironmentVariableFile
-  issue: https://github.com/elastic/elasticsearch/issues/128075
 
 # Examples:
 #

@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.CustomRemoteServerTransportInterceptor;
+import org.elasticsearch.xpack.core.security.CrossProjectRemoteServerTransportInterceptor;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -100,7 +100,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver;
     private final XPackLicenseState licenseState;
-    private final CustomRemoteServerTransportInterceptor customRemoteServerTransportInterceptor;
+    private final CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -122,7 +122,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
-            new CustomRemoteServerTransportInterceptor.Default(),
+            new CrossProjectRemoteServerTransportInterceptor.Default(),
             licenseState
         );
     }
@@ -136,7 +136,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        CustomRemoteServerTransportInterceptor customRemoteServerTransportInterceptor,
+        CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor,
         XPackLicenseState licenseState
     ) {
         this(
@@ -148,7 +148,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
-            customRemoteServerTransportInterceptor,
+            crossProjectRemoteServerTransportInterceptor,
             licenseState,
             RemoteConnectionManager::resolveRemoteClusterAliasWithCredentials
         );
@@ -176,7 +176,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
-            new CustomRemoteServerTransportInterceptor.Default(),
+            new CrossProjectRemoteServerTransportInterceptor.Default(),
             licenseState,
             remoteClusterCredentialsResolver
         );
@@ -191,7 +191,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        CustomRemoteServerTransportInterceptor customRemoteServerTransportInterceptor,
+        CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor,
         XPackLicenseState licenseState,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<RemoteClusterAliasWithCredentials>> remoteClusterCredentialsResolver
@@ -205,7 +205,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
-        this.customRemoteServerTransportInterceptor = customRemoteServerTransportInterceptor;
+        this.crossProjectRemoteServerTransportInterceptor = crossProjectRemoteServerTransportInterceptor;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
@@ -331,9 +331,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
                 if (remoteClusterCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
-                } else if (customRemoteServerTransportInterceptor.enabled()
+                } else if (crossProjectRemoteServerTransportInterceptor.enabled()
                     && RemoteConnectionManager.resolveRemoteClusterAliasWithCredentials(connection).isPresent()) {
-                        customRemoteServerTransportInterceptor.sendRequest(sender, connection, action, request, options, handler);
+                        crossProjectRemoteServerTransportInterceptor.sendRequest(sender, connection, action, request, options, handler);
                     } else {
                         // Send regular request, without cross cluster access headers
                         try {
@@ -558,11 +558,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final boolean useRemoteClusterProfile = remoteClusterPortEnabled && profileName.equals(REMOTE_CLUSTER_PROFILE);
             if (useRemoteClusterProfile) {
                 // probably not how we want to do this but ballpark correct
-                if (customRemoteServerTransportInterceptor.enabled()) {
+                if (crossProjectRemoteServerTransportInterceptor.enabled()) {
                     profileFilters.put(
                         profileName,
                         new CustomRemoteServerTransportFilter(
-                            customRemoteServerTransportInterceptor.getFilter(),
+                            crossProjectRemoteServerTransportInterceptor.getFilter(),
                             authcService,
                             authzService,
                             threadPool.getThreadContext(),

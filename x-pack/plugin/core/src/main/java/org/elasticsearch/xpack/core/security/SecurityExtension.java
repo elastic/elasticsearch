@@ -138,7 +138,7 @@ public interface SecurityExtension {
         return null;
     }
 
-    default CustomRemoteServerTransportInterceptor getCustomRemoteServerTransportInterceptor(SecurityComponents components) {
+    default CrossProjectRemoteServerTransportInterceptor getCustomRemoteServerTransportInterceptor(SecurityComponents components) {
         return null;
     }
 

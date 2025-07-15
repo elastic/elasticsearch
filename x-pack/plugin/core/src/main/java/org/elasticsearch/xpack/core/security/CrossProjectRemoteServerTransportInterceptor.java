@@ -14,7 +14,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
-public interface CustomRemoteServerTransportInterceptor {
+public interface CrossProjectRemoteServerTransportInterceptor {
     // TODO probably don't want this
     boolean enabled();
 
@@ -30,7 +30,7 @@ public interface CustomRemoteServerTransportInterceptor {
 
     CustomServerTransportFilter getFilter();
 
-    class Default implements CustomRemoteServerTransportInterceptor {
+    class Default implements CrossProjectRemoteServerTransportInterceptor {
         @Override
         public boolean enabled() {
             return false;

@@ -98,28 +98,28 @@ public final class RemoteClusterService extends RemoteClusterAware
         (ns, key) -> boolSetting(key, true, new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public record RemoteTag(String key, String value) {
-        public static RemoteTag fromString(String tag) {
+    public record Metadata(String key, String value) {
+        public static Metadata fromString(String tag) {
             if (tag == null || tag.isEmpty()) {
                 throw new IllegalArgumentException("Remote tag must not be null or empty");
             }
             // - as a separator to simplify search path param parsing; won't be like this in the real implementation
             int idx = tag.indexOf('-');
             if (idx < 0) {
-                return new RemoteTag(tag, "");
+                return new Metadata(tag, "");
             } else {
-                return new RemoteTag(tag.substring(0, idx), tag.substring(idx + 1));
+                return new Metadata(tag.substring(0, idx), tag.substring(idx + 1));
             }
         }
     }
 
-    public static final Setting.AffixSetting<List<RemoteTag>> REMOTE_CLUSTER_TAGS = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<List<Metadata>> REMOTE_CLUSTER_TAGS = Setting.affixKeySetting(
         "cluster.remote.",
         "tags",
         (ns, key) -> Setting.listSetting(
             key,
             Collections.emptyList(),
-            RemoteTag::fromString,
+            Metadata::fromString,
             Setting.Property.Dynamic,
             Setting.Property.NodeScope
         )

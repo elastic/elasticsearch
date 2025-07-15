@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.fulltext;
+package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -14,22 +14,24 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class FullTextWritables {
+/**
+ * Defines the named writables for vector functions in ESQL.
+ */
+public final class VectorWritables {
 
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+    private VectorWritables() {
+        // Utility class
+        throw new UnsupportedOperationException();
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getNamedWritables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
-        entries.add(QueryString.ENTRY);
-        entries.add(Match.ENTRY);
-        entries.add(MultiMatch.ENTRY);
-        entries.add(Kql.ENTRY);
-        entries.add(MatchPhrase.ENTRY);
-
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            entries.add(Term.ENTRY);
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
+            entries.add(Knn.ENTRY);
         }
-        if (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled()) {
-            entries.add(Score.ENTRY);
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(CosineSimilarity.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

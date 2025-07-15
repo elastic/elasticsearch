@@ -1,0 +1,6 @@
+pr: 131284
+summary: Grant azure core required `manage_threads` entitlement
+area: Authentication
+type: bug
+issues:
+ - 131246

@@ -167,7 +167,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment doGetAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TestTaskParams params,
             Collection<DiscoveryNode> candidateNodes,
             ClusterState clusterState,

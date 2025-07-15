@@ -135,7 +135,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
      * Returns the node id from the eligible health nodes
      */
     @Override
-    public PersistentTasksCustomMetadata.Assignment doGetAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         HealthNodeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

@@ -128,7 +128,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment doGetAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         final DownsampleShardTaskParams params,
         final Collection<DiscoveryNode> candidateNodes,
         final ClusterState clusterState,

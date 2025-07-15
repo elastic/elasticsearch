@@ -114,7 +114,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment doGetAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         TransformTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState,

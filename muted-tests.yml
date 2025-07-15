@@ -502,9 +502,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
-- class: org.elasticsearch.xpack.slm.SLMFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/130853
 - class: org.elasticsearch.cluster.ClusterStateSerializationTests
   method: testSerializationPreMultiProject
   issue: https://github.com/elastic/elasticsearch/issues/130872
@@ -520,24 +517,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testRowStatsProjectGroupByInt
   issue: https://github.com/elastic/elasticsearch/issues/131024
-- class: org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutorTests
-  method: testMaxQueueLatency
-  issue: https://github.com/elastic/elasticsearch/issues/131093
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnFromAfterStats ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/131148
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/131154
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
   issue: https://github.com/elastic/elasticsearch/issues/131165
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliases
   issue: https://github.com/elastic/elasticsearch/issues/131166
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=field_caps/40_time_series/Get simple time series field caps}
+  issue: https://github.com/elastic/elasticsearch/issues/131225
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test090SecurityCliPackaging
+  issue: https://github.com/elastic/elasticsearch/issues/131107
 
 # Examples:
 #

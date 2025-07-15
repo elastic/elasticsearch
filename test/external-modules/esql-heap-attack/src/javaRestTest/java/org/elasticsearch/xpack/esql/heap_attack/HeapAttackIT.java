@@ -620,6 +620,12 @@ public class HeapAttackIT extends ESRestTestCase {
         return responseAsMap(query(query.toString(), "columns,values"));
     }
 
+    /**
+     * Aggregates on the {@code LENGTH} of a giant text field. Without
+     * splitting pages on load (#131053) this throws a {@link CircuitBreakingException}
+     * when it tries to load a giant field. With that change it finishes
+     * after loading many single-row pages.
+     */
     public void testAggGiantTextField() throws IOException {
         int docs = 100;
         initGiantTextField(docs);
@@ -627,7 +633,7 @@ public class HeapAttackIT extends ESRestTestCase {
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
             response,
-            matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * 1024 * docs)))
+            matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * 1024 * 5 * docs)))
         );
     }
 
@@ -880,7 +886,7 @@ public class HeapAttackIT extends ESRestTestCase {
     private void initGiantTextField(int docs) throws IOException {
         logger.info("loading many documents with one big text field");
         int docsPerBulk = 5;
-        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(1).getBytes());
+        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
 
         Request request = new Request("PUT", "/bigtext");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();

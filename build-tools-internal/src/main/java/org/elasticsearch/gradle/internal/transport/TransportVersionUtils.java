@@ -9,12 +9,12 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.Serializable;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
 public class TransportVersionUtils {
@@ -22,30 +22,25 @@ public class TransportVersionUtils {
     public static final String JSON_SUFFIX = ".json";
 
 
-    public static class TransportVersionSetData implements Serializable {
-        public String name;
-        public List<Integer> ids;
-
-
-        public TransportVersionSetData(String name, List<Integer> ids) {
+    public record TransportVersionSetData(String name, List<Integer> ids) implements Serializable {
+        public TransportVersionSetData(
+            @JsonProperty("name") String name,
+            @JsonProperty("ids") List<Integer> ids
+        ) {
             this.name = name;
             this.ids = ids;
         }
 
-        public TransportVersionSetData(String name) {
-            this(name, new ArrayList<>());
-        }
-
         public void writeToDataDir(File tvDataDir) {
-            TransportVersionUtils.writeTVSetData(tvDataDir, name, this);
+            TransportVersionUtils.writeTVSetData(tvDataDir, name + JSON_SUFFIX, this);
         }
     }
 
     public static void writeTVSetData(File tvDataDir, String filename, TransportVersionSetData versionSetData) {
         ObjectMapper mapper = new ObjectMapper();
         try {
-            File tvSetFile = tvDataDir.toPath().resolve(filename + JSON_SUFFIX).toFile();
-            mapper.writeValue(tvSetFile, versionSetData);
+            File tvSetFile = tvDataDir.toPath().resolve(filename).toFile();
+            mapper.writerWithDefaultPrettyPrinter().writeValue(tvSetFile, versionSetData);
         } catch (Exception e) {
             throw new RuntimeException("Failed to write the TransportVersionSet data file: " + tvDataDir.getAbsolutePath(), e);
         }
@@ -57,8 +52,13 @@ public class TransportVersionUtils {
 
     }
 
+
+    public static Path getTVSetDataFilePath(File tvDataDir, String tvSetNameField) {
+        return tvDataDir.toPath().resolve(tvSetNameField + JSON_SUFFIX);
+    }
+
     public static TransportVersionSetData getTVSetData(File tvDataDir, String tvSetNameField) {
-        return getTVSetData(tvDataDir.toPath().resolve(tvSetNameField + JSON_SUFFIX));
+        return getTVSetData(getTVSetDataFilePath(tvDataDir, tvSetNameField));
     }
 
     /**
@@ -76,13 +76,5 @@ public class TransportVersionUtils {
         } catch (Exception e) {
             throw new RuntimeException("Failed to read the TransportVersionSet data file: " + tvSetDataFile.getAbsolutePath(), e);
         }
-    }
-
-    public static String formatLatestTVSetFilename(int major, int minor) {
-        return formatLatestTVSetFilename(major + "." + minor);
-    }
-
-    public static String formatLatestTVSetFilename(String majorMinor) {
-        return majorMinor + LATEST_SUFFIX;
     }
 }

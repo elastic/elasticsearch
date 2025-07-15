@@ -10,6 +10,9 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Streams;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionSetData;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
@@ -17,6 +20,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.TaskAction;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.util.Arrays;
@@ -25,7 +29,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.formatLatestTVSetFilename;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.LATEST_SUFFIX;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getTVSetDataFilePath;
 
 /**
  * This task generates TransportVersionSetData data files that contain information about transport versions. These files
@@ -63,90 +68,92 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
      * E.g.: "9.2", "8.18", etc.
      */
     @Input
-    public abstract Property<String> getReleaseVersionMajorMinor();
+    public abstract Property<String> getReleaseVersionForTV();
 
 
     @TaskAction
     public void generateTransportVersionData() {
-        var tvDataDir = Objects.requireNonNull(getDataFileDirectory().getAsFile().get());
-        var newTVName = Objects.requireNonNull(getTVSetName().get());
-        var majorMinor = Objects.requireNonNull(getReleaseVersionMajorMinor().get());
+        final var tvDataDir = Objects.requireNonNull(getDataFileDirectory().getAsFile().get());
+        final var tvSetName = Objects.requireNonNull(getTVSetName().get());
+        final var tvReleaseVersion = ReleaseVersion.fromString(Objects.requireNonNull(getReleaseVersionForTV().get()));
 
-        // Split version into major and minor
-        String[] versionParts = majorMinor.split("\\.");
-        assert versionParts.length == 2;
-        var major = Integer.parseInt(versionParts[0]);
-        var minor = Integer.parseInt(versionParts[1]);
 
         // Get the latest transport version data for the local version.
-        var latestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, majorMinor);
+        final var latestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, tvReleaseVersion.toString());
 
         // Get the latest transport version data for the prior release version.
-        var priorLatestTVSetDataFileName = getPriorLatestTVSetFilename(tvDataDir, major, minor);
-        var priorLatestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, priorLatestTVSetDataFileName);
+        final var priorReleaseVersion = getPriorReleaseVersion(tvDataDir, tvReleaseVersion);
+        var priorLatestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, priorReleaseVersion.toString());
         if (priorLatestTVSetData == null) {
-            // TODO Can this ever be null?  No, must populate the data file for the latest branch we can no longer backport to.
+            throw new GradleException(
+                "The latest Transport Version ID for the prior release was not found at: "
+                    + tvDataDir.getAbsolutePath() + formatLatestTVSetFilename(priorReleaseVersion)
+                    + " This is required."
+            );
         }
 
-        // Bump the version number
-        int nextVersion;
-        if (latestTVSetData == null) {
-            // TODO do a major or minor version bump here
-            if (minor == 0) {
-                // This is major bump
-                nextVersion = major * 1_000_000;
-            } else {
-                // This is a minor bump.  Just increment as usual but from the prior version.
-                assert priorLatestTVSetData != null;
-                nextVersion = bumpVersionNumber(priorLatestTVSetData.ids.getFirst());
-            }
-        } else {
-            nextVersion = bumpVersionNumber(latestTVSetData.ids.getFirst());
-        }
-        System.out.println("Latest transport version set: " + latestTVSetData.name + " with IDs: " + latestTVSetData.ids);
+        // Determine if it's a (major) version bump
+        final var isVersionBump = latestTVSetData == null;
+        final var isMajorVersionBump = isVersionBump && (tvReleaseVersion.major - priorReleaseVersion.major > 0);
 
+        // Create the new version
+        final var mainReleaseVersion = ReleaseVersion.of(VersionProperties.getElasticsearchVersion());
+        final var isTVReleaseVersionMain = tvReleaseVersion.equals(mainReleaseVersion);
+        final var tvIDToBump = isVersionBump ? priorLatestTVSetData.ids().getFirst() : latestTVSetData.ids().getFirst();
+        int newVersion = bumpVersionNumber(tvIDToBump, tvReleaseVersion, isMajorVersionBump, isTVReleaseVersionMain);
 
-        // Load the tvSetData for the specified name.
-        var tvSetDataFromFile = TransportVersionUtils.getTVSetData(tvDataDir, newTVName);
+        // Load the tvSetData for the specified name, if it exists
+        final var tvSetDataFromFile = TransportVersionUtils.getTVSetData(tvDataDir, tvSetName);
+        final var tvSetFileExists = tvSetDataFromFile != null;
 
-        // Create/update the data files
-        if (tvSetDataFromFile == null) {
-            // Create a new data file for the case where this is a new TV
-            new TransportVersionUtils.TransportVersionSetData(newTVName, List.of(nextVersion)).writeToDataDir(tvDataDir);
-        } else {
-            // This is not a new TV.  We are backporting an existing TVSet.
-            // Check to ensure that there isn't already a TV number for this change (e.g. if this task has been run twice).
-            var existingIDsForReleaseVersion = tvSetDataFromFile.ids.stream().filter(id -> {
-                var priorLatestID = priorLatestTVSetData.ids.getFirst();
-                var latestID = latestTVSetData.ids.getFirst();
-                return priorLatestID < id && id < latestID;
+        // Create/update the data file
+        if (tvSetFileExists) {
+            // This is not a new TVSet.  We are creating a backport version for an existing TVSet.
+            // Check to ensure that there isn't already a TV id for this release version (e.g., if this task has been run twice).
+            var existingIDsForReleaseVersion = tvSetDataFromFile.ids().stream().filter(id -> {
+                var priorLatestID = priorLatestTVSetData.ids().getFirst();
+                return priorLatestID < id && id <= newVersion;
             }).toList();
             if (existingIDsForReleaseVersion.isEmpty() == false) {
-                throw new GradleException("TransportVersion already exists for this release! Release version: " +
-                    majorMinor + "TransportVersion Id: " + existingIDsForReleaseVersion.stream().findFirst());
+                throw new GradleException(
+                    "A transport version could not be created because one already exists for this release:"
+                        + " Release version: " + tvReleaseVersion
+                        + " TransportVersion Id: " + existingIDsForReleaseVersion.getFirst()
+                        + " File: " + getTVSetDataFilePath(tvDataDir, tvSetName)
+                );
             }
 
             // Update the existing data file for the backport.
-            new TransportVersionUtils.TransportVersionSetData(
-                newTVName,
-                Streams.concat(tvSetDataFromFile.ids.stream(), Stream.of(nextVersion)).sorted().toList().reversed()
+            new TransportVersionSetData(
+                tvSetName,
+                Streams.concat(tvSetDataFromFile.ids().stream(), Stream.of(newVersion)).sorted().toList().reversed()
+            ).writeToDataDir(tvDataDir);
+        } else {
+            // Create a new data file for the case where this is a new TV
+            new TransportVersionSetData(
+                tvSetName,
+                List.of(newVersion)
             ).writeToDataDir(tvDataDir);
         }
 
         // Update the LATEST file.
         TransportVersionUtils.writeTVSetData(
             tvDataDir,
-            formatLatestTVSetFilename(majorMinor),
-            new TransportVersionUtils.TransportVersionSetData(newTVName, List.of(nextVersion))
+            formatLatestTVSetFilename(tvReleaseVersion),
+            new TransportVersionSetData(tvSetName, List.of(newVersion))
         );
     }
 
 
-    // TODO account for bumping majors.  Need to make a new data file too.
-    private static int bumpVersionNumber(int versionNumber) {
-        var main = false; // TODO how do we know if we are on main?
+    private static int bumpVersionNumber(
+        int tvIDToBump,
+        ReleaseVersion releaseVersion,
+        boolean majorVersionBump,
+        boolean isTVReleaseVersionMain
+    ) {
 
-        /*
+        /* The TV format:
+         *
          * M_NNN_S_PP
          *
          * M - The major version of Elasticsearch
@@ -154,12 +161,17 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
          * S - The subsidiary version part. It should always be 0 here, it is only used in subsidiary repositories.
          * PP - The patch version part
          */
-        if (main) {
-            // bump the server versin part
-            return versionNumber + 1000; // TODO add check that this doesn't cause overflow out of server versions
+        if (isTVReleaseVersionMain) {
+            if (majorVersionBump) {
+                // Bump the major version part, set all other parts to zero.
+                return releaseVersion.major * 1_000_000; // TODO add check that this doesn't cause overflow out of server versions
+            } else {
+                // Bump the server version part if not a major bump.
+                return tvIDToBump + 1000; // TODO add check that this doesn't cause overflow out of server versions
+            }
         } else {
             // bump the patch version part
-            return versionNumber + 1; // TODO add check that this doesn't cause overflow out of patch versions
+            return tvIDToBump + 1; // TODO add check that this doesn't cause overflow out of patch versions
         }
     }
 
@@ -167,12 +179,12 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
      * Accepts a major.minor version string (e.g. "9.0") and returns the LATEST.json file of the
      * previous release string (e.g. "8.19-LATEST.json").
      */
-    private static String getPriorLatestTVSetFilename(File tvDataDir, int major, int minor) {
+    private static ReleaseVersion getPriorReleaseVersion(File tvDataDir, ReleaseVersion releaseVersion) {
         assert tvDataDir != null;
         assert tvDataDir.isDirectory();
 
-        if (minor > 0) {
-            return formatLatestTVSetFilename(major, minor - 1);
+        if (releaseVersion.minor > 0) {
+            return new ReleaseVersion(releaseVersion.major, releaseVersion.minor - 1);
         }
 
         // If the minor is 0, we need to find the largest minor on the previous major
@@ -181,11 +193,55 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             .filter(tvDataFile -> tvDataFile.getName().endsWith("-LATEST.json"))
             .flatMap(tvDataFile -> {
                 var matcher = pattern.matcher(tvDataFile.getName());
-                var localMajor = Integer.parseInt(matcher.group(1));
-                var localMinor = Integer.parseInt(matcher.group(2));
-                return localMajor == major - 1 ? Stream.of(localMinor) : Stream.empty();
+                var fileMajor = Integer.parseInt(matcher.group(1));
+                var fileMinor = Integer.parseInt(matcher.group(2));
+                return fileMajor == releaseVersion.major - 1 ? Stream.of(fileMinor) : Stream.empty();
             }).sorted().toList().getLast();
+        return new ReleaseVersion(releaseVersion.major - 1, highestMinorOfPrevMajor);
+    }
 
-        return formatLatestTVSetFilename(major - 1, highestMinorOfPrevMajor);
+
+    private static String formatLatestTVSetFilename(ReleaseVersion releaseVersion) {
+        return releaseVersion.toString() + LATEST_SUFFIX;
+    }
+
+    private record ReleaseVersion(int major, int minor) {
+        public static ReleaseVersion fromString(String string) {
+            String[] versionParts = string.split("\\.");
+            assert versionParts.length == 2;
+            return new ReleaseVersion(
+                Integer.parseInt(versionParts[0]),
+                Integer.parseInt(versionParts[1])
+            );
+        }
+
+        public static ReleaseVersion of(Version version) {
+            return new ReleaseVersion(
+                version.getMajor(),
+                version.getMinor()
+            );
+        }
+
+        @Override
+        public @NotNull String toString() {
+            return major + "." + minor;
+        }
+
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj instanceof ReleaseVersion) {
+                ReleaseVersion that = (ReleaseVersion) obj;
+                return major == that.major && minor == that.minor;
+            } else {
+                return false;
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(major, minor);
+        }
     }
 }

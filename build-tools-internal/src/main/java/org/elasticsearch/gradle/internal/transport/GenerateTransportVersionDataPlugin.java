@@ -22,7 +22,7 @@ public class GenerateTransportVersionDataPlugin implements Plugin<Project> {
             t.getDataFileDirectory().set(
                 project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
             t.getTVSetName().set("test"); //todo
-            t.getReleaseVersionMajorMinor().set("9.2"); // todo
+            t.getReleaseVersionForTV().set("9.1"); // todo
     });
     }
 }

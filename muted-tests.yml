@@ -520,9 +520,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnFromAfterStats ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/131148
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
-  issue: https://github.com/elastic/elasticsearch/issues/131165
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliases
   issue: https://github.com/elastic/elasticsearch/issues/131166

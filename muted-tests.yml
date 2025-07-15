@@ -522,6 +522,9 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanBeRejectedAtPrimaryLevel
   issue: https://github.com/elastic/elasticsearch/issues/131151
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
 
 # Examples:
 #

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.CrossProjectRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -69,7 +70,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.CrossProjectRequestHandler;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectTargetResolver;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -144,6 +145,7 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
+    private final CrossProjectTargetResolver crossProjectTargetResolver;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -166,12 +168,12 @@ public class AuthorizationService {
         RestrictedIndices restrictedIndices,
         AuthorizationDenialMessages authorizationDenialMessages,
         ProjectResolver projectResolver,
-        CrossProjectRequestHandler crossProjectRequestHandler
+        CrossProjectTargetResolver crossProjectTargetResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, crossProjectRequestHandler);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver, crossProjectTargetResolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);
@@ -192,6 +194,7 @@ public class AuthorizationService {
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
+        this.crossProjectTargetResolver = crossProjectTargetResolver;
     }
 
     public void checkPrivileges(
@@ -487,13 +490,20 @@ public class AuthorizationService {
             }));
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            final CrossProjectTargetResolver.ResolvedProjects resolvedProjects = request instanceof CrossProjectRequest
+                ? crossProjectTargetResolver.resolve(securityContext)
+                : CrossProjectTargetResolver.ResolvedProjects.VOID;
             assert projectMetadata != null;
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(() -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
-                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
+                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest, resolvedProjects);
                     return SubscribableListener.newSucceeded(resolvedIndices);
                 }
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(
+                    action,
+                    request,
+                    resolvedProjects
+                );
                 if (resolvedIndices != null) {
                     return SubscribableListener.newSucceeded(resolvedIndices);
                 } else {
@@ -504,7 +514,7 @@ public class AuthorizationService {
                         projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
-                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
+                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices, resolvedProjects)
                             ),
                             e -> {
                                 if (e instanceof InvalidIndexNameException

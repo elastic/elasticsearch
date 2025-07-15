@@ -23,6 +23,7 @@ public interface CrossProjectRequest extends IndicesRequest {
     @Nullable
     String queryRouting();
 
+    // we need to track if the original resource is qualified or flat
     record QualifiedExpression(String original, List<ExpressionWithProject> qualified) {}
 
     // * -> (*, _local), (my_remote:*, my_remote)

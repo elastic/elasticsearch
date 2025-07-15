@@ -14,14 +14,15 @@ import java.util.List;
 public interface CrossProjectTargetResolver {
     ResolvedProjects resolve(SecurityContext securityContext);
 
-    record ResolvedProjects(List<String> projects) {
-        public static ResolvedProjects SKIPPED = new ResolvedProjects(List.of());
-    }
-
     class Default implements CrossProjectTargetResolver {
         @Override
         public ResolvedProjects resolve(SecurityContext securityContext) {
-            return ResolvedProjects.SKIPPED;
+            return ResolvedProjects.VOID;
         }
+    }
+
+    record ResolvedProjects(List<String> projects) {
+        // I need a better name
+        public static ResolvedProjects VOID = new ResolvedProjects(List.of());
     }
 }

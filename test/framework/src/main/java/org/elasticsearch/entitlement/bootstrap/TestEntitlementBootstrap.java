@@ -33,8 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -129,9 +129,9 @@ public class TestEntitlementBootstrap {
         };
     }
 
+    @SuppressForbidden(reason = "must be resolved using the default file system, rather then the mocked test file system")
     private static Path absolutePath(String path) {
-        // must be resolved using the default file system, rather then the mocked test file system (if using PathUtils.get())
-        return FileSystems.getDefault().getPath(path).toAbsolutePath().normalize();
+        return Paths.get(path).toAbsolutePath().normalize();
     }
 
     private static <T> List<T> zeroOrOne(T item) {

@@ -1078,6 +1078,11 @@ public class EsqlCapabilities {
         LAST_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * score function
+         */
+        SCORE_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the SAMPLE command
          */
         SAMPLE_V3,
@@ -1171,6 +1176,11 @@ public class EsqlCapabilities {
         PARAMETER_FOR_LIMIT,
 
         /**
+         * Changed and normalized the LIMIT error message.
+         */
+        NORMALIZED_LIMIT_ERROR_MESSAGE,
+
+        /**
          * Dense vector field type support
          */
         DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
@@ -1189,6 +1199,11 @@ public class EsqlCapabilities {
          * Allows RLIKE to correctly handle the "empty language" flag, `#`.
          */
         RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
+
+        /**
+         * Enable support for cross-cluster lookup joins.
+         */
+        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
 
         /**
          * MATCH PHRASE function

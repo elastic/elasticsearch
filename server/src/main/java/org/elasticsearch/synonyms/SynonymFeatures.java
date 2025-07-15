@@ -7,12 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.jdk;
+package org.elasticsearch.synonyms;
 
-public class RuntimeVersionFeature {
-    private RuntimeVersionFeature() {}
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
 
-    public static boolean isSecurityManagerAvailable() {
-        return Runtime.version().feature() < 24;
+import java.util.Set;
+
+public class SynonymFeatures implements FeatureSpecification {
+    private static final NodeFeature RETURN_EMPTY_SYNONYM_SETS = new NodeFeature("synonyms_set.get.return_empty_synonym_sets");
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(RETURN_EMPTY_SYNONYM_SETS);
     }
 }

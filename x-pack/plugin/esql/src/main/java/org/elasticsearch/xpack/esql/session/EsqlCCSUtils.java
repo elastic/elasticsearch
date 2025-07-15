@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -37,11 +36,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class EsqlCCSUtils {
 
@@ -177,7 +176,11 @@ public class EsqlCCSUtils {
         }
     }
 
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
+    static void updateExecutionInfoWithUnavailableClusters(
+        EsqlExecutionInfo execInfo,
+        Map<String, List<FieldCapabilitiesFailure>> failures
+    ) {
+        Map<String, FieldCapabilitiesFailure> unavailable = determineUnavailableRemoteClusters(failures);
         for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = execInfo.getCluster(clusterAlias).isSkipUnavailable();
@@ -196,14 +199,16 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         IndexResolution indexResolution,
-        Set<String> unavailableClusters,
-        QueryBuilder filter
+        boolean usedFilter
     ) {
-        final Set<String> clustersWithNoMatchingIndices = new HashSet<>(executionInfo.clusterAliases());
+        // Get the clusters which are still running, and we will check whether they have any matching indices.
+        // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
+        final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)
+            .map(Cluster::getClusterAlias)
+            .collect(Collectors.toSet());
         for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
-        clustersWithNoMatchingIndices.removeAll(unavailableClusters);
         /*
          * Rules enforced at planning time around non-matching indices
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
@@ -216,24 +221,20 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            if (executionInfo.getCluster(c).getStatus() != Cluster.Status.RUNNING) {
-                // if cluster was already in a terminal state, we don't need to check it again
-                continue;
-            }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
             if (concreteIndexRequested(executionInfo.getCluster(c).getIndexExpression())) {
                 String error = Strings.format(
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
                 );
-                if (executionInfo.isSkipUnavailable(c) == false || filter != null) {
+                if (executionInfo.isSkipUnavailable(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = error;
                     } else {
                         fatalErrorMessage += "; " + error;
                     }
                 }
-                if (filter == null) {
+                if (usedFilter == false) {
                     // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
@@ -269,8 +270,7 @@ public class EsqlCCSUtils {
 
     // Filter-less version, mainly for testing where we don't need filter support
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(indexResolution.failures()).keySet();
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, unavailableClusters, null);
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, false);
     }
 
     // visible for testing

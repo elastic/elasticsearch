@@ -46,15 +46,6 @@ public class ChatCompletionErrorResponseHandler {
         return buildChatCompletionErrorInternal(message, request, result, errorResponse);
     }
 
-    /**
-     * Returns an exception that adheres to the chat completion error response format.
-     *
-     * @param message            the error message to include in the exception
-     * @param request            the request that caused the error
-     * @param result             the HTTP result containing the error response
-     * @param errorResponse      the parsed error response from the HTTP result
-     * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
-     */
     private UnifiedChatCompletionException buildChatCompletionErrorInternal(
         String message,
         Request request,
@@ -81,15 +72,15 @@ public class ChatCompletionErrorResponseHandler {
 
     /**
      * Builds a default {@link UnifiedChatCompletionException} for a streaming request.
-     * This method is used when an error response is received but no specific error handling is implemented.
+     * This method is used when an error response is received we were unable to parse it in the format we were expecting.
      * Only streaming requests should use this method.
      *
-     * @param errorResponse the error response parsed from the HTTP result
-     * @param errorMessage  the error message to include in the exception
-     * @param restStatus    the REST status code of the response
+     * @param errorResponse the error response extracted from the HTTP result
+     * @param errorMessage the error message to include in the exception
+     * @param restStatus the REST status code of the response
      * @return an instance of {@link UnifiedChatCompletionException} with details from the error response
      */
-    public static UnifiedChatCompletionException buildDefaultChatCompletionError(
+    private static UnifiedChatCompletionException buildDefaultChatCompletionError(
         ErrorResponse errorResponse,
         String errorMessage,
         RestStatus restStatus
@@ -103,13 +94,13 @@ public class ChatCompletionErrorResponseHandler {
     }
 
     /**
-     * Builds a mid-stream error for a streaming request with a custom error type.
-     * This method is used when an error occurs while processing a streaming response and allows for custom error handling.
+     * Builds a mid-stream error for a streaming request.
+     * This method is used when an error occurs while processing a streaming response.
      * Only streaming requests should use this method.
      *
      * @param inferenceEntityId the ID of the inference entity
-     * @param message           the error message
-     * @param e                the exception that caused the error, can be null
+     * @param message the error message
+     * @param e the exception that caused the error, can be null
      * @return a {@link UnifiedChatCompletionException} representing the mid-stream error
      */
     public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
@@ -146,7 +137,7 @@ public class ChatCompletionErrorResponseHandler {
      * @param errorResponse     the error response extracted from the message
      * @return a {@link UnifiedChatCompletionException} representing the default mid-stream error
      */
-    public static UnifiedChatCompletionException buildDefaultMidStreamChatCompletionError(
+    private static UnifiedChatCompletionException buildDefaultMidStreamChatCompletionError(
         String inferenceEntityId,
         ErrorResponse errorResponse
     ) {

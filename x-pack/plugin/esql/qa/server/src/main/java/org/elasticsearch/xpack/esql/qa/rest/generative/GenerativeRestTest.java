@@ -40,7 +40,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Cannot use field \\[.*\\] due to ambiguities",
         "cannot sort on .*",
         "argument of \\[count.*\\] must",
-        "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
+        "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
         "Unbounded sort not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()

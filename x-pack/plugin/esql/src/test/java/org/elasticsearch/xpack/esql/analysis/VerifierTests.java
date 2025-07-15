@@ -2217,6 +2217,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testUntableWrongTypes() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        assertThat(
+            error("FROM test | UNTABLE fieldName FOR fieldValue IN (first_name, salary)"),
+            containsString("1:13: Cannot UNTABLE columns of different types: [first_name] type [KEYWORD], [salary] type [INTEGER]")
+        );
+    }
+
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(title, \"Meditation\")");
         checkFullTextFunctionsInStats("title : \"Meditation\"");

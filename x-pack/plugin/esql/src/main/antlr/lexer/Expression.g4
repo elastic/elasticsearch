@@ -97,6 +97,7 @@ DESC : 'desc';
 DOT : '.';
 FALSE : 'false';
 FIRST : 'first';
+FOR : 'for';
 IN: 'in';
 IS: 'is';
 LAST : 'last';

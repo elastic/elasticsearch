@@ -736,6 +736,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#untableCommand}.
+   * @param ctx the parse tree
+   */
+  void enterUntableCommand(EsqlBaseParser.UntableCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#untableCommand}.
+   * @param ctx the parse tree
+   */
+  void exitUntableCommand(EsqlBaseParser.UntableCommandContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

@@ -22,12 +22,14 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class StaleIndicesGCServiceTests extends ESTestCase {
@@ -119,6 +122,38 @@ public class StaleIndicesGCServiceTests extends ESTestCase {
 
         safeGet(future);
         safeAwait(deletionLatch);
+    }
+
+    public void testDeleteStaleIndicesSkipsExistingIndexInLatestClusterState() throws IOException {
+        final var projectId = randomUniqueProjectId();
+        final var indexUUIDToDelete = randomUUID();
+        final var stillValidIndexUUID = randomUUID();
+        final ObjectStoreService objectStoreService = createObjectStoreService();
+        final BlobContainer blobContainer = mock(BlobContainer.class);
+        when(objectStoreService.getIndexBlobContainer(eq(projectId), eq(indexUUIDToDelete))).thenReturn(blobContainer);
+
+        final var service = new StaleIndicesGCService(
+            () -> objectStoreService,
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(Client.class)
+        );
+
+        final var stateBuilder = ClusterState.builder(org.elasticsearch.cluster.ClusterState.EMPTY_STATE);
+        stateBuilder.putProjectMetadata(
+            ProjectMetadata.builder(projectId)
+                .put(
+                    IndexMetadata.builder("common-index")
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, stillValidIndexUUID))
+                )
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        service.deleteStaleIndices(future, stateBuilder.build(), Map.of(projectId, Set.of(indexUUIDToDelete, stillValidIndexUUID)));
+
+        safeGet(future);
+        verify(objectStoreService).getIndexBlobContainer(projectId, indexUUIDToDelete);
+        verify(blobContainer).delete(OperationPurpose.INDICES);
     }
 
     private ObjectStoreService createObjectStoreService() throws IOException {

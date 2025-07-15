@@ -804,6 +804,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             });
 
             MapperService mapperService = createMapperService(mapping, useLegacyFormat);
+            // mapperService = mapperServiceForFieldWithModelSettings()
             assertSemanticTextField(mapperService, fieldName1, false, null, null);
             assertInferenceEndpoints(
                 mapperService,
@@ -1448,7 +1449,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions(TaskType taskType) {
-
         if (taskType == TaskType.TEXT_EMBEDDING) {
             return randomBoolean()
                 ? null

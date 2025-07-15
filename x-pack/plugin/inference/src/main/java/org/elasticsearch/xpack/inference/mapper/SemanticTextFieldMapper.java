@@ -455,6 +455,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 return;
             }
 
+            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+                // sparse vector index options are validated in the ctor when created
+                return;
+            }
+
             if (modelSettings == null) {
                 throw new IllegalArgumentException(
                     "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
@@ -472,9 +477,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
                     (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
                 denseVectorIndexOptions.validate(modelSettings.elementType(), dims, true);
-            } else if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
-                // the options will be validated within the ctor for the SparseVectorIndexOptions
-                indexOptions.indexOptions();
             }
         }
 

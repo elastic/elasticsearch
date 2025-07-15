@@ -10,17 +10,17 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier {
+public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<LogicalPlan> {
 
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
 
     private LogicalVerifier() {}
 
     @Override
-    boolean skipVerification(QueryPlan<?> optimizedPlan, boolean skipRemoteEnrichVerification) {
+    boolean skipVerification(LogicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
             var enriches = optimizedPlan.collectFirstChildren(Enrich.class::isInstance);
@@ -32,7 +32,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier {
     }
 
     @Override
-    void checkPlanConsistency(QueryPlan<?> optimizedPlan, Failures failures, Failures depFailures) {
+    void checkPlanConsistency(LogicalPlan optimizedPlan, Failures failures, Failures depFailures) {
         optimizedPlan.forEachUp(p -> {
             PlanConsistencyChecker.checkPlan(p, depFailures);
 

@@ -12,22 +12,22 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /** Physical plan verifier. */
-public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier {
+public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
 
     private PhysicalVerifier() {}
 
     @Override
-    boolean skipVerification(QueryPlan<?> optimizedPlan, boolean skipRemoteEnrichVerification) {
+    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
             var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
@@ -39,7 +39,7 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier {
     }
 
     @Override
-    void checkPlanConsistency(QueryPlan<?> optimizedPlan, Failures failures, Failures depFailures) {
+    void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
         optimizedPlan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();

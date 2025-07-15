@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 import static java.lang.Boolean.FALSE;
@@ -36,6 +37,7 @@ import static java.util.Collections.singletonList;
  * extraction.
  */
 public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
+    public static String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
@@ -44,7 +46,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         // and the overall output will not change.
         AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
 
-        return plan.transformDown(currentPlanNode -> {
+        PhysicalPlan planAfter = plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }
@@ -82,12 +84,13 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
                         if (output.isEmpty()) {
-                            var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
+                            var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                             output = Expressions.asAttributes(fields);
                         }
                         // add a logical projection (let the local replanning remove it if needed)
+                        output = reorderOutput(logicalFragment.output(), output);
                         FragmentExec newChild = new FragmentExec(
                             Source.EMPTY,
                             new Project(logicalFragment.source(), logicalFragment, output),
@@ -105,5 +108,27 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             }
             return currentPlanNode;
         });
+        return planAfter;
+    }
+
+    private List<Attribute> reorderOutput(List<Attribute> expectedOrder, List<Attribute> attributesToSort) {
+        List<Attribute> output = new ArrayList<>(attributesToSort.size());
+        // Track which attributes have been added
+        var added = new HashSet<Attribute>();
+
+        // Add attributes in expectedOrder if present in attributesToSort
+        for (Attribute expected : expectedOrder) {
+            if (attributesToSort.contains(expected)) {
+                output.add(expected);
+                added.add(expected);
+            }
+        }
+        // Add remaining attributes from attributesToSort in their original order
+        for (Attribute attr : attributesToSort) {
+            if (added.contains(attr) == false) {
+                output.add(attr);
+            }
+        }
+        return output;
     }
 }

@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -141,6 +142,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -186,9 +188,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
+import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
@@ -658,7 +662,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("salary", "emp_no", "last_name"));
+        assertThat(names(extract.attributesToExtract()), contains("emp_no", "last_name", "salary"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(fieldSorts(topN.order())));
@@ -2484,7 +2488,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             extract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()),
-            contains("last_name", "first_name")
+            contains("first_name", "last_name")
         );
 
         // Now verify the correct Lucene push-down of both the filter and the sort
@@ -5686,9 +5690,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "location", "name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(fieldSorts(topN.order())));
@@ -5728,9 +5732,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "location", "name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(fieldSorts(topN.order())));
@@ -5773,9 +5777,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -5835,15 +5839,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             names(project.projections()),
             contains(
                 equalTo("abbrev"),
-                equalTo("name"),
-                equalTo("location"),
-                equalTo("country"),
                 equalTo("city"),
+                equalTo("country"),
+                equalTo("location"),
+                equalTo("name"),
                 startsWith("$$order_by$0$")
             )
         );
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), startsWith("$$order_by$0$"));
@@ -5910,9 +5914,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -6007,9 +6011,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -6096,10 +6100,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         project = as(exchange.child(), ProjectExec.class);
         assertThat(
             names(project.projections()),
-            contains("abbrev", "name", "location", "country", "city", "scalerank", "scale", "distance", "loc")
+            contains("abbrev", "city", "country", "location", "name", "scalerank", "distance", "scale", "loc")
         );
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -6179,9 +6183,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var topNChild = as(extract.child(), TopNExec.class);
         extract = as(topNChild.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("scalerank"));
@@ -6255,9 +6259,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance", "scalerank"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var topNChild = as(extract.child(), TopNExec.class);
         var filter = as(topNChild.child(), FilterExec.class);
         assertThat(filter.condition(), isA(And.class));
@@ -6332,9 +6336,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var topNChild = as(extract.child(), TopNExec.class);
         var filter = as(topNChild.child(), FilterExec.class);
         assertThat(filter.condition(), isA(Or.class));
@@ -6401,9 +6405,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city", "scalerank"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name", "scalerank"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -8275,6 +8279,111 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         SingleValueQuery.Builder sv = as(builder, SingleValueQuery.Builder.class);
         assertThat(sv.field(), equalTo(fieldName));
         return sv.next();
+    }
+
+    private PhysicalPlanOptimizer getCustomRulesPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
+        PhysicalOptimizerContext context = new PhysicalOptimizerContext(config);
+        PhysicalPlanOptimizer PhysicalPlanOptimizer = new PhysicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return batches;
+            }
+        };
+        return PhysicalPlanOptimizer;
+    }
+
+    public void testVerifierOnAdditionalAttributeAdded() throws Exception {
+
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+
+        // use a custom rule that adds another output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                static Integer appliedCount = 0;
+
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    // This rule adds a missing attribute to the plan output
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount == 0) {
+                        appliedCount++;
+                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
+                        return new EvalExec(
+                            plan.source(),
+                            plan,
+                            List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral))
+                        );
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("additionalAttribute"));
+    }
+
+    public void testVerifierOnAttributeDatatypeChanged() throws Exception {
+
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+
+        // use a custom rule that changes the datatype of an output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                static Integer appliedCount = 0;
+
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount == 0) {
+                        appliedCount++;
+                        LimitExec limit = as(plan, LimitExec.class);
+                        LimitExec newLimit = new LimitExec(
+                            plan.source(),
+                            limit.child(),
+                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            randomEstimatedRowSize()
+                        ) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
     @Override

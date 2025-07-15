@@ -41,8 +41,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                SearchHit hit = hits.getHits()[i];
-                DocumentField docField = hit.field(field);
+                DocumentField docField = hits.getHits()[i].field(field);
                 if (docField != null) {
                     rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
                 }

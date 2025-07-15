@@ -543,9 +543,9 @@ public class ComputeService {
     }
 
     /**
-     * If all of target shards excluding the skipped shards failed, then we should fail the entire query regardless of the partial_results
-     * configuration or skip_unavailable setting. This behavior doesn't fully align with the search API as the skip_unavailable
-     * would ignore all the failures from the remote clusters; hence, only fail the request when all shards in the local cluster failed.
+     * If all of target shards excluding the skipped shards failed from the local or remote clusters, then we should fail the entire query
+     * regardless of the partial_results configuration or skip_unavailable setting. This behavior doesn't fully align with the search API,
+     * which doesn't consider the failures from the remote clusters when skip_unavailable is true.
      */
     static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
         // do not fail if any final result has results

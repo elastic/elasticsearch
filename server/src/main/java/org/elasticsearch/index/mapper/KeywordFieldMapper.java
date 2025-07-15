@@ -209,7 +209,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
-        private final boolean useDocValuesSkipper;
+        private boolean useDocValuesSkipper;
+        private boolean forceDocValueSkipper;
         private final SourceKeepMode indexSourceKeepMode;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
@@ -243,6 +244,28 @@ public final class KeywordFieldMapper extends FieldMapper {
                 IndexMode.STANDARD,
                 null,
                 false,
+                sourceKeepMode
+            );
+        }
+
+        public Builder(
+            String name,
+            IndexAnalyzers indexAnalyzers,
+            ScriptCompiler scriptCompiler,
+            int ignoreAboveDefault,
+            IndexVersion indexCreatedVersion,
+            IndexSortConfig indexSortConfig,
+            SourceKeepMode sourceKeepMode
+        ) {
+            this(
+                name,
+                indexAnalyzers,
+                scriptCompiler,
+                ignoreAboveDefault,
+                indexCreatedVersion,
+                IndexMode.LOGSDB,
+                indexSortConfig,
+                true,
                 sourceKeepMode
             );
         }
@@ -299,6 +322,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
             this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion, SourceKeepMode.NONE);
+        }
+
+        public Builder useDocValuesSkipper(boolean useDocValuesSkipper) {
+            this.useDocValuesSkipper = useDocValuesSkipper;
+            return this;
+        }
+
+        public Builder forceDocValuesSkipper(boolean forceDocValuesSkipper) {
+            this.forceDocValueSkipper = forceDocValuesSkipper;
+            return this;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -476,7 +509,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         ) {
             if (useDocValuesSkipper
                 && indexCreatedVersion.onOrAfter(IndexVersions.HOSTNAME_DOC_VALUES_SPARSE_INDEX)
-                && shouldUseDocValuesSkipper(hasDocValues.getValue(), indexSortConfig, indexMode, fullFieldName)) {
+                && shouldUseDocValuesSkipper(hasDocValues.getValue(), forceDocValueSkipper, indexSortConfig, indexMode, fullFieldName)) {
                 return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             return new FieldType(Defaults.FIELD_TYPE);
@@ -484,12 +517,20 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private static boolean shouldUseDocValuesSkipper(
             final boolean hasDocValues,
+            final boolean forceDocValueSkipper,
             final IndexSortConfig indexSortConfig,
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            return hasDocValues
-                && IndexMode.LOGSDB.equals(indexMode)
+            if (hasDocValues == false) {
+                return false;
+            }
+
+            if (forceDocValueSkipper) {
+                return true;
+            }
+
+            return IndexMode.LOGSDB.equals(indexMode)
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSortConfig);
         }

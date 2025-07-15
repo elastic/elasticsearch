@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -27,7 +27,9 @@ import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -93,9 +95,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
             PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
             BuilderParams builderParams = builderParams(this, context);
-            var templateIdMapper = new KeywordFieldMapper.Builder(patternedTextFieldType.templateIdFieldName(), indexCreatedVersion).build(
-                context
-            );
+
+            var templateIdMapper = new KeywordFieldMapper.Builder(patternedTextFieldType.templateIdFieldName(), indexCreatedVersion)
+                .useDocValuesSkipper(true)
+                .forceDocValuesSkipper(true)
+                .build(context);
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
     }
@@ -139,7 +143,13 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
-        return Iterators.concat(super.iterator(), Iterators.fromSupplier(() -> templateIdMapper));
+        List<Mapper> mappers = new ArrayList<>();
+        Iterator<Mapper> m = super.iterator();
+        while (m.hasNext()) {
+            mappers.add(m.next());
+        }
+        mappers.add(templateIdMapper);
+        return mappers.iterator();
     }
 
     @Override
@@ -164,7 +174,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
 
         // Add template_id doc_values
-        context.doc().add(new SortedSetDocValuesField(fieldType().templateIdFieldName(), new BytesRef(parts.templateId())));
+        context.doc().add(new Field(fieldType().templateIdFieldName(), new BytesRef(parts.templateId()), KeywordFieldMapper.Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES));
 
         // Add args doc_values
         if (parts.args().isEmpty() == false) {

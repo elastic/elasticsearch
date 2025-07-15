@@ -22,7 +22,7 @@ public final class AzureAiStudioProviderCapabilities {
     // these providers have chat completion inference (all providers at the moment)
     public static final List<AzureAiStudioProvider> chatCompletionProviders = List.of(AzureAiStudioProvider.values());
 
-    // these providers have embeddings inference
+    // these providers have rerank inference
     public static final List<AzureAiStudioProvider> rerankProviders = List.of(AzureAiStudioProvider.COHERE);
 
     // these providers allow token ("pay as you go") embeddings endpoints
@@ -34,7 +34,7 @@ public final class AzureAiStudioProviderCapabilities {
     // these providers allow realtime embeddings endpoints (none at the moment)
     public static final List<AzureAiStudioProvider> realtimeEmbeddingsProviders = List.of();
 
-    // these providers allow realtime embeddings endpoints (none at the moment)
+    // these providers allow realtime rerank endpoints (none at the moment)
     public static final List<AzureAiStudioProvider> realtimeRerankProviders = List.of();
 
     // these providers allow token ("pay as you go") chat completion endpoints

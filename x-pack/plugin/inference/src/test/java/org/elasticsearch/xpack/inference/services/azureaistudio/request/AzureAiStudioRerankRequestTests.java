@@ -68,7 +68,7 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
         assertThat(requestMap.get(TOP_N_FIELD), is(TOP_N));
     }
 
-    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithTopReturnDocumentsParam() throws IOException {
+    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithReturnDocumentsParam() throws IOException {
         final var input = randomAlphaOfLength(3);
         final var query = randomAlphaOfLength(3);
         final var apikey = randomAlphaOfLength(3);

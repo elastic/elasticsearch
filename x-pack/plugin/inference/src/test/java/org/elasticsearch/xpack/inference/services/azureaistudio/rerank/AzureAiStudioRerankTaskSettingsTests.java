@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioRerankTaskSettings> {
     private static final String INVALID_FIELD_TYPE_STRING = "invalid";
-    private static final int MAX_RETRIES = 3;
+    private static final int MAX_RETRIES = 10;
 
     public void testIsEmpty() {
         final var randomSettings = createRandom();

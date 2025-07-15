@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -127,17 +128,39 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
 
+    public record DatetimeEmptyBucketDef(boolean emitEmptyBuckets, long from, long to, Rounding.Prepared rounding)
+        implements
+            BlockHash.EmptyBucketDef {}
+
+    public record NumericEmptyBucketDef(boolean emitEmptyBuckets, double from, double to, double rounding)
+        implements
+            BlockHash.EmptyBucketDef {}
+
+    public interface EmptyBucketDef {
+        boolean emitEmptyBuckets();
+    }
+
     /**
      * @param isCategorize Whether this group is a CATEGORIZE() or not.
      *                     May be changed in the future when more stateful grouping functions are added.
      */
-    public record GroupSpec(int channel, ElementType elementType, boolean isCategorize, @Nullable TopNDef topNDef) {
+    public record GroupSpec(
+        int channel,
+        ElementType elementType,
+        boolean isCategorize,
+        @Nullable TopNDef topNDef,
+        @Nullable EmptyBucketDef emptyBucketDef
+    ) {
         public GroupSpec(int channel, ElementType elementType) {
-            this(channel, elementType, false, null);
+            this(channel, elementType, false);
         }
 
         public GroupSpec(int channel, ElementType elementType, boolean isCategorize) {
-            this(channel, elementType, isCategorize, null);
+            this(channel, elementType, isCategorize, null, null);
+        }
+
+        public GroupSpec(int channel, ElementType elementType, EmptyBucketDef emptyBucketDef) {
+            this(channel, elementType, false, null, emptyBucketDef);
         }
     }
 

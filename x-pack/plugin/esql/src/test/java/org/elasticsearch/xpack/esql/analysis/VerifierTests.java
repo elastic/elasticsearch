@@ -574,6 +574,21 @@ public class VerifierTests extends ESTestCase {
                     + "found value [\"5\"] type [keyword]"
             )
         );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 5, true)"),
+            containsString(
+                "function expects exactly four arguments when the first one is of type [DATETIME] and the second of type [INTEGER]"
+            )
+        );
+
+        assertThat(
+            error("from test | stats max(emp_no) by bucket(hire_date, 1 week, true)"),
+            containsString(
+                "function expects exactly two or four arguments when the first one is of type [DATETIME] and the second of type "
+                    + "[DATE_PERIOD]"
+            )
+        );
     }
 
     public void testAggsWithInvalidGrouping() {

@@ -960,6 +960,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     Map.of(),
                     Map.of(),
                     Map.of(),
+                    Map.of(),
                     Map.of()
                 );
                 this.delegate = info;

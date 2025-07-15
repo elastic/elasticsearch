@@ -46,7 +46,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     PhysicalPlan verify(PhysicalPlan plan) {
-        Failures failures = verifier.verify(plan);
+        Failures failures = verifier.verify(plan, true);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

@@ -288,7 +288,9 @@ public class EsqlQueryGenerator {
         // https://github.com/elastic/elasticsearch/issues/121741
         field.name().equals("<all-fields-projected>")
             // this is a known pathological case, no need to test it for now
-            || field.name().equals("<no-fields>")) == false;
+            || field.name().equals("<no-fields>")
+            // no dense vectors for now, they are not supported in most commands
+            || field.type().contains("vector")) == false;
     }
 
     public static String unquote(String colName) {

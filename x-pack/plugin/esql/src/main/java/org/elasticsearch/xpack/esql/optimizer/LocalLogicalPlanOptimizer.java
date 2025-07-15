@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
@@ -34,6 +36,8 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * and {@link LogicalPlanOptimizer#cleanup()}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
+
+    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
     private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
         new Batch<>(
@@ -81,6 +85,12 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
-        return execute(plan);
+        LogicalPlan optimized = execute(plan);
+        Failures failures = verifier.verify(optimized, true);
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+        return optimized;
     }
+
 }

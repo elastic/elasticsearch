@@ -42,27 +42,33 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
-    public void testStatsForSingleTierClusterWithNoForecasts() {
+    private static final DiscoveryNode node1 = newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode node2 = newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode node3 = newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE));
 
+    public void testStatsForSingleTierClusterWithNoForecasts() {
         var clusterState = createClusterState(
-            List.of(
-                newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE))
-            ),
+            List.of(node1, node2, node3),
             List.of(
                 startedIndex("index-1", null, null, "node-1", "node-2"),
                 startedIndex("index-2", null, null, "node-2", "node-3"),
                 startedIndex("index-3", null, null, "node-3", "node-1")
             )
         );
+
         var clusterInfo = createClusterInfo(
             List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
         );
 
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
+        double nodeWeight = randomDoubleBetween(-1, 1, true);
+        nodeWeights.put(node1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
-            createDesiredBalance(clusterState),
+            createDesiredBalance(clusterState, nodeWeights),
             clusterInfo,
             TEST_WRITE_LOAD_FORECASTER
         );
@@ -86,15 +92,15 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                     Map.ofEntries(
                         Map.entry(
                             "node-1",
-                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 0.0, 4L, 4L, 0)
+                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 0.0, 4L, 4L, nodeWeight)
                         ),
                         Map.entry(
                             "node-2",
-                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 0.0, 3L, 3L, 0)
+                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 0.0, 3L, 3L, nodeWeight)
                         ),
                         Map.entry(
                             "node-3",
-                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 0.0, 5L, 5L, 0)
+                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 0.0, 5L, 5L, nodeWeight)
                         )
                     )
                 )
@@ -103,27 +109,29 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testStatsForSingleTierClusterWithForecasts() {
-
         var clusterState = createClusterState(
-            List.of(
-                newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE))
-            ),
+            List.of(node1, node2, node3),
             List.of(
                 startedIndex("index-1", 1.5, 8L, "node-1", "node-2"),
                 startedIndex("index-2", 2.5, 4L, "node-2", "node-3"),
                 startedIndex("index-3", 2.0, 6L, "node-3", "node-1")
             )
         );
+
         // intentionally different from forecast
         var clusterInfo = createClusterInfo(
             List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
         );
 
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
+        double nodeWeight = randomDoubleBetween(-1, 1, true);
+        nodeWeights.put(node1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
-            createDesiredBalance(clusterState),
+            createDesiredBalance(clusterState, nodeWeights),
             clusterInfo,
             TEST_WRITE_LOAD_FORECASTER
         );
@@ -147,15 +155,15 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                     Map.ofEntries(
                         Map.entry(
                             "node-1",
-                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 3.5, 14L, 4L, 0)
+                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 3.5, 14L, 4L, nodeWeight)
                         ),
                         Map.entry(
                             "node-2",
-                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 4.0, 12L, 3L, 0)
+                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 4.0, 12L, 3L, nodeWeight)
                         ),
                         Map.entry(
                             "node-3",
-                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 4.5, 10L, 5L, 0)
+                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 2, 0, 4.5, 10L, 5L, nodeWeight)
                         )
                     )
                 )
@@ -164,16 +172,15 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testStatsForHotWarmClusterWithForecasts() {
+        DiscoveryNode node1 = newNode("node-hot-1", "node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE));
+        DiscoveryNode node2 = newNode("node-hot-2", "node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE));
+        DiscoveryNode node3 = newNode("node-hot-3", "node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE));
+        DiscoveryNode node4 = newNode("node-warm-1", "node-warm-1", Set.of(DATA_WARM_NODE_ROLE));
+        DiscoveryNode node5 = newNode("node-warm-2", "node-warm-2", Set.of(DATA_WARM_NODE_ROLE));
+        DiscoveryNode node6 = newNode("node-warm-3", "node-warm-3", Set.of(DATA_WARM_NODE_ROLE));
 
         var clusterState = createClusterState(
-            List.of(
-                newNode("node-hot-1", "node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-hot-2", "node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-hot-3", "node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
-                newNode("node-warm-1", "node-warm-1", Set.of(DATA_WARM_NODE_ROLE)),
-                newNode("node-warm-2", "node-warm-2", Set.of(DATA_WARM_NODE_ROLE)),
-                newNode("node-warm-3", "node-warm-3", Set.of(DATA_WARM_NODE_ROLE))
-            ),
+            List.of(node1, node2, node3, node4, node5, node6),
             List.of(
                 startedIndex("index-hot-1", 4.0, 4L, "node-hot-1", "node-hot-2", "node-hot-3"),
                 startedIndex("index-hot-2", 2.0, 6L, "node-hot-1", "node-hot-2"),
@@ -182,6 +189,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 startedIndex("index-warm-2", 0.0, 18L, "node-warm-3")
             )
         );
+
         // intentionally different from forecast
         var clusterInfo = createClusterInfo(
             List.of(
@@ -193,9 +201,18 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             )
         );
 
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
+        double nodeWeight = randomDoubleBetween(-1, 1, true);
+        nodeWeights.put(node1, new DesiredBalanceMetrics.NodeWeightStats(3L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node4, new DesiredBalanceMetrics.NodeWeightStats(1L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node5, new DesiredBalanceMetrics.NodeWeightStats(1L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(node6, new DesiredBalanceMetrics.NodeWeightStats(1L, randomDouble(), randomDouble(), nodeWeight));
+
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
-            createDesiredBalance(clusterState),
+            createDesiredBalance(clusterState, nodeWeights),
             clusterInfo,
             TEST_WRITE_LOAD_FORECASTER
         );
@@ -235,12 +252,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         )
                     ),
                     Map.ofEntries(
-                        Map.entry("node-hot-1", new NodeBalanceStats("node-hot-1", hotRoleNames, 3, 0, 8.5, 16L, 15L, 0)),
-                        Map.entry("node-hot-2", new NodeBalanceStats("node-hot-2", hotRoleNames, 2, 0, 6.0, 10L, 9L, 0)),
-                        Map.entry("node-hot-3", new NodeBalanceStats("node-hot-3", hotRoleNames, 2, 0, 6.5, 10L, 10L, 0)),
-                        Map.entry("node-warm-1", new NodeBalanceStats("node-warm-1", warmRoleNames, 1, 0, 0.0, 12L, 12L, 0)),
-                        Map.entry("node-warm-2", new NodeBalanceStats("node-warm-2", warmRoleNames, 1, 0, 0.0, 12L, 12L, 0)),
-                        Map.entry("node-warm-3", new NodeBalanceStats("node-warm-3", warmRoleNames, 1, 0, 0.0, 18L, 18L, 0))
+                        Map.entry("node-hot-1", new NodeBalanceStats("node-hot-1", hotRoleNames, 3, 0, 8.5, 16L, 15L, nodeWeight)),
+                        Map.entry("node-hot-2", new NodeBalanceStats("node-hot-2", hotRoleNames, 2, 0, 6.0, 10L, 9L, nodeWeight)),
+                        Map.entry("node-hot-3", new NodeBalanceStats("node-hot-3", hotRoleNames, 2, 0, 6.5, 10L, 10L, nodeWeight)),
+                        Map.entry("node-warm-1", new NodeBalanceStats("node-warm-1", warmRoleNames, 1, 0, 0.0, 12L, 12L, nodeWeight)),
+                        Map.entry("node-warm-2", new NodeBalanceStats("node-warm-2", warmRoleNames, 1, 0, 0.0, 12L, 12L, nodeWeight)),
+                        Map.entry("node-warm-3", new NodeBalanceStats("node-warm-3", warmRoleNames, 1, 0, 0.0, 18L, 18L, nodeWeight))
                     )
                 )
             )
@@ -248,13 +265,8 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testStatsForNoIndicesInTier() {
-
         var clusterState = createClusterState(
-            List.of(
-                newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE)),
-                newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE))
-            ),
+            List.of(node1, node2, node3),
             List.of()
         );
         var clusterInfo = createClusterInfo(List.of());
@@ -280,15 +292,15 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                     Map.ofEntries(
                         Map.entry(
                             "node-1",
-                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, 0)
+                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, null)
                         ),
                         Map.entry(
                             "node-2",
-                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, 0)
+                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, null)
                         ),
                         Map.entry(
                             "node-3",
-                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, 0)
+                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, null)
                         )
                     )
                 )
@@ -327,7 +339,10 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             .build();
     }
 
-    private static DesiredBalance createDesiredBalance(ClusterState state) {
+    private static DesiredBalance createDesiredBalance(
+        ClusterState state,
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights
+    ) {
         var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var indexRoutingTable : state.getRoutingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
@@ -338,7 +353,8 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 );
             }
         }
-        return new DesiredBalance(1, assignments);
+
+        return new DesiredBalance(1, assignments, nodeWeights, DesiredBalance.ComputationFinishReason.CONVERGED);
     }
 
     private static Tuple<IndexMetadata.Builder, String[]> startedIndex(

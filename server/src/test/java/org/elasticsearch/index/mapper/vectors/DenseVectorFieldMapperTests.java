@@ -1367,7 +1367,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("index", true);
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
-                b.field("type", "bbq_ivf");
+                b.field("type", "bbq_disk");
                 b.endObject();
             }));
 
@@ -1386,7 +1386,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("index", true);
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
-                b.field("type", "bbq_ivf");
+                b.field("type", "bbq_disk");
                 b.field("cluster_size", 1000);
                 b.field("default_n_probe", 10);
                 b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
@@ -1413,7 +1413,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     b -> b.field("type", "dense_vector")
                         .field("dims", dims)
                         .startObject("index_options")
-                        .field("type", "bbq_ivf")
+                        .field("type", "bbq_disk")
                         .endObject()
                 )
             )
@@ -2815,7 +2815,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
-            b.field("type", "bbq_ivf");
+            b.field("type", "bbq_disk");
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);

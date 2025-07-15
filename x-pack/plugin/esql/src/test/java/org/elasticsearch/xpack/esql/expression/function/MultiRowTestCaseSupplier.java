@@ -14,6 +14,10 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -424,6 +428,36 @@ public final class MultiRowTestCaseSupplier {
                 addSuppliers(cases, minRows, maxRows, Strings.format("<no alt %s>", name), type, () -> GEO.asWkb(gen.apply(false)));
         }
 
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geohashCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return Geohash.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, Geohash.PRECISION));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohash>", DataType.GEOHASH, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geotileCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return GeoTileUtils.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geotile>", DataType.GEOTILE, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geohexCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return H3.geoToH3(point.getLat(), point.getLon(), ESTestCase.randomIntBetween(1, H3.MAX_H3_RES));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohex>", DataType.GEOHEX, gen);
         return cases;
     }
 

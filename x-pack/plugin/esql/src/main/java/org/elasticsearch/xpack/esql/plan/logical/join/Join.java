@@ -40,6 +40,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -66,6 +69,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         GEO_SHAPE,
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
+        GEOHASH,
+        GEOTILE,
+        GEOHEX,
         UNSUPPORTED,
         NULL,
         COUNTER_LONG,

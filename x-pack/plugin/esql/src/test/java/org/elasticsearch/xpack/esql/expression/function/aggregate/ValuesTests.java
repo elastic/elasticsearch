@@ -57,7 +57,10 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.geohashCases(1, 100),
+            MultiRowTestCaseSupplier.geotileCases(1, 100),
+            MultiRowTestCaseSupplier.geohexCases(1, 100)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);

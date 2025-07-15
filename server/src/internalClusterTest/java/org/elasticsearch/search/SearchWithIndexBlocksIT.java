@@ -32,10 +32,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.block.ClusterBlocks.EMPTY_CLUSTER_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class SearchWithIndexBlocksIT extends ESIntegTestCase {
 
@@ -52,7 +54,7 @@ public class SearchWithIndexBlocksIT extends ESIntegTestCase {
         assertHitCount(prepareSearch().setQuery(QueryBuilders.matchAllQuery()), expectedHits);
     }
 
-    public void testOpenPITWithIndexRefreshBlock() {
+    public void testOpenPITOnIndicesWithIndexRefreshBlocks() {
         List<String> indices = createIndices();
         Map<String, Integer> numDocsPerIndex = indexDocuments(indices);
         List<String> unblockedIndices = addIndexRefreshBlockToSomeIndices(indices);
@@ -77,6 +79,28 @@ public class SearchWithIndexBlocksIT extends ESIntegTestCase {
                 client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
             }
         }
+    }
+
+    public void testMultiSearchIndicesWithIndexRefreshBlocks() {
+        List<String> indices = createIndices();
+        Map<String, Integer> numDocsPerIndex = indexDocuments(indices);
+        List<String> unblockedIndices = addIndexRefreshBlockToSomeIndices(indices);
+
+        int expectedHits = 0;
+        for (String index : unblockedIndices) {
+            expectedHits += numDocsPerIndex.get(index);
+        }
+
+        final long expectedHitsL = expectedHits;
+        assertResponse(
+            client().prepareMultiSearch()
+                .add(prepareSearch().setQuery(QueryBuilders.matchAllQuery()))
+                .add(prepareSearch().setQuery(QueryBuilders.termQuery("field", "blah"))),
+            response -> {
+                assertHitCount(Objects.requireNonNull(response.getResponses()[0].getResponse()), expectedHitsL);
+                assertHitCount(Objects.requireNonNull(response.getResponses()[1].getResponse()), 0);
+            }
+        );
     }
 
     private List<String> createIndices() {

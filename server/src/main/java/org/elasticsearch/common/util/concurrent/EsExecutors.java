@@ -577,6 +577,7 @@ public class EsExecutors {
     }
 
     public static class TaskTrackingConfig {
+        // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
 
         private final boolean trackExecutionTime;
@@ -596,17 +597,6 @@ public class EsExecutors {
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
-
-        public TaskTrackingConfig(boolean trackOngoingTasks, double executionTimeEWMAAlpha) {
-            this(true, trackOngoingTasks, false, executionTimeEWMAAlpha);
-        }
-
-        /**
-         * Execution tracking enabled constructor, with extra options to enable further specialized tracking.
-         */
-        public TaskTrackingConfig(boolean trackOngoingTasks, boolean trackMaxQueueLatency, double executionTimeEwmaAlpha) {
-            this(true, trackOngoingTasks, trackMaxQueueLatency, executionTimeEwmaAlpha);
-        }
 
         /**
          * @param trackExecutionTime Whether to track execution stats
@@ -640,6 +630,39 @@ public class EsExecutors {
 
         public double getExecutionTimeEwmaAlpha() {
             return executionTimeEwmaAlpha;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private boolean trackExecutionTime = false;
+            private boolean trackOngoingTasks = false;
+            private boolean trackMaxQueueLatency = false;
+            private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+
+            public Builder() {}
+
+            public Builder trackExecutionTime(double alpha) {
+                trackExecutionTime = true;
+                ewmaAlpha = alpha;
+                return this;
+            }
+
+            public Builder trackOngoingTasks() {
+                trackOngoingTasks = true;
+                return this;
+            }
+
+            public Builder trackMaxQueueLatency() {
+                trackMaxQueueLatency = true;
+                return this;
+            }
+
+            public TaskTrackingConfig build() {
+                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+            }
         }
     }
 

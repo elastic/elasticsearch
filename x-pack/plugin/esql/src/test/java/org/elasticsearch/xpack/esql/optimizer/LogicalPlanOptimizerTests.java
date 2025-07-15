@@ -139,6 +139,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -5751,13 +5752,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class); // TODO: this needs to go
         var inline = as(limit.child(), InlineJoin.class);
         var eval = as(inline.left(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        assertThat(Expressions.attribute(eval.fields().get(0)).name(), is("emp_no % 2"));
+        assertThat(Expressions.names(eval.fields()), is(List.of("emp_no % 2")));
         limit = asLimit(eval.child(), 1000, false);
         var agg = as(inline.right(), Aggregate.class);
         var groupings = agg.groupings();
-        var aggs = agg.aggregates();
         var ref = as(groupings.get(0), ReferenceAttribute.class);
+        var aggs = agg.aggregates();
         assertThat(aggs.get(1), is(ref));
         assertThat(eval.fields().get(0).toAttribute(), is(ref));
         assertThat(eval.fields().get(0).name(), is("emp_no % 2"));
@@ -5793,10 +5793,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan(query);
 
         var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(projections.size(), equalTo(2));
-        assertThat(projections.get(0).name(), equalTo("x"));
-        assertThat(projections.get(1).name(), equalTo("emp_no"));
+        assertThat(Expressions.names(project.projections()), is(List.of("x", "emp_no")));
         var topN = as(project.child(), TopN.class);
         assertThat(topN.order().size(), is(1));
         var relation = as(topN.child(), EsRelation.class);
@@ -5820,10 +5817,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan(query);
 
         var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(projections.size(), equalTo(2));
-        assertThat(projections.get(0).name(), equalTo("x"));
-        assertThat(projections.get(1).name(), equalTo("emp_no"));
+        assertThat(Expressions.names(project.projections()), is(List.of("x", "emp_no")));
         var topN = as(project.child(), TopN.class);
         assertThat(topN.order().size(), is(1));
         var relation = as(topN.child(), EsRelation.class);
@@ -5853,24 +5847,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan(query);
 
         var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(projections.size(), equalTo(3));
-        assertThat(projections.get(0).name(), equalTo("x"));
-        assertThat(projections.get(1).name(), equalTo("a"));
-        assertThat(projections.get(2).name(), equalTo("emp_no"));
+        assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
         var upperLimit = asLimit(project.child(), 1, true);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(inlineJoin.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("emp_no{f}")));
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
         // Left
         var limit = as(inlineJoin.left(), Limit.class); // TODO: this needs to go
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
         var relation = as(limit.child(), EsRelation.class);
         // Right
         var agg = as(inlineJoin.right(), Aggregate.class);
-        assertMap(
-            agg.output().stream().map(Object::toString).toList(),
-            matchesList().item(startsWith("a{r}")).item(startsWith("emp_no{f}"))
-        );
+        assertMap(Expressions.names(agg.output()), is(List.of("a", "emp_no")));
         var stub = as(agg.child(), StubRelation.class);
     }
 
@@ -5891,25 +5878,60 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan(query);
 
         var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(projections.size(), equalTo(3));
-        assertThat(projections.get(0).name(), equalTo("x"));
-        assertThat(projections.get(1).name(), equalTo("a"));
-        assertThat(projections.get(2).name(), equalTo("emp_no"));
+        assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
         var upperLimit = asLimit(project.child(), 1, true);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(inlineJoin.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("emp_no{f}")));
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
         // Left
         var limit = as(inlineJoin.left(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
         var relation = as(limit.child(), EsRelation.class);
         // Right
         var agg = as(inlineJoin.right(), Aggregate.class);
-        assertMap(
-            agg.output().stream().map(Object::toString).toList(),
-            matchesList().item(startsWith("a{r}")).item(startsWith("emp_no{f}"))
-        );
+        assertMap(Expressions.names(agg.output()), is(List.of("a", "emp_no")));
         var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * Project[[abbrev{f}#19, scalerank{f}#21 AS backup_scalerank#4, language_name{f}#28 AS scalerank#11]]
+     * \_TopN[[Order[abbrev{f}#19,DESC,FIRST]],5[INTEGER]]
+     *   \_Join[LEFT,[scalerank{f}#21],[scalerank{f}#21],[language_code{f}#27]]
+     *     |_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#27, language_name{f}#28]
+     */
+    public void testInlinestatsWithLookupJoin() {
+        var query = """
+            FROM airports
+            | EVAL backup_scalerank = scalerank
+            | RENAME scalerank AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name as scalerank
+            | DROP language_code
+            | INLINESTATS count=COUNT(*) BY scalerank
+            | SORT abbrev DESC
+            | KEEP abbrev, *scalerank
+            | LIMIT 5
+            """;
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+
+        var plan = planAirports(query);
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("abbrev", "backup_scalerank", "scalerank")));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(Expressions.name(order.child()), equalTo("abbrev"));
+        var join = as(topN.child(), Join.class);
+        assertThat(Expressions.names(join.config().matchFields()), is(List.of("scalerank")));
+        var left = as(join.left(), EsRelation.class);
+        assertThat(left.concreteIndices(), is(Set.of("airports")));
+        var right = as(join.right(), EsRelation.class);
+        assertThat(right.concreteIndices(), is(Set.of("languages_lookup")));
     }
 
     /*
@@ -5938,30 +5960,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var plan = optimizedPlan(query);
 
         var esqlProject = as(plan, EsqlProject.class);
-        var projections = esqlProject.projections();
-        assertThat(projections.size(), equalTo(3));
-        assertThat(projections.get(0).name(), equalTo("avg"));
-        assertThat(projections.get(1).name(), equalTo("emp_no"));
-        assertThat(projections.get(2).name(), equalTo("first_name"));
+        assertThat(Expressions.names(esqlProject.projections()), is(List.of("avg", "emp_no", "first_name")));
         var upperLimit = asLimit(esqlProject.child(), 10, true);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(inlineJoin.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("emp_no{f}")));
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
         // Left
-        var limit = as(inlineJoin.left(), Limit.class); // TODO: this needs to go
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
+        var limit = asLimit(inlineJoin.left(), 10, false); // TODO: this needs to go
         var relation = as(limit.child(), EsRelation.class);
         // Right
         var project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), contains("avg", "emp_no"));
         var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), equalTo(1));
-        var field = eval.fields().getFirst();
-        assertThat(field.toAttribute().name(), equalTo("avg"));
+        assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
         var agg = as(eval.child(), Aggregate.class);
-        assertMap(
-            agg.output().stream().map(Object::toString).toList(),
-            matchesList().item(startsWith("$$SUM$avg$0")).item(startsWith("$$COUNT$avg$1")).item(startsWith("emp_no{f}"))
-        );
+        assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
         var stub = as(agg.child(), StubRelation.class);
     }
 

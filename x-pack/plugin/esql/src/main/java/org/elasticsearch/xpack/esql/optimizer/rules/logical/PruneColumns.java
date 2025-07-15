@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -119,9 +120,26 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     p = aggregate.with(aggregate.groupings(), remaining);
                 }
             } else {
-                p = inlineJoin && aggregate.groupings().containsAll(remaining) // not expecting high groups cardinality
-                    ? new Project(aggregate.source(), aggregate.child(), remaining)
-                    : aggregate.with(aggregate.groupings(), remaining);
+                if (inlineJoin && aggregate.groupings().containsAll(remaining)) { // not expecting high groups cardinality
+                    // It's an INLINEJOIN and all remaining attributes are groupings, which are already part of the IJ output (from the
+                    // left-hand side).
+                    if (aggregate.child() instanceof StubRelation stub) {
+                        var message = "Aggregate groups references ["
+                            + remaining
+                            + "] not in child's (StubRelation) output: ["
+                            + stub.outputSet()
+                            + "]";
+                        assert stub.outputSet().containsAll(Expressions.asAttributes(remaining)) : message;
+
+                        p = emptyLocalRelation(aggregate);
+                    } else {
+                        // There are no aggregates to compute, just output the groupings; these are already in the IJ output, so only
+                        // restrict the output to what remained.
+                        p = new Project(aggregate.source(), aggregate.child(), remaining);
+                    }
+                } else { // not an INLINEJOIN or there are actually aggregates to compute
+                    p = aggregate.with(aggregate.groupings(), remaining);
+                }
             }
         }
 

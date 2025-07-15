@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.compute.operator;
+package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -85,10 +85,19 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+    private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
+    private static final String[] SUPPORTED_NAMES = new String[] {
+        "long",
+        "int",
+        "double",
+        "keyword",
+        "stored_keyword",
+        "3_stored_keywords",
+        "keyword_mv" };
+
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
@@ -104,8 +113,8 @@ public class ValuesSourceReaderBenchmark {
             ValuesSourceReaderBenchmark benchmark = new ValuesSourceReaderBenchmark();
             benchmark.setupIndex();
             try {
-                for (String layout : ValuesSourceReaderBenchmark.class.getField("layout").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String name : ValuesSourceReaderBenchmark.class.getField("name").getAnnotationsByType(Param.class)[0].value()) {
+                for (String layout : ValuesSourceReaderBenchmark.SUPPORTED_LAYOUTS) {
+                    for (String name : ValuesSourceReaderBenchmark.SUPPORTED_NAMES) {
                         benchmark.layout = layout;
                         benchmark.name = name;
                         try {
@@ -119,7 +128,7 @@ public class ValuesSourceReaderBenchmark {
             } finally {
                 benchmark.teardownIndex();
             }
-        } catch (IOException | NoSuchFieldException e) {
+        } catch (IOException e) {
             throw new AssertionError(e);
         }
     }
@@ -321,10 +330,10 @@ public class ValuesSourceReaderBenchmark {
      *     each page has a single document rather than {@code BLOCK_SIZE} docs.</li>
      * </ul>
      */
-    @Param({ "in_order", "shuffled", "shuffled_singles" })
+    @Param({ "in_order", "shuffled" })
     public String layout;
 
-    @Param({ "long", "int", "double", "keyword", "stored_keyword", "3_stored_keywords" })
+    @Param({ "long", "keyword", "stored_keyword", "keyword_mv" })
     public String name;
 
     private Directory directory;
@@ -390,6 +399,22 @@ public class ValuesSourceReaderBenchmark {
                         }
                     }
                 }
+                case "keyword_mv" -> {
+                    BytesRef scratch = new BytesRef();
+                    BytesRefBlock values = op.getOutput().<BytesRefBlock>getBlock(1);
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        int count = values.getValueCount(p);
+                        if (count > 0) {
+                            int first = values.getFirstValueIndex(p);
+                            for (int i = 0; i < count; i++) {
+                                BytesRef r = values.getBytesRef(first + i, scratch);
+                                r.offset++;
+                                r.length--;
+                                sum += Integer.parseInt(r.utf8ToString());
+                            }
+                        }
+                    }
+                }
             }
         }
         long expected = 0;
@@ -397,6 +422,16 @@ public class ValuesSourceReaderBenchmark {
             case "keyword", "stored_keyword":
                 for (int i = 0; i < INDEX_SIZE; i++) {
                     expected += i % 1000;
+                }
+                break;
+            case "keyword_mv":
+                for (int i = 0; i < INDEX_SIZE; i++) {
+                    int v1 = i % 1000;
+                    expected += v1;
+                    int v2 = i % 500;
+                    if (v1 != v2) {
+                        expected += v2;
+                    }
                 }
                 break;
             case "3_stored_keywords":
@@ -453,7 +488,9 @@ public class ValuesSourceReaderBenchmark {
                         new StoredField("double", (double) i),
                         new KeywordFieldMapper.KeywordField("keyword_1", new BytesRef(c + i % 1000), keywordFieldType),
                         new KeywordFieldMapper.KeywordField("keyword_2", new BytesRef(c + i % 1000), keywordFieldType),
-                        new KeywordFieldMapper.KeywordField("keyword_3", new BytesRef(c + i % 1000), keywordFieldType)
+                        new KeywordFieldMapper.KeywordField("keyword_3", new BytesRef(c + i % 1000), keywordFieldType),
+                        new KeywordFieldMapper.KeywordField("keyword_mv", new BytesRef(c + i % 1000), keywordFieldType),
+                        new KeywordFieldMapper.KeywordField("keyword_mv", new BytesRef(c + i % 500), keywordFieldType)
                     )
                 );
                 if (i % COMMIT_INTERVAL == 0) {

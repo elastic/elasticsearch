@@ -253,7 +253,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -296,8 +296,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of();
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -338,8 +337,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             );
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            var unavailableClusters = Map.of(REMOTE1_ALIAS, List.of(failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -381,8 +380,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            var unavailableClusters = Map.of(REMOTE1_ALIAS, List.of(failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
@@ -430,8 +429,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            var unavailableClusters = Map.of(REMOTE1_ALIAS, List.of(failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), unavailableClusters);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -463,7 +462,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(
+                EsqlCCSUtils.groupFailuresPerCluster(failures)
+            );
             assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote1", "remote2")));
         }
 
@@ -473,7 +474,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSuchRemoteClusterException("remote2")));
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSeedNodeLeftException("no seed node")));
 
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
         }
 
@@ -487,7 +489,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                     new IllegalStateException("Unable to open any connections")
                 )
             );
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
         }
 
@@ -495,14 +498,16 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote1:mylogs1" }, new RuntimeException("foo")));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
 
         // empty failures list
         {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
     }

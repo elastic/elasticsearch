@@ -1149,7 +1149,7 @@ public class Security extends Plugin
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
 
-        CrossProjectTargetResolver crossProjectTargetResolver = createCustomIndicesRequestRewriter(extensionComponents);
+        CrossProjectTargetResolver crossProjectTargetResolver = createCrossProjectTargetResolver(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1311,16 +1311,16 @@ public class Security extends Plugin
         }
     }
 
-    private CrossProjectTargetResolver createCustomIndicesRequestRewriter(SecurityExtension.SecurityComponents extensionComponents) {
+    private CrossProjectTargetResolver createCrossProjectTargetResolver(SecurityExtension.SecurityComponents extensionComponents) {
         final Map<String, CrossProjectTargetResolver> customByExtension = new HashMap<>();
         for (final SecurityExtension extension : securityExtensions) {
-            final CrossProjectTargetResolver custom = extension.getCustomIndicesRequestRewriter(extensionComponents);
+            final CrossProjectTargetResolver custom = extension.getCrossProjectTargetResolver(extensionComponents);
             if (custom != null) {
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
                         "The ["
                             + extension.extensionName()
-                            + "] extension tried to install a custom CustomIndicesRequestRewriter. "
+                            + "] extension tried to install a custom CrossProjectTargetResolver. "
                             + "This functionality is not available to external extensions."
                     );
                 }
@@ -1336,14 +1336,14 @@ public class Security extends Plugin
             return new CrossProjectTargetResolver.Default();
         } else if (customByExtension.size() > 1) {
             throw new IllegalStateException(
-                "Multiple extensions tried to install a custom CustomIndicesRequestRewriter: " + customByExtension.keySet()
+                "Multiple extensions tried to install a custom CrossProjectTargetResolver: " + customByExtension.keySet()
             );
         } else {
             final var byExtensionEntry = customByExtension.entrySet().iterator().next();
             final CrossProjectTargetResolver custom = byExtensionEntry.getValue();
             final String extensionName = byExtensionEntry.getKey();
             logger.debug(
-                "CustomIndicesRequestRewriter implementation [{}] provided by extension [{}]",
+                "CrossProjectTargetResolver implementation [{}] provided by extension [{}]",
                 custom.getClass().getCanonicalName(),
                 extensionName
             );

@@ -134,7 +134,7 @@ public interface SecurityExtension {
         return null;
     }
 
-    default CrossProjectTargetResolver getCustomIndicesRequestRewriter(SecurityComponents components) {
+    default CrossProjectTargetResolver getCrossProjectTargetResolver(SecurityComponents components) {
         return null;
     }
 

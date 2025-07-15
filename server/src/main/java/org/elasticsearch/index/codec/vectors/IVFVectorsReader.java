@@ -330,16 +330,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 }
 
                 int centroidOrdinal = centroidQueue.pop();
-                if (priorVisitedCentroids.getAndSet(centroidOrdinal)) {
+                int clusterOrdinal = centroidQueryScorer.getClusterOrdinal(centroidOrdinal);
+                if (priorVisitedCentroids.getAndSet(clusterOrdinal)) {
                     continue;
                 }
                 centroidsVisited++;
 
                 // TODO need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing is enough?
-                expectedDocs += scorer.resetPostingsScorer(
-                    centroidQueryScorer.getClusterOrdinal(centroidOrdinal),
-                    centroidQueryScorer.centroid(centroidOrdinal)
-                );
+                expectedDocs += scorer.resetPostingsScorer(clusterOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
                 actualDocs += scorer.visit(knnCollector);
             }
 

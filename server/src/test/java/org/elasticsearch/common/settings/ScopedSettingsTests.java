@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.transport.TransportSettings;
 import org.mockito.Mockito;
 
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutEntitlements // Entitlement logging interferes
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testResetSetting() {

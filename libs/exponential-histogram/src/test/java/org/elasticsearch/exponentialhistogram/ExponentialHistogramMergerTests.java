@@ -19,6 +19,9 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -87,6 +90,32 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         assertThat(posBuckets.peekCount(), equalTo(42L));
         posBuckets.advance();
         assertThat(posBuckets.hasNext(), equalTo(false));
+    }
+
+    public void testUpscalingDoesNotExceedIndexLimits() {
+        for (int i = 0; i < 4; i++) {
+
+            boolean isPositive = i % 2 == 0;
+            boolean useMinIndex = i > 1;
+
+            FixedCapacityExponentialHistogram histo = new FixedCapacityExponentialHistogram(2);
+            histo.resetBuckets(20);
+
+            long index = useMinIndex ? MIN_INDEX / 2 : MAX_INDEX / 2;
+
+            histo.tryAddBucket(index, 1, isPositive);
+
+            ExponentialHistogramMerger merger = new ExponentialHistogramMerger(100);
+            merger.add(histo);
+            ExponentialHistogram result = merger.get();
+
+            assertThat(result.scale(), equalTo(21));
+            if (isPositive) {
+                assertThat(result.positiveBuckets().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+            } else {
+                assertThat(result.negativeBuckets().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+            }
+        }
     }
 
     /**

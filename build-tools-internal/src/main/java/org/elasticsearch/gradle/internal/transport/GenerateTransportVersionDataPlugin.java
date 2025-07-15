@@ -19,10 +19,9 @@ public class GenerateTransportVersionDataPlugin implements Plugin<Project> {
         project.getTasks().register("generateTransportVersionData", GenerateTransportVersionDataTask.class, t -> {
             t.setDescription("Generate transport version data"); // todo update this to be more descriptive
             t.setGroup("Transport Versions"); // todo
-            t.getDataFileDirectory().set(
-                project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
-            t.getTVSetName().set("test"); //todo
+            t.getDataFileDirectory().set(project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
+            t.getTVSetName().set("test"); // todo
             t.getReleaseVersionForTV().set("9.1"); // todo
-    });
+        });
     }
 }

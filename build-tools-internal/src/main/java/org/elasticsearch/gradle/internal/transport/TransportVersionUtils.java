@@ -21,12 +21,8 @@ public class TransportVersionUtils {
     public static final String LATEST_SUFFIX = "-LATEST.json";
     public static final String JSON_SUFFIX = ".json";
 
-
     public record TransportVersionSetData(String name, List<Integer> ids) implements Serializable {
-        public TransportVersionSetData(
-            @JsonProperty("name") String name,
-            @JsonProperty("ids") List<Integer> ids
-        ) {
+        public TransportVersionSetData(@JsonProperty("name") String name, @JsonProperty("ids") List<Integer> ids) {
             this.name = name;
             this.ids = ids;
         }
@@ -46,12 +42,10 @@ public class TransportVersionUtils {
         }
     }
 
-
     public static TransportVersionSetData getLatestTVSetData(File tvDataDir, String majorMinor) {
         return getTVSetData(tvDataDir.toPath().resolve(majorMinor + LATEST_SUFFIX));
 
     }
-
 
     public static Path getTVSetDataFilePath(File tvDataDir, String tvSetNameField) {
         return tvDataDir.toPath().resolve(tvSetNameField + JSON_SUFFIX);

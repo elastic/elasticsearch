@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Streams;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionSetData;
@@ -70,13 +71,11 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
     @Input
     public abstract Property<String> getReleaseVersionForTV();
 
-
     @TaskAction
     public void generateTransportVersionData() {
         final var tvDataDir = Objects.requireNonNull(getDataFileDirectory().getAsFile().get());
         final var tvSetName = Objects.requireNonNull(getTVSetName().get());
         final var tvReleaseVersion = ReleaseVersion.fromString(Objects.requireNonNull(getReleaseVersionForTV().get()));
-
 
         // Get the latest transport version data for the local version.
         final var latestTVSetData = TransportVersionUtils.getLatestTVSetData(tvDataDir, tvReleaseVersion.toString());
@@ -87,7 +86,8 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         if (priorLatestTVSetData == null) {
             throw new GradleException(
                 "The latest Transport Version ID for the prior release was not found at: "
-                    + tvDataDir.getAbsolutePath() + formatLatestTVSetFilename(priorReleaseVersion)
+                    + tvDataDir.getAbsolutePath()
+                    + formatLatestTVSetFilename(priorReleaseVersion)
                     + " This is required."
             );
         }
@@ -108,7 +108,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
 
         // Create/update the data file
         if (tvSetFileExists) {
-            // This is not a new TVSet.  We are creating a backport version for an existing TVSet.
+            // This is not a new TVSet. We are creating a backport version for an existing TVSet.
             // Check to ensure that there isn't already a TV id for this release version (e.g., if this task has been run twice).
             var existingIDsForReleaseVersion = tvSetDataFromFile.ids().stream().filter(id -> {
                 var priorLatestID = priorLatestTVSetData.ids().getFirst();
@@ -117,9 +117,12 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             if (existingIDsForReleaseVersion.isEmpty() == false) {
                 throw new GradleException(
                     "A transport version could not be created because one already exists for this release:"
-                        + " Release version: " + tvReleaseVersion
-                        + " TransportVersion Id: " + existingIDsForReleaseVersion.getFirst()
-                        + " File: " + getTVSetDataFilePath(tvDataDir, tvSetName)
+                        + " Release version: "
+                        + tvReleaseVersion
+                        + " TransportVersion Id: "
+                        + existingIDsForReleaseVersion.getFirst()
+                        + " File: "
+                        + getTVSetDataFilePath(tvDataDir, tvSetName)
                 );
             }
 
@@ -130,10 +133,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             ).writeToDataDir(tvDataDir);
         } else {
             // Create a new data file for the case where this is a new TV
-            new TransportVersionSetData(
-                tvSetName,
-                List.of(newVersion)
-            ).writeToDataDir(tvDataDir);
+            new TransportVersionSetData(tvSetName, List.of(newVersion)).writeToDataDir(tvDataDir);
         }
 
         // Update the LATEST file.
@@ -143,7 +143,6 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             new TransportVersionSetData(tvSetName, List.of(newVersion))
         );
     }
-
 
     private static int bumpVersionNumber(
         int tvIDToBump,
@@ -196,10 +195,12 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
                 var fileMajor = Integer.parseInt(matcher.group(1));
                 var fileMinor = Integer.parseInt(matcher.group(2));
                 return fileMajor == releaseVersion.major - 1 ? Stream.of(fileMinor) : Stream.empty();
-            }).sorted().toList().getLast();
+            })
+            .sorted()
+            .toList()
+            .getLast();
         return new ReleaseVersion(releaseVersion.major - 1, highestMinorOfPrevMajor);
     }
-
 
     private static String formatLatestTVSetFilename(ReleaseVersion releaseVersion) {
         return releaseVersion.toString() + LATEST_SUFFIX;
@@ -209,24 +210,17 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         public static ReleaseVersion fromString(String string) {
             String[] versionParts = string.split("\\.");
             assert versionParts.length == 2;
-            return new ReleaseVersion(
-                Integer.parseInt(versionParts[0]),
-                Integer.parseInt(versionParts[1])
-            );
+            return new ReleaseVersion(Integer.parseInt(versionParts[0]), Integer.parseInt(versionParts[1]));
         }
 
         public static ReleaseVersion of(Version version) {
-            return new ReleaseVersion(
-                version.getMajor(),
-                version.getMinor()
-            );
+            return new ReleaseVersion(version.getMajor(), version.getMinor());
         }
 
         @Override
         public @NotNull String toString() {
             return major + "." + minor;
         }
-
 
         @Override
         public boolean equals(Object obj) {

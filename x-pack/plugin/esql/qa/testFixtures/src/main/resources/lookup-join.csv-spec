@@ -1875,6 +1875,76 @@ type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
 ;
 
+enrichAfterLookupJoin
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+remoteEnrichAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+# TODO: a bunch more tests, also switch orders, use double _remote enrich, double lookup join etc. Also add tests with
+# _coordinator enrich. What about ROW?
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+remoteEnrichSortAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+| SORT message ASC
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+Connected to 10.1.0.2 | 1                     | Success      | English
+;
+
+sortRemoteEnrichAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| SORT message ASC
+| ENRICH _remote:languages_policy ON language_code
+| LIMIT 2
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+Connected to 10.1.0.2 | 1                     | Success      | English
+;
 
 ###############################################
 # LOOKUP JOIN on mixed numerical fields

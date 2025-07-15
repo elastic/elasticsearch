@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -102,7 +103,13 @@ public class Mapper {
             // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
             Holder<Boolean> hasFragment = new Holder<>(false);
 
+            // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
+            // include the plan up until this ENRICH in the fragment.
             var childTransformed = mappedChild.transformUp(f -> {
+                if (f instanceof BinaryExec be) {
+                    // Remove any LOOKUP JOIN or inline Join from INLINE STATS do avoid double execution
+                    return be.left();
+                }
                 // Once we reached FragmentExec, we stuff our Enrich under it
                 if (f instanceof FragmentExec) {
                     hasFragment.set(true);

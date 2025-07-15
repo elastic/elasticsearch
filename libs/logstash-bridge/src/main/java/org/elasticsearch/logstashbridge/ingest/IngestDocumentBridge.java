@@ -15,6 +15,7 @@ import org.elasticsearch.logstashbridge.script.MetadataBridge;
 import org.elasticsearch.logstashbridge.script.TemplateScriptBridge;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -60,7 +61,7 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
     }
 
     public Map<String, Object> getIngestMetadata() {
-        return Map.copyOf(delegate.getIngestMetadata());
+        return Objects.isNull(delegate.getIngestMetadata()) ? Map.of() : Map.copyOf(delegate.getIngestMetadata());
     }
 
     public <T> T getFieldValue(final String fieldName, final Class<T> type) {
@@ -83,7 +84,6 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
         delegate.removeField(path);
     }
 
-    // public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
     public void executePipeline(final PipelineBridge pipelineBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
         this.delegate.executePipeline(pipelineBridge.unwrap(), (unwrapped, e) -> handler.accept(IngestDocumentBridge.wrap(unwrapped), e));
     }

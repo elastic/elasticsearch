@@ -114,7 +114,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 }
             }).<Boolean>andThen((l2, modelDidPut) -> {
                 var startRequest = esModel.getStartTrainedModelDeploymentActionRequest(timeout);
-                var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, l2);
+                var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(esModel, l2);
                 client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
             });
             subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);

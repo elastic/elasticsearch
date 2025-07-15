@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.hamcrest.Matcher;
 
@@ -215,6 +216,25 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int expectedSize) {
+                class SortedSetOrdinalBuilder extends TestBlock.Builder implements BlockLoader.SortedSetOrdinalsBuilder {
+                    private SortedSetOrdinalBuilder() {
+                        super(expectedSize);
+                    }
+
+                    @Override
+                    public SortedSetOrdinalBuilder appendOrd(int value) {
+                        try {
+                            add(ordinals.lookupOrd(value));
+                            return this;
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                }
+                return new SortedSetOrdinalBuilder();
+            }
+
             public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int expectedSize) {
                 return new AggregateMetricDoubleBlockBuilder(expectedSize);
             }

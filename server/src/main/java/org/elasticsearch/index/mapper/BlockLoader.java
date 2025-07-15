@@ -417,11 +417,14 @@ public interface BlockLoader {
         Block constantBytes(BytesRef value, int count);
 
         /**
-         * Build a reader for reading keyword ordinals.
+         * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
 
-        // TODO support non-singleton ords
+        /**
+         * Build a reader for reading {@link SortedSetDocValues}
+         */
+        SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
     }
@@ -507,6 +510,13 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+    }
+
+    interface SortedSetOrdinalsBuilder extends Builder {
+        /**
+         * Appends an ordinal to the builder.
+         */
+        SortedSetOrdinalsBuilder appendOrd(int value);
     }
 
     interface AggregateMetricDoubleBuilder extends Builder {

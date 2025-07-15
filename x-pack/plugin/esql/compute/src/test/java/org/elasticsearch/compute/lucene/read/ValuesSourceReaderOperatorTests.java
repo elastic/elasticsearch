@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -395,11 +396,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return DirectoryReader.open(directory);
     }
 
-    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery) throws IOException {
+    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery, boolean forceMerge) throws IOException {
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy()).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             )
         ) {
             for (int d = 0; d < size; d++) {
@@ -417,6 +418,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 if (d % commitEvery == commitEvery - 1) {
                     writer.commit();
                 }
+            }
+
+            if (forceMerge) {
+                writer.forceMerge(1);
             }
         }
         return DirectoryReader.open(directory);
@@ -932,7 +937,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private void testLoadLong(boolean shuffle, boolean manySegments) throws IOException {
         int numDocs = between(10, 500);
         initMapping();
-        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs);
+        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs, manySegments == false);
 
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));

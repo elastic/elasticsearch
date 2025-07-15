@@ -394,9 +394,13 @@ public class ComputeService {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
-                                        var status = localClusterWasInterrupted.get() || (failedShards != null && failedShards > 0)
-                                            ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                            : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
+                                        // or encountered resolution or execution failures.
+                                        var status = localClusterWasInterrupted.get()
+                                            || (failedShards != null && failedShards > 0)
+                                            || v.getFailures().isEmpty() == false
+                                                ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                                : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
                                         builder.setStatus(status);
                                     }
                                     return builder.build();
@@ -444,7 +448,7 @@ public class ComputeService {
                                         .setSuccessfulShards(r.getSuccessfulShards())
                                         .setSkippedShards(r.getSkippedShards())
                                         .setFailedShards(r.getFailedShards())
-                                        .setFailures(r.failures)
+                                        .addFailures(r.failures)
                                         .build()
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
@@ -454,7 +458,7 @@ public class ComputeService {
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                        ).setFailures(List.of(new ShardSearchFailure(e))).build()
+                                        ).addFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
                                     dataNodesListener.onResponse(DriverCompletionInfo.EMPTY);
                                 } else {

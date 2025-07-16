@@ -155,33 +155,34 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static void assertTextEmbeddingModel(Model model) {
-        var customModel = assertCommonModelFields(model);
+        var llamaModel = assertCommonModelFields(model);
 
-        assertThat(customModel.getTaskType(), Matchers.is(TaskType.TEXT_EMBEDDING));
+        assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.TEXT_EMBEDDING));
     }
 
     private static LlamaModel assertCommonModelFields(Model model) {
         assertThat(model, instanceOf(LlamaModel.class));
 
-        var customModel = (LlamaModel) model;
-        assertThat(customModel.uri.toString(), Matchers.is("http://www.abc.com"));
-        assertThat(customModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
+        var llamaModel = (LlamaModel) model;
+        assertThat(llamaModel.getServiceSettings().modelId(), is("model_id"));
+        assertThat(llamaModel.uri.toString(), Matchers.is("http://www.abc.com"));
+        assertThat(llamaModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
         assertThat(
-            ((DefaultSecretSettings) customModel.getSecretSettings()).apiKey(),
+            ((DefaultSecretSettings) llamaModel.getSecretSettings()).apiKey(),
             Matchers.is(new SecureString("secret".toCharArray()))
         );
 
-        return customModel;
+        return llamaModel;
     }
 
     private static void assertCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
-        assertThat(customModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
+        var llamaModel = assertCommonModelFields(model);
+        assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
     }
 
     private static void assertChatCompletionModel(Model model) {
-        var customModel = assertCommonModelFields(model);
-        assertThat(customModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
+        var llamaModel = assertCommonModelFields(model);
+        assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
     }
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -296,32 +297,6 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                     getSecretSettingsMap("secret")
                 ),
                 modelVerificationActionListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesChatCompletionsModel() throws IOException {
-        var url = "url";
-        var model = "model";
-        var secret = "secret";
-
-        try (var service = createService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(LlamaChatCompletionModel.class));
-
-                var chatCompletionModel = (LlamaChatCompletionModel) m;
-
-                assertThat(chatCompletionModel.getServiceSettings().uri().toString(), is(url));
-                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(model));
-                assertThat(((DefaultSecretSettings) (chatCompletionModel.getSecretSettings())).apiKey().toString(), is("secret"));
-
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model, url), getSecretSettingsMap(secret)),
-                modelVerificationListener
             );
         }
     }

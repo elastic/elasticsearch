@@ -379,7 +379,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 persistedConfigMap.secrets()
             );
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -401,7 +401,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 persistedConfigMap.secrets()
             );
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -418,7 +418,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -435,7 +435,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 

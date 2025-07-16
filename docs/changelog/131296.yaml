@@ -1,5 +1,0 @@
-pr: 131296
-summary: "apm-data: Enable failure store for APM datastreams"
-area: Ingest Node
-type: enhancement
-issues: []

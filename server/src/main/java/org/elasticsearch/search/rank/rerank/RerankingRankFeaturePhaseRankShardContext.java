@@ -29,7 +29,7 @@ import java.util.List;
  */
 public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseRankShardContext {
 
-    protected static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
+    private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
 
     public RerankingRankFeaturePhaseRankShardContext(String field) {
         super(field);
@@ -38,15 +38,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     @Override
     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
         try {
-            RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
-            for (int i = 0; i < hits.getHits().length; i++) {
-                rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                DocumentField docField = hits.getHits()[i].field(field);
-                if (docField != null) {
-                    rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
-                }
-            }
-            return new RankFeatureShardResult(rankFeatureDocs);
+            return doBuildRankFeatureShardResult(hits, shardId);
         } catch (Exception ex) {
             logger.warn(
                 "Error while fetching feature data for {field: ["
@@ -58,5 +50,17 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
             );
             return null;
         }
+    }
+
+    protected RankShardResult doBuildRankFeatureShardResult(SearchHits hits, int shardId) {
+        RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+        for (int i = 0; i < hits.getHits().length; i++) {
+            rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
+            DocumentField docField = hits.getHits()[i].field(field);
+            if (docField != null) {
+                rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+            }
+        }
+        return new RankFeatureShardResult(rankFeatureDocs);
     }
 }

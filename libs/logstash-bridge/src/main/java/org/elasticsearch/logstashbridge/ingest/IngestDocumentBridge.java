@@ -63,7 +63,7 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
     public Map<String, Object> getIngestMetadata() {
         Objects.requireNonNull(delegate, "IngestDocument cannot be null");
         Objects.requireNonNull(delegate.getIngestMetadata(), "IngestDocument ingest metadata cannot be null");
-        return Map.copyOf(delegate.getIngestMetadata());
+        return delegate.getIngestMetadata();
     }
 
     public <T> T getFieldValue(final String fieldName, final Class<T> type) {

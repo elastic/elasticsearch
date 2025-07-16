@@ -54,8 +54,6 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
     }
 
     public void testKnnQueryWithVectorBuilderIsInterceptedAndRewritten() throws IOException {
-        float boost = randomFloatBetween(1, 10, true);
-        String queryName = randomAlphaOfLength(5);
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
             new InferenceFieldMetadata(index.getName(), INFERENCE_ID, new String[] { FIELD_NAME }, null)
@@ -63,14 +61,18 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY);
         KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
-        original.boost(boost);
-        original.queryName(queryName);
+        if (randomBoolean()) {
+            float boost = randomFloatBetween(1, 10, randomBoolean());
+            original.boost(boost);
+        }
+        if (randomBoolean()) {
+            String queryName = randomAlphaOfLength(5);
+            original.queryName(queryName);
+        }
         testRewrittenInferenceQuery(context, original);
     }
 
     public void testKnnWithQueryBuilderWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
-        float boost = randomFloatBetween(1, 10, true);
-        String queryName = randomAlphaOfLength(5);
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
             new InferenceFieldMetadata(index.getName(), INFERENCE_ID, new String[] { FIELD_NAME }, null)
@@ -78,8 +80,14 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
         KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
-        original.boost(boost);
-        original.queryName(queryName);
+        if (randomBoolean()) {
+            float boost = randomFloatBetween(1, 10, randomBoolean());
+            original.boost(boost);
+        }
+        if (randomBoolean()) {
+            String queryName = randomAlphaOfLength(5);
+            original.queryName(queryName);
+        }
         testRewrittenInferenceQuery(context, original);
     }
 

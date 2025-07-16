@@ -442,6 +442,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests}
+  issue: https://github.com/elastic/elasticsearch/issues/131348
 
 # Examples:
 #

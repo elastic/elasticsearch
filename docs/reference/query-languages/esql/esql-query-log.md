@@ -2,7 +2,7 @@
 navigation_title: "Query log"
 ---
 
-# {{esql}} Query Log [esql-query-log]
+# {{esql}} Query log [esql-query-log]
 
 
 The {{esql}} query log allows to log {{esql}} queries based on their execution time.

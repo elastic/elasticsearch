@@ -71,6 +71,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private static final Logger logger = LogManager.getLogger(SnapshotsInProgress.class);
 
+    private static final Tuple<Map<State, Integer>, Map<ShardState, Integer>> NO_SNAPSHOTS_IN_PROGRESS_STATS = Tuple.tuple(
+        Arrays.stream(State.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0)),
+        Arrays.stream(ShardState.values()).collect(Collectors.toUnmodifiableMap(v -> v, v -> 0))
+    );
+
     public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of(), Set.of());
 
     public static final String TYPE = "snapshots";
@@ -181,25 +186,19 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     /**
-     * Get a summary how many shards are in each {@link ShardState} for this repository
+     * Calculate snapshot and shard state summaries for this repository
      *
      * @param projectId The project ID
      * @param repository The repository name
-     * @return A map of each shard state to the count of shards in that state for all in-progress snapshots
+     * @return A tuple containing the snapshot and shard stat summaries
      */
-    public Map<ShardState, Integer> shardStateSummaryForRepository(ProjectId projectId, String repository) {
-        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).shardStateSummary;
-    }
-
-    /**
-     * Get a summary how many snapshots are in each {@link State} for this repository
-     *
-     * @param projectId The project ID
-     * @param repository The repository name
-     * @return A map of each snapshot state to the count of in-progress snapshots in that state
-     */
-    public Map<State, Integer> snapshotStateSummaryForRepository(ProjectId projectId, String repository) {
-        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).snapshotStateSummary;
+    public Tuple<Map<State, Integer>, Map<ShardState, Integer>> shardStateSummaryForRepository(ProjectId projectId, String repository) {
+        ByRepo byRepo = entries.get(new ProjectRepo(projectId, repository));
+        if (byRepo != null) {
+            return byRepo.calculateStateSummaries();
+        } else {
+            return NO_SNAPSHOTS_IN_PROGRESS_STATS;
+        }
     }
 
     /**
@@ -1899,9 +1898,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      *
      * @param entries all snapshots executing for a single repository
      */
-    private record ByRepo(List<Entry> entries, Map<State, Integer> snapshotStateSummary, Map<ShardState, Integer> shardStateSummary)
-        implements
-            Diffable<ByRepo> {
+    private record ByRepo(List<Entry> entries) implements Diffable<ByRepo> {
 
         static final ByRepo EMPTY = new ByRepo(List.of());
         private static final DiffableUtils.NonDiffableValueSerializer<String, Integer> INT_DIFF_VALUE_SERIALIZER =
@@ -1918,14 +1915,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             };
 
         private ByRepo(List<Entry> entries) {
-            this(List.copyOf(entries), calculateStateSummaries(entries));
+            this.entries = List.copyOf(entries);
         }
 
-        private ByRepo(List<Entry> entries, Tuple<Map<State, Integer>, Map<ShardState, Integer>> stateSummaries) {
-            this(entries, stateSummaries.v1(), stateSummaries.v2());
-        }
-
-        private static Tuple<Map<State, Integer>, Map<ShardState, Integer>> calculateStateSummaries(List<Entry> entries) {
+        /**
+         * Calculate summaries of how many shards and snapshots are in each shard/snapshot state
+         *
+         * @return a {@link Tuple} containing the snapshot and shard state summaries respectively
+         */
+        public Tuple<Map<State, Integer>, Map<ShardState, Integer>> calculateStateSummaries() {
             final int[] snapshotCounts = new int[State.values().length];
             final int[] shardCounts = new int[ShardState.values().length];
             for (Entry entry : entries) {

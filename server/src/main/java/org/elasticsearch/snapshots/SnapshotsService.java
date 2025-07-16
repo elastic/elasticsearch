@@ -208,6 +208,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
 
+    private SnapshotStats snapshotStats;
+
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of
@@ -4463,27 +4465,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         if (currentState.nodes().isLocalNodeElectedMaster() == false) {
             return List.of();
         }
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
-        final List<LongWithAttributes> shardsByState = new ArrayList<>();
-
-        currentState.metadata().projects().forEach((projectId, project) -> {
-            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
-            if (repositoriesMetadata != null) {
-                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
-                    final Map<ShardState, Integer> shardStateSummary = snapshotsInProgress.shardStateSummaryForRepository(
-                        projectId,
-                        repository.name()
-                    );
-                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
-                    shardStateSummary.forEach(
-                        (shardState, count) -> shardsByState.add(
-                            new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
-                        )
-                    );
-                }
-            }
-        });
-        return shardsByState;
+        return recalculateIfStale(currentState).shardStateMetrics();
     }
 
     private Collection<LongWithAttributes> getSnapshotsByState() {
@@ -4492,25 +4474,44 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         if (currentState.nodes().isLocalNodeElectedMaster() == false) {
             return List.of();
         }
+        return recalculateIfStale(currentState).snapshotStateMetrics();
+    }
+
+    private SnapshotStats recalculateIfStale(ClusterState currentState) {
+        if (snapshotStats == null || Objects.equals(snapshotStats.fromClusterState(), currentState.stateUUID()) == false) {
+            snapshotStats = recalculateSnapshotStats(currentState);
+        }
+        return snapshotStats;
+    }
+
+    private SnapshotStats recalculateSnapshotStats(ClusterState currentState) {
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
-        final List<LongWithAttributes> snapshotsByState = new ArrayList<>();
+        final List<LongWithAttributes> snapshotStateMetrics = new ArrayList<>();
+        final List<LongWithAttributes> shardStateMetrics = new ArrayList<>();
 
         currentState.metadata().projects().forEach((projectId, project) -> {
             final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
             if (repositoriesMetadata != null) {
                 for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
-                    final Map<SnapshotsInProgress.State, Integer> snapshotStateSummary = snapshotsInProgress
-                        .snapshotStateSummaryForRepository(projectId, repository.name());
+                    final Tuple<Map<SnapshotsInProgress.State, Integer>, Map<ShardState, Integer>> stateSummaries = snapshotsInProgress
+                        .shardStateSummaryForRepository(projectId, repository.name());
                     final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
-                    snapshotStateSummary.forEach(
-                        (snapshotState, count) -> snapshotsByState.add(
-                            new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
-                        )
-                    );
+                    stateSummaries.v1()
+                        .forEach(
+                            (snapshotState, count) -> snapshotStateMetrics.add(
+                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
+                            )
+                        );
+                    stateSummaries.v2()
+                        .forEach(
+                            (shardState, count) -> shardStateMetrics.add(
+                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
+                            )
+                        );
                 }
             }
         });
-        return snapshotsByState;
+        return new SnapshotStats(currentState.stateUUID(), snapshotStateMetrics, shardStateMetrics);
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
@@ -4544,4 +4545,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;
+
+    /**
+     * A cached copy of the snapshot and shard state metrics
+     */
+    private record SnapshotStats(
+        String fromClusterState,
+        Collection<LongWithAttributes> snapshotStateMetrics,
+        Collection<LongWithAttributes> shardStateMetrics
+    ) {}
 }

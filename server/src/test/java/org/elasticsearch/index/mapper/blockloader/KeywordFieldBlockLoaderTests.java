@@ -9,10 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;

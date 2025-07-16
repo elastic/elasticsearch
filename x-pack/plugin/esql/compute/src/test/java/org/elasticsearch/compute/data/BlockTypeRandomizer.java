@@ -77,7 +77,7 @@ public class BlockTypeRandomizer {
             }
 
             int[] values = new int[totalValues];
-            for (int i = 0; i < values.length; i++) {
+            for (int i = 0; i < totalValues; i++) {
                 values[i] = block.getInt(i);
             }
 
@@ -93,7 +93,7 @@ public class BlockTypeRandomizer {
         }
 
         var intArray = blockFactory.bigArrays().newIntArray(totalValues);
-        for (int i = 0; i < block.getPositionCount(); i++) {
+        for (int i = 0; i < totalValues; i++) {
             intArray.set(i, block.getInt(i));
         }
 

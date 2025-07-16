@@ -333,6 +333,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#enrichPolicyName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#enrichWithClause}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -512,6 +518,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code rlikeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

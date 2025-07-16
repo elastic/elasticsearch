@@ -238,6 +238,7 @@ public class Reindexer {
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
                 false,
+                true,
                 logger,
                 searchClient,
                 bulkClient,

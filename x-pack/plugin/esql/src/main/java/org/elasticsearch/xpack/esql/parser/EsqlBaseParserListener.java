@@ -542,6 +542,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#enrichPolicyName}.
+   * @param ctx the parse tree
+   */
+  void enterEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#enrichPolicyName}.
+   * @param ctx the parse tree
+   */
+  void exitEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#enrichWithClause}.
    * @param ctx the parse tree
    */
@@ -845,6 +855,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code rlikeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code rlikeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -391,11 +391,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return DirectoryReader.open(directory);
     }
 
-    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery) throws IOException {
+    private IndexReader initIndexLongField(Directory directory, int size, int commitEvery, boolean forceMerge) throws IOException {
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                newIndexWriterConfig().setMergePolicy(new TieredMergePolicy()).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             )
         ) {
             for (int d = 0; d < size; d++) {
@@ -413,6 +413,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 if (d % commitEvery == commitEvery - 1) {
                     writer.commit();
                 }
+            }
+
+            if (forceMerge) {
+                writer.forceMerge(1);
             }
         }
         return DirectoryReader.open(directory);
@@ -444,12 +448,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         assertThat(sum, equalTo(expectedSum));
-    }
-
-    @Override
-    protected ByteSizeValue enoughMemoryForSimple() {
-        assumeFalse("strange exception in the test, fix soon", true);
-        return ByteSizeValue.ofKb(1);
     }
 
     public void testLoadAll() {
@@ -931,7 +929,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         int numDocs = between(10, 500);
         initMapping();
         keyToTags.clear();
-        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs);
+        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs, manySegments == false);
 
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));

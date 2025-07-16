@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -45,6 +46,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -610,6 +612,17 @@ public class MetadataTests extends ESTestCase {
                 assertThat(fromStreamProject.dataStreams(), hasKey(name));
                 assertThat(fromStreamProject.dataStreams().get(name), equalTo(value));
             });
+        }
+    }
+
+    public void testUnableToSerializeNonDefaultProjectBeforeMultiProject() {
+        final var projectId = randomUniqueProjectId();
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId)).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT));
+            var e = assertThrows(UnsupportedOperationException.class, () -> metadata.writeTo(output));
+            assertEquals("There is 1 project, but it has id [" + projectId + "] rather than default", e.getMessage());
         }
     }
 

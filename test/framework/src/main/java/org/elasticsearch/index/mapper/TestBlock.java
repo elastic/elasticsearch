@@ -47,13 +47,32 @@ public class TestBlock implements BlockLoader.Block {
                         add(value);
                         return this;
                     }
+
+                    @Override
+                    public TestBlock build() {
+                        TestBlock result = super.build();
+                        List<?> r = (List<?>) result.values.get(0);
+                        assertThat(r, hasSize(expectedCount));
+                        return result;
+                    }
                 }
                 return new BooleansBuilder();
             }
 
             @Override
             public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
-                return bytesRefs(expectedCount);
+                class BytesRefsFromDocValuesBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
+                    private BytesRefsFromDocValuesBuilder() {
+                        super(1);
+                    }
+
+                    @Override
+                    public BytesRefsFromDocValuesBuilder appendBytesRef(BytesRef value) {
+                        add(BytesRef.deepCopyOf(value));
+                        return this;
+                    }
+                }
+                return new BytesRefsFromDocValuesBuilder();
             }
 
             @Override

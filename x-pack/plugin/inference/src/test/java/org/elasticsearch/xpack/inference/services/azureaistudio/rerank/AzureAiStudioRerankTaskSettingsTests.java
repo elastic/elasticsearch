@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.RETURN_DOCUMENTS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_N_FIELD;
@@ -31,7 +30,6 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioRerankTaskSettings> {
     private static final String INVALID_FIELD_TYPE_STRING = "invalid";
-    private static final int MAX_RETRIES = 10;
 
     public void testIsEmpty() {
         final var randomSettings = createRandom();
@@ -41,45 +39,25 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
 
     public void testUpdatedTaskSettings_WithAllValues() {
         final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
-        AzureAiStudioRerankTaskSettings newSettings;
-        int retries = 0;
-        do {
-            newSettings = createRandom();
-            retries++;
-        } while (newSettings.equals(initialSettings) && retries < MAX_RETRIES);
+        AzureAiStudioRerankTaskSettings newSettings = createRandom(initialSettings);
         assertUpdateSettings(newSettings, initialSettings);
     }
 
     public void testUpdatedTaskSettings_WithReturnDocumentsValue() {
         final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
-        AzureAiStudioRerankTaskSettings newSettings;
-        int retries = 0;
-        do {
-            newSettings = createRandomWithReturnDocuments();
-            retries++;
-        } while (newSettings.returnDocuments() == initialSettings.returnDocuments() && retries < MAX_RETRIES);
+        AzureAiStudioRerankTaskSettings newSettings = createRandom(initialSettings);
         assertUpdateSettings(newSettings, initialSettings);
     }
 
     public void testUpdatedTaskSettings_WithTopNValue() {
         final AzureAiStudioRerankTaskSettings initialSettings = createRandom();
-        AzureAiStudioRerankTaskSettings newSettings;
-        int retries = 0;
-        do {
-            newSettings = createRandomWithTopN();
-            retries++;
-        } while (Objects.equals(newSettings.topN(), initialSettings.topN()) && retries < MAX_RETRIES);
+        AzureAiStudioRerankTaskSettings newSettings = createRandom(initialSettings);
         assertUpdateSettings(newSettings, initialSettings);
     }
 
     public void testUpdatedTaskSettings_WithNoValues() {
-        AzureAiStudioRerankTaskSettings initialSettings;
+        AzureAiStudioRerankTaskSettings initialSettings = createRandom();
         final AzureAiStudioRerankTaskSettings newSettings = new AzureAiStudioRerankTaskSettings(null, null);
-        int retries = 0;
-        do {
-            initialSettings = createRandom();
-            retries++;
-        } while (newSettings.equals(initialSettings) && retries < MAX_RETRIES);
         assertUpdateSettings(newSettings, initialSettings);
     }
 
@@ -223,12 +201,11 @@ public class AzureAiStudioRerankTaskSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    private static AzureAiStudioRerankTaskSettings createRandomWithReturnDocuments() {
-        return new AzureAiStudioRerankTaskSettings(randomFrom(new Boolean[] { null, randomBoolean() }), null);
-    }
-
-    private static AzureAiStudioRerankTaskSettings createRandomWithTopN() {
-        return new AzureAiStudioRerankTaskSettings(null, randomFrom(new Integer[] { null, randomNonNegativeInt() }));
+    private static AzureAiStudioRerankTaskSettings createRandom(AzureAiStudioRerankTaskSettings settings) {
+        return new AzureAiStudioRerankTaskSettings(
+            randomValueOtherThan(settings.returnDocuments(), () -> randomFrom(new Boolean[] { null, randomBoolean() })),
+            randomValueOtherThan(settings.topN(), () -> randomFrom(new Integer[] { null, randomNonNegativeInt() }))
+        );
     }
 
     private void assertThrowsValidationExceptionIfStringValueProvidedFor(String field) {

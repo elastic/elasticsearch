@@ -97,8 +97,7 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of("plugin1", new Policy("plugin1", List.of(new Scope("plugin.module1", List.of(new ExitVMEntitlement()))))),
             c -> policyScope.get(),
             Map.of("plugin1", plugin1SourcePaths)::get,
-            TEST_PATH_LOOKUP,
-            Collections.emptySet()
+            TEST_PATH_LOOKUP
         );
         Collection<Path> thisSourcePaths = policyManager.getComponentPathsFromClass(getClass());
 
@@ -173,8 +172,7 @@ public class PolicyManagerTests extends ESTestCase {
                 ? PolicyScope.apmAgent("test.agent.module")
                 : PolicyScope.plugin("test", "test.plugin.module"),
             name -> Collections.emptyList(),
-            TEST_PATH_LOOKUP,
-            Collections.emptySet()
+            TEST_PATH_LOOKUP
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -201,8 +199,7 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
                 name -> Collections.emptyList(),
-                TEST_PATH_LOOKUP,
-                Collections.emptySet()
+                TEST_PATH_LOOKUP
             )
         );
         assertEquals(
@@ -218,8 +215,7 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
                 name -> Collections.emptyList(),
-                TEST_PATH_LOOKUP,
-                Collections.emptySet()
+                TEST_PATH_LOOKUP
             )
         );
         assertEquals(
@@ -255,8 +251,7 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 c -> PolicyScope.plugin("plugin1", moduleName(c)),
                 Map.of("plugin1", List.of(Path.of("modules", "plugin1")))::get,
-                TEST_PATH_LOOKUP,
-                Collections.emptySet()
+                TEST_PATH_LOOKUP
             )
         );
         assertEquals(
@@ -306,8 +301,7 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 c -> PolicyScope.plugin("", moduleName(c)),
                 Map.of("plugin1", List.of(Path.of("modules", "plugin1")), "plugin2", List.of(Path.of("modules", "plugin2")))::get,
-                TEST_PATH_LOOKUP,
-                Collections.emptySet()
+                TEST_PATH_LOOKUP
             )
         );
         assertThat(
@@ -358,8 +352,7 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 c -> PolicyScope.plugin("", moduleName(c)),
                 name -> Collections.emptyList(),
-                TEST_PATH_LOOKUP,
-                Collections.emptySet()
+                TEST_PATH_LOOKUP
             )
         );
         assertEquals(

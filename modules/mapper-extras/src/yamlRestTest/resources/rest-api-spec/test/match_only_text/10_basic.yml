@@ -1,12 +1,12 @@
 setup:
 
   - requires:
-      cluster_features: [ "gte_v7.14.0" ]
+      cluster_features: ["gte_v7.14.0"]
       reason: "match_only_text was added in 7.14"
 
   - do:
       indices.create:
-        index: test
+        index:  test
         body:
           mappings:
             properties:
@@ -16,29 +16,29 @@ setup:
   - do:
       index:
         index: test
-        id: "1"
-        body: { }
+        id:    "1"
+        body:  {}
 
   - do:
       index:
         index: test
-        id: "2"
-        body: { "foo": "Apache Lucene powers Elasticsearch" }
+        id:    "2"
+        body:  { "foo": "Apache Lucene powers Elasticsearch" }
 
   - do:
       index:
         index: test
-        id: "3"
-        body: { "foo": "Elasticsearch is based on Apache Lucene" }
+        id:    "3"
+        body:  { "foo": "Elasticsearch is based on Apache Lucene" }
 
   - do:
       index:
         index: test
-        id: "4"
-        body: { "foo": "The Apache Software Foundation manages many projects including Lucene" }
+        id:    "4"
+        body:  { "foo": "The Apache Software Foundation manages many projects including Lucene" }
 
   - do:
-      indices.refresh: { }
+      indices.refresh: {}
 
 ---
 "Field caps":
@@ -257,7 +257,7 @@ setup:
 "Wildcard highlighting":
 
   - requires:
-      cluster_features: [ "gte_v8.3.0" ]
+      cluster_features: ["gte_v8.3.0"]
       reason: "Wildcard highlighting on match_only_text was fixed in 8.3"
 
   - do:
@@ -269,7 +269,7 @@ setup:
               foo: "many"
           highlight:
             fields:
-              "*": { }
+              "*": {}
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.foo: "The Apache Software Foundation manages many projects including Lucene" }
@@ -296,7 +296,7 @@ synthetic_source:
   - do:
       index:
         index: synthetic_source_test
-        id: "1"
+        id:    "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"
@@ -312,7 +312,7 @@ synthetic_source:
 ---
 tsdb:
   - requires:
-      cluster_features: [ "gte_v8.10.0" ]
+      cluster_features: ["gte_v8.10.0"]
       reason: bug fixed in 8.10.0
 
   - do:
@@ -349,8 +349,8 @@ tsdb:
   - match: { "hits.total.value": 1 }
   - match:
       hits.hits.0._source:
-        "@timestamp": "2000-01-01T00:00:00.000Z"
-        "dimension": "a"
+        "@timestamp" : "2000-01-01T00:00:00.000Z"
+        "dimension" : "a"
         foo: "Apache Lucene powers Elasticsearch"
 
 ---
@@ -377,7 +377,7 @@ synthetic_source with copy_to:
   - do:
       index:
         index: synthetic_source_test
-        id: "1"
+        id:    "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"
@@ -386,7 +386,7 @@ synthetic_source with copy_to:
       search:
         index: synthetic_source_test
         body:
-          fields: [ "copy" ]
+          fields: ["copy"]
 
   - match: { "hits.total.value": 1 }
   - match:
@@ -418,7 +418,7 @@ synthetic_source match_only_text as multi-field:
   - do:
       index:
         index: synthetic_source_test
-        id: "1"
+        id:    "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"
@@ -505,7 +505,7 @@ synthetic_source match_only_text as multi-field with stored keyword as parent:
   - do:
       index:
         index: synthetic_source_test
-        id: "1"
+        id:    "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"
@@ -589,7 +589,7 @@ synthetic_source match_only_text with multi-field:
   - do:
       index:
         index: synthetic_source_test
-        id: "1"
+        id:    "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"
@@ -675,7 +675,7 @@ synthetic_source match_only_text with stored multi-field:
   - do:
       index:
         index: synthetic_source_test
-        id: "1"
+        id:    "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"

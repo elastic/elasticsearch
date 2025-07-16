@@ -137,6 +137,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
+            // NOMERGE: will this change? Need 3?
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
             verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any());

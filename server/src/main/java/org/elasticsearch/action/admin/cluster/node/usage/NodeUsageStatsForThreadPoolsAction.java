@@ -45,19 +45,6 @@ public class NodeUsageStatsForThreadPoolsAction extends ActionType<NodeUsageStat
         public Request() {
             super((String[]) null); // send all nodes a request by specifying `null`
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            // The class doesn't have any members at the moment so return the same hash code
-            return Objects.hash(NAME);
-        }
     }
 
     /**
@@ -115,7 +102,7 @@ public class NodeUsageStatsForThreadPoolsAction extends ActionType<NodeUsageStat
 
         @Override
         public String toString() {
-            return "NodeUsageStatsForThreadPoolsAction.Response{" + "NodeUsageStatsForThreadPoolsAction.NodeResponse=" + getNodes() + "}";
+            return "NodeUsageStatsForThreadPoolsAction.Response{" + getNodes() + "}";
         }
     }
 
@@ -148,20 +135,6 @@ public class NodeUsageStatsForThreadPoolsAction extends ActionType<NodeUsageStat
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             nodeUsageStatsForThreadPools.writeTo(out);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeUsageStatsForThreadPoolsAction.NodeResponse that = (NodeUsageStatsForThreadPoolsAction.NodeResponse) o;
-            return Objects.equals(this.getNode(), that.getNode())
-                && Objects.equals(this.nodeUsageStatsForThreadPools, that.nodeUsageStatsForThreadPools);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(nodeUsageStatsForThreadPools, getNode());
         }
 
         @Override

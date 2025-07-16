@@ -154,18 +154,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
     /**
      * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
      */
-    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
-        return getShardLevelStats(indicesQueryCache, indexShard, flags, null);
-    }
-
-    /**
-     * Overload that takes a precomputed shared RAM map for O(N) stats.
-     */
     public static CommonStats getShardLevelStats(
         IndicesQueryCache indicesQueryCache,
         IndexShard indexShard,
         CommonStatsFlags flags,
-        Long precomputedSharedRam
+        long precomputedSharedRam
     ) {
         // Filter shard level flags
         CommonStatsFlags filteredFlags = flags.clone();
@@ -186,13 +179,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Refresh -> stats.refresh = indexShard.refreshStats();
                     case Flush -> stats.flush = indexShard.flushStats();
                     case Warmer -> stats.warmer = indexShard.warmerStats();
-                    case QueryCache -> {
-                        if (precomputedSharedRam != null) {
-                            stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), precomputedSharedRam);
-                        } else {
-                            stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
-                        }
-                    }
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), 0L);
                     case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
                     case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
                     case Segments -> stats.segments = indexShard.segmentStats(

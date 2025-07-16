@@ -27,6 +27,8 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
@@ -112,9 +114,45 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
+            IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+            boolean hasQueryCache = queryCache != null;
+
+            // First pass: gather all shards, cache sizes, and compute totals
+            long totalSize = 0L;
+            int shardCount = 0;
+            boolean anyNonZero = false;
+            // First pass: compute totals only
+            for (final IndexService indexService : indicesService) {
+                for (final IndexShard indexShard : indexService) {
+                    long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+                    shardCount++;
+                    if (cacheSize > 0L) {
+                        anyNonZero = true;
+                        totalSize += cacheSize;
+                    }
+                }
+            }
+            long sharedRamBytesUsed = hasQueryCache ? queryCache.getSharedRamBytesUsed() : 0L;
+
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+            ShardId shardId = indexShard.shardId();
+            long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(shardId) : 0L;
+            long sharedRam = 0L;
+            if (sharedRamBytesUsed != 0L) {
+                if (anyNonZero == false) {
+                    sharedRam = Math.round((double) sharedRamBytesUsed / shardCount);
+                } else if (totalSize != 0) {
+                    sharedRam = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+                }
+            }
+
+            CommonStats commonStats = CommonStats.getShardLevelStats(
+                indicesService.getIndicesQueryCache(),
+                indexShard,
+                request.flags(),
+                sharedRam
+            );
             CommitStats commitStats;
             SeqNoStats seqNoStats;
             RetentionLeaseStats retentionLeaseStats;

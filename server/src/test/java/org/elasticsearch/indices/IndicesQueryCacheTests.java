@@ -102,7 +102,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
 
-        QueryCacheStats stats = cache.getStats(shard);
+        QueryCacheStats stats = cache.getStats(shard, 0L);
         assertEquals(0L, stats.getCacheSize());
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -110,7 +110,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(1, s.count(new DummyQuery(0)));
 
-        stats = cache.getStats(shard);
+        stats = cache.getStats(shard, 0L);
         assertEquals(1L, stats.getCacheSize());
         assertEquals(1L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -120,7 +120,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
             assertEquals(1, s.count(new DummyQuery(i)));
         }
 
-        stats = cache.getStats(shard);
+        stats = cache.getStats(shard, 0L);
         assertEquals(10L, stats.getCacheSize());
         assertEquals(20L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -128,7 +128,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         s.count(new DummyQuery(10));
 
-        stats = cache.getStats(shard);
+        stats = cache.getStats(shard, 0L);
         assertEquals(10L, stats.getCacheSize());
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
@@ -137,7 +137,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r, dir);
 
         // got emptied, but no changes to other metrics
-        stats = cache.getStats(shard);
+        stats = cache.getStats(shard, 0L);
         assertEquals(0L, stats.getCacheSize());
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
@@ -146,7 +146,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard);
 
         // forgot everything
-        stats = cache.getStats(shard);
+        stats = cache.getStats(shard, 0L);
         assertEquals(0L, stats.getCacheSize());
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -186,13 +186,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(1, s1.count(new DummyQuery(0)));
 
-        QueryCacheStats stats1 = cache.getStats(shard1);
+        QueryCacheStats stats1 = cache.getStats(shard1, 0L);
         assertEquals(1L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        QueryCacheStats stats2 = cache.getStats(shard2);
+        QueryCacheStats stats2 = cache.getStats(shard2, 0L);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
@@ -200,13 +200,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(1, s2.count(new DummyQuery(0)));
 
-        stats1 = cache.getStats(shard1);
+        stats1 = cache.getStats(shard1, 0L);
         assertEquals(1L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2);
+        stats2 = cache.getStats(shard2, 0L);
         assertEquals(1L, stats2.getCacheSize());
         assertEquals(1L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
@@ -216,13 +216,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
             assertEquals(1, s2.count(new DummyQuery(i)));
         }
 
-        stats1 = cache.getStats(shard1);
+        stats1 = cache.getStats(shard1, 0L);
         assertEquals(0L, stats1.getCacheSize()); // evicted
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2);
+        stats2 = cache.getStats(shard2, 0L);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
@@ -231,13 +231,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r1, dir1);
 
         // no changes
-        stats1 = cache.getStats(shard1);
+        stats1 = cache.getStats(shard1, 0L);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2);
+        stats2 = cache.getStats(shard2, 0L);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
@@ -246,13 +246,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard1);
 
         // forgot everything about shard1
-        stats1 = cache.getStats(shard1);
+        stats1 = cache.getStats(shard1, 0L);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2);
+        stats2 = cache.getStats(shard2, 0L);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
@@ -262,14 +262,14 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard2);
 
         // forgot everything about shard2
-        stats1 = cache.getStats(shard1);
+        stats1 = cache.getStats(shard1, 0L);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
         assertEquals(0L, stats1.getMemorySizeInBytes());
 
-        stats2 = cache.getStats(shard2);
+        stats2 = cache.getStats(shard2, 0L);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
@@ -318,7 +318,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
             assertEquals(1, s2.count(new DummyQuery(i)));
         }
 
-        QueryCacheStats stats1 = cache.getStats(shard1);
+        QueryCacheStats stats1 = cache.getStats(shard1, 0L);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
 

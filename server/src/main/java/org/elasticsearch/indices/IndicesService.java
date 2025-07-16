@@ -552,7 +552,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 }
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
                     if (indexShardStats == null) {
                         continue;
                     }
@@ -567,11 +567,6 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
         return statsByShard;
-    }
-
-    IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
-        // Default to 0L for precomputedSharedRam for backward compatibility
-        return indexShardStats(indicesService, indexShard, flags, 0L);
     }
 
     IndexShardStats indexShardStats(

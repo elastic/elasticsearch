@@ -54,7 +54,14 @@ public record ResolvedEnrichPolicy(
              * as though it were the base class.
              */
             (o, v) -> {
-                var field = new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias());
+                var field = new EsField(
+                    v.getName(),
+                    v.getDataType(),
+                    v.getProperties(),
+                    v.isAggregatable(),
+                    v.isAlias(),
+                    v.getTimeSeriesFieldType()
+                );
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
                     field.writeTo(o);
                 } else {

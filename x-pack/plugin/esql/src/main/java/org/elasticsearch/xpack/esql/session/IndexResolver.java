@@ -234,7 +234,7 @@ public class IndexResolver {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
     }
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {

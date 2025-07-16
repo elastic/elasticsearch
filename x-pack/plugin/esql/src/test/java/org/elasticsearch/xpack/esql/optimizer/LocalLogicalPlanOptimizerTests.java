@@ -498,7 +498,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> large = Maps.newLinkedHashMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             var name = String.format(Locale.ROOT, "field%03d", i);
-            large.put(name, new EsField(name, DataType.INTEGER, emptyMap(), true, false));
+            large.put(name, new EsField(name, DataType.INTEGER, emptyMap(), true, false, EsField.TimeSeriesFieldType.NONE));
         }
 
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");

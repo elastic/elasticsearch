@@ -11,10 +11,10 @@ mapped_pages:
 
 This document describes operations available to connectors using the UI.
 
-In the Kibana or Serverless UI, find Connectors using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
+In the Kibana or Serverless UI, find **{{connectors-app}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
 ::::{tip}
-In 8.12 we introduced a set of [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector) to create and manage Elastic connectors and sync jobs, along with a [CLI tool](https://github.com/elastic/connectors/blob/main/docs/CLI.md). Use these tools if you’d like to work with connectors and sync jobs programmatically, without using the UI.
+In 8.12 we introduced a set of [connector APIs]({{es-apis}}group/endpoint-connector) to create and manage Elastic connectors and sync jobs, along with a [CLI tool](https://github.com/elastic/connectors/blob/main/docs/CLI.md). Use these tools if you’d like to work with connectors and sync jobs programmatically, without using the UI.
 
 ::::
 
@@ -24,13 +24,13 @@ In 8.12 we introduced a set of [Connector APIs](https://www.elastic.co/docs/api/
 
 You connector writes data to an {{es}} index.
 
-To create self-managed [**self-managed connector**](/reference/search-connectors/self-managed-connectors.md), use the buttons under **Search > Content > Connectors**. Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
+To create [self-managed connectors](/reference/search-connectors/self-managed-connectors.md), use the buttons under **{{es}} > Content > {{connectors-app}}**. Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
 
 ## Manage connector indices [es-connectors-usage-indices]
 
 View and manage all Elasticsearch indices managed by connectors.
 
-In the {{kib}} UI, navigate to **Search > Content > Connectors** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a list of connector indices and their attributes, including connector type health and ingestion status.
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a list of connector indices and their attributes, including connector type health and ingestion status.
 
 Within this interface, you can choose to view the details for each existing index or delete an index. Or, you can [create a new connector index](#es-connectors-usage-index-create).
 
@@ -41,21 +41,21 @@ These operations require access to Kibana and additional index privileges.
 
 {{es}} stores your data as documents in an index. Each index is made up of a set of fields and each field has a type (such as `keyword`, `boolean`, or `date`).
 
-**Mapping** is the process of defining how a document, and the fields it contains, are stored and indexed. Connectors use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md) to automatically create mappings based on the data fetched from the source.
+Mapping is the process of defining how a document, and the fields it contains, are stored and indexed. Connectors use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md) to automatically create mappings based on the data fetched from the source.
 
-Index **settings** are configurations that can be adjusted on a per-index basis. They control things like the index’s performance, the resources it uses, and how it should handle operations.
+Index settings are configurations that can be adjusted on a per-index basis. They control things like the index’s performance, the resources it uses, and how it should handle operations.
 
-When you create an index with a connector, the index is created with *default* search-optimized field template mappings and index settings. Mappings for specific fields are then dynamically created based on the data fetched from the source.
+When you create an index with a connector, the index is created with default search-optimized field template mappings and index settings. Mappings for specific fields are then dynamically created based on the data fetched from the source.
 
 You can inspect your index mappings in the following ways:
 
-* **In the {{kib}} UI**: Navigate to **Search > Content > Indices > *YOUR-INDEX* > Index Mappings**
-* **By API**: Use the [Get mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-mapping)
+* In the {{kib}} UI: Navigate to **{{es}} > Content > Indices > *YOUR-INDEX* > Index Mappings**.
+* By API: Use the [Get mapping API]({{es-apis}}operation/operation-indices-get-mapping).
 
 You can manually **edit** the mappings and settings via the {{es}} APIs:
 
-* Use the [Put mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) to update index mappings.
-* Use the [Update index settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-settings) to update index settings.
+* Use the [put mapping API]({{es-apis}}operation/operation-indices-put-mapping) to update index mappings.
+* Use the [update index settings API]({{es-apis}}operation/operation-indices-put-settings) to update index settings.
 
 It’s important to note that these updates are more complex when the index already contains data.
 
@@ -69,12 +69,12 @@ Updating mappings and settings is simpler when your index has no data. If you cr
 
 ### Customize mappings and settings after syncing data [es-connectors-usage-index-create-configure-existing-index-have-data]
 
-Once data has been added to {{es}} using dynamic mappings, you can’t directly update existing field mappings. If you’ve already synced data into an index and want to change the mappings, you’ll need to [reindex your data](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex).
+Once data has been added to {{es}} using dynamic mappings, you can’t directly update existing field mappings. If you’ve already synced data into an index and want to change the mappings, you’ll need to [reindex your data]({{es-apis}}operation/operation-reindex).
 
 The workflow for these updates is as follows:
 
-1. [Create](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) a new index with the desired mappings and settings.
-2. [Reindex](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) your data from the old index into this new index.
+1. [Create]({{es-apis}}operation/operation-indices-create) a new index with the desired mappings and settings.
+2. [Reindex]({{es-apis}}operation/operation-reindex) your data from the old index into this new index.
 3. Delete the old index.
 4. (Optional) Use an [alias](docs-content://manage-data/data-store/aliases.md), if you want to retain the old index name.
 5. Attach your connector to the new index or alias.
@@ -186,11 +186,9 @@ This operation requires access to Kibana and the `read` [indices privilege^](/re
 
 View the documents the connector has synced from the data. Additionally view the index mappings to determine the current document schema.
 
-In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 
-Then choose the index to view.
-
-Choose the **Documents** tab to view the synced documents. Choose the **Index Mappings** tab to view the index mappings that were created by the connector.
+Select the connector then the **Documents** tab to view the synced documents. Choose the **Mappings** tab to view the index mappings that were created by the connector.
 
 When setting up a new connector, ensure you are getting the documents and fields you were expecting from the data source. If not, see [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md) for help.
 
@@ -203,7 +201,7 @@ See [Security](/reference/search-connectors/es-connectors-security.md) for secur
 
 Use [sync rules](/reference/search-connectors/es-sync-rules.md) to limit which documents are fetched from the data source, or limit which fetched documents are stored in Elastic.
 
-In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI, navigate to **{{es}} > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 
 Then choose the index to manage and choose the **Sync rules** tab.
 
@@ -212,7 +210,9 @@ Then choose the index to manage and choose the **Sync rules** tab.
 
 Use [ingest pipelines](docs-content://solutions/search/ingest-for-search.md) to transform fetched data before it is stored in Elastic.
 
+<!--
+TBD: Use {{ingest-pipelines-app}}?
 In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
-
-Then choose the index to manage and choose the **Pipelines** tab.
+ Then choose the index to manage and choose the **Pipelines** tab.
+-->
 

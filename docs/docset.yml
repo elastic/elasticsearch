@@ -113,3 +113,4 @@ subs:
   nlp:   "natural language processing"
   index-manage-app:   "Index Management"
   connectors-app:   "Connectors"
+  ingest-pipelines-app:   "Ingest Pipelines"

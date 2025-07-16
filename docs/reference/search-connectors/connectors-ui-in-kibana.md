@@ -50,7 +50,7 @@ When you create an index with a connector, the index is created with default sea
 You can inspect your index mappings in the following ways:
 
 * In the {{kib}} UI: Navigate to **{{es}} > Content > Indices > *YOUR-INDEX* > Index Mappings**.
-* By API: Use the [Get mapping API]({{es-apis}}operation/operation-indices-get-mapping).
+* By API: Use the [get mapping API]({{es-apis}}operation/operation-indices-get-mapping).
 
 You can manually **edit** the mappings and settings via the {{es}} APIs:
 

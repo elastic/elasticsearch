@@ -92,11 +92,14 @@ public class SamlAttributes {
 
         @Override
         public String toString() {
+            StringBuilder str = new StringBuilder();
             if (Strings.isNullOrEmpty(friendlyName)) {
-                return name + '=' + values;
+                str.append(name);
             } else {
-                return friendlyName + '(' + name + ")=" + values;
+                str.append(friendlyName).append('(').append(name).append(')');
             }
+            str.append("=").append(values).append("(len=").append(values.size()).append(')');
+            return str.toString();
         }
     }
 

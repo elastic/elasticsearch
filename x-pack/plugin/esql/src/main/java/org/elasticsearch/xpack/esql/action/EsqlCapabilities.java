@@ -1213,7 +1213,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V2(Build.current().isSnapshot()),
+        KNN_FUNCTION_V3(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1262,6 +1262,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/130378
          */
         NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
+
+        /**
+         * Fail if all shards fail
+         */
+        FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot()),
 
         /*
          * Cosine vector similarity function

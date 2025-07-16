@@ -428,9 +428,6 @@ tests:
   method: testSerializationOfSimple {TestCase=<boolean>}
   issue: https://github.com/elastic/elasticsearch/issues/131334
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testFullTextFunctionsOnlyAllowedInWhere
-  issue: https://github.com/elastic/elasticsearch/issues/131335
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testMatchInsideEval
   issue: https://github.com/elastic/elasticsearch/issues/131336
 - class: org.elasticsearch.packaging.test.DockerTests
@@ -442,6 +439,30 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests}
+  issue: https://github.com/elastic/elasticsearch/issues/131348
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityBetweenConstantVectors {functionName=v_cosine similarityFunction=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/131361
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testDifferentDimensions {functionName=v_cosine similarityFunction=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/131362
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityBetweenConstantVectorAndField {functionName=v_cosine similarityFunction=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/131363
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
+  issue: https://github.com/elastic/elasticsearch/issues/131364
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test070BindMountCustomPathConfAndJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/131366
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test140CgroupOsStatsAreAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/131372
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369
 
 # Examples:
 #

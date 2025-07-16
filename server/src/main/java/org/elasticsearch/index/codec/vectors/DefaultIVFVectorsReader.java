@@ -16,6 +16,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
@@ -225,7 +226,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             this.centroid = centroid;
             // read the doc ids
             docIdsScratch = vectors > docIdsScratch.length ? new int[vectors] : docIdsScratch;
-            docIdsWriter.readInts(indexInput, vectors, docIdsScratch);
+            GroupVIntUtil.readGroupVInts(indexInput, docIdsScratch, vectors);
+            // reconstitute from the deltas
+            for (int i = 1; i < vectors; i++) {
+                docIdsScratch[i] += docIdsScratch[i - 1];
+            }
             slicePos = indexInput.getFilePointer();
             return vectors;
         }

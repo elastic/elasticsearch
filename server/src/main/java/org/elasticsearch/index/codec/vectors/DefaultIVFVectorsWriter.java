@@ -222,6 +222,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             int[] docIds = null;
+            int[] docDeltas = null;
             int[] clusterOrds = null;
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
@@ -233,6 +234,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 if (docIds == null || docIds.length < cluster.length) {
                     docIds = new int[cluster.length];
                     clusterOrds = new int[cluster.length];
+                    docDeltas = new int[cluster.length];
                 }
                 for (int j = 0; j < size; j++) {
                     docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
@@ -242,13 +244,17 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 final int[] finalOrds = clusterOrds;
                 // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
                 new IntSorter(clusterOrds, i -> finalDocs[i]).sort(0, size);
+                // encode doc deltas
+                for (int j = 0; j < size; j++) {
+                    docDeltas[j] = j == 0 ? finalDocs[finalOrds[j]] : finalDocs[finalOrds[j]] - finalDocs[finalOrds[j - 1]];
+                }
                 postingsOutput.writeVInt(size);
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[finalOrds[ord]], ord -> cluster[finalOrds[ord]]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
-                docIdsWriter.writeDocIds(j -> finalDocs[finalOrds[j]], size, postingsOutput);
+                postingsOutput.writeGroupVInts(docDeltas, size);
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 

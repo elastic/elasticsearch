@@ -102,6 +102,53 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
+    public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
+        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+        boolean hasQueryCache = queryCache != null;
+        long totalSize = 0L;
+        int shardCount = 0;
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
+                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+                shardCount++;
+                if (cacheSize > 0L) {
+                    totalSize += cacheSize;
+                }
+            }
+        }
+        long sharedRamBytesUsed = hasQueryCache ? queryCache.getSharedRamBytesUsed() : 0L;
+        return new CacheTotals(totalSize, shardCount, sharedRamBytesUsed);
+    }
+
+    public static long getSharedRamSizeForShard(IndicesQueryCache queryCache, IndexShard indexShard, CacheTotals cacheTotals) {
+        long sharedRamBytesUsed = cacheTotals.sharedRamBytesUsed();
+        if (sharedRamBytesUsed == 0L) {
+            return 0L;
+        }
+
+        int shardCount = cacheTotals.shardCount();
+        if (shardCount == 0) {
+            // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
+            // extend beyond the closing of all shards.
+            return 0L;
+        }
+
+        long totalSize = cacheTotals.totalSize();
+        long cacheSize = queryCache != null ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+        final long additionalRamBytesUsed;
+        if (totalSize == 0) {
+            // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
+        } else {
+            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+        }
+        assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
+        return additionalRamBytesUsed;
+    }
+
+    public record CacheTotals(long totalSize, int shardCount, long sharedRamBytesUsed) {}
+
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
@@ -119,46 +166,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         // the shards they belong to
         return new CachingWeightWrapper(in);
     }
-
-    public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
-        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
-        boolean hasQueryCache = queryCache != null;
-        long totalSize = 0L;
-        int shardCount = 0;
-        boolean anyNonZero = false;
-        for (final IndexService indexService : indicesService) {
-            for (final IndexShard indexShard : indexService) {
-                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
-                shardCount++;
-                if (cacheSize > 0L) {
-                    anyNonZero = true;
-                    totalSize += cacheSize;
-                }
-            }
-        }
-        long sharedRamBytesUsed = hasQueryCache ? queryCache.getSharedRamBytesUsed() : 0L;
-        return new CacheTotals(totalSize, shardCount, anyNonZero, sharedRamBytesUsed);
-    }
-
-    public static long getSharedRamSize(IndicesQueryCache queryCache, IndexShard indexShard, CacheTotals cacheTotals) {
-        long sharedRamBytesUsed = cacheTotals.sharedRamBytesUsed();
-        long totalSize = cacheTotals.totalSize();
-        boolean anyNonZero = cacheTotals.anyNonZero();
-        int shardCount = cacheTotals.shardCount();
-        ShardId shardId = indexShard.shardId();
-        long cacheSize = queryCache != null ? queryCache.getCacheSizeForShard(shardId) : 0L;
-        long sharedRam = 0L;
-        if (sharedRamBytesUsed != 0L) {
-            if (anyNonZero == false) {
-                sharedRam = Math.round((double) sharedRamBytesUsed / shardCount);
-            } else if (totalSize != 0) {
-                sharedRam = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
-            }
-        }
-        return sharedRam;
-    }
-
-    public record CacheTotals(long totalSize, int shardCount, boolean anyNonZero, long sharedRamBytesUsed) {}
 
     private class CachingWeightWrapper extends Weight {
 

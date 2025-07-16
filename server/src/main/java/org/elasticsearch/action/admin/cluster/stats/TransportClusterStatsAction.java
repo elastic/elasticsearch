@@ -258,14 +258,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false
         );
-
-        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
-
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                long sharedRam = IndicesQueryCache.getSharedRamSize(queryCache, indexShard, cacheTotals);
+                long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService.getIndicesQueryCache(), indexShard, cacheTotals);
                 cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards

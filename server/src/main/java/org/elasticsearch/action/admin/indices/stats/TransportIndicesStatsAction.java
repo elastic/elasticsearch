@@ -114,14 +114,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
-            IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
-
             IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
-
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             ShardId shardId = indexShard.shardId();
-            long sharedRam = IndicesQueryCache.getSharedRamSize(queryCache, indexShard, cacheTotals);
+            long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService.getIndicesQueryCache(), indexShard, cacheTotals);
 
             CommonStats commonStats = CommonStats.getShardLevelStats(
                 indicesService.getIndicesQueryCache(),

@@ -519,12 +519,11 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
-        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
         IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
-                long sharedRam = IndicesQueryCache.getSharedRamSize(queryCache, indexShard, cacheTotals);
+                long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService.getIndicesQueryCache(), indexShard, cacheTotals);
                 try {
                     final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
                     if (indexShardStats == null) {

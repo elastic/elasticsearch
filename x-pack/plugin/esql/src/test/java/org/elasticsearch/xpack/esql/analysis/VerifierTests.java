@@ -1393,24 +1393,12 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
-            containsString(
-                "["
-                    + functionName
-                    + "] "
-                    + functionType
-                    + " is only supported in WHERE and STATS commands"
-            )
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
 
         );
         assertThat(
             error("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
-            containsString(
-                "["
-                    + functionName
-                    + "] "
-                    + functionType
-                    + " is only supported in WHERE and STATS commands"
-            )
+            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
         );
         if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
             assertThat(

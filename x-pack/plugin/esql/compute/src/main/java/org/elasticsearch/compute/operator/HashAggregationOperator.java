@@ -326,64 +326,15 @@ public class HashAggregationOperator implements Operator {
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {
             if (groupByChannel.containsKey(i)) {
-                BlockHash.EmptyBucketDef emptyBucketDef = groupByChannel.get(i).emptyBucketDef();
-                if (emptyBucketDef != null && emptyBucketDef.emitEmptyBuckets()) {
-                    blocks[i] = emptyBucketDef instanceof BlockHash.DatetimeEmptyBucketDef
-                        ? appendInitialValuesForDatetime((BlockHash.DatetimeEmptyBucketDef) emptyBucketDef, maxPositionsInBucket)
-                        : appendInitialValuesForNumeric((BlockHash.NumericEmptyBucketDef) emptyBucketDef, maxPositionsInBucket);
-                } else {
-                    blocks[i] = copyValues(page.getBlock(i), maxPositionsInBucket);
-                }
+                BlockHash.EmptyBucketGenerator emptyBucketGenerator = groupByChannel.get(i).emptyBucketGenerator();
+                blocks[i] = emptyBucketGenerator != null
+                    ? emptyBucketGenerator.generate(driverContext.blockFactory(), maxPositionsInBucket)
+                    : copyValues(page.getBlock(i), maxPositionsInBucket);
             } else {
                 blocks[i] = driverContext.blockFactory().newConstantNullBlock(maxPositionsInBucket);
             }
         }
         return new Page(blocks);
-    }
-
-    private Block appendInitialValuesForDatetime(BlockHash.DatetimeEmptyBucketDef group, int maxPositionsInBucket) {
-        Rounding.Prepared rounding = group.rounding();
-        try (
-            LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(
-                maxPositionsInBucket,
-                driverContext.blockFactory()
-            )
-        ) {
-            int i = 0;
-            for (long bucket = rounding.round(group.from()); bucket < group.to(); bucket = rounding.nextRoundingValue(bucket)) {
-                newBlockBuilder.appendLong(bucket);
-                i++;
-            }
-            while (i < maxPositionsInBucket) {
-                newBlockBuilder.appendNull();
-                i++;
-            }
-            return newBlockBuilder.build();
-        }
-    }
-
-    private Block appendInitialValuesForNumeric(BlockHash.NumericEmptyBucketDef group, int maxPositionsInBucket) {
-        double roundTo = group.rounding();
-        try (
-            DoubleBlock.Builder newBlockBuilder = (DoubleBlock.Builder) ElementType.DOUBLE.newBlockBuilder(
-                maxPositionsInBucket,
-                driverContext.blockFactory()
-            )
-        ) {
-            int i = 0;
-            for (double bucket = round(Math.floor(group.from() / roundTo) * roundTo, 2); bucket < group.to(); bucket = round(
-                Math.floor((bucket + roundTo) / roundTo) * roundTo,
-                2
-            )) {
-                newBlockBuilder.appendDouble(bucket);
-                i++;
-            }
-            while (i < maxPositionsInBucket) {
-                newBlockBuilder.appendNull();
-                i++;
-            }
-            return newBlockBuilder.build();
-        }
     }
 
     private Block copyValues(Block block, int maxPositionsInBucket) {
@@ -397,52 +348,19 @@ public class HashAggregationOperator implements Operator {
     }
 
     private static boolean anyGroupEmitsEmptyBuckets(List<BlockHash.GroupSpec> groups) {
-        return groups.stream().anyMatch(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets());
+        return groups.stream().anyMatch(g -> g.emptyBucketGenerator() != null);
     }
 
     private static int getMaxPositionsInBucket(List<BlockHash.GroupSpec> groups, Page page) {
-        int result = 0;
+        int maxPositionCount = 0;
         for (BlockHash.GroupSpec group : groups) {
-            int positionCount;
-            if (group.emptyBucketDef() != null && group.emptyBucketDef().emitEmptyBuckets()) {
-                positionCount = group.emptyBucketDef() instanceof BlockHash.DatetimeEmptyBucketDef
-                    ? getPositionsInBucket((BlockHash.DatetimeEmptyBucketDef) group.emptyBucketDef())
-                    : getPositionsInBucket((BlockHash.NumericEmptyBucketDef) group.emptyBucketDef());
-            } else {
-                positionCount = page.getBlock(group.channel()).getPositionCount();
-            }
-            result = Math.max(result, positionCount);
+            BlockHash.EmptyBucketGenerator emptyBucketGenerator = group.emptyBucketGenerator();
+            int positionCount = emptyBucketGenerator != null
+                ? emptyBucketGenerator.getEmptyBucketCount()
+                : page.getBlock(group.channel()).getPositionCount();
+            maxPositionCount = Math.max(maxPositionCount, positionCount);
         }
-        return result;
-    }
-
-    private static int getPositionsInBucket(BlockHash.DatetimeEmptyBucketDef group) {
-        Rounding.Prepared rounding = group.rounding();
-        long from = group.from();
-        long to = group.to();
-        int result = 0;
-        for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
-            result++;
-        }
-        return result;
-    }
-
-    private static int getPositionsInBucket(BlockHash.NumericEmptyBucketDef group) {
-        double roundTo = group.rounding();
-        double from = group.from();
-        double to = group.to();
-        int result = 0;
-        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(
-            Math.floor((bucket + roundTo) / roundTo) * roundTo,
-            2
-        )) {
-            result++;
-        }
-        return result;
-    }
-
-    private static double round(double value, int n) {
-        return new BigDecimal(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+        return maxPositionCount;
     }
 
     @Override

@@ -379,7 +379,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             if (unwrappedExpression instanceof Categorize) {
                 return new BlockHash.GroupSpec(channel, elementType(), true);
             } else if (bucket != null && bucket.emitEmptyBuckets() != null) {
-                return new BlockHash.GroupSpec(channel, elementType(), bucket.toEmptyBucketDef());
+                return new BlockHash.GroupSpec(channel, elementType(), bucket.createEmptyBucketGenerator());
             } else {
                 return new BlockHash.GroupSpec(channel, elementType());
             }

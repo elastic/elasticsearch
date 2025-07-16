@@ -16,8 +16,6 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.ESONSource;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -88,7 +86,7 @@ public class ESONDeserializationBenchmark {
             "{\"@timestamp\":\"2021-04-28T19:45:28.222Z\",\"kubernetes\":{\"namespace\":\"namespace0\",\"node\":{\"name\":\"gke-apps-node-name-0\"},\"pod\":{\"name\":\"pod-name-pod-name-0\"},\"volume\":{\"name\":\"volume-0\",\"fs\":{\"capacity\":{\"bytes\":7883960320},\"used\":{\"bytes\":12288},\"inodes\":{\"used\":9,\"free\":1924786,\"count\":1924795},\"available\":{\"bytes\":7883948032}}}},\"metricset\":{\"name\":\"volume\",\"period\":10000},\"fields\":{\"cluster\":\"elastic-apps\"},\"host\":{\"name\":\"gke-apps-host-name0\"},\"agent\":{\"id\":\"96db921d-d0a0-4d00-93b7-2b6cfc591bc3\",\"version\":\"7.6.2\",\"type\":\"metricbeat\",\"ephemeral_id\":\"c0aee896-0c67-45e4-ba76-68fcd6ec4cde\",\"hostname\":\"gke-apps-host-name-0\"},\"ecs\":{\"version\":\"1.4.0\"},\"service\":{\"address\":\"service-address-0\",\"type\":\"kubernetes\"},\"event\":{\"dataset\":\"kubernetes.volume\",\"module\":\"kubernetes\",\"duration\":132588484}}"
         );
         XContentBuilder builder = XContentFactory.contentBuilder(CborXContent.cborXContent.type());
-        map = XContentHelper.convertToMap(source, false, XContentType.JSON, XContentParserDecorator.NOOP).v2();
+        map = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
         builder.map(map, true);
         BytesRef bytesRef = BytesReference.bytes(builder).toBytesRef();
         cborSource = new BytesArray(bytesRef.bytes, bytesRef.offset, bytesRef.length);
@@ -105,17 +103,12 @@ public class ESONDeserializationBenchmark {
         }
     }
 
-     @Benchmark
-     public void readCborMap(Blackhole bh) throws IOException {
-     Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
-     cborSource,
-     false,
-     XContentType.CBOR,
-     XContentParserDecorator.NOOP
-     );
-     Map<String, Object> obj = tuple.v2();
-     bh.consume(obj);
-     }
+    @Benchmark
+    public void readCborMap(Blackhole bh) throws IOException {
+        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(cborSource, false, XContentType.CBOR);
+        Map<String, Object> obj = tuple.v2();
+        bh.consume(obj);
+    }
 
     @Benchmark
     public void writeJSONFromMap(Blackhole bh) throws IOException {
@@ -135,12 +128,7 @@ public class ESONDeserializationBenchmark {
 
     @Benchmark
     public void readMap(Blackhole bh) throws IOException {
-        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
-            source,
-            false,
-            XContentType.JSON,
-            XContentParserDecorator.NOOP
-        );
+        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, false, XContentType.JSON);
         Map<String, Object> obj = tuple.v2();
         bh.consume(obj);
     }

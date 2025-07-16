@@ -5,7 +5,7 @@ navigation_title: "Query log"
 # {{esql}} Query Log [esql-query-log]
 
 
-Query Log allows to log {{esql}} queries based on their execution time.
+The {{esql}} query log allows to log {{esql}} queries based on their execution time.
 
 You can use these logs to investigate, analyze or troubleshoot your cluster’s historical ES|QL performance.
 

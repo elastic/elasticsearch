@@ -1,0 +1,15 @@
+// Note:
+// The "test_completion" service returns the prompt in uppercase, making the output easy to guess.
+ 
+
+completion using a ROW source operator
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0, 50.0, 54.0, 52.0, 49.0, 51.0, 51.0, 56.0]
+;

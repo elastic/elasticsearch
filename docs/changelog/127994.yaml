@@ -1,0 +1,5 @@
+pr: 127994
+summary: Enable updating `adaptive_allocations` for `ElasticsearchInternalService`
+area: Machine Learning
+type: enhancement
+issues: []

@@ -135,12 +135,20 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
      * Copy constructor with the ability to set the number of allocations. Used for Update API.
      * @param other the existing settings
      * @param numAllocations the new number of allocations
+     * @param adaptiveAllocationsSettings the new adaptive allocations settings
      */
-    public ElasticsearchInternalServiceSettings(ElasticsearchInternalServiceSettings other, int numAllocations) {
-        this.numAllocations = numAllocations;
+    public ElasticsearchInternalServiceSettings(
+        ElasticsearchInternalServiceSettings other,
+        Integer numAllocations,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings
+    ) {
+        this.numAllocations = numAllocations == null ? other.numAllocations : numAllocations;
+        // TODO: Should we block numAllocations<minNumOfAllocations. Also does this get updated by adaptive allocations?
         this.numThreads = other.numThreads;
         this.modelId = other.modelId;
-        this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;
+        this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings == null
+            ? adaptiveAllocationsSettings
+            : other.adaptiveAllocationsSettings.merge(adaptiveAllocationsSettings);
         this.deploymentId = other.deploymentId;
     }
 

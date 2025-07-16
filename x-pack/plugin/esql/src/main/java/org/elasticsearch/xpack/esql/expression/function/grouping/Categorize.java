@@ -107,13 +107,13 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 ),
                 @MapParam.MapParamEntry(
                     name = "output_format",
-                    type = "boolean",
+                    type = "keyword",
                     valueHint = { "regex", "tokens" },
                     description = "The output format of the categories. Defaults to regex."
                 ),
                 @MapParam.MapParamEntry(
                     name = "similarity_threshold",
-                    type = "boolean",
+                    type = "integer",
                     valueHint = { "70" },
                     description = "The minimum percentage of token weight that must match for text to be added to the category bucket. "
                         + "Must be between 1 and 100. The larger the value the narrower the categories. "

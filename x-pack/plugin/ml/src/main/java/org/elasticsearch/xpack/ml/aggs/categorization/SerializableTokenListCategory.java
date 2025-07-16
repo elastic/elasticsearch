@@ -163,7 +163,10 @@ public class SerializableTokenListCategory implements Writeable {
     }
 
     public String getKeyTokensString() {
-        return Arrays.stream(getKeyTokens()).map(BytesRef::utf8ToString).collect(Collectors.joining(" "));
+        return Arrays.stream(keyTokenIndexes)
+            .mapToObj(index -> baseTokens[index])
+            .map(BytesRef::utf8ToString)
+            .collect(Collectors.joining(" "));
     }
 
     public String getRegex() {

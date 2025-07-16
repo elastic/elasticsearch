@@ -22,6 +22,7 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
@@ -34,6 +35,10 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.WrongMethodTypeException;
+import java.lang.reflect.RecordComponent;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Arrays;
@@ -57,6 +62,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static java.lang.invoke.MethodType.methodType;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -1290,9 +1298,194 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public String toString() {
-                    return "Updater for: " + setting.toString();
+                    return "Updater for: " + setting;
                 }
             };
+        }
+    }
+
+    private static class RecordSetting<R extends Record> extends Setting<R> {
+        private final String key;
+        private final Consumer<R> validator;
+        private final Class<R> recordClass;
+        private final List<Function<Settings, Object>> componentParsers;
+        private final MethodHandle ctor;
+
+        RecordSetting(
+            String key,
+            Class<R> recordClass,
+            MethodHandles.Lookup lookup,
+            List<Setting<?>> relevantSettings,
+            Property... properties
+        ) {
+            super(new GroupKey(keyWithDot(key)), (s) -> "", (s) -> null, properties);
+            if (isDynamic()) {
+                // TODO
+                throw new IllegalArgumentException("Dynamic record settings not supported");
+            }
+            this.key = key;
+            this.recordClass = recordClass;
+            this.validator = r -> {}; // TODO: validator
+            var recordComponents = recordClass.getRecordComponents();
+            var ctorArgTypes = Arrays.stream(recordComponents).map(RecordComponent::getType).toArray(Class<?>[]::new);
+            try {
+                ctor = lookup.findConstructor(recordClass, methodType(void.class, ctorArgTypes));
+            } catch (NoSuchMethodException | IllegalAccessException e) {
+                throw new AssertionError("wtf yo", e);
+            }
+            Map<String, Setting<?>> relevantSettingsByKey = relevantSettings.stream().collect(toMap(Setting::getKey, Function.identity()));
+            this.componentParsers = Arrays.stream(recordComponents)
+                .map(component -> componentParser(component, lookup, relevantSettingsByKey))
+                .toList();
+            assert ctorArgTypes.length == componentParsers.size();
+        }
+
+        private static String keyWithDot(String key) {
+            if (key.endsWith(".")) {
+                throw new IllegalArgumentException("key must not end with a '.'");
+            }
+            return key + ".";
+        }
+
+        @Override
+        public boolean isGroupSetting() {
+            return true;
+        }
+
+        @Override
+        public String innerGetRaw(final Settings settings) {
+            Settings subSettings = settings.getByPrefix(getKey());
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                subSettings.toXContent(builder, EMPTY_PARAMS);
+                builder.endObject();
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private Settings getByPrefix(Settings settings) {
+            return settings.getByPrefix(getKey());
+        }
+
+        @Override
+        public R get(Settings settings) {
+            // TODO should we be checking for deprecations here?
+            R result = invokeConstructor(componentParsers.stream().map(p -> p.apply(settings)).toArray());
+            validator.accept(result);
+            return result;
+        }
+
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            Set<String> leftGroup = getByPrefix(source).keySet();
+            Settings defaultGroup = getByPrefix(defaultSettings);
+
+            builder.put(
+                Settings.builder().put(defaultGroup.filter(k -> leftGroup.contains(k) == false), false).normalizePrefix(getKey()).build(),
+                false
+            );
+        }
+
+        @Override
+        public AbstractScopedSettings.SettingUpdater<R> newUpdater(Consumer<R> consumer, Logger logger, Consumer<R> validator) {
+            throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
+        }
+
+        @SuppressForbidden(reason = "To support arbitrary record types, we must invoke the constructor with invokeWithArguments")
+        private R invokeConstructor(Object[] ctorArgs) {
+            Object result;
+            try {
+                result = ctor.invokeWithArguments(ctorArgs);
+            } catch (ClassCastException | WrongMethodTypeException e) {
+                throw new IllegalStateException("Unexpected error invoking constructor for [" + recordClass.getName() + "]", e);
+            } catch (Throwable e) {
+                throw new IllegalStateException("Unable to instantiate [" + recordClass.getName() + "]", e);
+            }
+            return recordClass.cast(result);
+        }
+
+        /**
+         * @return a "compiled executable" form of the given {@link RecordComponent}:
+         * extracts the component's value from a given {@link Settings}.
+         */
+        private Function<Settings, Object> componentParser(
+            RecordComponent component,
+            MethodHandles.Lookup lookup,
+            Map<String, Setting<?>> relevantSettingsByKey
+        ) {
+            String componentKey = key + "." + snakeCase(component.getName());
+            Class<?> type = component.getType();
+
+            var setting = relevantSettingsByKey.get(componentKey);
+            if (setting != null) {
+                return setting::get;
+            }
+
+            // No relevant Setting provided by the user.
+            // That means they're ok with the component being considered mandatory,
+            // and parsed based on its type alone.
+
+            // For scalar types, we can get the setting as a string and then convert
+            if (type == String.class) {
+                return settings -> getMandatory(settings, componentKey);
+            } else if (type == int.class || type == Integer.class) {
+                return settings -> Integer.parseInt(getMandatory(settings, componentKey));
+            } else if (type == long.class || type == Long.class) {
+                return settings -> Long.parseLong(getMandatory(settings, componentKey));
+            } else if (type == float.class || type == Float.class) {
+                return settings -> Float.parseFloat(getMandatory(settings, componentKey));
+            } else if (type == double.class || type == Double.class) {
+                return settings -> Double.parseDouble(getMandatory(settings, componentKey));
+            }
+
+            // For structured types, we're going to need a bigger boat
+            if (List.class.isAssignableFrom(type)) {
+                return settings -> settings.getAsList(componentKey);
+            } else if (Record.class.isAssignableFrom(type)) {
+                // Recurse
+                Property[] componentProperties = super.getProperties().toArray(new Property[0]); // TODO: Does it make sense to inherit
+                                                                                                 // these properties?
+                return settingsForComponent(component, componentKey, lookup, relevantSettingsByKey, componentProperties)::get;
+            } else {
+                // TODO: MOAR
+                throw new IllegalArgumentException("Not yet supported: " + type);
+            }
+        }
+
+        private String snakeCase(String name) {
+            StringBuilder sb = new StringBuilder();
+            name.codePoints().forEachOrdered(cp -> {
+                if ('A' <= cp && cp <= 'Z') {
+                    sb.append('_');
+                    sb.appendCodePoint(Character.toLowerCase(cp));
+                } else {
+                    sb.appendCodePoint(cp);
+                }
+            });
+            return sb.toString();
+        }
+
+        private static String getMandatory(Settings settings, String componentKey) {
+            String result = settings.get(componentKey);
+            if (result == null) {
+                throw new IllegalStateException("Setting is not present and has no default: [" + componentKey + "]");
+            }
+            return result;
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <RC extends Record> RecordSetting<RC> settingsForComponent(
+            RecordComponent component,
+            String componentKey,
+            MethodHandles.Lookup lookup,
+            Map<String, Setting<?>> relevantSettingsByKey,
+            Property[] properties1
+        ) {
+            var relevantSettings = relevantSettingsByKey.values().stream().filter(s -> s.getKey().startsWith(componentKey)).toList();
+            return new RecordSetting<>(componentKey, (Class<RC>) component.getType(), lookup, relevantSettings, properties1);
         }
     }
 
@@ -1500,6 +1693,52 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
         return new Setting<>(key, fallback, Function.identity(), properties);
+    }
+
+    /**
+     * Allows multiple settings to be accessed collectively as a unit,
+     * in the form of a {@link Record}.
+     *
+     * <p>
+     * The components of the record can be configured by passing in additional
+     * <em>relevant settings</em> that specify the properties, default value,
+     * fallback setting, validator, etc. for that specific setting.
+     * If there is no relevant setting corresponding to some record component,
+     * its behaviour is inferred automatically from its type according to these
+     * rules:
+     *
+     * <ul>
+     *     <li>
+     *         There is no default. If the setting is absent, that is a validation error.
+     *     </li>
+     *     <li>
+     *         Parsing uses the corresponding {@code Settings.getAsXXX} method.
+     *     </li>
+     *     <li>
+     *         {@link Property Properties} are the {@code properties} passed into this method.
+     *     </li>
+     *     <li>
+     *         No additional validation is performed.
+     *     </li>
+     * </ul>
+     *
+     * @param key the common prefix for all the settings accessed by this {@code Setting}. A trailing period will be added automatically.
+     * @param recordClass the {@link Class} of the value returned by {@link #get}.
+     * @param lookup is used to access the constructor and component getters, allowing {@code RecordClass} to be non-public.
+     * @param relevantSettings supply configuration for the components, including (recursively) any components in any
+     *                         nested records.
+     * @param properties apply to this {@link Setting} as a whole, and by default to any component settings not specified by {@code relevantSettings}.
+     * @return the {@link Setting}
+     * @param <R> the type of {@code recordClass}
+     */
+    public static <R extends Record> Setting<R> recordSetting(
+        String key,
+        Class<R> recordClass,
+        MethodHandles.Lookup lookup,
+        List<Setting<?>> relevantSettings,
+        Property... properties
+    ) {
+        return new RecordSetting<>(key, recordClass, lookup, relevantSettings, properties);
     }
 
     /**

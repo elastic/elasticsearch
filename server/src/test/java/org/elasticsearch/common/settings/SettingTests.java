@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -1604,5 +1605,12 @@ public class SettingTests extends ESTestCase {
             e2.getMessage(),
             equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808")
         );
+    }
+
+    public void testRecordSetting() {
+        record TestSetting(int intSetting) {}
+        Setting<TestSetting> setting = Setting.recordSetting("record.setting", TestSetting.class, MethodHandles.lookup(), List.of());
+        assertEquals(new TestSetting(123), setting.get(Settings.builder().put("record.setting.int_setting", 123).build()));
+        assertThrows(IllegalStateException.class, () -> setting.get(Settings.EMPTY));
     }
 }

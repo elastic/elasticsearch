@@ -61,7 +61,7 @@ public final class PercentileFloatGroupingAggregatorFunction implements Grouping
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
     FloatVector valuesVector = valuesBlock.asVector();

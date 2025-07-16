@@ -195,9 +195,9 @@ public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
                 "user.name",
                 "slow_log_test_user",          // Original user from querying cluster
                 "user.realm",
-                "default_native",             // User's realm on querying cluster
+                "_es_api_key",             // User's realm on querying cluster
                 "user.full_name",
-                "Slow Log Test User",     // User's full name
+                "Slow Log Test User",
                 "auth.type",
                 "API_KEY",                     // Authentication type
                 "apikey.id",

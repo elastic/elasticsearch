@@ -71,13 +71,6 @@ public class GroupingAggregator implements Releasable {
     }
 
     /**
-     * Add the position-th row from the intermediate output of the given aggregator to this aggregator at the groupId position
-     */
-    public void addIntermediateRow(int groupId, GroupingAggregator input, int position) {
-        aggregatorFunction.addIntermediateRowInput(groupId, input.aggregatorFunction, position);
-    }
-
-    /**
      * Build the results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.

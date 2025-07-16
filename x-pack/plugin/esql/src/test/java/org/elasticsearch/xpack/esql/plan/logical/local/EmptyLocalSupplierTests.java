@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EmptyLocalSupplierTests extends LocalSupplierTests {
@@ -31,7 +31,7 @@ public class EmptyLocalSupplierTests extends LocalSupplierTests {
 
     @Override
     protected void writeTo(BytesStreamOutput output, LocalSupplier instance, TransportVersion version) throws IOException {
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS.isCompatible(version)) {
             new PlanStreamOutput(output, null).writeNamedWriteable(instance);
         } else {
             output.writeVInt(0);

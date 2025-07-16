@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.MODEL_REQUIRED_FOR_V2_API;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings.apiVersionFromMap;
 
@@ -124,8 +125,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isCompatible(in.getTransportVersion())) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -206,8 +206,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (ML_INFERENCE_COHERE_API_VERSION.isCompatible(out.getTransportVersion())) {
             out.writeEnum(apiVersion);
         }
     }

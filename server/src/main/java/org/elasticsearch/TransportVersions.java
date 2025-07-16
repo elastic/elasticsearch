@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.IntFunction;
 
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
@@ -200,18 +199,8 @@ public class TransportVersions {
     public static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19 = def(8_841_0_50);
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19 = def(8_841_0_52);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
-    public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19 = def(8_841_0_55);
     public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_56);
-    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC_8_19 = def(8_841_0_57);
-    public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = def(8_841_0_58);
-    public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19 = def(8_841_0_59);
-    public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
-    public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
-    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
-    public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_2 = def(9_000_0_11);
@@ -318,28 +307,6 @@ public class TransportVersions {
     public static final TransportVersion STATE_PARAM_GET_SNAPSHOT = def(9_100_0_00);
     public static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = def(9_101_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = def(9_102_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = def(9_103_0_00);
-    public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_104_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = def(9_105_0_00);
-    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = def(9_106_0_00);
-    public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = def(9_107_0_00);
-    public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
-    public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
-    public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
-    public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
-    public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
-    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_9_1 = def(9_112_0_01);
-    public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
-    // Below is the first version in 9.2 and NOT in 9.1.
-    public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
-    public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
-    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
-    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = def(9_116_0_00);
-    public static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = def(9_117_0_00);
-    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
-    public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
-    public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
-    public static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = def(9_121_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -413,16 +380,6 @@ public class TransportVersions {
      */
     static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
 
-    // the highest transport version constant defined
-    static final TransportVersion LATEST_DEFINED;
-    static {
-        LATEST_DEFINED = DEFINED_VERSIONS.getLast();
-
-        // see comment on IDS field
-        // now we're registered all the transport versions, we can clear the map
-        IDS = null;
-    }
-
     public static List<TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         List<TransportVersion> definedTransportVersions = new ArrayList<>();
@@ -463,8 +420,6 @@ public class TransportVersions {
 
         return List.copyOf(definedTransportVersions);
     }
-
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private TransportVersions() {}

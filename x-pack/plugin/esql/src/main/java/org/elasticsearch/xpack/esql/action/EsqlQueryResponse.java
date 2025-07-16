@@ -39,6 +39,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
+import static org.elasticsearch.compute.operator.DriverCompletionInfo.ESQL_PROFILE_INCLUDE_PLAN;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
@@ -401,18 +402,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         public static Profile readFrom(StreamInput in) throws IOException {
             return new Profile(
                 in.readCollectionAsImmutableList(DriverProfile::readFrom),
-                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                    || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
-                        ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                        : List.of()
+                ESQL_PROFILE_INCLUDE_PLAN.isCompatible(in.getTransportVersion())
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
             );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+            if (ESQL_PROFILE_INCLUDE_PLAN.isCompatible(out.getTransportVersion())) {
                 out.writeCollection(plans);
             }
         }

@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.NavigableSet;
 
+import static org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS;
+
 public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
 
     private static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
@@ -70,7 +72,7 @@ public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSuppl
     }
 
     protected void writeTo(BytesStreamOutput output, LocalSupplier instance, TransportVersion version) throws IOException {
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS.isCompatible(version)) {
             new PlanStreamOutput(output, null).writeNamedWriteable(instance);
         } else {
             instance.writeTo(new PlanStreamOutput(output, null));
@@ -78,7 +80,7 @@ public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSuppl
     }
 
     protected LocalSupplier readFrom(StreamInput input, TransportVersion version) throws IOException {
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS.isCompatible(version)) {
             return new PlanStreamInput(input, getNamedWriteableRegistry(), null).readNamedWriteable(LocalSupplier.class);
         } else {
             return LocalSourceExec.readLegacyLocalSupplierFrom(new PlanStreamInput(input, getNamedWriteableRegistry(), null));

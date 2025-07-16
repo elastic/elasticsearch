@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.custom.response;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE;
 
 public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
@@ -79,7 +79,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
 
     public TextEmbeddingResponseParser(StreamInput in) throws IOException {
         this.textEmbeddingsPath = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.isCompatible(in.getTransportVersion())) {
             this.embeddingType = in.readEnum(CustomServiceEmbeddingType.class);
         } else {
             this.embeddingType = CustomServiceEmbeddingType.FLOAT;
@@ -89,7 +89,7 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(textEmbeddingsPath);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.isCompatible(out.getTransportVersion())) {
             out.writeEnum(embeddingType);
         }
     }

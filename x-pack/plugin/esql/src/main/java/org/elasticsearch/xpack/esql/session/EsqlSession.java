@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -130,6 +130,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSub
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
+
+    public static final TransportVersionSet LOOKUP_JOIN_CCS = TransportVersionSet.get("lookup-join-ccs");
 
     /**
      * Interface for running the underlying plan.
@@ -642,7 +644,7 @@ public class EsqlSession {
             if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 // No need to check local, obviously
                 var connection = remoteClusterService.getConnection(clusterAlias);
-                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_CCS)) {
+                if (connection != null && connection.getTransportVersion().before(LOOKUP_JOIN_CCS.local())) {
                     skipClusterOrError(
                         clusterAlias,
                         executionInfo,

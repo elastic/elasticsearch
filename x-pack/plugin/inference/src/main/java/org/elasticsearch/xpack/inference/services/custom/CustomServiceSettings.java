@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -65,6 +66,16 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
+
+    public static final TransportVersionSet ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = TransportVersionSet.get(
+        "ml-inference-custom-service-input-type"
+    );
+    public static final TransportVersionSet ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = TransportVersionSet.get(
+        "ml-inference-custom-service-embedding-type"
+    );
+    public static final TransportVersionSet ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = TransportVersionSet.get(
+        "ml-inference-custom-service-embedding-batch-size"
+    );
 
     public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         ValidationException validationException = new ValidationException();
@@ -169,7 +180,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             this.dimensions = in.readOptionalVInt();
             this.maxInputTokens = in.readOptionalVInt();
 
-            if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+            if (in.getTransportVersion().before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.local())) {
                 in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class);
             }
         }
@@ -180,7 +191,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
 
-            if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
+            if (out.getTransportVersion().before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE.local())) {
                 out.writeOptionalEnum(null);
             }
         }
@@ -285,15 +296,13 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             in.readString();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isCompatible(in.getTransportVersion())) {
             batchSize = in.readVInt();
         } else {
             batchSize = DEFAULT_EMBEDDING_BATCH_SIZE;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE.isCompatible(in.getTransportVersion())) {
             inputTypeTranslator = new InputTypeTranslator(in);
         } else {
             inputTypeTranslator = InputTypeTranslator.EMPTY_TRANSLATOR;
@@ -444,13 +453,11 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             out.writeString("");
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE.isCompatible(out.getTransportVersion())) {
             out.writeVInt(batchSize);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
+        if (ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE.isCompatible(out.getTransportVersion())) {
             inputTypeTranslator.writeTo(out);
         }
     }

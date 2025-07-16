@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,9 +24,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES;
-import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES_8_19;
-import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES_9_1;
 
 public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToIteratorOperator.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -33,6 +31,8 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+
+    public static final TransportVersionSet ESQL_SPLIT_ON_BIG_VALUES = TransportVersionSet.get("esql-split-on-big-values");
 
     private final Map<String, Integer> readersBuilt;
     private final long valuesLoaded;
@@ -103,9 +103,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     }
 
     private static boolean supportsSplitOnBigValues(TransportVersion version) {
-        return version.onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)
-            || version.isPatchFrom(ESQL_SPLIT_ON_BIG_VALUES_9_1)
-            || version.isPatchFrom(ESQL_SPLIT_ON_BIG_VALUES_8_19);
+        return ESQL_SPLIT_ON_BIG_VALUES.isCompatible(version);
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {

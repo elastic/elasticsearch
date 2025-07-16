@@ -55,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -76,12 +77,17 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public abstract class StreamInput extends InputStream {
 
-    private TransportVersion version = TransportVersion.current();
+    // We set this to null to ensure TransportVersion.<clinit> is not
+    // executed prior to logging initialization.
+    private TransportVersion version = null;
 
     /**
      * The transport version the data is serialized as.
      */
     public TransportVersion getTransportVersion() {
+        if (this.version == null) {
+            version = TransportVersion.current();
+        }
         return this.version;
     }
 
@@ -89,7 +95,7 @@ public abstract class StreamInput extends InputStream {
      * Set the transport version of the data in this stream.
      */
     public void setTransportVersion(TransportVersion version) {
-        this.version = version;
+        this.version = Objects.requireNonNull(version);
     }
 
     /**

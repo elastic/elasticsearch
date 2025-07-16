@@ -11,6 +11,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
@@ -60,8 +61,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     private static final boolean DEFAULT_PRUNE = false;
 
-    static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19;
-    static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS;
+    public static final TransportVersionSet SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersionSet.get(
+        "sparse-vector-field-pruning-options"
+    );
 
     private final String fieldName;
     private final List<WeightedToken> queryVectors;
@@ -129,8 +131,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         super(in);
         this.fieldName = in.readString();
 
-        if (in.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (SPARSE_VECTOR_FIELD_PRUNING_OPTIONS.isCompatible(in.getTransportVersion())) {
             this.shouldPruneTokens = in.readOptionalBoolean();
         } else {
             this.shouldPruneTokens = in.readBoolean();
@@ -185,8 +186,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         out.writeString(fieldName);
 
-        if (out.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (SPARSE_VECTOR_FIELD_PRUNING_OPTIONS.isCompatible(out.getTransportVersion())) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
             out.writeBoolean(shouldPruneTokens);

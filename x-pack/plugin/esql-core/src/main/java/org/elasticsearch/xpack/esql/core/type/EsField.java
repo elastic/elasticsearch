@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +26,10 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  * Information about a field in an ES index.
  */
 public class EsField implements Writeable {
+
+    public static final TransportVersionSet ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = TransportVersionSet.get(
+        "esql-serialize-timeseries-field-type"
+    );
 
     /**
      * Fields in a TSDB can be either dimensions or metrics.  This enum provides a way to store, serialize, and operate on those field
@@ -169,13 +174,13 @@ public class EsField implements Writeable {
     }
 
     protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+        if (ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE.isCompatible(out.getTransportVersion())) {
             this.timeSeriesFieldType.writeTo(out);
         }
     }
 
     protected static TimeSeriesFieldType readTimeSeriesFieldType(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+        if (ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE.isCompatible(in.getTransportVersion())) {
             return TimeSeriesFieldType.readFromStream(in);
         } else {
             return TimeSeriesFieldType.UNKNOWN;

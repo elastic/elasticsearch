@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersionSet;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,6 +47,10 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
      * For the Lite plan, the limit is 120 requests per minute.
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
+
+    public static final TransportVersionSet ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = TransportVersionSet.get(
+        "ml-inference-ibm-watsonx-completion-added"
+    );
 
     public static IbmWatsonxChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -160,7 +164,7 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED;
+        return ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED.local();
     }
 
     @Override

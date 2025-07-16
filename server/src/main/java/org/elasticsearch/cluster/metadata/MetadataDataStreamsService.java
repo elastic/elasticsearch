@@ -499,7 +499,7 @@ public class MetadataDataStreamsService {
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
         MetadataIndexTemplateService.validateTemplate(
             mergedEffectiveSettings,
-            dataStream.getEffectiveMappings(projectMetadata),
+            dataStream.getEffectiveMappings(projectMetadata, indicesService),
             indicesService
         );
 
@@ -517,12 +517,14 @@ public class MetadataDataStreamsService {
         DataStream dataStream = dataStreamMap.get(dataStreamName);
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
-        ComposableIndexTemplate mergedTemplate = template.mergeMappings(mappingsOverrides);
-        MetadataIndexTemplateService.validateTemplate(
-            dataStream.getEffectiveSettings(projectMetadata),
-            mergedTemplate.template().mappings(),
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            template,
+            mappingsOverrides,
+            dataStream.getWriteIndex(),
             indicesService
         );
+        MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }
 

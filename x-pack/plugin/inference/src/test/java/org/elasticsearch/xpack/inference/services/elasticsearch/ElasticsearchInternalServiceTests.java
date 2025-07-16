@@ -108,10 +108,12 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -1767,7 +1769,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             modelsByDeploymentId.forEach((deploymentId, models) -> {
                 var expectedNumberOfAllocations = updatedNumberOfAllocations.get(deploymentId);
                 models.forEach(model -> {
-                    verify((ElasticsearchInternalModel) model).updateNumAllocations(expectedNumberOfAllocations);
+                    verify((ElasticsearchInternalModel) model).updateServiceSettings(assertArg(assignmentStats -> {
+                        assertThat(assignmentStats.getNumberOfAllocations(), equalTo(expectedNumberOfAllocations));
+                    }));
                     verify((ElasticsearchInternalModel) model).mlNodeDeploymentId();
                     verifyNoMoreInteractions(model);
                 });
@@ -1858,7 +1862,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var latch = new CountDownLatch(1);
             service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
             assertTrue(latch.await(30, TimeUnit.SECONDS));
-            verify(model).updateNumAllocations(3);
+            verify(model).updateServiceSettings(
+                assertArg(assignmentStats -> { assertThat(assignmentStats.getNumberOfAllocations(), equalTo(3)); })
+            );
         }
     }
 

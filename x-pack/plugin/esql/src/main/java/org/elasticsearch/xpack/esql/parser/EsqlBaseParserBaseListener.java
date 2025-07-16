@@ -637,6 +637,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) { }
   /**
    * {@inheritDoc}
@@ -968,6 +980,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

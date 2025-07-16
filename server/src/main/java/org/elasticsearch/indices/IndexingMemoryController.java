@@ -499,7 +499,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     totalBytesUsed -= shardAndBytesUsed.bytesUsed;
                     lastShardId = shardAndBytesUsed.shard.shardId();
                     if (doThrottle && throttled.contains(shardAndBytesUsed.shard) == false) {
-                        logger.debug(
+                        logger.info(
                             "now throttling indexing for shard [{}]: segment writing can't keep up",
                             shardAndBytesUsed.shard.shardId()
                         );

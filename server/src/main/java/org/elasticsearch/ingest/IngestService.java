@@ -74,11 +74,12 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1339,14 +1340,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Builds a new ingest document from the passed-in index request.
      */
     private static IngestDocument newIngestDocument(final IndexRequest request) {
-        return new IngestDocument(
-            request.index(),
-            request.id(),
-            request.version(),
-            request.routing(),
-            request.versionType(),
-            new MapStructuredSource(request.sourceAsMap(XContentParserDecorator.NOOP))
-        );
+        ESONSource.Builder builder = new ESONSource.Builder(false);
+        try {
+            XContentParser parser = XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                request.source(),
+                request.getContentType()
+            );
+            ESONSource.ESONObject esonObject = builder.parse(parser);
+            return new IngestDocument(
+                request.index(),
+                request.id(),
+                request.version(),
+                request.routing(),
+                request.versionType(),
+                new MapStructuredSource(esonObject)
+            );
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to type", e);
+        }
     }
 
     /**

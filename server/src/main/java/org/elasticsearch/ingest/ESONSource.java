@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -18,8 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.util.AbstractCollection;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -36,7 +35,6 @@ public class ESONSource {
     public static class Builder {
 
         private final RecyclerBytesStreamOutput bytes;
-        // TODO: Implement ordered
         private final boolean ordered;
 
         public Builder(boolean ordered) {
@@ -54,7 +52,7 @@ public class ESONSource {
                 throw new IllegalArgumentException("Expected START_OBJECT but got " + token);
             }
 
-            // Create a deferred Values supplier that will be populated after parsing
+            // Create a deferred Values supplier and modifications tracker
             DeferredValuesSupplier deferredSupplier = new DeferredValuesSupplier();
 
             ESONObject rootObject = parseObject(parser, bytes, deferredSupplier);
@@ -67,7 +65,6 @@ public class ESONSource {
             return rootObject;
         }
 
-        // Parse directly into final structures using deferred Values
         private static ESONObject parseObject(XContentParser parser, RecyclerBytesStreamOutput bytes, Supplier<Values> valuesSupplier)
             throws IOException {
             Map<String, Type> map = new HashMap<>();
@@ -182,7 +179,7 @@ public class ESONSource {
             }
         }
 
-        private static void writeByteArray(RecyclerBytesStreamOutput bytes, byte[] value, int offset, int length) throws IOException {
+        private static void writeByteArray(RecyclerBytesStreamOutput bytes, byte[] value, int offset, int length) {
             bytes.writeBytes(value, offset, length);
         }
 
@@ -209,14 +206,25 @@ public class ESONSource {
         }
     }
 
-    private final ESONObject rootObject;
+    // Tracks modifications to handle writes
+    private static class ModificationTracker<T> {
+        private final Map<T, Object> modifications = new HashMap<>(0);
 
-    private ESONSource(ESONObject rootObject) {
-        this.rootObject = rootObject;
-    }
+        void putModification(T key, Object value) {
+            modifications.put(key, value);
+        }
 
-    public ESONObject root() {
-        return rootObject;
+        void remove(T key) {
+            modifications.remove(key);
+        }
+
+        Object getModification(T key) {
+            return modifications.get(key);
+        }
+
+        boolean hasModification(T key) {
+            return modifications.containsKey(key);
+        }
     }
 
     public enum ValueType {
@@ -231,9 +239,16 @@ public class ESONSource {
 
     public interface Type {}
 
-    public record ESONObject(Map<String, Type> map, Supplier<Values> objectValues) implements Type, Map<String, Object>, ToXContent {
+    public record ESONObject(Map<String, Type> map, Supplier<Values> objectValues, ModificationTracker<String> modificationTracker)
+        implements
+            Type,
+            Map<String, Object>,
+            ToXContent {
 
-        // Map interface implementation
+        private ESONObject(Map<String, Type> map, Supplier<Values> objectValues) {
+            this(map, objectValues, new ModificationTracker<>());
+        }
+
         @Override
         public int size() {
             return map.size();
@@ -256,31 +271,45 @@ public class ESONSource {
 
         @Override
         public Object get(Object key) {
+            // Check for modifications first
+            if (key instanceof String strKey && modificationTracker.hasModification(strKey)) {
+                return modificationTracker.getModification(strKey);
+            }
+
             Type type = map.get(key);
             if (type == null) {
                 return null;
             }
-            return convertTypeToValue(type, objectValues);
+            return convertTypeToValue(type);
         }
 
         @Override
         public Object put(String key, Object value) {
-            throw new UnsupportedOperationException("ESONObject is read-only");
+            Object oldValue = get(key);
+            modificationTracker.putModification(key, value);
+            return oldValue;
         }
 
         @Override
         public Object remove(Object key) {
-            throw new UnsupportedOperationException("ESONObject is read-only");
+            String stringKey = (String) key;
+            Object oldValue = get(key);
+            modificationTracker.putModification(stringKey, null);
+            return oldValue;
         }
 
         @Override
         public void putAll(Map<? extends String, ?> m) {
-            throw new UnsupportedOperationException("ESONObject is read-only");
+            for (Entry<? extends String, ?> entry : m.entrySet()) {
+                put(entry.getKey(), entry.getValue());
+            }
         }
 
         @Override
         public void clear() {
-            throw new UnsupportedOperationException("ESONObject is read-only");
+            for (String key : map.keySet()) {
+                modificationTracker.putModification(key, null);
+            }
         }
 
         @Override
@@ -294,16 +323,16 @@ public class ESONSource {
                 @Override
                 public Iterator<Object> iterator() {
                     return new Iterator<>() {
-                        private final Iterator<Type> typeIterator = map.values().iterator();
+                        private final Iterator<String> keyIterator = map.keySet().iterator();
 
                         @Override
                         public boolean hasNext() {
-                            return typeIterator.hasNext();
+                            return keyIterator.hasNext();
                         }
 
                         @Override
                         public Object next() {
-                            return convertTypeToValue(typeIterator.next(), objectValues);
+                            return get(keyIterator.next());
                         }
                     };
                 }
@@ -358,7 +387,7 @@ public class ESONSource {
             @Override
             public Object getValue() {
                 if (valueComputed == false) {
-                    cachedValue = convertTypeToValue(type, objectValues);
+                    cachedValue = ESONObject.this.get(key); // Use the object's get method to handle modifications
                     valueComputed = true;
                 }
                 return cachedValue;
@@ -366,7 +395,7 @@ public class ESONSource {
 
             @Override
             public Object setValue(Object value) {
-                throw new UnsupportedOperationException("ESONObject is read-only");
+                return ESONObject.this.put(key, value);
             }
 
             @Override
@@ -384,23 +413,32 @@ public class ESONSource {
             }
         }
 
-        public boolean containsKey(String key) {
-            return map.containsKey(key);
+        private Object convertTypeToValue(Type type) {
+            if (type == null) {
+                return null;
+            }
+            return switch (type) {
+                case ESONObject obj -> obj;
+                case ESONArray arr -> arr;
+                case FixedValue val -> val.getValue(objectValues.get());
+                case VariableValue val -> val.getValue(objectValues.get());
+                default -> throw new IllegalStateException("Unknown type: " + type);
+            };
         }
 
-    }
-
-    private static Object convertTypeToValue(Type type, Supplier<Values> values) {
-        if (type == null) {
-            return null;
-        } else {
-            return switch (type) {
-                case ESONObject o -> o;
-                case ESONArray a -> a;
-                case FixedValue v -> v.getValue(values.get());
-                case VariableValue v -> v.getValue(values.get());
-                default -> throw new IllegalArgumentException("Unknown type: " + type);
+        private boolean canModifyInPlace(FixedValue fixedValue, Object newValue) {
+            return switch (fixedValue.valueType()) {
+                case INT -> newValue instanceof Integer;
+                case LONG -> newValue instanceof Long;
+                case FLOAT -> newValue instanceof Float;
+                case DOUBLE -> newValue instanceof Double;
+                case BOOLEAN -> newValue instanceof Boolean;
+                default -> false;
             };
+        }
+
+        public boolean containsKey(String key) {
+            return map.containsKey(key);
         }
     }
 
@@ -408,16 +446,33 @@ public class ESONSource {
 
         private final List<Type> elements;
         private final Supplier<Values> arrayValues;
+        private final ModificationTracker<Integer> modificationTracker;
 
         public ESONArray(List<Type> elements, Supplier<Values> arrayValues) {
             this.elements = elements;
             this.arrayValues = arrayValues;
+            this.modificationTracker = new ModificationTracker<>();
         }
 
         @Override
         public Object get(int index) {
+            // Check for modifications first
+            if (modificationTracker.hasModification(index)) {
+                return modificationTracker.getModification(index);
+            }
+
             Type type = elements.get(index);
-            return convertTypeToValue(type, arrayValues);
+            if (type == null) {
+                return null;
+            }
+            return convertTypeToValue(type);
+        }
+
+        @Override
+        public Object set(int index, Object element) {
+            Object oldValue = get(index);
+            modificationTracker.putModification(index, element);
+            return oldValue;
         }
 
         @Override
@@ -425,17 +480,35 @@ public class ESONSource {
             return elements.size();
         }
 
+        private Object convertTypeToValue(Type type) {
+            return switch (type) {
+                case ESONObject o -> o;
+                case ESONArray a -> a;
+                case FixedValue v -> v.getValue(arrayValues.get());
+                case VariableValue v -> v.getValue(arrayValues.get());
+                default -> throw new IllegalArgumentException("Unknown type: " + type);
+            };
+        }
+
+        private boolean canModifyInPlace(FixedValue fixedValue, Object newValue) {
+            return switch (fixedValue.valueType()) {
+                case INT -> newValue instanceof Integer;
+                case LONG -> newValue instanceof Long;
+                case FLOAT -> newValue instanceof Float;
+                case DOUBLE -> newValue instanceof Double;
+                case BOOLEAN -> newValue instanceof Boolean;
+                default -> false;
+            };
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startArray();
-
-            for (Type type : elements) {
-                switch (type) {
-                    case ESONObject o -> o.toXContent(builder, params);
-                    case ESONArray a -> a.toXContent(builder, params);
-                    case FixedValue v -> v.writeToXContent(builder, arrayValues.get());
-                    case VariableValue v -> v.writeToXContent(builder, arrayValues.get());
-                    default -> throw new IllegalArgumentException("Unknown type: " + type);
+            for (Object element : this) {
+                if (element instanceof ToXContent toXContent) {
+                    toXContent.toXContent(builder, params);
+                } else {
+                    builder.value(element);
                 }
             }
             return builder.endArray();
@@ -476,7 +549,7 @@ public class ESONSource {
             if (values.data().hasArray()) {
                 BytesRef bytesRef = values.data().toBytesRef();
                 bytes = bytesRef.bytes;
-                offset = bytesRef.offset;
+                offset = bytesRef.offset + position;
             } else {
                 bytes = values.readByteArray(position, length);
                 offset = 0;

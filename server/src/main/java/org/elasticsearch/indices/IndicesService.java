@@ -520,37 +520,11 @@ public class IndicesService extends AbstractLifecycleComponent
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
         IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
-        boolean hasQueryCache = queryCache != null;
-        // First pass: gather all shards, cache sizes, and compute totals
-        long totalSize = 0L;
-        int shardCount = 0;
-        boolean anyNonZero = false;
-        // First pass: compute totals only
-        for (final IndexService indexService : indicesService) {
-            for (final IndexShard indexShard : indexService) {
-                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
-                shardCount++;
-                if (cacheSize > 0L) {
-                    anyNonZero = true;
-                    totalSize += cacheSize;
-                }
-            }
-        }
-        long sharedRamBytesUsed = hasQueryCache ? queryCache.getSharedRamBytesUsed() : 0L;
+        IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-        // Second pass: build stats, compute shared RAM on the fly
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
-                ShardId shardId = indexShard.shardId();
-                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(shardId) : 0L;
-                long sharedRam = 0L;
-                if (sharedRamBytesUsed != 0L) {
-                    if (anyNonZero == false) {
-                        sharedRam = Math.round((double) sharedRamBytesUsed / shardCount);
-                    } else if (totalSize != 0) {
-                        sharedRam = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
-                    }
-                }
+                long sharedRam = IndicesQueryCache.getSharedRamSize(queryCache, indexShard, cacheTotals);
                 try {
                     final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
                     if (indexShardStats == null) {
@@ -562,7 +536,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         statsByShard.get(indexService.index()).add(indexShardStats);
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
-                    logger.trace(() -> format("%s ignoring shard stats", shardId), e);
+                    logger.trace(() -> format("%s ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }

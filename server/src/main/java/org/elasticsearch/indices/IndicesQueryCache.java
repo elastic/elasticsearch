@@ -26,7 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
@@ -117,6 +119,46 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         // the shards they belong to
         return new CachingWeightWrapper(in);
     }
+
+    public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
+        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+        boolean hasQueryCache = queryCache != null;
+        long totalSize = 0L;
+        int shardCount = 0;
+        boolean anyNonZero = false;
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
+                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+                shardCount++;
+                if (cacheSize > 0L) {
+                    anyNonZero = true;
+                    totalSize += cacheSize;
+                }
+            }
+        }
+        long sharedRamBytesUsed = hasQueryCache ? queryCache.getSharedRamBytesUsed() : 0L;
+        return new CacheTotals(totalSize, shardCount, anyNonZero, sharedRamBytesUsed);
+    }
+
+    public static long getSharedRamSize(IndicesQueryCache queryCache, IndexShard indexShard, CacheTotals cacheTotals) {
+        long sharedRamBytesUsed = cacheTotals.sharedRamBytesUsed();
+        long totalSize = cacheTotals.totalSize();
+        boolean anyNonZero = cacheTotals.anyNonZero();
+        int shardCount = cacheTotals.shardCount();
+        ShardId shardId = indexShard.shardId();
+        long cacheSize = queryCache != null ? queryCache.getCacheSizeForShard(shardId) : 0L;
+        long sharedRam = 0L;
+        if (sharedRamBytesUsed != 0L) {
+            if (anyNonZero == false) {
+                sharedRam = Math.round((double) sharedRamBytesUsed / shardCount);
+            } else if (totalSize != 0) {
+                sharedRam = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+            }
+        }
+        return sharedRam;
+    }
+
+    public record CacheTotals(long totalSize, int shardCount, boolean anyNonZero, long sharedRamBytesUsed) {}
 
     private class CachingWeightWrapper extends Weight {
 

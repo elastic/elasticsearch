@@ -448,6 +448,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
   method: testDifferentDimensions {functionName=v_cosine similarityFunction=COSINE}
   issue: https://github.com/elastic/elasticsearch/issues/131362
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityBetweenConstantVectorAndField {functionName=v_cosine similarityFunction=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/131363
 
 # Examples:
 #

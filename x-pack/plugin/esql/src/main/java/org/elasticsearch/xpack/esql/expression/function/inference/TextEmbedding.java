@@ -120,12 +120,6 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     }
 
     @Override
-    public boolean foldable() {
-        // The function is foldable only if both arguments are foldable
-        return inputText.foldable() && inferenceId.foldable();
-    }
-
-    @Override
     public TaskType taskType() {
         return TaskType.TEXT_EMBEDDING;
     }

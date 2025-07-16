@@ -127,6 +127,14 @@ Top function with invalid sort order:
 ---
 
 SAMPLE function with constant folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ sample_v3 ]
+      reason: "Uses SAMPLE function"
   - do:
       esql.query:
         body:
@@ -142,6 +150,14 @@ SAMPLE function with constant folding:
 ---
 
 SAMPLE function with negative limit value after folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ sample_v3 ]
+      reason: "Uses SAMPLE function"
   - do:
       catch: bad_request
       esql.query:
@@ -189,11 +205,22 @@ MATCH function with non-foldable query:
             | WHERE MATCH(salary, salary + 10000 )
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [MATCH(salary, salary + 10000 )], found [salary + 10000]" }
+    #We only check that the problematic string is there, because the error message is slightly different in old versions
+    #"Query must be a valid string in [MATCH(salary, salary + 10000 )], found [salary + 10000]"
+    #second argument of [MATCH(salary, salary + 10000 )] must be a constant, received [salary + 10000]
+  - contains: { error.reason: "[MATCH(salary, salary + 10000 )]" }
 
 ---
 
 Foldable query using MATCH_PHRASE on name:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ match_phrase_function ]
+      reason: "Uses MATCH_PHRASE function"
   - do:
       esql.query:
         body:
@@ -217,6 +244,14 @@ Foldable query using MATCH_PHRASE on name:
 ---
 
 Foldable query using MATCH_PHRASE on name but with non-foldable expression:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ match_phrase_function ]
+      reason: "Uses MATCH_PHRASE function"
   - do:
       catch: bad_request
       esql.query:
@@ -232,6 +267,14 @@ Foldable query using MATCH_PHRASE on name but with non-foldable expression:
 ---
 
 Foldable query using MATCH_PHRASE on name but with non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ match_phrase_function ]
+      reason: "Uses MATCH_PHRASE function"
   - do:
       catch: bad_request
       esql.query:
@@ -373,7 +416,10 @@ Foldable query using KQL on name but with non-foldable expression:
             | KEEP hire_date, salary, salary_change, salary_change_long, name
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [KQL(name)], found [name" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #Query must be a valid string in [KQL(name)], found [name
+    #argument of [KQL(name)] must be a constant, received [name]
+  - contains: { error.reason: "[KQL(name)]" }
 
 ---
 

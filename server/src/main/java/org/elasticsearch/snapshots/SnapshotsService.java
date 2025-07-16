@@ -208,7 +208,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
 
-    private SnapshotStats snapshotStats;
+    private CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -4477,16 +4477,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         return recalculateIfStale(currentState).snapshotStateMetrics();
     }
 
-    private SnapshotStats recalculateIfStale(ClusterState currentState) {
-        if (snapshotStats == null
-            || (Objects.equals(snapshotStats.clusterStateId(), currentState.stateUUID()) == false
-                && System.identityHashCode(SnapshotsInProgress.get(currentState)) != snapshotStats.snapshotsInProgressIdentityHashcode())) {
-            snapshotStats = recalculateSnapshotStats(currentState);
+    private CachedSnapshotStateMetrics recalculateIfStale(ClusterState currentState) {
+        if (cachedSnapshotStateMetrics == null || cachedSnapshotStateMetrics.isStale(currentState)) {
+            cachedSnapshotStateMetrics = recalculateSnapshotStats(currentState);
         }
-        return snapshotStats;
+        return cachedSnapshotStateMetrics;
     }
 
-    private SnapshotStats recalculateSnapshotStats(ClusterState currentState) {
+    private CachedSnapshotStateMetrics recalculateSnapshotStats(ClusterState currentState) {
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
         final List<LongWithAttributes> snapshotStateMetrics = new ArrayList<>();
         final List<LongWithAttributes> shardStateMetrics = new ArrayList<>();
@@ -4513,12 +4511,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             }
         });
-        return new SnapshotStats(
-            currentState.stateUUID(),
-            System.identityHashCode(snapshotsInProgress),
-            snapshotStateMetrics,
-            shardStateMetrics
-        );
+        return new CachedSnapshotStateMetrics(currentState, snapshotStateMetrics, shardStateMetrics);
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
@@ -4556,10 +4549,34 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * A cached copy of the snapshot and shard state metrics
      */
-    private record SnapshotStats(
+    private record CachedSnapshotStateMetrics(
         String clusterStateId,
         int snapshotsInProgressIdentityHashcode,
         Collection<LongWithAttributes> snapshotStateMetrics,
         Collection<LongWithAttributes> shardStateMetrics
-    ) {}
+    ) {
+        CachedSnapshotStateMetrics(
+            ClusterState sourceState,
+            Collection<LongWithAttributes> snapshotStateMetrics,
+            Collection<LongWithAttributes> shardStateMetrics
+        ) {
+            this(
+                sourceState.stateUUID(),
+                System.identityHashCode(SnapshotsInProgress.get(sourceState)),
+                snapshotStateMetrics,
+                shardStateMetrics
+            );
+        }
+
+        /**
+         * Are these metrics stale?
+         *
+         * @param currentClusterState The current cluster state
+         * @return true if these metrics were calculated from a prior cluster state and need to be recalculated, false otherwise
+         */
+        public boolean isStale(ClusterState currentClusterState) {
+            return (Objects.equals(clusterStateId, currentClusterState.stateUUID()) == false
+                && System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode);
+        }
+    }
 }

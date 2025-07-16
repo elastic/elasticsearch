@@ -20,7 +20,6 @@ import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,7 +51,7 @@ public class TestPolicyManager extends PolicyManager {
         Collection<Path> classpath,
         Collection<URI> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup, Collections.emptySet());
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
         reset();
@@ -87,13 +86,6 @@ public class TestPolicyManager extends PolicyManager {
     }
 
     @Override
-    void notEntitled(String message, Class<?> requestingClass, ModuleEntitlements entitlements) {
-        // ignore if a class on the stack is annotated with WithoutEntitlements
-        if (hasEntitlementsDisabledForStack()) return;
-        super.notEntitled(message, requestingClass, entitlements);
-    }
-
-    @Override
     protected boolean isTrustedSystemClass(Class<?> requestingClass) {
         ClassLoader loader = requestingClass.getClassLoader();
         return loader == null || loader == ClassLoader.getPlatformClassLoader();
@@ -125,7 +117,11 @@ public class TestPolicyManager extends PolicyManager {
         if (isTriviallyAllowingTestCode && isTestCode(requestingClass)) {
             return true;
         }
-        return super.isTriviallyAllowed(requestingClass);
+        if (super.isTriviallyAllowed(requestingClass)) {
+            return true;
+        }
+        ;
+        return isStackWithoutEntitlements();
     }
 
     @Override
@@ -137,7 +133,7 @@ public class TestPolicyManager extends PolicyManager {
         return clazz.getAnnotation(ESTestCase.WithoutEntitlements.class) != null;
     }
 
-    private static boolean hasEntitlementsDisabledForStack() {
+    private static boolean isStackWithoutEntitlements() {
         return StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
             .walk(
                 frames -> frames.map(StackWalker.StackFrame::getDeclaringClass)

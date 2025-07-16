@@ -84,9 +84,9 @@ The workflow for these updates is as follows:
 
 After creating an index to be managed by a connector, you can configure automatic, recurring syncs.
 
-In the {{kib}} UI, navigate to **Search > Content > Connectors** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 
-Choose the index to configure, and then choose the **Scheduling** tab.
+Choose the connector and then the **Scheduling** tab.
 
 Within this interface, you can enable or disable scheduled:
 
@@ -107,9 +107,9 @@ After you enable recurring syncs or sync once, the first sync will begin. (There
 
 After creating the index to be managed by a connector, you can request a single sync at any time.
 
-In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 
-Then choose the index to sync.
+Then choose the connector to sync.
 
 Regardless of which tab is active, the **Sync** button is always visible in the top right. Choose this button to reveal sync options:
 
@@ -117,7 +117,7 @@ Regardless of which tab is active, the **Sync** button is always visible in the 
 2. Incremental content (if supported)
 3. Access control (if supported)
 
-Choose one of the options to request a sync. (There may be a short delay before the connector service begins the sync.)
+Choose one of the options to request a sync. There may be a short delay before the connector service begins the sync.
 
 This operation requires access to Kibana and the `write` [indices privilege^](/reference/elasticsearch/security-privileges.md) for the `.elastic-connectors` index.
 
@@ -126,9 +126,9 @@ This operation requires access to Kibana and the `write` [indices privilege^](/r
 
 After a sync has started, you can cancel the sync before it completes.
 
-In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 
-Then choose the index with the running sync.
+Then choose the connector with the running sync.
 
 Regardless of which tab is active, the **Sync** button is always visible in the top right. Choose this button to reveal sync options, and choose **Cancel Syncs** to cancel active syncs. This will cancel the running job, and marks all *pending* and *suspended* jobs as canceled as well. (There may be a short delay before the connector service cancels the syncs.)
 
@@ -139,9 +139,9 @@ This operation requires access to Kibana and the `write` [indices privilege^](/r
 
 View the index details to see a variety of information that communicate the status of the index and connector.
 
-In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 
-Then choose the index to view.
+Then choose the connector to view.
 
 The **Overview** tab presents a variety of information, including:
 
@@ -150,7 +150,7 @@ The **Overview** tab presents a variety of information, including:
 * The current ingestion status (see below for possible values).
 * The current document count.
 
-Possible values of ingestion status:
+Possible values of ingestion status include:
 
 * Incomplete - A connector that is not configured yet.
 * Configured - A connector that is configured.
@@ -159,9 +159,8 @@ Possible values of ingestion status:
 * Connector failure - A connector that has not seen any update for more than 30 minutes.
 * Sync failure - A connector that failed in the last sync job.
 
-This tab also displays the recent sync history, including sync status (see below for possible values).
-
-Possible values of sync status:
+This tab also displays the recent sync history, including sync status.
+Possible values of sync status include:
 
 * Sync pending - The initial job status, the job is pending to be picked up.
 * Sync in progress - The job is running.
@@ -210,9 +209,5 @@ Then choose the index to manage and choose the **Sync rules** tab.
 
 Use [ingest pipelines](docs-content://solutions/search/ingest-for-search.md) to transform fetched data before it is stored in Elastic.
 
-<!--
-TBD: Use {{ingest-pipelines-app}}?
-In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
- Then choose the index to manage and choose the **Pipelines** tab.
--->
-
+In the {{kib}} UI, navigate to **{{es}} > Content > {{connectors-app}}** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+Then choose the connector and view its **Pipelines** tab.

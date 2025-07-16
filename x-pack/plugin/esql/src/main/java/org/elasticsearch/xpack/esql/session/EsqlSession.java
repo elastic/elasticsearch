@@ -614,7 +614,7 @@ public class EsqlSession {
         Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
             configuredClusters,
             IndicesOptions.DEFAULT,
-            indices.getFirst().indexPattern()
+            String.join(",", PlannerUtils.expressions(indices.getFirst().indexPattern()))
         );
         for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
             final String clusterAlias = entry.getKey();

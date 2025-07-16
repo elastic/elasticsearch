@@ -513,6 +513,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final IndexSortConfig indexSortConfig;
         private final boolean hasDocValuesSkipper;
+        private final String originalName;
 
         public KeywordFieldType(
             String name,
@@ -541,6 +542,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexMode = builder.indexMode;
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
+            this.originalName = isSyntheticSource ? name + "._original" : null;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
@@ -555,6 +557,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexMode = IndexMode.STANDARD;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
+            this.originalName = null;
         }
 
         public KeywordFieldType(String name) {
@@ -580,6 +583,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexMode = IndexMode.STANDARD;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
+            this.originalName = null;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -594,6 +598,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexMode = IndexMode.STANDARD;
             this.indexSortConfig = null;
             this.hasDocValuesSkipper = false;
+            this.originalName = null;
         }
 
         @Override
@@ -1057,6 +1062,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         ) {
             return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
         }
+
+        /**
+         * The name used to store "original" that have been ignored
+         * by {@link KeywordFieldType#ignoreAbove()} so that they can be rebuilt
+         * for synthetic source.
+         */
+        public String originalName() {
+            return originalName;
+        }
     }
 
     private final boolean indexed;
@@ -1109,7 +1123,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.useDocValuesSkipper = useDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
-        this.originalName = isSyntheticSource ? fullPath() + "._original" : null;
+        this.originalName = mappedFieldType.originalName();
     }
 
     @Override
@@ -1169,7 +1183,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Save a copy of the field so synthetic source can load it
                 var utfBytes = value.bytes();
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-                context.doc().add(new StoredField(originalName(), bytesRef));
+                context.doc().add(new StoredField(originalName, bytesRef));
             }
             return false;
         }
@@ -1280,15 +1294,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return normalizerName != null;
     }
 
-    /**
-     * The name used to store "original" that have been ignored
-     * by {@link KeywordFieldType#ignoreAbove()} so that they can be rebuilt
-     * for synthetic source.
-     */
-    private String originalName() {
-        return originalName;
-    }
-
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasNormalizer()) {
@@ -1337,7 +1342,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().ignoreAbove != Integer.MAX_VALUE) {
-            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {
                     BytesRef ref = (BytesRef) value;

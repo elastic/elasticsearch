@@ -90,7 +90,7 @@ GET _cluster/settings?filter_path=*.esql.querylog.*
 
 You can use the `esql.querylog.include.user` setting to append `user.*` and `auth.type` fields to slow log entries. These fields contain information about the user who triggered the request.
 
-The following snippet adjusts all available ES|QL query log settings [update cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings):
+The following snippet adjusts all available {{esql}} query log settings [update cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings):
 
 ```console
 PUT /_cluster/settings

@@ -14,7 +14,6 @@ import junit.framework.AssertionFailedError;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;

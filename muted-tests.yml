@@ -434,9 +434,6 @@ tests:
   method: testMatchInsideEval
   issue: https://github.com/elastic/elasticsearch/issues/131336
 - class: org.elasticsearch.packaging.test.DockerTests
-  method: test022InstallPluginsFromLocalArchive
-  issue: https://github.com/elastic/elasticsearch/issues/116866
-- class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
 - class: org.elasticsearch.packaging.test.DockerTests

@@ -105,7 +105,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -614,13 +613,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
                 shardStats.add(successfulShardStats);
 
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, any())).thenReturn(
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, 0L)).thenReturn(
                     successfulShardStats
                 );
             } else {
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, any())).thenThrow(
-                    expectedException
-                );
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, 0L)).thenThrow(expectedException);
             }
         }
 

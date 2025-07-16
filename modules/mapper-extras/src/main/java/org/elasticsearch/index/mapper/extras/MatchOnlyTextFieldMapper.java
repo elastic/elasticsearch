@@ -67,7 +67,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -346,7 +345,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     if (names.length == 1) {
                         return storedFields.get(names[0]);
                     }
-                    return Arrays.stream(names).map(storedFields::get).filter(Objects::nonNull).flatMap(List::stream).toList();
+
+                    List<Object> values = new ArrayList<>();
+                    for (var name : names) {
+                        var currValues = storedFields.get(name);
+                        if (currValues != null) {
+                            values.addAll(currValues);
+                        }
+                    }
+
+                    return values;
                 };
             };
         }

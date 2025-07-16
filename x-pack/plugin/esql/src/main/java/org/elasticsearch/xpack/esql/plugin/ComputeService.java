@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -226,9 +227,10 @@ public class ComputeService {
             var computeListener = new ComputeListener(
                 transportService.getThreadPool(),
                 cancelQueryOnFailure,
-                listener.map(completionInfo -> {
+                listener.delegateFailureAndWrap((l, completionInfo) -> {
+                    failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-                    return new Result(outputAttributes, collectedPages, completionInfo, execInfo);
+                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
         ) {
@@ -246,9 +248,13 @@ public class ComputeService {
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
-                                        var status = localClusterWasInterrupted.get() || (failedShards != null && failedShards > 0)
-                                            ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                            : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                        // Set the local cluster status (including the final driver) to partial if the query was stopped
+                                        // or encountered resolution or execution failures.
+                                        var status = localClusterWasInterrupted.get()
+                                            || (failedShards != null && failedShards > 0)
+                                            || v.getFailures().isEmpty() == false
+                                                ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                                : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
                                         builder.setStatus(status);
                                     }
                                     return builder.build();
@@ -296,7 +302,7 @@ public class ComputeService {
                                         .setSuccessfulShards(r.getSuccessfulShards())
                                         .setSkippedShards(r.getSkippedShards())
                                         .setFailedShards(r.getFailedShards())
-                                        .setFailures(r.failures)
+                                        .addFailures(r.failures)
                                         .build()
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
@@ -306,7 +312,7 @@ public class ComputeService {
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                        ).setFailures(List.of(new ShardSearchFailure(e))).build()
+                                        ).addFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
                                     dataNodesListener.onResponse(DriverCompletionInfo.EMPTY);
                                 } else {
@@ -385,6 +391,47 @@ public class ComputeService {
                 });
             }
         }
+    }
+
+    /**
+     * If all of target shards excluding the skipped shards failed from the local or remote clusters, then we should fail the entire query
+     * regardless of the partial_results configuration or skip_unavailable setting. This behavior doesn't fully align with the search API,
+     * which doesn't consider the failures from the remote clusters when skip_unavailable is true.
+     */
+    static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
+        // do not fail if any final result has results
+        if (finalResults.stream().anyMatch(p -> p.getPositionCount() > 0)) {
+            return;
+        }
+        int totalFailedShards = 0;
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            final Integer successfulShards = cluster.getSuccessfulShards();
+            if (successfulShards != null && successfulShards > 0) {
+                return;
+            }
+            if (cluster.getFailedShards() != null) {
+                totalFailedShards += cluster.getFailedShards();
+            }
+        }
+        if (totalFailedShards == 0) {
+            return;
+        }
+        final var failureCollector = new FailureCollector();
+        for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
+            var failedShards = cluster.getFailedShards();
+            if (failedShards != null && failedShards > 0) {
+                assert cluster.getFailures().isEmpty() == false : "expected failures for cluster [" + cluster.getClusterAlias() + "]";
+                for (ShardSearchFailure failure : cluster.getFailures()) {
+                    if (failure.getCause() instanceof Exception e) {
+                        failureCollector.unwrapAndCollect(e);
+                    } else {
+                        assert false : "unexpected failure: " + new AssertionError(failure.getCause());
+                        failureCollector.unwrapAndCollect(failure);
+                    }
+                }
+            }
+        }
+        ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
     void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {

@@ -454,6 +454,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
   issue: https://github.com/elastic/elasticsearch/issues/131364
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test070BindMountCustomPathConfAndJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/131366
 
 # Examples:
 #

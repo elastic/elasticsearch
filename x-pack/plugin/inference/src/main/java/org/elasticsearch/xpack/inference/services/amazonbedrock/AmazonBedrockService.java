@@ -55,6 +55,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
@@ -98,11 +99,9 @@ public class AmazonBedrockService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(httpSenderFactory, serviceComponents, context);
-        this.amazonBedrockSender = amazonBedrockFactory.createSender();
+        this(httpSenderFactory, amazonBedrockFactory, serviceComponents, Objects.requireNonNull(context.clusterService()));
     }
 
-    // for testing
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
         AmazonBedrockRequestSender.Factory amazonBedrockFactory,

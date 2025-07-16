@@ -72,6 +72,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -144,19 +145,13 @@ public class ElasticInferenceService extends SenderService {
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents, context);
-        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
-            elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
-        );
-        authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+        this(
+            factory,
             serviceComponents,
+            elasticInferenceServiceSettings,
             modelRegistry,
             authorizationRequestHandler,
-            initDefaultEndpoints(elasticInferenceServiceComponents),
-            IMPLEMENTED_TASK_TYPES,
-            this,
-            getSender(),
-            elasticInferenceServiceSettings
+            Objects.requireNonNull(context.clusterService())
         );
     }
 

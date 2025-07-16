@@ -173,15 +173,16 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testStatsForHotWarmClusterWithForecasts() {
-        DiscoveryNode node1 = newNode("node-hot-1", "node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE));
-        DiscoveryNode node2 = newNode("node-hot-2", "node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE));
-        DiscoveryNode node3 = newNode("node-hot-3", "node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE));
-        DiscoveryNode node4 = newNode("node-warm-1", "node-warm-1", Set.of(DATA_WARM_NODE_ROLE));
-        DiscoveryNode node5 = newNode("node-warm-2", "node-warm-2", Set.of(DATA_WARM_NODE_ROLE));
-        DiscoveryNode node6 = newNode("node-warm-3", "node-warm-3", Set.of(DATA_WARM_NODE_ROLE));
 
         var clusterState = createClusterState(
-            List.of(node1, node2, node3, node4, node5, node6),
+            List.of(
+                newNode("node-hot-1", "node-hot-1", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-hot-2", "node-hot-2", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-hot-3", "node-hot-3", Set.of(DATA_CONTENT_NODE_ROLE, DATA_HOT_NODE_ROLE)),
+                newNode("node-warm-1", "node-warm-1", Set.of(DATA_WARM_NODE_ROLE)),
+                newNode("node-warm-2", "node-warm-2", Set.of(DATA_WARM_NODE_ROLE)),
+                newNode("node-warm-3", "node-warm-3", Set.of(DATA_WARM_NODE_ROLE))
+            ),
             List.of(
                 startedIndex("index-hot-1", 4.0, 4L, "node-hot-1", "node-hot-2", "node-hot-3"),
                 startedIndex("index-hot-2", 2.0, 6L, "node-hot-1", "node-hot-2"),

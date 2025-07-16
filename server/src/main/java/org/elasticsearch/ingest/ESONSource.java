@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.AbstractCollection;
 import java.util.AbstractList;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -315,12 +316,75 @@ public class ESONSource {
             };
         }
 
+        // TODO: test remove
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return map.entrySet()
-                .stream()
-                .map(entry -> new LazyEntry(entry.getKey(), entry.getValue()))
-                .collect(java.util.stream.Collectors.toSet());
+            return new AbstractSet<>() {
+                @Override
+                public Iterator<Entry<String, Object>> iterator() {
+                    return new Iterator<>() {
+                        private final Iterator<Map.Entry<String, Type>> mapIterator = map.entrySet().iterator();
+
+                        @Override
+                        public boolean hasNext() {
+                            return mapIterator.hasNext();
+                        }
+
+                        @Override
+                        public Entry<String, Object> next() {
+                            Map.Entry<String, Type> mapEntry = mapIterator.next();
+                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue());
+                        }
+
+                        @Override
+                        public void remove() {
+                            mapIterator.remove();
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return map.size();
+                }
+
+                @Override
+                public boolean contains(Object o) {
+                    if ((o instanceof Entry<?, ?>) == false) {
+                        return false;
+                    }
+                    Entry<?, ?> entry = (Entry<?, ?>) o;
+                    Object key = entry.getKey();
+                    if ((key instanceof String) == false) {
+                        return false;
+                    }
+                    String strKey = (String) key;
+                    Object expectedValue = entry.getValue();
+                    Object actualValue = ESONObject.this.get(strKey);
+                    return java.util.Objects.equals(expectedValue, actualValue);
+                }
+
+                @Override
+                public boolean remove(Object o) {
+                    if ((o instanceof Entry<?, ?>) == false) {
+                        return false;
+                    }
+                    Entry<?, ?> entry = (Entry<?, ?>) o;
+                    Object key = entry.getKey();
+                    if ((key instanceof String) == false) {
+                        return false;
+                    }
+                    String strKey = (String) key;
+                    Object expectedValue = entry.getValue();
+                    Object actualValue = ESONObject.this.get(strKey);
+                    if (java.util.Objects.equals(expectedValue, actualValue)) {
+                        ESONObject.this.remove(strKey);
+                        return true;
+                    }
+                    return false;
+                }
+
+            };
         }
 
         @Override

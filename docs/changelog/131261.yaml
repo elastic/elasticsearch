@@ -1,5 +1,5 @@
 pr: 131261
-summary: Enable failure store for log data streams
+summary: Enable failure store for log-*-* data streams
 area: Data streams
 type: feature
 issues:

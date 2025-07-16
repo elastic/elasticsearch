@@ -660,7 +660,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("salary", "emp_no", "last_name"));
+        assertThat(names(extract.attributesToExtract()), contains("emp_no", "last_name", "salary"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(fieldSorts(topN.order())));
@@ -2496,7 +2496,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             extract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()),
-            contains("last_name", "first_name")
+            contains("first_name", "last_name")
         );
 
         // Now verify the correct Lucene push-down of both the filter and the sort
@@ -3188,7 +3188,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * nguages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14, foo_1{r}#3, foo_2{r}#5]]
      *         \_FieldExtractExec[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]&gt;[],[]&lt;
      *           \_EvalExec[[1[INTEGER] AS foo_1#3, 1[INTEGER] AS foo_2#5]]
-     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#35], limit[1000], sort[[FieldSort[field=emp_no{f}#9, direction=ASC, nulls=LAST]]] estimatedRowSize[352]
+     *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#35], limit[1000], sort[[FieldSort[field=emp_no{f}#9,
+     *             direction=ASC, nulls=LAST]]] estimatedRowSize[352]
      */
     public void testProjectAwayMvExpandColumnOrder() {
         var plan = optimizedPlan(physicalPlan("""
@@ -5748,9 +5749,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "location", "name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(fieldSorts(topN.order())));
@@ -5790,9 +5791,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "location", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "location", "name"));
         var source = source(extract.child());
         assertThat(source.limit(), is(topN.limit()));
         assertThat(source.sorts(), is(fieldSorts(topN.order())));
@@ -5835,9 +5836,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -5897,15 +5898,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             names(project.projections()),
             contains(
                 equalTo("abbrev"),
-                equalTo("name"),
-                equalTo("location"),
-                equalTo("country"),
                 equalTo("city"),
+                equalTo("country"),
+                equalTo("location"),
+                equalTo("name"),
                 startsWith("$$order_by$0$")
             )
         );
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), startsWith("$$order_by$0$"));
@@ -5972,9 +5973,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -6069,9 +6070,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -6158,10 +6159,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         project = as(exchange.child(), ProjectExec.class);
         assertThat(
             names(project.projections()),
-            contains("abbrev", "name", "location", "country", "city", "scalerank", "scale", "distance", "loc")
+            contains("abbrev", "city", "country", "location", "name", "scalerank", "distance", "scale", "loc")
         );
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
@@ -6241,9 +6242,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var topNChild = as(extract.child(), TopNExec.class);
         extract = as(topNChild.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("scalerank"));
@@ -6317,9 +6318,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "distance", "scalerank"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var topNChild = as(extract.child(), TopNExec.class);
         var filter = as(topNChild.child(), FilterExec.class);
         assertThat(filter.condition(), isA(And.class));
@@ -6394,9 +6395,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
         var topNChild = as(extract.child(), TopNExec.class);
         var filter = as(topNChild.child(), FilterExec.class);
         assertThat(filter.condition(), isA(Or.class));
@@ -6463,9 +6464,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "scalerank", "distance"));
+        assertThat(names(project.projections()), contains("abbrev", "city", "country", "location", "name", "scalerank", "distance"));
         var extract = as(project.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city", "scalerank"));
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name", "scalerank"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));

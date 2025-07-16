@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
-import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -50,17 +49,6 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 return currentPlanNode;
             }
 
-            // for mv_expand, the target attribute should be retained in its original position
-            if (currentPlanNode instanceof MvExpandExec mvExpand) {
-                List<Attribute> updatedAttrs = new ArrayList<>(requiredAttrBuilder.build());
-                int idx = updatedAttrs.indexOf(mvExpand.expanded());
-                if (idx != -1) {
-                    updatedAttrs.set(idx, (Attribute) mvExpand.target());
-                    requiredAttrBuilder.clear();
-                    requiredAttrBuilder.addAll(updatedAttrs);
-                }
-            }
-
             // for non-unary execution plans, we apply the rule for each child
             if (currentPlanNode instanceof MergeExec mergeExec) {
                 keepTraversing.set(FALSE);
@@ -88,7 +76,15 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
-                        List<Attribute> output = new ArrayList<>(requiredAttrBuilder.build());
+                        // we should respect the order of the attributes
+                        List<Attribute> output = new ArrayList<>();
+                        for (Attribute attribute : logicalFragment.outputSet()) {
+                            if (requiredAttrBuilder.contains(attribute)) {
+                                output.add(attribute);
+                                requiredAttrBuilder.remove(attribute);
+                            }
+                        }
+                        output.addAll(requiredAttrBuilder.build());
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant

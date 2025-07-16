@@ -155,7 +155,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
             return Strings.toString(this);
         }
 
-        float[] toFloatArray() {
+        public float[] toFloatArray() {
             float[] floatArray = new float[values.length];
             for (int i = 0; i < values.length; i++) {
                 floatArray[i] = ((Byte) values[i]).floatValue();
@@ -163,7 +163,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
             return floatArray;
         }
 
-        double[] toDoubleArray() {
+        public double[] toDoubleArray() {
             double[] doubleArray = new double[values.length];
             for (int i = 0; i < values.length; i++) {
                 doubleArray[i] = ((Byte) values[i]).doubleValue();

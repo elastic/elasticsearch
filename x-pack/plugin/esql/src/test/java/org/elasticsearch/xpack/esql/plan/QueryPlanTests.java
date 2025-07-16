@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -14,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -34,6 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 
 public class QueryPlanTests extends ESTestCase {
 
@@ -44,6 +49,15 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(Limit.class, transformed.getClass());
         Limit l = (Limit) transformed;
         assertEquals(24, l.limit().fold(FoldContext.small()));
+
+        // Test async version is returning the same result as the sync version
+        SetOnce<LogicalPlan> asyncResultHolder = new SetOnce<>();
+        limit.transformExpressionsOnly(
+            Literal.class,
+            (e, listener) -> listener.onResponse(of(24)),
+            ActionListener.wrap(asyncResultHolder::set, ESTestCase::fail)
+        );
+        assertBusy(() -> { assertThat(asyncResultHolder.get(), equalTo(transformed)); });
     }
 
     public void testTransformWithExpressionTree() throws Exception {
@@ -55,6 +69,15 @@ public class QueryPlanTests extends ESTestCase {
         OrderBy order = (OrderBy) transformed;
         assertEquals(Limit.class, order.child().getClass());
         assertEquals(24, ((Limit) order.child()).limit().fold(FoldContext.small()));
+
+        // Test async version is returning the same result as the sync version
+        SetOnce<LogicalPlan> asyncResultHolder = new SetOnce<>();
+        o.transformExpressionsDown(
+            Literal.class,
+            (e, listener) -> listener.onResponse(of(24)),
+            ActionListener.wrap(asyncResultHolder::set, ESTestCase::fail)
+        );
+        assertBusy(() -> { assertThat(asyncResultHolder.get(), equalTo(transformed)); });
     }
 
     public void testTransformWithExpressionTopLevelInCollection() throws Exception {
@@ -74,6 +97,56 @@ public class QueryPlanTests extends ESTestCase {
 
         NamedExpression o = p.projections().get(0);
         assertEquals("changed", o.name());
+
+        // Test async version is returning the same result as the sync version
+        SetOnce<LogicalPlan> asyncResultHolder = new SetOnce<>();
+        project.transformExpressionsOnly(
+            NamedExpression.class,
+            (n, listener) -> listener.onResponse(n.name().equals("one") ? new FieldAttribute(EMPTY, "changed", one.field()) : n),
+            ActionListener.wrap(asyncResultHolder::set, ESTestCase::fail)
+        );
+        assertBusy(() -> { assertThat(asyncResultHolder.get(), equalTo(transformed)); });
+    }
+
+    public void testTransformExpressionsUpTree() throws Exception {
+        Limit limit = new Limit(EMPTY, of(42), relation());
+        OrderBy order = new OrderBy(EMPTY, limit, emptyList());
+
+        LogicalPlan transformed = order.transformExpressionsUp(Literal.class, l -> of(24));
+
+        assertEquals(OrderBy.class, transformed.getClass());
+        OrderBy out = (OrderBy) transformed;
+        assertEquals(24, ((Limit) out.child()).limit().fold(FoldContext.small()));
+
+        // Test async version is returning the same result as the sync version
+        SetOnce<LogicalPlan> asyncResult = new SetOnce<>();
+        order.transformExpressionsUp(
+            Literal.class,
+            (lit, listener) -> listener.onResponse(of(24)),
+            ActionListener.wrap(asyncResult::set, ESTestCase::fail)
+        );
+        assertBusy(() -> assertThat(asyncResult.get(), equalTo(transformed)));
+    }
+
+    public void testTransformExpressionsDownWithPredicate() throws Exception {
+        Limit limit = new Limit(EMPTY, of(42), relation());
+        OrderBy outer = new OrderBy(EMPTY, limit, emptyList());
+
+        Predicate<Node<?>> onlyLimit = n -> n instanceof Limit;
+
+        LogicalPlan transformed = outer.transformExpressionsDown(onlyLimit, Literal.class, lit -> of(24));
+
+        assertEquals(24, ((Limit) ((OrderBy) transformed).child()).limit().fold(FoldContext.small()));
+
+        // Test async version is returning the same result as the sync version
+        SetOnce<LogicalPlan> asyncResult = new SetOnce<>();
+        outer.transformExpressionsDown(
+            onlyLimit,
+            Literal.class,
+            (lit, listener) -> listener.onResponse(of(24)),
+            ActionListener.wrap(asyncResult::set, ESTestCase::fail)
+        );
+        assertBusy(() -> assertThat(asyncResult.get(), equalTo(transformed)));
     }
 
     public void testForEachWithExpressionTopLevel() throws Exception {

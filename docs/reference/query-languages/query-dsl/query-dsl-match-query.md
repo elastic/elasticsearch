@@ -11,7 +11,7 @@ Returns documents that match a provided text, number, date or boolean value. The
 
 The `match` query is the standard query for performing a full-text search, including options for fuzzy matching.
 
-`Match` will also work against [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields. 
+`Match` will also work against [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md) fields.
 As `semantic_text` does not support lexical text search, `match` queries against `semantic_text` fields will automatically perform the correct semantic search.
 Because of this, options that specifically target lexical search such as `fuzziness` or `analyzer` will be ignored.
 
@@ -83,26 +83,20 @@ If the `fuzziness` parameter is not `0`, the `match` query uses a `fuzzy_rewrite
 
 `operator`
 :   (Optional, string) Boolean logic used to interpret text in the `query` value. Valid values are:
-
-`OR` (Default)
-:   For example, a `query` value of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
-
-`AND`
-:   For example, a `query` value of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
-
+  - `OR` (Default)
+  For example, a `query` value of `capital of Hungary` is interpreted as `capital OR of OR Hungary`.
+  - `AND`
+  For example, a `query` value of `capital of Hungary` is interpreted as `capital AND of AND Hungary`.
 
 `minimum_should_match`
 :   (Optional, string) Minimum number of clauses that must match for a document to be returned. See the [`minimum_should_match` parameter](/reference/query-languages/query-dsl/query-dsl-minimum-should-match.md) for valid values and more information.
 
-
 `zero_terms_query`
 :   (Optional, string) Indicates whether no documents are returned if the `analyzer` removes all tokens, such as when using a `stop` filter. Valid values are:
-
-`none` (Default)
-:   No documents are returned if the `analyzer` removes all tokens.
-
-`all`
-:   Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
+  - `none` (Default)
+  No documents are returned if the `analyzer` removes all tokens.
+  - `all`
+  Returns all documents, similar to a [`match_all`](/reference/query-languages/query-dsl/query-dsl-match-all-query.md) query.
 
 See [Zero terms query](#query-dsl-match-query-zero) for an example.
 

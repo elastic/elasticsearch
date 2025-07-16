@@ -27,8 +27,7 @@ As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer avai
 This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.9.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
-This connector is in **beta** and is subject to change. Beta features are subject to change and are not covered by the support SLA of generally available (GA) features. Elastic plans to promote this feature to GA in a future release.
-
+This connector is in **beta** and is subject to change. Beta features are subject to change and are not covered by the support SLA of generally available (GA) features. 
 ::::
 
 

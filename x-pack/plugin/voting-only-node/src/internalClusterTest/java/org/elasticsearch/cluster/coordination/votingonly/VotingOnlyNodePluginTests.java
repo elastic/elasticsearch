@@ -15,12 +15,9 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -53,7 +50,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class VotingOnlyNodePluginTests extends ESIntegTestCase {
@@ -100,17 +96,17 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
         internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
-        internalCluster().startDataOnlyNodes(randomInt(2));
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
+        final int numDataNodes = randomInt(2);
+        internalCluster().startDataOnlyNodes(numDataNodes);
+        internalCluster().validateClusterFormed();
+
+        awaitClusterState(
+            state -> state.getLastCommittedConfiguration().getNodeIds().size() == 3 && state.nodes().size() == 3 + numDataNodes
         );
         final String originalMaster = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
-        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+        awaitMasterNode();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
@@ -129,6 +125,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 equalTo(3)
             )
         );
+        awaitMasterNode();
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
@@ -146,7 +143,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 .build()
         );
         internalCluster().startNode();
-        assertBusy(() -> assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getNodes().getSize(), equalTo(2)));
+        ensureStableCluster(2);
+        awaitMasterNode();
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
@@ -159,29 +157,17 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         internalCluster().startNodes(2, addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
-        internalCluster().startDataOnlyNodes(randomInt(2));
-        assertBusy(
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
-                equalTo(3)
-            )
+        final int numDataNodes = randomInt(2);
+        internalCluster().startDataOnlyNodes(numDataNodes);
+        internalCluster().validateClusterFormed();
+
+        awaitClusterState(
+            state -> state.getLastCommittedConfiguration().getNodeIds().size() == 3 && state.nodes().size() == 3 + numDataNodes
         );
-        final String oldMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
+        final String oldMasterId = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
-
-        expectThrows(
-            MasterNotDiscoveredException.class,
-            () -> assertThat(
-                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
-                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNodeId(),
-                nullValue()
-            )
-        );
+        awaitMasterNotFound();
 
         // start a fresh full master node, which will be brought into the cluster as master by the voting-only nodes
         final String newMaster = internalCluster().startNode();

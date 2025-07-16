@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
@@ -135,16 +135,19 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
-            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
-
+            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.""",
+        detailedDescription = """
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
             When Match is used on a <<semantic-text, semantic_text>> field, it will perform a semantic query on the field.
 
-            Match can use <<esql-function-named-params,function named parameters>> to specify additional options for the match query.
+            Match can use <<esql-function-named-params,function named parameters>> to specify additional options
+            for the match query.
             All <<match-field-params,match query parameters>> are supported.
 
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
@@ -152,12 +155,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             `MATCH` returns true if the provided query matches the row.""",
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
-            @Example(file = "match-function", tag = "match-with-named-function-params") },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
-            ) }
+            @Example(file = "match-function", tag = "match-with-named-function-params") }
     )
     public Match(
         Source source,
@@ -173,6 +171,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         ) Expression matchQuery,
         @MapParam(
             name = "options",
+            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>.",
             params = {
                 @MapParam.MapParamEntry(
                     name = "analyzer",
@@ -258,8 +257,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as "
                         + "when using a stop filter. Defaults to none."
                 ) },
-            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options
     ) {
@@ -396,19 +393,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(Match.class, m -> {
-                if (m.fieldAsFieldAttribute() == null) {
-                    failures.add(
-                        Failure.fail(
-                            m.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            functionName(),
-                            functionType(),
-                            m.field().sourceText()
-                        )
-                    );
-                }
-            });
+            fieldVerifier(plan, this, field, failures);
         };
     }
 
@@ -439,7 +424,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);

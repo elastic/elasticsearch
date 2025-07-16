@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -47,6 +48,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Executor executor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteInferenceEndpointAction(
@@ -55,7 +57,8 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteInferenceEndpointAction.NAME,
@@ -70,6 +73,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -259,7 +263,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
     @Override
     protected ClusterBlockException checkBlock(DeleteInferenceEndpointAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.WRITE);
     }
 
 }

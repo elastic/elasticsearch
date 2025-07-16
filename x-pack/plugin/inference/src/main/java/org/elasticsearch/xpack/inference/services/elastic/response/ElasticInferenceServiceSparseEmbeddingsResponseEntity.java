@@ -51,11 +51,11 @@ public class ElasticInferenceServiceSparseEmbeddingsResponseEntity {
      *     <code>
      *         {
      *           "data": [
-     *                     {
-     *                       "Embed": 2.1259406,
-     *                       "this": 1.7073475,
-     *                       "text": 0.9020516
-     *                     },
+     *                     [
+     *                       2.1259406,
+     *                       1.7073475,
+     *                       0.9020516
+     *                     ],
      *                    (...)
      *                  ],
      *           "meta": {

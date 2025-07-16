@@ -14,7 +14,9 @@ import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -49,6 +52,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -148,7 +152,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryBuilder);
+        return Objects.hash(super.hashCode(), query, queryBuilder);
     }
 
     @Override
@@ -157,25 +161,24 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
     }
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        // In isolation, full text functions are pushable to source. We check if there are no disjunctions in Or conditions
         return Translatable.YES;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(handler);
+        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
     }
 
     public QueryBuilder queryBuilder() {
         return queryBuilder;
     }
 
-    protected abstract Query translate(TranslatorHandler handler);
+    protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
     public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
@@ -193,6 +196,10 @@ public abstract class FullTextFunction extends Function
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Failures failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
+
+            if (condition instanceof Score) {
+                failures.add(fail(condition, "[SCORE] function can't be used in WHERE"));
+            }
 
             List.of(QueryString.class, Kql.class).forEach(functionClass -> {
                 // Check for limitations of QSTR and KQL function.
@@ -218,10 +225,36 @@ public abstract class FullTextFunction extends Function
         } else if (plan instanceof Aggregate agg) {
             checkFullTextFunctionsInAggs(agg, failures);
         } else {
+            List<FullTextFunction> scoredFTFs = new ArrayList<>();
+            plan.forEachExpression(Score.class, scoreFunction -> {
+                checkScoreFunction(plan, failures, scoreFunction);
+                plan.forEachExpression(FullTextFunction.class, scoredFTFs::add);
+            });
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE and STATS commands", ftf.functionName(), ftf.functionType()));
+                if (scoredFTFs.remove(ftf) == false) {
+                    failures.add(
+                        fail(
+                            ftf,
+                            "[{}] {} is only supported in WHERE and STATS commands"
+                                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : ""),
+                            ftf.functionName(),
+                            ftf.functionType()
+                        )
+                    );
+                }
             });
         }
+    }
+
+    private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
+        checkCommandsBeforeExpression(
+            plan,
+            scoreFunction.canonical(),
+            Score.class,
+            lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+            m -> "[" + m.functionName() + "] function",
+            failures
+        );
     }
 
     private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
@@ -280,6 +313,7 @@ public abstract class FullTextFunction extends Function
         forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
                 && (parent instanceof BinaryLogic == false)
+                && (parent instanceof EsqlBinaryComparison == false)
                 && (parent instanceof Not == false)) {
                 failures.add(
                     fail(
@@ -312,6 +346,45 @@ public abstract class FullTextFunction extends Function
             }
         }
         return null;
+    }
+
+    public static void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        var fieldAttribute = fieldAsFieldAttribute(field);
+        if (fieldAttribute == null) {
+            plan.forEachExpression(function.getClass(), m -> {
+                if (function.children().contains(field)) {
+                    failures.add(
+                        fail(
+                            field,
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            m.functionName(),
+                            m.functionType(),
+                            field.sourceText()
+                        )
+                    );
+                }
+            });
+        } else {
+            // Traverse the plan to find the EsRelation outputting the field
+            plan.forEachDown(p -> {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                    // Check if this EsRelation supplies the field
+                    if (esRelation.outputSet().contains(fieldAttribute)) {
+                        failures.add(
+                            fail(
+                                field,
+                                "[{}] {} cannot operate on [{}], supplied by an index [{}] in non-STANDARD mode [{}]",
+                                function.functionName(),
+                                function.functionType(),
+                                field.sourceText(),
+                                esRelation.indexPattern(),
+                                esRelation.indexMode()
+                            )
+                        );
+                    }
+                }
+            });
+        }
     }
 
     @Override
@@ -396,6 +469,8 @@ public abstract class FullTextFunction extends Function
         return Map.of();
     }
 
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
     public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {

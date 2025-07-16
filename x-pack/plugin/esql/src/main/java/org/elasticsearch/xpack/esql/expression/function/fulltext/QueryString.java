@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
@@ -104,18 +105,16 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
-            @Example(file = "qstr-function", tag = "qstr-with-options") },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
-            ) }
+            @Example(file = "qstr-function", tag = "qstr-with-options", applies_to = "stack: ga 9.1.0") }
     )
+
     public QueryString(
         Source source,
         @Param(
@@ -347,7 +346,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), queryStringOptions());
     }
 

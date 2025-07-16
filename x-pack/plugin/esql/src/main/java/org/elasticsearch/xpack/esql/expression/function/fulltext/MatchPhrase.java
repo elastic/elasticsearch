@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
@@ -60,10 +60,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery} .
@@ -92,11 +90,12 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = """
-            Use `MATCH_PHRASE` to perform a <<query-dsl-match-query-phrase,match_phrase query>> on the specified field.
-            Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.
-
+            Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
+            specified field.
+            Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.""",
+        detailedDescription = """
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
             MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
 
@@ -105,14 +104,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
             All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
             `MATCH_PHRASE` returns true if the provided query matches the row.""",
-        examples = {
-            @Example(file = "match-phrase-function", tag = "match-phrase-with-field"),
-            @Example(file = "match-phrase-function", tag = "match-phrase-with-named-function-params") },
-        appliesTo = {
-            @FunctionAppliesTo(
-                lifeCycle = FunctionAppliesToLifecycle.COMING,
-                description = "Support for optional named parameters is only available in serverless, or in a future {{es}} release"
-            ) }
+        examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field", applies_to = "stack: ga 9.1.0") }
     )
     public MatchPhrase(
         Source source,
@@ -149,7 +141,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
                     description = "Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0."
                 ) },
             description = "(Optional) MatchPhrase additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-match-query-phrase,match_phrase query>> for more information.",
+                + " See [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) for more information.",
             optional = true
         ) Expression options
     ) {
@@ -256,19 +248,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(MatchPhrase.class, mp -> {
-                if (mp.fieldAsFieldAttribute() == null) {
-                    failures.add(
-                        Failure.fail(
-                            mp.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            functionName(),
-                            functionType(),
-                            mp.field().sourceText()
-                        )
-                    );
-                }
-            });
+            FullTextFunction.fieldVerifier(plan, this, field, failures);
         };
     }
 
@@ -297,7 +277,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "MatchPhrase must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);

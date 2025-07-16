@@ -6,12 +6,18 @@ mapped_pages:
 
 # {{esql}} Search functions [esql-search-functions]
 
+:::{tip}
+Get started with {{esql}} for search use cases with
+our [hands-on tutorial](docs-content://solutions/search/esql-search-tutorial.md).
+
+For a high-level overview of search functionalities in {{esql}}, and to learn about relevance scoring, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring).
+:::
+
+{{esql}} provides a set of functions for performing searching on text fields. 
+
 Use these functions
 for [full-text search](docs-content://solutions/search/full-text.md)
 and [semantic search](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
-
-Get started with {{esql}} for search use cases with
-our [hands-on tutorial](docs-content://solutions/search/esql-search-tutorial.md).
 
 Full text functions can be used to
 match [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md).
@@ -20,7 +26,7 @@ considered to match the query.
 
 Full text functions are significantly more performant for text search use cases
 on large data sets than using pattern matching or regular expressions with
-`LIKE` or `RLIKE`
+`LIKE` or `RLIKE`.
 
 See [full text search limitations](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search)
 for information on the limitations of full text search.
@@ -36,9 +42,8 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/functions/layout/match.md
 :::
 
-% MATCH_PHRASE is currently hidden
-% :::{include} ../_snippets/functions/layout/match_phrase.md
-% :::
+:::{include} ../_snippets/functions/layout/match_phrase.md
+:::
 
 :::{include} ../_snippets/functions/layout/qstr.md
 :::

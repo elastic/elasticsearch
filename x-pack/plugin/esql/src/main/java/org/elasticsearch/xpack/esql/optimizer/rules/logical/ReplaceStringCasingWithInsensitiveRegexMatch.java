@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -28,6 +30,10 @@ public class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules
     @Override
     protected Expression rule(RegexMatch<? extends StringPattern> regexMatch, LogicalOptimizerContext unused) {
         Expression e = regexMatch;
+        if (regexMatch.pattern() instanceof WildcardPatternList || regexMatch.pattern() instanceof RLikePatternList) {
+            // This optimization is not supported for WildcardPatternList and RLikePatternList for now
+            return e;
+        }
         if (regexMatch.field() instanceof ChangeCase changeCase) {
             var pattern = regexMatch.pattern().pattern();
             e = changeCase.caseType().matchesCase(pattern) ? insensitiveRegexMatch(regexMatch) : Literal.of(regexMatch, Boolean.FALSE);

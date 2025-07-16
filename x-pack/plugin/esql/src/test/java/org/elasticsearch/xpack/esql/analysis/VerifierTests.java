@@ -1972,6 +1972,20 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeInvalidOptionsField() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        assertEquals(
+            "1:31: second argument of [CATEGORIZE(last_name, first_name)] must be a map expression, received [first_name]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, first_name)")
+        );
+        assertEquals(
+            "1:31: Invalid option [blah] in [CATEGORIZE(last_name, { \"blah\": 42 })], "
+                + "expected one of [analyzer, output_format, similarity_threshold]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"blah\": 42 })")
+        );
+    }
+
     public void testCategorizeOptionOutputFormat() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 

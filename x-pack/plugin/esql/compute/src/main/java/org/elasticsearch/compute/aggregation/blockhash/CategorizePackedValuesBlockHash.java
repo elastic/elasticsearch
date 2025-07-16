@@ -56,6 +56,8 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         int emitBatchSize
     ) {
         super(blockFactory);
+        assert specs.get(0).categorizeDef() != null;
+
         this.specs = specs;
         this.aggregatorMode = aggregatorMode;
         blocks = new Block[specs.size()];

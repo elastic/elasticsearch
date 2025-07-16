@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -34,6 +35,16 @@ public class Options {
         TypeResolutions.ParamOrdinal paramOrdinal,
         Map<String, DataType> allowedOptions
     ) {
+        return resolve(options, source, paramOrdinal, allowedOptions, null);
+    }
+
+    public static Expression.TypeResolution resolve(
+        Expression options,
+        Source source,
+        TypeResolutions.ParamOrdinal paramOrdinal,
+        Map<String, DataType> allowedOptions,
+        Consumer<Map<String, Object>> verifyOptions
+    ) {
         if (options != null) {
             Expression.TypeResolution resolution = isNotNull(options, source.text(), paramOrdinal);
             if (resolution.unresolved()) {
@@ -47,6 +58,9 @@ public class Options {
             try {
                 Map<String, Object> optionsMap = new HashMap<>();
                 populateMap((MapExpression) options, optionsMap, source, paramOrdinal, allowedOptions);
+                if (verifyOptions != null) {
+                    verifyOptions.accept(optionsMap);
+                }
             } catch (InvalidArgumentException e) {
                 return new Expression.TypeResolution(e.getMessage());
             }

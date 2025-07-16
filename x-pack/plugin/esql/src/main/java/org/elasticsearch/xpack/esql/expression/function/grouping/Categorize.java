@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -66,10 +67,12 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         Categorize::new
     );
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
-        entry("analyzer", KEYWORD),
-        entry("output_format", KEYWORD),
-        entry("similarity_threshold", INTEGER)
+    private static final String ANALYZER = "analyzer";
+    private static final String OUTPUT_FORMAT = "output_format";
+    private static final String SIMILARITY_THRESHOLD = "similarity_threshold";
+
+    private static final Map<String, DataType> ALLOWED_OPTIONS = new TreeMap<>(
+        Map.ofEntries(entry(ANALYZER, KEYWORD), entry(OUTPUT_FORMAT, KEYWORD), entry(SIMILARITY_THRESHOLD, INTEGER))
     );
 
     private final Expression field;
@@ -100,19 +103,19 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
             description = "(Optional) Categorize additional options as <<esql-function-named-params,function named parameters>>.",
             params = {
                 @MapParam.MapParamEntry(
-                    name = "analyzer",
+                    name = ANALYZER,
                     type = "keyword",
                     valueHint = { "standard" },
                     description = "Analyzer used to convert the field into tokens for text categorization."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "output_format",
+                    name = OUTPUT_FORMAT,
                     type = "keyword",
                     valueHint = { "regex", "tokens" },
                     description = "The output format of the categories. Defaults to regex."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "similarity_threshold",
+                    name = SIMILARITY_THRESHOLD,
                     type = "integer",
                     valueHint = { "70" },
                     description = "The minimum percentage of token weight that must match for text to be added to the category bucket. "
@@ -166,22 +169,16 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @Override
     protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS)).and(() -> {
-            try {
-                categorizeDef();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
-            return TypeResolution.TYPE_RESOLVED;
-        });
+        return isString(field(), sourceText(), DEFAULT).and(
+            Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions)
+        );
     }
 
-    public CategorizeDef categorizeDef() {
-        Map<String, Object> optionsMap = new HashMap<>();
-        if (options != null) {
-            Options.populateMap((MapExpression) options, optionsMap, source(), SECOND, ALLOWED_OPTIONS);
+    private void verifyOptions(Map<String, Object> optionsMap) {
+        if (options == null) {
+            return;
         }
-        Integer similarityThreshold = (Integer) optionsMap.get("similarity_threshold");
+        Integer similarityThreshold = (Integer) optionsMap.get(SIMILARITY_THRESHOLD);
         if (similarityThreshold != null) {
             if (similarityThreshold <= 0 || similarityThreshold > 100) {
                 throw new InvalidArgumentException(
@@ -189,17 +186,26 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 );
             }
         }
-        OutputFormat outputFormat = null;
-        String outputFormatString = (String) optionsMap.get("output_format");
-        if (outputFormatString != null) {
+        String outputFormat = (String) optionsMap.get(OUTPUT_FORMAT);
+        if (outputFormat != null) {
             try {
-                outputFormat = OutputFormat.valueOf(outputFormatString.toUpperCase(Locale.ROOT));
+                OutputFormat.valueOf(outputFormat.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(
-                    format(null, "invalid output format [{}], expecting one of [REGEX, TOKENS]", outputFormatString)
+                    format(null, "invalid output format [{}], expecting one of [REGEX, TOKENS]", outputFormat)
                 );
             }
         }
+    }
+
+    public CategorizeDef categorizeDef() {
+        Map<String, Object> optionsMap = new HashMap<>();
+        if (options != null) {
+            Options.populateMap((MapExpression) options, optionsMap, source(), SECOND, ALLOWED_OPTIONS);
+        }
+        Integer similarityThreshold = (Integer) optionsMap.get(SIMILARITY_THRESHOLD);
+        String outputFormatString = (String) optionsMap.get(OUTPUT_FORMAT);
+        OutputFormat outputFormat = outputFormatString == null ? null : OutputFormat.valueOf(outputFormatString.toUpperCase(Locale.ROOT));
         return new CategorizeDef(
             (String) optionsMap.get("analyzer"),
             outputFormat == null ? REGEX : outputFormat,

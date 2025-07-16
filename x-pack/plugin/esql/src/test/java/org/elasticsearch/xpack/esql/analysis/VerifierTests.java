@@ -1399,7 +1399,6 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " is only supported in WHERE and STATS commands"
-                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
             )
 
         );
@@ -1411,7 +1410,6 @@ public class VerifierTests extends ESTestCase {
                     + "] "
                     + functionType
                     + " is only supported in WHERE and STATS commands"
-                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
             )
         );
         if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {

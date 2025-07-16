@@ -412,3 +412,36 @@ tests:
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_906}
     issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+    method: testPushDownUpperCaseChangeRLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+    method: testChangeCaseAsInsensitiveWildcardLikeNotPushedDown
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+    method: testPushDownUpperCaseChangeLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+    method: testPushDownLowerCaseChangeRLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+    method: testPushDownLowerCaseChangeLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+    method: testReplaceUpperStringCasinqgWithInsensitiveRLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+    method: testReplaceLowerStringCasingWithInsensitiveRLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+    method: testReplaceLowerStringCasingWithInsensitiveLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+    method: testReplaceUpperStringCasingWithInsensitiveLike
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+    method: testReplaceStringCasingAndLikeWithLocalRelation
+    issue: https://github.com/elastic/elasticsearch/issues/131041
+  - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+    method: testReplaceStringCasingAndRLikeWithLocalRelation
+    issue: https://github.com/elastic/elasticsearch/issues/131041

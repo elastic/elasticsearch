@@ -628,6 +628,7 @@ synthetic_source match_only_text with ignored multi-field:
                     type: keyword
                     store: false
                     doc_values: true
+                    ignore_above: 10
 
   - do:
       index:

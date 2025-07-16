@@ -239,6 +239,12 @@ public class ESONSource {
 
     public interface Type {}
 
+    public record Mutation() implements Type {
+
+        private static final Mutation INSTANCE = new Mutation();
+
+    }
+
     public record ESONObject(Map<String, Type> map, Supplier<Values> objectValues, ModificationTracker<String> modificationTracker)
         implements
             Type,
@@ -271,14 +277,11 @@ public class ESONSource {
 
         @Override
         public Object get(Object key) {
-            // Check for modifications first
-            if (key instanceof String strKey && modificationTracker.hasModification(strKey)) {
-                return modificationTracker.getModification(strKey);
-            }
-
             Type type = map.get(key);
             if (type == null) {
                 return null;
+            } else if (type == Mutation.INSTANCE) {
+                return modificationTracker.getModification((String) key);
             }
             return convertTypeToValue(type);
         }
@@ -286,6 +289,7 @@ public class ESONSource {
         @Override
         public Object put(String key, Object value) {
             Object oldValue = get(key);
+            map.put(key, Mutation.INSTANCE);
             modificationTracker.putModification(key, value);
             return oldValue;
         }
@@ -294,6 +298,7 @@ public class ESONSource {
         public Object remove(Object key) {
             String stringKey = (String) key;
             Object oldValue = get(key);
+            map.put(stringKey, Mutation.INSTANCE);
             modificationTracker.putModification(stringKey, null);
             return oldValue;
         }
@@ -308,6 +313,7 @@ public class ESONSource {
         @Override
         public void clear() {
             for (String key : map.keySet()) {
+                map.put(key, Mutation.INSTANCE);
                 modificationTracker.putModification(key, null);
             }
         }
@@ -426,17 +432,6 @@ public class ESONSource {
             };
         }
 
-        private boolean canModifyInPlace(FixedValue fixedValue, Object newValue) {
-            return switch (fixedValue.valueType()) {
-                case INT -> newValue instanceof Integer;
-                case LONG -> newValue instanceof Long;
-                case FLOAT -> newValue instanceof Float;
-                case DOUBLE -> newValue instanceof Double;
-                case BOOLEAN -> newValue instanceof Boolean;
-                default -> false;
-            };
-        }
-
         public boolean containsKey(String key) {
             return map.containsKey(key);
         }
@@ -487,17 +482,6 @@ public class ESONSource {
                 case FixedValue v -> v.getValue(arrayValues.get());
                 case VariableValue v -> v.getValue(arrayValues.get());
                 default -> throw new IllegalArgumentException("Unknown type: " + type);
-            };
-        }
-
-        private boolean canModifyInPlace(FixedValue fixedValue, Object newValue) {
-            return switch (fixedValue.valueType()) {
-                case INT -> newValue instanceof Integer;
-                case LONG -> newValue instanceof Long;
-                case FLOAT -> newValue instanceof Float;
-                case DOUBLE -> newValue instanceof Double;
-                case BOOLEAN -> newValue instanceof Boolean;
-                default -> false;
             };
         }
 

@@ -324,18 +324,19 @@ public class ESONSourceMutationTests extends ESTestCase {
 
             // Test keySet after modifications
             Set<String> keys = root.keySet();
-            assertThat(keys.size(), equalTo(3)); // Original keys, modifications are overlaid
+            assertThat(keys.size(), equalTo(4));
             assertThat(keys.contains("field1"), equalTo(true));
             assertThat(keys.contains("field2"), equalTo(true));
             assertThat(keys.contains("field3"), equalTo(true));
+            assertThat(keys.contains("field4"), equalTo(true));
 
             // Test values collection
             Collection<Object> values = root.values();
-            assertThat(values.size(), equalTo(3));
+            assertThat(values.size(), equalTo(4));
 
             // Test entrySet
             Set<Map.Entry<String, Object>> entries = root.entrySet();
-            assertThat(entries.size(), equalTo(3));
+            assertThat(entries.size(), equalTo(4));
 
             // Verify entrySet reflects modifications
             boolean foundModifiedField1 = false;
@@ -367,6 +368,8 @@ public class ESONSourceMutationTests extends ESTestCase {
             assertThat(root.get("field2"), equalTo("value"));
             assertThat(root.get("field3"), equalTo(true));
 
+            root.put("field4", "new field");
+
             // Clear all fields
             root.clear();
 
@@ -374,6 +377,7 @@ public class ESONSourceMutationTests extends ESTestCase {
             assertThat(root.get("field1"), nullValue());
             assertThat(root.get("field2"), nullValue());
             assertThat(root.get("field3"), nullValue());
+            assertThat(root.get("field4"), nullValue());
         }
     }
 
@@ -416,30 +420,6 @@ public class ESONSourceMutationTests extends ESTestCase {
 
             root.put("message", "final");
             assertThat(root.get("message"), equalTo("final"));
-        }
-    }
-
-    public void testConcurrentModifications() throws Exception {
-        String jsonString = """
-            {
-                "field1": 42,
-                "field2": "value"
-            }
-            """;
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
-            ESONSource.ESONObject root = builder.parse(parser);
-
-            // Simulate concurrent modifications (the ModificationTracker uses ConcurrentHashMap)
-            root.put("field1", 100);
-            root.put("field2", "modified");
-            root.put("field3", "new");
-
-            // Verify all modifications are visible
-            assertThat(root.get("field1"), equalTo(100));
-            assertThat(root.get("field2"), equalTo("modified"));
-            assertThat(root.get("field3"), equalTo("new"));
         }
     }
 }

@@ -78,13 +78,13 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     if (logicalFragment instanceof Aggregate == false) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
-                        for (Attribute attribute : logicalFragment.outputSet()) {
+                        for (Attribute attribute : logicalFragment.output()) {
                             if (requiredAttrBuilder.contains(attribute)) {
                                 output.add(attribute);
-                                requiredAttrBuilder.remove(attribute);
                             }
                         }
-                        output.addAll(requiredAttrBuilder.build());
+                        assert output.size() == requiredAttrBuilder.build().size()
+                            : "output should be the same size with requiredAttrBuilder";
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant

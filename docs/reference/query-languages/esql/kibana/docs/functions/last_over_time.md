@@ -3,8 +3,9 @@
 ### LAST OVER TIME
 The latest value of a field, where recency determined by the `@timestamp` field.
 
+Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command in snapshot builds
+
 ```esql
 TS k8s
 | STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
 ```
-Note: Available with the [TS](https://www.elastic.co/docs/reference/query-languages/esql/commands/source-commands#esql-ts) command in snapshot builds

@@ -14,5 +14,7 @@ module org.elasticsearch.gpu {
     requires org.elasticsearch.base;
     requires com.nvidia.cuvs;
 
+    exports org.elasticsearch.xpack.gpu.codec;
+
     provides org.apache.lucene.codecs.KnnVectorsFormat with org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
 }

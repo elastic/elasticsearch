@@ -32,8 +32,6 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     private static final Logger LOG = LogManager.getLogger(GPUVectorsFormat.class);
 
     public static final String NAME = "GPUVectorsFormat";
-    public static final String GPU_IDX_EXTENSION = "gpuidx";
-    public static final String GPU_META_EXTENSION = "mgpu";
     public static final int VERSION_START = 0;
 
     static final String LUCENE99_HNSW_META_CODEC_NAME = "Lucene99HnswVectorsFormatMeta";
@@ -41,7 +39,6 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     static final String LUCENE99_HNSW_META_EXTENSION = "vem";
     static final String LUCENE99_HNSW_VECTOR_INDEX_EXTENSION = "vex";
     static final int LUCENE99_VERSION_CURRENT = VERSION_START;
-    public static final int VERSION_CURRENT = VERSION_START;
 
     static final int DEFAULT_MAX_CONN = 16;
     static final int DEFAULT_BEAM_WIDTH = 100;
@@ -91,8 +88,13 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
             var resources = CuVSResources.create();
             return resources;
         } catch (UnsupportedOperationException uoe) {
-            var msg = uoe.getMessage() == null ? "" : ": " + uoe.getMessage();
-            LOG.warn("GPU based vector search is not supported on this platform or java version" + msg);
+            String msg = "";
+            if (uoe.getMessage() == null) {
+                msg = "Runtime Java version: " + Runtime.version().feature();
+            } else {
+                msg = ": " + uoe.getMessage();
+            }
+            LOG.warn("GPU based vector search is not supported on this platform or java version; " + msg);
         } catch (Throwable t) {
             if (t instanceof ExceptionInInitializerError ex) {
                 t = ex.getCause();

@@ -31,6 +31,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
 
 import java.io.InputStream;
 import java.lang.management.ThreadInfo;
@@ -66,13 +67,16 @@ public class KnnIndexTester {
     enum IndexType {
         HNSW,
         FLAT,
-        IVF
+        IVF,
+        GPU
     }
 
     private static String formatIndexPath(CmdLineArgs args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
+        } else if (args.indexType() == IndexType.GPU) {
+            suffix.add("gpu");
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
@@ -90,6 +94,8 @@ public class KnnIndexTester {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
             format = new IVFVectorsFormat(args.ivfClusterSize());
+        } else if (args.indexType() == IndexType.GPU) {
+            format = new GPUVectorsFormat();
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {

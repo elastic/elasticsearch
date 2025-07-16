@@ -4478,7 +4478,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private SnapshotStats recalculateIfStale(ClusterState currentState) {
-        if (snapshotStats == null || Objects.equals(snapshotStats.fromClusterState(), currentState.stateUUID()) == false) {
+        if (snapshotStats == null
+            || (Objects.equals(snapshotStats.clusterStateId(), currentState.stateUUID()) == false
+                && System.identityHashCode(SnapshotsInProgress.get(currentState)) != snapshotStats.snapshotsInProgressIdentityHashcode())) {
             snapshotStats = recalculateSnapshotStats(currentState);
         }
         return snapshotStats;
@@ -4511,7 +4513,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             }
         });
-        return new SnapshotStats(currentState.stateUUID(), snapshotStateMetrics, shardStateMetrics);
+        return new SnapshotStats(
+            currentState.stateUUID(),
+            System.identityHashCode(snapshotsInProgress),
+            snapshotStateMetrics,
+            shardStateMetrics
+        );
     }
 
     private record UpdateNodeIdsForRemovalTask() implements ClusterStateTaskListener {
@@ -4550,7 +4557,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * A cached copy of the snapshot and shard state metrics
      */
     private record SnapshotStats(
-        String fromClusterState,
+        String clusterStateId,
+        int snapshotsInProgressIdentityHashcode,
         Collection<LongWithAttributes> snapshotStateMetrics,
         Collection<LongWithAttributes> shardStateMetrics
     ) {}

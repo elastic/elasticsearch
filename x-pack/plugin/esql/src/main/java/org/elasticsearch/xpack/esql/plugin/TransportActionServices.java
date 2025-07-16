@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceServices;
 
 public record TransportActionServices(
@@ -25,4 +26,8 @@ public record TransportActionServices(
     IndexNameExpressionResolver indexNameExpressionResolver,
     UsageService usageService,
     InferenceServices inferenceServices
-) {}
+) {
+    public InferenceRunner inferenceRunner() {
+        return inferenceServices.inferenceRunner();
+    }
+}

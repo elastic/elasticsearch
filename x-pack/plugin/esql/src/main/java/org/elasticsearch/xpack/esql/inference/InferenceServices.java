@@ -37,6 +37,15 @@ public class InferenceServices {
     }
 
     /**
+     * Creates an inference runner with the specified execution configuration using the default configuration.
+     *
+     * @return A configured inference runner capable of executing inference requests
+     */
+    public InferenceRunner inferenceRunner() {
+        return inferenceRunner(InferenceExecutionConfig.DEFAULT);
+    }
+
+    /**
      * Creates an inference runner with the specified execution configuration.
      *
      * @param inferenceExecutionConfig Configuration specifying concurrency limits and execution parameters

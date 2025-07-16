@@ -36,4 +36,10 @@ public abstract class InferenceFunction<PlanType extends InferenceFunction<PlanT
     public abstract TaskType taskType();
 
     public abstract PlanType withInferenceResolutionError(String inferenceId, String error);
+
+    @Override
+    public boolean foldable() {
+        // Inference functions are not foldable and need to be evaluated using an async inference call.
+        return false;
+    }
 }

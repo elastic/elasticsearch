@@ -73,7 +73,7 @@ public class Docker {
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
-    public static final int STARTUP_ATTEMPTS_MAX = 30;
+    public static final int STARTUP_ATTEMPTS_MAX = 45;
 
     private static final String ELASTICSEARCH_FULL_CLASSNAME = "org.elasticsearch.bootstrap.Elasticsearch";
     private static final String FIND_ELASTICSEARCH_PROCESS = "for pid in $(ps -eo pid,comm | grep java | awk '\\''{print $1}'\\''); "

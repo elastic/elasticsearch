@@ -68,4 +68,20 @@ public class ErrorResponse {
 
         return ErrorResponse.UNDEFINED_ERROR;
     }
+
+    /**
+     * Parses a string response into an ErrorResponse.
+     * If the string is not blank, creates a new ErrorResponse with the string as the error message.
+     * If the string is blank, returns UNDEFINED_ERROR.
+     *
+     * @param response the error response as a string
+     * @return an ErrorResponse instance
+     */
+    public static ErrorResponse fromString(String response) {
+        if (Objects.nonNull(response) && response.isBlank() == false) {
+            return new ErrorResponse(response);
+        } else {
+            return ErrorResponse.UNDEFINED_ERROR;
+        }
+    }
 }

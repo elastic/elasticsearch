@@ -351,9 +351,15 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             assertThat(
                 exception.getMessage(),
-                containsString(Strings.format("service does not support task type [%s]", parseConfigTestConfig.unsupportedTaskType))
+                containsString(
+                    Strings.format(fetchPersistedConfigTaskTypeParsingErrorMessageFormat(), parseConfigTestConfig.unsupportedTaskType)
+                )
             );
         }
+    }
+
+    protected String fetchPersistedConfigTaskTypeParsingErrorMessageFormat() {
+        return "service does not support task type [%s]";
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
@@ -374,7 +380,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 persistedConfigMap.secrets()
             );
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -396,7 +402,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 persistedConfigMap.secrets()
             );
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -413,7 +419,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -430,7 +436,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 

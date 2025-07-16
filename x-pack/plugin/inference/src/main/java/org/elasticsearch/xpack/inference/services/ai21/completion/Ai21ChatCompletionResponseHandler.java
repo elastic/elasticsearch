@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ai21.completion;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 import java.util.Locale;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handles streaming chat completion responses and error parsing for Mistral inference endpoints.
@@ -35,5 +38,31 @@ public class Ai21ChatCompletionResponseHandler extends OpenAiUnifiedChatCompleti
         var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
         var restStatus = toRestStatus(responseStatusCode);
         return new UnifiedChatCompletionException(restStatus, errorMessage, AI_21_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
+    }
+
+    protected Exception buildMidStreamError(Request request, String message, Exception e) {
+        var errorResponse = ErrorResponse.fromString(message);
+        if (errorResponse.errorStructureFound()) {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    request.getInferenceEntityId(),
+                    errorResponse.getErrorMessage()
+                ),
+                AI_21_ERROR,
+                "stream_error"
+            );
+        } else if (e != null) {
+            return UnifiedChatCompletionException.fromThrowable(e);
+        } else {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
+                createErrorType(errorResponse),
+                "stream_error"
+            );
+        }
     }
 }

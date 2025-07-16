@@ -271,8 +271,9 @@ public class AzureAiStudioService extends SenderService {
         ConfigurationParseContext context
     ) {
 
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            var embeddingsModel = new AzureAiStudioEmbeddingsModel(
+        AzureAiStudioModel model;
+        switch (taskType) {
+            case TEXT_EMBEDDING -> model = new AzureAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -282,16 +283,7 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            checkProviderAndEndpointTypeForTask(
-                TaskType.TEXT_EMBEDDING,
-                embeddingsModel.getServiceSettings().provider(),
-                embeddingsModel.getServiceSettings().endpointType()
-            );
-            return embeddingsModel;
-        }
-
-        if (taskType == TaskType.COMPLETION) {
-            var completionModel = new AzureAiStudioChatCompletionModel(
+            case COMPLETION -> model = new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -300,25 +292,12 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            checkProviderAndEndpointTypeForTask(
-                TaskType.COMPLETION,
-                completionModel.getServiceSettings().provider(),
-                completionModel.getServiceSettings().endpointType()
-            );
-            return completionModel;
+            case RERANK -> model = new AzureAiStudioRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
-
-        if (taskType == TaskType.RERANK) {
-            var rerankModel = new AzureAiStudioRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
-            checkProviderAndEndpointTypeForTask(
-                TaskType.RERANK,
-                rerankModel.getServiceSettings().provider(),
-                rerankModel.getServiceSettings().endpointType()
-            );
-            return rerankModel;
-        }
-
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        final var azureAiStudioServiceSettings = (AzureAiStudioServiceSettings) model.getServiceSettings();
+        checkProviderAndEndpointTypeForTask(taskType, azureAiStudioServiceSettings.provider(), azureAiStudioServiceSettings.endpointType());
+        return model;
     }
 
     private AzureAiStudioModel createModelFromPersistent(

@@ -1230,6 +1230,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        final ProjectMetadata.Builder projectBuilder = builder.getProject(ProjectId.DEFAULT);
         final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
         final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
         final int count = in.readVInt();
@@ -1245,9 +1246,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                     final var tuple = persistentTasksCustomMetadata.split();
                     builder.putCustom(tuple.v1().getWriteableName(), tuple.v1());
-                    builder.putProjectCustom(tuple.v2().getWriteableName(), tuple.v2());
+                    projectBuilder.putCustom(tuple.v2().getWriteableName(), tuple.v2());
                 } else {
-                    builder.putProjectCustom(custom.getWriteableName(), custom);
+                    projectBuilder.putCustom(custom.getWriteableName(), custom);
                 }
             } else {
                 throw new IllegalArgumentException("Unknown custom name [" + name + "]");
@@ -1552,7 +1553,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @Deprecated(forRemoval = true)
         public Builder putCustom(String type, ProjectCustom custom) {
-            return putProjectCustom(type, custom);
+            getSingleProject().putCustom(type, Objects.requireNonNull(custom, type));
+            return this;
         }
 
         public ClusterCustom getCustom(String type) {
@@ -1572,12 +1574,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         public Builder customs(Map<String, ClusterCustom> clusterCustoms) {
             clusterCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
             customs.putAllFromMap(clusterCustoms);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder putProjectCustom(String type, ProjectCustom custom) {
-            getSingleProject().putCustom(type, Objects.requireNonNull(custom, type));
             return this;
         }
 

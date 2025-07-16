@@ -1,5 +1,5 @@
 ---
-navigation_title: "Query Log"
+navigation_title: "Query log"
 ---
 
 # {{esql}} Query Log [esql-query-log]

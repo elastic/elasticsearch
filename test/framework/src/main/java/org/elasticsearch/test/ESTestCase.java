@@ -1261,7 +1261,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalArgumentException("n must be between 0 and the size of the list");
         }
         List<T> copy = new ArrayList<>(list);
-        Collections.shuffle(copy, new Random());
+        org.elasticsearch.common.Randomness.shuffle(copy);
         return copy.subList(0, n);
     }
 

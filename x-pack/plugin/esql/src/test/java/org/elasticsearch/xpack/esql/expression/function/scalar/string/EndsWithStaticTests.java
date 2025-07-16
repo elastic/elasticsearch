@@ -1,0 +1,59 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.string;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class EndsWithStaticTests extends ESTestCase {
+    public void testLuceneQuery_AllLiterals_NonTranslatable() {
+        EndsWith function = new EndsWith(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, "test", DataType.KEYWORD),
+            new Literal(Source.EMPTY, "test", DataType.KEYWORD)
+        );
+
+        ESTestCase.assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
+    }
+
+    public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
+        EndsWith function = new EndsWith(
+            Source.EMPTY,
+            new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
+        );
+
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
+    }
+
+    public void testLuceneQuery_NonFoldableSuffix_Translatable() {
+        EndsWith function = new EndsWith(
+            Source.EMPTY,
+            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
+        );
+
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(true));
+
+        Query query = function.asQuery(TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\", false)));
+    }
+}

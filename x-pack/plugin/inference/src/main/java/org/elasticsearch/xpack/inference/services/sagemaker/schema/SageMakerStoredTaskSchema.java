@@ -61,4 +61,8 @@ public interface SageMakerStoredTaskSchema extends TaskSettings {
 
     @Override
     SageMakerStoredTaskSchema updatedTaskSettings(Map<String, Object> newSettings);
+
+    default SageMakerStoredTaskSchema override(Map<String, Object> newSettings) {
+        return updatedTaskSettings(newSettings);
+    }
 }

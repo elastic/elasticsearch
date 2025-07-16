@@ -451,6 +451,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
   method: testSimilarityBetweenConstantVectorAndField {functionName=v_cosine similarityFunction=COSINE}
   issue: https://github.com/elastic/elasticsearch/issues/131363
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
+  issue: https://github.com/elastic/elasticsearch/issues/131364
 
 # Examples:
 #

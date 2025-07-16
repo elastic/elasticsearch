@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -52,12 +53,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -284,11 +282,14 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        return projectMetadata.indices().values().stream().anyMatch(indexMetadata -> {
+        for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
-            return checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline);
-        });
+            if (checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -301,9 +302,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @SuppressWarnings("unchecked")
     private static Set<String> pipelinesWithGeoIpProcessor(ProjectMetadata projectMetadata, boolean downloadDatabaseOnPipelineCreation) {
         List<PipelineConfiguration> configurations = IngestService.getPipelines(projectMetadata);
-        Map<String, PipelineConfiguration> pipelineConfigById = configurations.stream()
-            .collect(Collectors.toMap(PipelineConfiguration::getId, Function.identity()));
-        Map<String, Boolean> pipelineHasGeoProcessorById = new HashMap<>(); // used to keep track of pipelines we've checked before
+        Map<String, PipelineConfiguration> pipelineConfigById = HashMap.newHashMap(configurations.size());
+        for (PipelineConfiguration configuration : configurations) {
+            pipelineConfigById.put(configuration.getId(), configuration);
+        }
+        // this map is used to keep track of pipelines that have already been checked
+        Map<String, Boolean> pipelineHasGeoProcessorById = HashMap.newHashMap(configurations.size());
         Set<String> ids = new HashSet<>();
         // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
         for (PipelineConfiguration configuration : configurations) {
@@ -504,11 +508,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                         pipelineHasGeoProcessorById.put(pipelineName, false);
                     }
                 } else {
-                    List<Map<String, Object>> childProcessors = Optional.ofNullable(pipelineName)
-                        .map(pipelineConfigById::get)
-                        .map(PipelineConfiguration::getConfig)
-                        .map(config -> (List<Map<String, Object>>) config.get(Pipeline.PROCESSORS_KEY))
-                        .orElse(Collections.emptyList());
+                    List<Map<String, Object>> childProcessors = null;
+                    PipelineConfiguration config = pipelineConfigById.get(pipelineName);
+                    if (config != null) {
+                        childProcessors = (List<Map<String, Object>>) config.getConfig().get(Pipeline.PROCESSORS_KEY);
+                    }
                     // We initialize this to null so that we know it's in progress and can use it to avoid stack overflow errors:
                     pipelineHasGeoProcessorById.put(pipelineName, null);
                     pipelineHasGeoProcessorById.put(

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -17,20 +17,13 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -42,14 +35,14 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SingletonOrdinalsBuilderTests extends ESTestCase {
+public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
+
     public void testReader() throws IOException {
-        testRead(breakingDriverContext().blockFactory());
+        testRead(blockFactory());
     }
 
     public void testReadWithCranky() throws IOException {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory factory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        var factory = crankyBlockFactory();
         try {
             testRead(factory);
             // If we made it this far cranky didn't fail us!
@@ -112,23 +105,8 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
         assertMap(Arrays.stream(sortedOrds).mapToObj(Integer::valueOf).limit(uniqueLength).toList(), matchesList(expected));
     }
 
-    private final List<CircuitBreaker> breakers = new ArrayList<>();
-    private final List<BlockFactory> blockFactories = new ArrayList<>();
-
-    /**
-     * A {@link DriverContext} with a breaking {@link BigArrays} and {@link BlockFactory}.
-     */
-    protected DriverContext breakingDriverContext() { // TODO move this to driverContext once everyone supports breaking
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
-        blockFactories.add(factory);
-        return new DriverContext(bigArrays, factory);
-    }
-
     public void testAllNull() throws IOException {
-        BlockFactory factory = breakingDriverContext().blockFactory();
+        BlockFactory factory = blockFactory();
         int count = 1000;
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             for (int i = 0; i < count; i++) {
@@ -159,7 +137,7 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
     }
 
     public void testEmitOrdinalForHighCardinality() throws IOException {
-        BlockFactory factory = breakingDriverContext().blockFactory();
+        BlockFactory factory = blockFactory();
         int numOrds = between(50, 100);
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
             for (int o = 0; o < numOrds; o++) {
@@ -198,20 +176,4 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
             return builder.buildOrdinal();
         }
     }
-
-    @After
-    public void allBreakersEmpty() throws Exception {
-        // first check that all big arrays are released, which can affect breakers
-        MockBigArrays.ensureAllArraysAreReleased();
-
-        for (CircuitBreaker breaker : breakers) {
-            for (var factory : blockFactories) {
-                if (factory instanceof MockBlockFactory mockBlockFactory) {
-                    mockBlockFactory.ensureAllBlocksAreReleased();
-                }
-            }
-            assertThat("Unexpected used in breaker: " + breaker, breaker.getUsed(), equalTo(0L));
-        }
-    }
-
 }

@@ -2300,6 +2300,20 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testVectorSimilarityFunctionsNullArgs() throws Exception {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
+            checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
+        }
+    }
+
+    private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {
+        assertThat(
+            error("from test | eval similarity = " + functionInvocation, fullTextAnalyzer),
+            containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

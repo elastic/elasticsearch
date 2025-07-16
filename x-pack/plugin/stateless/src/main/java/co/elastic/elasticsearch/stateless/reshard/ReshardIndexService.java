@@ -256,20 +256,20 @@ public class ReshardIndexService {
             indexShard.shardId().id(),
             indexShard.mapperService().hasNested()
         );
-        var engine = indexShard.getEngineOrNull();
-        if (engine == null) {
-            // probably closed
-            throw new IllegalStateException(
-                "cannot delete unowned documents for shard [" + indexShard.shardId().id() + "], engine is null"
-            );
-        }
-        assert engine instanceof IndexEngine;
-        ((IndexEngine) engine).deleteUnownedDocuments(unownedQuery);
-        // Ensure that the deletion is flushed to the object store before returning, so that the caller knows that it
-        // will not need to retry this and can move a splitting shard to DONE.
-        // It would also be fine to just wait for the next flush after delete completes, but assuming we don't split often
-        // the cost of this flush should amortize well.
-        engine.flush(/* force */ true, /* waitIfOngoing */ true, listener.map(r -> null));
+
+        indexShard.ensureMutable(listener.delegateFailure((l, ignored) -> indexShard.withEngine(engine -> {
+            ActionListener.run(l, runListener -> {
+                assert engine instanceof IndexEngine : engine.getClass().getSimpleName();
+
+                ((IndexEngine) engine).deleteUnownedDocuments(unownedQuery);
+                // Ensure that the deletion is flushed to the object store before returning, so that the caller knows that it
+                // will not need to retry this and can move a splitting shard to DONE.
+                // It would also be fine to just wait for the next flush after delete completes, but assuming we don't split often
+                // the cost of this flush should amortize well.
+                engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.map(r -> null));
+            });
+            return null;
+        })), false);
     }
 
     private void onlyReshardIndex(

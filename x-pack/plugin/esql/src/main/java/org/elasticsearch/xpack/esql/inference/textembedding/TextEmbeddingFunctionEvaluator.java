@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluator {
@@ -51,13 +53,27 @@ public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluato
     }
 
     private Literal parseInferenceResponse(InferenceAction.Response response) {
-        float[] embeddingValues = switch (response.getResults()) {
+        if (response.getResults() instanceof TextEmbeddingResults<?> textEmbeddingResults) {
+            return parseInferenceResponse(textEmbeddingResults);
+        }
+        throw new IllegalArgumentException("Inference response should be of type TextEmbeddingResults");
+    }
+
+    private Literal parseInferenceResponse(TextEmbeddingResults<?> result) {
+        List<Float> embeddingList = new ArrayList<>(result.getFirstEmbeddingSize());
+        for (float value : getEmbeddingValues(result)) {
+            embeddingList.add(value);
+        }
+
+        return new Literal(f.source(), embeddingList, DataType.DENSE_VECTOR);
+    }
+
+    private float[] getEmbeddingValues(TextEmbeddingResults<?> result) {
+        return switch (result) {
             case TextEmbeddingFloatResults floatEmbeddingResults -> floatEmbeddingResults.embeddings().get(0).values();
             case TextEmbeddingByteResults bytesEmbeddingResults -> bytesEmbeddingResults.embeddings().get(0).toFloatArray();
             case TextEmbeddingBitResults bitsEmbeddingResults -> bitsEmbeddingResults.embeddings().get(0).toFloatArray();
             default -> throw new IllegalArgumentException("Inference response should be of type TextEmbeddingResults");
         };
-
-        return new Literal(f.source(), embeddingValues, DataType.DENSE_VECTOR);
     }
 }

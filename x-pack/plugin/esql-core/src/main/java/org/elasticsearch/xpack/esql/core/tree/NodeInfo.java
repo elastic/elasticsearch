@@ -256,12 +256,12 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3)
+                            )
                     )
                 );
             }
@@ -317,13 +317,13 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3),
-                            (P5) newProps.get(4)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3),
+                                (P5) newProps.get(4)
+                            )
                     )
                 );
             }
@@ -383,14 +383,14 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3),
-                            (P5) newProps.get(4),
-                            (P6) newProps.get(5)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3),
+                                (P5) newProps.get(4),
+                                (P6) newProps.get(5)
+                            )
                     )
                 );
             }
@@ -454,15 +454,15 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3),
-                            (P5) newProps.get(4),
-                            (P6) newProps.get(5),
-                            (P7) newProps.get(6)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3),
+                                (P5) newProps.get(4),
+                                (P6) newProps.get(5),
+                                (P7) newProps.get(6)
+                            )
                     )
                 );
             }
@@ -530,16 +530,16 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3),
-                            (P5) newProps.get(4),
-                            (P6) newProps.get(5),
-                            (P7) newProps.get(6),
-                            (P8) newProps.get(7)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3),
+                                (P5) newProps.get(4),
+                                (P6) newProps.get(5),
+                                (P7) newProps.get(6),
+                                (P8) newProps.get(7)
+                            )
                     )
                 );
             }
@@ -611,17 +611,17 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3),
-                            (P5) newProps.get(4),
-                            (P6) newProps.get(5),
-                            (P7) newProps.get(6),
-                            (P8) newProps.get(7),
-                            (P9) newProps.get(8)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3),
+                                (P5) newProps.get(4),
+                                (P6) newProps.get(5),
+                                (P7) newProps.get(6),
+                                (P8) newProps.get(7),
+                                (P9) newProps.get(8)
+                            )
                     )
                 );
             }
@@ -697,18 +697,18 @@ public abstract class NodeInfo<T extends Node<?>> {
                         newProps -> innerProperties().equals(newProps)
                             ? node
                             : ctor.apply(
-                            node.source(),
-                            (P1) newProps.get(0),
-                            (P2) newProps.get(1),
-                            (P3) newProps.get(2),
-                            (P4) newProps.get(3),
-                            (P5) newProps.get(4),
-                            (P6) newProps.get(5),
-                            (P7) newProps.get(6),
-                            (P8) newProps.get(7),
-                            (P9) newProps.get(8),
-                            (P10) newProps.get(9)
-                        )
+                                node.source(),
+                                (P1) newProps.get(0),
+                                (P2) newProps.get(1),
+                                (P3) newProps.get(2),
+                                (P4) newProps.get(3),
+                                (P5) newProps.get(4),
+                                (P6) newProps.get(5),
+                                (P7) newProps.get(6),
+                                (P8) newProps.get(7),
+                                (P9) newProps.get(8),
+                                (P10) newProps.get(9)
+                            )
                     )
                 );
             }

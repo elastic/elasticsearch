@@ -1,5 +1,5 @@
 pr: 131395
-summary: Enable failure store for OTEL datastreams
+summary: Enable failure store for newly created OTEL datastreams
 area: Data streams
 type: enhancement
 issues: []

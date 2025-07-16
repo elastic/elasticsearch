@@ -21,8 +21,8 @@ setup:
   - do:
       ingest.get_pipeline:
         id: "my_pipeline"
-  - match: { my_pipeline.created_date: "/\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z/" }
-  - match: { my_pipeline.modified_date: "/\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z/" }
+  - match: { my_pipeline.created_date: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { my_pipeline.modified_date: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
 
 ---
 "Test PUT setting created_date":

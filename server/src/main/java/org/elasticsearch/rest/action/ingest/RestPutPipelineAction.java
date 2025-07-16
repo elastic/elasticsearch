@@ -77,6 +77,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
+        // pipeline_tracking info: `{created,modified}_date` system properties defined within pipeline definition.
         return Set.of("pipeline_tracking_info");
     }
 }

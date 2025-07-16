@@ -82,6 +82,7 @@ import org.mockito.invocation.InvocationOnMock;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -117,7 +118,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -817,56 +817,45 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testPutWithTracking() {
-        final Instant beforeInitialPut = Instant.now();
         final IngestService ingestService = createWithProcessors(Map.of());
         final String id = "_id";
         final ProjectId projectId = randomProjectIdOrDefault();
-        Pipeline pipeline = ingestService.getPipeline(projectId, id);
-        assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build(); // Start empty
+        final AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
+        final InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
 
         // add a new pipeline:
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"processors\": []}");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(projectId, putRequest, clusterState);
+        clusterState = executePutWithInstantSource(projectId, putRequest, clusterState, instantSource);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final Instant afterInitialPut = Instant.now();
-        pipeline = ingestService.getPipeline(projectId, id);
-        assertThat(pipeline, notNullValue());
-        assertThat(pipeline.getId(), equalTo(id));
-        assertThat(pipeline.getDescription(), nullValue());
-        assertThat(pipeline.getProcessors().size(), equalTo(0));
-        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforeInitialPut.toEpochMilli()));
-        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), lessThanOrEqualTo(afterInitialPut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(pipeline.getCreatedDateMillis().orElseThrow()));
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), is(0L));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(0L));
+        // test PipelineConfiguration has millis part in iso8601 even if instantSource provides millis part == 0
+        final Map<String, Object> clusterStatePipelineConfig = ((IngestMetadata) clusterState.metadata()
+            .getProject(projectId)
+            .custom(IngestMetadata.TYPE)).getPipelines().get(id).getConfig();
+        assertThat(clusterStatePipelineConfig.get(Pipeline.CREATED_DATE_KEY), is("1970-01-01T00:00:00.000Z"));
+        assertThat(clusterStatePipelineConfig.get(Pipeline.MODIFIED_DATE_KEY), is("1970-01-01T00:00:00.000Z"));
 
         // overwrite existing pipeline:
-        final Instant beforeSecondPut = Instant.now();
         putRequest = putJsonPipelineRequest(id, """
             {"processors": [], "description": "_description"}""");
         previousClusterState = clusterState;
-        clusterState = executePut(projectId, putRequest, clusterState);
+        clusterState = executePutWithInstantSource(projectId, putRequest, clusterState, instantSource);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final Instant afterSecondPut = Instant.now();
         pipeline = ingestService.getPipeline(projectId, id);
-        assertThat(pipeline, notNullValue());
-        assertThat(pipeline.getId(), equalTo(id));
-        assertThat(pipeline.getDescription(), equalTo("_description"));
-        assertThat(pipeline.getProcessors().size(), equalTo(0));
-        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforeInitialPut.toEpochMilli()));
-        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), lessThanOrEqualTo(afterInitialPut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforeSecondPut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), lessThanOrEqualTo(afterSecondPut.toEpochMilli()));
+        assertThat(pipeline.getCreatedDateMillis().orElseThrow(), is(0L));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(1L));
     }
 
     public void testPutWithTrackingExistingPipelineWithoutCreatedAtOnlyHasModifiedAt() {
         final IngestService ingestService = createWithProcessors();
         final String id = "_id";
         final ProjectId projectId = randomProjectIdOrDefault();
-        Pipeline pipeline = ingestService.getPipeline(projectId, id);
-        assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)
@@ -879,22 +868,17 @@ public class IngestServiceTests extends ESTestCase {
                     .build()
             )
             .build(); // Start empty
+        final AtomicInteger instantSourceInvocationCounter = new AtomicInteger();
+        final InstantSource instantSource = () -> Instant.ofEpochMilli(instantSourceInvocationCounter.getAndIncrement());
 
         // update existing pipeline which doesn't have `created_date`
-        final Instant beforePut = Instant.now();
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"processors\": []}");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(projectId, putRequest, clusterState);
+        clusterState = executePutWithInstantSource(projectId, putRequest, clusterState, instantSource);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final Instant afterPut = Instant.now();
-        pipeline = ingestService.getPipeline(projectId, id);
-        assertThat(pipeline, notNullValue());
-        assertThat(pipeline.getId(), equalTo(id));
-        assertThat(pipeline.getDescription(), nullValue());
-        assertThat(pipeline.getProcessors().size(), equalTo(0));
+        final Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertTrue(pipeline.getCreatedDateMillis().isEmpty());
-        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), greaterThanOrEqualTo(beforePut.toEpochMilli()));
-        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), lessThanOrEqualTo(afterPut.toEpochMilli()));
+        assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(0L));
     }
 
     public void testPutWithErrorResponse() throws IllegalAccessException {
@@ -3534,8 +3518,21 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(ProjectId projectId, PutPipelineRequest request) {
+        return oneTaskWithInstantSource(projectId, request, Instant::now);
+    }
+
+    private static List<IngestService.PipelineClusterStateUpdateTask> oneTaskWithInstantSource(
+        final ProjectId projectId,
+        final PutPipelineRequest request,
+        final InstantSource instantSource
+    ) {
         return List.of(
-            new IngestService.PutPipelineClusterStateUpdateTask(projectId, ActionTestUtils.assertNoFailureListener(t -> {}), request)
+            new IngestService.PutPipelineClusterStateUpdateTask(
+                projectId,
+                ActionTestUtils.assertNoFailureListener(t -> {}),
+                request,
+                instantSource
+            )
         );
     }
 
@@ -3544,8 +3541,21 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static ClusterState executePut(ProjectId projectId, PutPipelineRequest request, ClusterState clusterState) {
+        return executePutWithInstantSource(projectId, request, clusterState, Instant::now);
+    }
+
+    private static ClusterState executePutWithInstantSource(
+        final ProjectId projectId,
+        final PutPipelineRequest request,
+        final ClusterState clusterState,
+        final InstantSource instantSource
+    ) {
         try {
-            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(projectId, request));
+            return executeAndAssertSuccessful(
+                clusterState,
+                IngestService.PIPELINE_TASK_EXECUTOR,
+                oneTaskWithInstantSource(projectId, request, instantSource)
+            );
         } catch (Exception e) {
             throw new AssertionError(e);
         }

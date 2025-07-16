@@ -19,7 +19,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -305,12 +305,12 @@ public final class Pipeline {
         return Boolean.TRUE.equals(deprecated);
     }
 
-    public OptionalLong getCreatedDateMillis() {
-        return createdDateMillis == null ? OptionalLong.empty() : OptionalLong.of(createdDateMillis);
+    public Optional<Long> getCreatedDateMillis() {
+        return Optional.ofNullable(createdDateMillis);
     }
 
-    public OptionalLong getModifiedDateMillis() {
-        return modifiedDateMillis == null ? OptionalLong.empty() : OptionalLong.of(modifiedDateMillis);
+    public Optional<Long> getModifiedDateMillis() {
+        return Optional.ofNullable(modifiedDateMillis);
     }
 
     @Override
@@ -325,10 +325,9 @@ public final class Pipeline {
         sb.append(", relativeTimeProvider=").append(relativeTimeProvider);
         sb.append(", fieldAccessPattern=").append(fieldAccessPattern);
         sb.append(", deprecated=").append(deprecated);
-        sb.append(", createdDateMillis=").append(createdDateMillis);
-        sb.append(", modifiedDateMillis=").append(modifiedDateMillis);
+        sb.append(", createdDateMillis='").append(createdDateMillis).append('\'');
+        sb.append(", modifiedDateMillis='").append(modifiedDateMillis).append('\'');
         sb.append('}');
         return sb.toString();
     }
-
 }

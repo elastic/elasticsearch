@@ -102,6 +102,24 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
+    /** Get usage statistics for the given shard. */
+    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
+        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
+        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
+        return queryCacheStats;
+    }
+
+    @Override
+    public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+        while (weight instanceof CachingWeightWrapper) {
+            weight = ((CachingWeightWrapper) weight).in;
+        }
+        final Weight in = cache.doCache(weight, policy);
+        // We wrap the weight to track the readers it sees and map them with
+        // the shards they belong to
+        return new CachingWeightWrapper(in);
+    }
+
     public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
         IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
         boolean hasQueryCache = queryCache != null;
@@ -148,24 +166,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     public record CacheTotals(long totalSize, int shardCount, long sharedRamBytesUsed) {}
-
-    /** Get usage statistics for the given shard. */
-    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
-        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
-        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
-        return queryCacheStats;
-    }
-
-    @Override
-    public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        while (weight instanceof CachingWeightWrapper) {
-            weight = ((CachingWeightWrapper) weight).in;
-        }
-        final Weight in = cache.doCache(weight, policy);
-        // We wrap the weight to track the readers it sees and map them with
-        // the shards they belong to
-        return new CachingWeightWrapper(in);
-    }
 
     private class CachingWeightWrapper extends Weight {
 

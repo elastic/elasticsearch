@@ -116,15 +116,15 @@ Logging slow requests can be resource intensive to your {{es}} cluster depending
 
 If you aren’t sure how to start investigating traffic issues, consider enabling the `warn` threshold with a high `30s` threshold at the index level using the [update cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings):
 
-* Enable for search requests:
+Here is an example of how to change cluster settings to enable query logging at `warn` level, for queries taking more than 30 seconds, and include user information in the logs:
 
-    ```console
-    PUT /_cluster/settings
-    {
-      "transient": {
-        "esql.querylog.include.user": true,
-        "esql.querylog.threshold.warn": "30s"
-      }
-    }
-    ```
+```console
+PUT /_cluster/settings
+{
+  "transient": {
+    "esql.querylog.include.user": true,
+    "esql.querylog.threshold.warn": "30s"
+  }
+}
+```
 

@@ -429,6 +429,9 @@ tests:
 - class: org.elasticsearch.repositories.s3.S3ServiceTests
   method: testGetClientRegionFromEndpointSettingGuess
   issue: https://github.com/elastic/elasticsearch/issues/131392
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test050BasicApiTests
+  issue: https://github.com/elastic/elasticsearch/issues/120911
 
 # Examples:
 #

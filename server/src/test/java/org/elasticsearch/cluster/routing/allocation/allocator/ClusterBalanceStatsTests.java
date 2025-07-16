@@ -52,13 +52,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
-    private static final DiscoveryNode node1 = newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE));
-    private static final DiscoveryNode node2 = newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE));
-    private static final DiscoveryNode node3 = newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode NODE1 = newNode("node-1", "node-1", Set.of(DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode NODE2 = newNode("node-2", "node-2", Set.of(DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode NODE3 = newNode("node-3", "node-3", Set.of(DATA_CONTENT_NODE_ROLE));
 
     public void testStatsForSingleTierClusterWithNoForecasts() {
         var clusterState = createClusterState(
-            List.of(node1, node2, node3),
+            List.of(NODE1, NODE2, NODE3),
             List.of(
                 startedIndex("index-1", null, null, "node-1", "node-2"),
                 startedIndex("index-2", null, null, "node-2", "node-3"),
@@ -72,9 +72,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
         double nodeWeight = randomDoubleBetween(-1, 1, true);
-        nodeWeights.put(node1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(NODE1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(NODE2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(NODE3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
 
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
@@ -120,7 +120,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testStatsForSingleTierClusterWithForecasts() {
         var clusterState = createClusterState(
-            List.of(node1, node2, node3),
+            List.of(NODE1, NODE2, NODE3),
             List.of(
                 startedIndex("index-1", 1.5, 8L, "node-1", "node-2"),
                 startedIndex("index-2", 2.5, 4L, "node-2", "node-3"),
@@ -135,9 +135,9 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
         double nodeWeight = randomDoubleBetween(-1, 1, true);
-        nodeWeights.put(node1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(NODE1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(NODE2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
+        nodeWeights.put(NODE3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
 
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
@@ -275,7 +275,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testStatsForNoIndicesInTier() {
-        var clusterState = createClusterState(List.of(node1, node2, node3), List.of());
+        var clusterState = createClusterState(List.of(NODE1, NODE2, NODE3), List.of());
         var clusterInfo = createClusterInfo(List.of());
 
         var stats = ClusterBalanceStats.createFrom(clusterState, null, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
@@ -430,7 +430,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testWriteTo() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = List.of("data", "ingest");
+        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -503,7 +503,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testToXContentWithoutHumanReadableNames() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = List.of("data", "ingest");
+        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -546,7 +546,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testToXContentWithHumanReadableNames() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = List.of("data", "ingest");
+        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -587,8 +587,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testToXContentWithUnknownNodeId() throws IOException {
-        String nodeId = "UNKNOWN";
-        List<String> roles = List.of("data", "ingest");
+        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -597,7 +596,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
         Double nodeWeight = 0.99;
 
         NodeBalanceStats nodeBalanceStats = new NodeBalanceStats(
-            nodeId,
+            UNKNOWN,
             roles,
             shards,
             undesiredShardAllocations,
@@ -628,7 +627,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testToXContentWithNullNodeWeight() throws IOException {
         String nodeId = "node-id";
-        List<String> roles = List.of("data", "ingest");
+        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;

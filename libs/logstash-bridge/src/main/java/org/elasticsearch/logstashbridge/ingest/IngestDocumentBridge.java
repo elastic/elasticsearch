@@ -21,6 +21,12 @@ import java.util.function.BiConsumer;
 
 public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> {
 
+    public static final class Constants {
+        public static final String METADATA_VERSION_FIELD_NAME = IngestDocument.Metadata.VERSION.getFieldName();
+
+        private Constants() {}
+    }
+
     public static IngestDocumentBridge wrap(final IngestDocument ingestDocument) {
         if (ingestDocument == null) {
             return null;

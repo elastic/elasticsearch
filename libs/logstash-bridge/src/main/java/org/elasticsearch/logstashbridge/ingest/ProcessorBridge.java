@@ -11,6 +11,7 @@ package org.elasticsearch.logstashbridge.ingest;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
@@ -30,9 +31,12 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
 
     boolean isAsync();
 
-    void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler) throws Exception;
+    void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler);
 
     static ProcessorBridge wrap(final Processor delegate) {
+        if (delegate instanceof InverseWrapped inverseWrapped) {
+            return inverseWrapped.delegate;
+        }
         return new Wrapped(delegate);
     }
 
@@ -62,12 +66,49 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
         }
 
         @Override
-        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler)
-            throws Exception {
+        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
             delegate.execute(
                 StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
                 (id, e) -> handler.accept(IngestDocumentBridge.wrap(id), e)
             );
+        }
+    }
+
+    @Override
+    default Processor unwrap() {
+        return new InverseWrapped(this);
+    }
+
+    class InverseWrapped implements Processor {
+        private final ProcessorBridge delegate;
+
+        public InverseWrapped(final ProcessorBridge delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getType() {
+            return delegate.getType();
+        }
+
+        @Override
+        public String getTag() {
+            return delegate.getTag();
+        }
+
+        @Override
+        public String getDescription() {
+            return delegate.getDescription();
+        }
+
+        @Override
+        public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+            this.delegate.execute(IngestDocumentBridge.wrap(ingestDocument), (idb, e) -> handler.accept(idb.unwrap(), e));
+        }
+
+        @Override
+        public boolean isAsync() {
+            return delegate.isAsync();
         }
     }
 

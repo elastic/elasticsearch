@@ -13,10 +13,7 @@ module org.elasticsearch.xpack.constantkeyword {
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
     requires org.apache.lucene.core;
-    
+
     exports org.elasticsearch.xpack.constantkeyword;
     exports org.elasticsearch.xpack.constantkeyword.mapper;
-    
-    provides org.elasticsearch.painless.spi.PainlessExtension 
-        with org.elasticsearch.xpack.constantkeyword.ConstantKeywordPainlessExtension;
 }

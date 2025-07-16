@@ -86,7 +86,7 @@ public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> im
                         final List<PainlessExtension> extensions = new ArrayList<>();
 
                         extensions.add(new ConstantKeywordPainlessExtension());  // module: constant-keyword
-                        extensions.add(new ProcessorsWhitelistExtension());         // module: ingest-common
+                        extensions.add(new ProcessorsWhitelistExtension());      // module: ingest-common
                         extensions.add(new SpatialPainlessExtension());          // module: spatial
                         extensions.add(new WildcardPainlessExtension());         // module: wildcard
 

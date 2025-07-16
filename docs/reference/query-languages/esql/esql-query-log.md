@@ -7,9 +7,9 @@ navigation_title: "Query log"
 
 The {{esql}} query log allows to log {{esql}} queries based on their execution time.
 
-You can use these logs to investigate, analyze or troubleshoot your cluster’s historical ES|QL performance.
+You can use these logs to investigate, analyze or troubleshoot your cluster’s historical {{esql}} performance.
 
-ES|QL query log reports task duration at coordinator level, but might not encompass the full task execution time observed on the client. For example, logs don’t surface HTTP network delays.
+{{esql}} query log reports task duration at coordinator level, but might not encompass the full task execution time observed on the client. For example, logs don’t surface HTTP network delays.
 
 Events that meet the specified threshold are emitted into  [{{es}} server logs](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md).
 

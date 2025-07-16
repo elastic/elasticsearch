@@ -1208,22 +1208,49 @@ public class IngestDocumentTests extends ESTestCase {
         {
             Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
             IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
-            assertThat(document.getSource(), sameInstance(source));
-            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+            Map<String, Object> underlying = document.getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
+            assertThat(underlying, sameInstance(source));
+
+            underlying = document.getCtxMap().getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
+            assertThat(underlying, sameInstance(source));
         }
 
         {
             Map<String, Object> source = XContentHelper.convertToMap(new BytesArray("{ \"foo\": 1 }"), false, XContentType.JSON).v2();
             IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
-            assertThat(document.getSource(), sameInstance(source));
-            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+            Map<String, Object> underlying = document.getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
+            assertThat(underlying, sameInstance(source));
+
+            underlying = document.getCtxMap().getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
+            assertThat(underlying, sameInstance(source));
         }
 
         {
             Map<String, Object> source = Map.of("foo", 1);
             IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
-            assertThat(document.getSource(), sameInstance(source));
-            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+            Map<String, Object> underlying = document.getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
+            assertThat(underlying, sameInstance(source));
+
+            underlying = document.getCtxMap().getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
+            assertThat(underlying, sameInstance(source));
         }
 
         // a cloned ingest document will copy the map, though
@@ -1232,10 +1259,19 @@ public class IngestDocumentTests extends ESTestCase {
             IngestDocument document1 = new IngestDocument("index", "id", 1, null, null, source);
             document1.getIngestMetadata().put("bar", 2);
             IngestDocument document2 = new IngestDocument(document1);
+            Map<String, Object> underlying = document.getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
             assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
-            assertThat(document2.getSource(), not(sameInstance(source)));
+            assertThat(underlying, not(sameInstance(source)));
+
+            underlying = document.getCtxMap().getSource();
+            if (underlying instanceof MapStructuredSource structuredSource) {
+                underlying = structuredSource.map();
+            }
             assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
-            assertThat(document2.getCtxMap().getSource(), not(sameInstance(source)));
+            assertThat(underlying, not(sameInstance(source)));
 
             // it also copies these other nearby maps
             assertThat(document2.getIngestMetadata(), equalTo(document1.getIngestMetadata()));

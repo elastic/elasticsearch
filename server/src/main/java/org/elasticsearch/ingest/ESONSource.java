@@ -206,27 +206,6 @@ public class ESONSource {
         }
     }
 
-    // Tracks modifications to handle writes
-    private static class ModificationTracker<T> {
-        private final Map<T, Object> modifications = new HashMap<>(0);
-
-        void putModification(T key, Object value) {
-            modifications.put(key, value);
-        }
-
-        void remove(T key) {
-            modifications.remove(key);
-        }
-
-        Object getModification(T key) {
-            return modifications.get(key);
-        }
-
-        boolean hasModification(T key) {
-            return modifications.containsKey(key);
-        }
-    }
-
     public enum ValueType {
         INT,
         LONG,
@@ -239,21 +218,9 @@ public class ESONSource {
 
     public interface Type {}
 
-    public record Mutation() implements Type {
+    public record Mutation(Object object) implements Type {}
 
-        private static final Mutation INSTANCE = new Mutation();
-
-    }
-
-    public record ESONObject(Map<String, Type> map, Supplier<Values> objectValues, ModificationTracker<String> modificationTracker)
-        implements
-            Type,
-            Map<String, Object>,
-            ToXContent {
-
-        private ESONObject(Map<String, Type> map, Supplier<Values> objectValues) {
-            this(map, objectValues, new ModificationTracker<>());
-        }
+    public record ESONObject(Map<String, Type> map, Supplier<Values> objectValues) implements Type, Map<String, Object>, ToXContent {
 
         @Override
         public int size() {
@@ -280,8 +247,8 @@ public class ESONSource {
             Type type = map.get(key);
             if (type == null) {
                 return null;
-            } else if (type == Mutation.INSTANCE) {
-                return modificationTracker.getModification((String) key);
+            } else if (type instanceof Mutation mutation) {
+                return mutation.object();
             }
             return convertTypeToValue(type);
         }
@@ -289,18 +256,19 @@ public class ESONSource {
         @Override
         public Object put(String key, Object value) {
             Object oldValue = get(key);
-            map.put(key, Mutation.INSTANCE);
-            modificationTracker.putModification(key, value);
+            map.put(key, new Mutation(value));
             return oldValue;
         }
 
         @Override
         public Object remove(Object key) {
-            String stringKey = (String) key;
-            Object oldValue = get(key);
-            map.put(stringKey, Mutation.INSTANCE);
-            modificationTracker.putModification(stringKey, null);
-            return oldValue;
+            Type type = map.remove(key);
+            if (type == null) {
+                return null;
+            } else if (type instanceof Mutation mutation) {
+                return mutation.object();
+            }
+            return convertTypeToValue(type);
         }
 
         @Override
@@ -312,10 +280,7 @@ public class ESONSource {
 
         @Override
         public void clear() {
-            for (String key : map.keySet()) {
-                map.put(key, Mutation.INSTANCE);
-                modificationTracker.putModification(key, null);
-            }
+            map.clear();
         }
 
         @Override
@@ -441,33 +406,44 @@ public class ESONSource {
 
         private final List<Type> elements;
         private final Supplier<Values> arrayValues;
-        private final ModificationTracker<Integer> modificationTracker;
 
         public ESONArray(List<Type> elements, Supplier<Values> arrayValues) {
             this.elements = elements;
             this.arrayValues = arrayValues;
-            this.modificationTracker = new ModificationTracker<>();
         }
 
         @Override
         public Object get(int index) {
-            // Check for modifications first
-            if (modificationTracker.hasModification(index)) {
-                return modificationTracker.getModification(index);
-            }
-
             Type type = elements.get(index);
             if (type == null) {
                 return null;
+            } else if (type instanceof Mutation mutation) {
+                return mutation.object();
             }
+
             return convertTypeToValue(type);
+        }
+
+        @Override
+        public void add(int index, Object element) {
+            elements.add(index, new Mutation(element));
         }
 
         @Override
         public Object set(int index, Object element) {
             Object oldValue = get(index);
-            modificationTracker.putModification(index, element);
+            elements.set(index, new Mutation(element));
             return oldValue;
+        }
+
+        @Override
+        public Object remove(int index) {
+            Type removedType = elements.remove(index);
+            if (removedType instanceof Mutation mutation) {
+                return mutation.object();
+            } else {
+                return convertTypeToValue(removedType);
+            }
         }
 
         @Override

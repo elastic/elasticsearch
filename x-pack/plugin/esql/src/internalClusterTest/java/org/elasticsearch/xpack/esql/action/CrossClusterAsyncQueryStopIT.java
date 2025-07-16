@@ -129,6 +129,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
     }
 
     public void testStopQueryLocal() throws Exception {
+        assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
         int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -95,10 +94,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
             PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
             BuilderParams builderParams = builderParams(this, context);
-
-            var templateIdMapper = new KeywordFieldMapper.Builder(patternedTextFieldType.templateIdFieldName(), indexCreatedVersion)
-                .useDocValuesSkipper(true)
-                .forceDocValuesSkipper(true)
+            var templateIdMapper = KeywordFieldMapper.Builder
+                .buildForTemplateId(patternedTextFieldType.templateIdFieldName(), indexCreatedVersion)
                 .build(context);
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
@@ -174,7 +171,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
 
         // Add template_id doc_values
-        context.doc().add(new Field(fieldType().templateIdFieldName(), new BytesRef(parts.templateId()), KeywordFieldMapper.Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES));
+        context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
         // Add args doc_values
         if (parts.args().isEmpty() == false) {

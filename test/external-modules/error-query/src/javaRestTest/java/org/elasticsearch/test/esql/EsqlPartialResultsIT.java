@@ -236,6 +236,26 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
         }
     }
 
+    public void testAllShardsFailedOldBehavior() throws Exception {
+        // TODO: drop this once we no longer support the old behavior
+        assumeFalse(
+            "fail functionality is enabled",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("fail_if_all_shards_fail")).orElse(false)
+        );
+        setupRemoteClusters();
+        populateIndices();
+        try {
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity("{\"query\": \"FROM " + "*:failing*" + " | LIMIT 100\"}");
+            request.addParameter("allow_partial_results", "true");
+            Response resp = client().performRequest(request);
+            Map<String, Object> results = entityAsMap(resp);
+            assertThat(results.get("is_partial"), equalTo(true));
+        } finally {
+            removeRemoteCluster();
+        }
+    }
+
     private void setupRemoteClusters() throws IOException {
         String settings = String.format(Locale.ROOT, """
             {

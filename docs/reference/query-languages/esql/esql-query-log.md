@@ -123,7 +123,7 @@ If you aren’t sure how to start investigating traffic issues, consider enablin
     {
       "transient": {
         "esql.querylog.include.user": true,
-        "esql.querylog.threshold.warn": "30s",
+        "esql.querylog.threshold.warn": "30s"
       }
     }
     ```

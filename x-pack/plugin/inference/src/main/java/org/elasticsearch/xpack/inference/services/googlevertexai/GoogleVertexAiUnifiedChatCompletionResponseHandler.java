@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -23,19 +21,24 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.MidStreamUnifiedChatCompletionExceptionConvertible;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionExceptionConvertible;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Handles streaming chat completion responses and error parsing for Google Vertex AI inference endpoints.
+ * This handler is designed to work with the unified Google Vertex AI chat completion API.
+ */
 public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVertexAiResponseHandler {
 
     private static final String ERROR_FIELD = "error";
@@ -52,7 +55,14 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
         assert request.isStreaming() : "GoogleVertexAiUnifiedChatCompletionResponseHandler only supports streaming requests";
 
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
+        var googleVertexAiProcessor = new GoogleVertexAiUnifiedStreamingProcessor(
+            (message, exception) -> buildMidStreamChatCompletionError(
+                request.getInferenceEntityId(),
+                message,
+                exception,
+                GoogleVertexAiErrorResponse::fromString
+            )
+        );
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(googleVertexAiProcessor);
@@ -60,58 +70,14 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
     }
 
     @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
-
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
-        var restStatus = toRestStatus(responseStatusCode);
-
-        return errorResponse instanceof GoogleVertexAiErrorResponse vertexAIErrorResponse
-            ? new UnifiedChatCompletionException(
-                restStatus,
-                errorMessage,
-                vertexAIErrorResponse.status(),
-                String.valueOf(vertexAIErrorResponse.code()),
-                null
-            )
-            : new UnifiedChatCompletionException(
-                restStatus,
-                errorMessage,
-                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
-                restStatus.name().toLowerCase(Locale.ROOT)
-            );
+    protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
+        return buildChatCompletionError(message, request, result, errorResponse);
     }
 
-    private static Exception buildMidStreamError(Request request, String message, Exception e) {
-        var errorResponse = GoogleVertexAiErrorResponse.fromString(message);
-        if (errorResponse instanceof GoogleVertexAiErrorResponse gver) {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format(
-                    "%s for request from inference entity id [%s]. Error message: [%s]",
-                    SERVER_ERROR_OBJECT,
-                    request.getInferenceEntityId(),
-                    errorResponse.getErrorMessage()
-                ),
-                gver.status(),
-                String.valueOf(gver.code()),
-                null
-            );
-        } else if (e != null) {
-            return UnifiedChatCompletionException.fromThrowable(e);
-        } else {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
-                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
-                "stream_error"
-            );
-        }
-    }
-
-    public static class GoogleVertexAiErrorResponse extends ErrorResponse {
-        private static final Logger logger = LogManager.getLogger(GoogleVertexAiErrorResponse.class);
+    public static class GoogleVertexAiErrorResponse extends ErrorResponse
+        implements
+            UnifiedChatCompletionExceptionConvertible,
+            MidStreamUnifiedChatCompletionExceptionConvertible {
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
             "google_vertex_ai_error_wrapper",
             true,
@@ -168,6 +134,28 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             super(Objects.requireNonNull(errorMessage));
             this.code = code == null ? 0 : code;
             this.status = status;
+        }
+
+        @Override
+        public UnifiedChatCompletionException toUnifiedChatCompletionException(String errorMessage, RestStatus restStatus) {
+            return new UnifiedChatCompletionException(restStatus, errorMessage, this.status(), String.valueOf(this.code()), null);
+        }
+
+        @Override
+        public UnifiedChatCompletionException toUnifiedChatCompletionException(String inferenceEntityId) {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    inferenceEntityId,
+                    this.getErrorMessage()
+                ),
+                this.status(),
+                String.valueOf(this.code()),
+                null
+            );
+
         }
 
         public int code() {

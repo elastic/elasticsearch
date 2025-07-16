@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.response;
 
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionExceptionConvertible;
 
-public class HuggingFaceErrorResponseEntity extends ErrorResponse {
+import java.util.Locale;
+
+public class HuggingFaceErrorResponseEntity extends ErrorResponse implements UnifiedChatCompletionExceptionConvertible {
+    private static final String HUGGING_FACE_ERROR = "hugging_face_error";
 
     public HuggingFaceErrorResponseEntity(String message) {
         super(message);
@@ -51,5 +57,10 @@ public class HuggingFaceErrorResponseEntity extends ErrorResponse {
         }
 
         return ErrorResponse.UNDEFINED_ERROR;
+    }
+
+    @Override
+    public UnifiedChatCompletionException toUnifiedChatCompletionException(String errorMessage, RestStatus restStatus) {
+        return new UnifiedChatCompletionException(restStatus, errorMessage, HUGGING_FACE_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
 }

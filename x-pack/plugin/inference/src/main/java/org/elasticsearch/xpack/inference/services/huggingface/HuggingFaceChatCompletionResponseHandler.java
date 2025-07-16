@@ -16,14 +16,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.MidStreamUnifiedChatCompletionExceptionConvertible;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
-import java.util.Locale;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
@@ -40,62 +38,18 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         super(requestType, parseFunction, HuggingFaceErrorResponseEntity::fromResponse);
     }
 
+    /**
+     * Builds an error for mid-stream responses from Hugging Face.
+     * This method is called when an error response is received during streaming operations.
+     *
+     * @param inferenceEntityId The ID of the inference entity that made the request.
+     * @param message The error message to include in the exception.
+     * @param e The exception that occurred.
+     * @return An instance of {@link UnifiedChatCompletionException} representing the error.
+     */
     @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        if (request.isStreaming()) {
-            var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
-            var restStatus = toRestStatus(responseStatusCode);
-            return errorResponse instanceof HuggingFaceErrorResponseEntity
-                ? new UnifiedChatCompletionException(
-                    restStatus,
-                    errorMessage,
-                    HUGGING_FACE_ERROR,
-                    restStatus.name().toLowerCase(Locale.ROOT)
-                )
-                : new UnifiedChatCompletionException(
-                    restStatus,
-                    errorMessage,
-                    createErrorType(errorResponse),
-                    restStatus.name().toLowerCase(Locale.ROOT)
-                );
-        } else {
-            return super.buildError(message, request, result, errorResponse);
-        }
-    }
-
-    @Override
-    protected Exception buildMidStreamError(Request request, String message, Exception e) {
-        var errorResponse = StreamingHuggingFaceErrorResponseEntity.fromString(message);
-        if (errorResponse instanceof StreamingHuggingFaceErrorResponseEntity streamingHuggingFaceErrorResponseEntity) {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format(
-                    "%s for request from inference entity id [%s]. Error message: [%s]",
-                    SERVER_ERROR_OBJECT,
-                    request.getInferenceEntityId(),
-                    errorResponse.getErrorMessage()
-                ),
-                HUGGING_FACE_ERROR,
-                extractErrorCode(streamingHuggingFaceErrorResponseEntity)
-            );
-        } else if (e != null) {
-            return UnifiedChatCompletionException.fromThrowable(e);
-        } else {
-            return new UnifiedChatCompletionException(
-                RestStatus.INTERNAL_SERVER_ERROR,
-                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
-                createErrorType(errorResponse),
-                "stream_error"
-            );
-        }
-    }
-
-    private static String extractErrorCode(StreamingHuggingFaceErrorResponseEntity streamingHuggingFaceErrorResponseEntity) {
-        return streamingHuggingFaceErrorResponseEntity.httpStatusCode() != null
-            ? String.valueOf(streamingHuggingFaceErrorResponseEntity.httpStatusCode())
-            : null;
+    public UnifiedChatCompletionException buildMidStreamChatCompletionError(String inferenceEntityId, String message, Exception e) {
+        return buildMidStreamChatCompletionError(inferenceEntityId, message, e, HuggingFaceStreamingErrorResponseEntity::fromString);
     }
 
     /**
@@ -110,17 +64,19 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
      *     }
      * </code>
      */
-    private static class StreamingHuggingFaceErrorResponseEntity extends ErrorResponse {
+    private static class HuggingFaceStreamingErrorResponseEntity extends ErrorResponse
+        implements
+            MidStreamUnifiedChatCompletionExceptionConvertible {
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
             HUGGING_FACE_ERROR,
             true,
-            args -> Optional.ofNullable((StreamingHuggingFaceErrorResponseEntity) args[0])
+            args -> Optional.ofNullable((HuggingFaceStreamingErrorResponseEntity) args[0])
         );
-        private static final ConstructingObjectParser<StreamingHuggingFaceErrorResponseEntity, Void> ERROR_BODY_PARSER =
+        private static final ConstructingObjectParser<HuggingFaceStreamingErrorResponseEntity, Void> ERROR_BODY_PARSER =
             new ConstructingObjectParser<>(
                 HUGGING_FACE_ERROR,
                 true,
-                args -> new StreamingHuggingFaceErrorResponseEntity(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
+                args -> new HuggingFaceStreamingErrorResponseEntity(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
             );
 
         static {
@@ -157,7 +113,7 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         @Nullable
         private final Integer httpStatusCode;
 
-        StreamingHuggingFaceErrorResponseEntity(String errorMessage, @Nullable Integer httpStatusCode) {
+        HuggingFaceStreamingErrorResponseEntity(String errorMessage, @Nullable Integer httpStatusCode) {
             super(errorMessage);
             this.httpStatusCode = httpStatusCode;
         }
@@ -167,5 +123,20 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
             return httpStatusCode;
         }
 
+        @Override
+        public UnifiedChatCompletionException toUnifiedChatCompletionException(String inferenceEntityId) {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    inferenceEntityId,
+                    this.getErrorMessage()
+                ),
+                HUGGING_FACE_ERROR,
+                this.httpStatusCode() != null ? String.valueOf(this.httpStatusCode()) : null
+            );
+
+        }
     }
 }

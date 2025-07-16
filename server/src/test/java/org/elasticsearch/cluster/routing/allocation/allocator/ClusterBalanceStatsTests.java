@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -70,15 +71,10 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
         );
 
-        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
         double nodeWeight = randomDoubleBetween(-1, 1, true);
-        nodeWeights.put(NODE1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(NODE2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(NODE3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
-            createDesiredBalance(clusterState, nodeWeights),
+            createDesiredBalance(clusterState, nodeWeight),
             clusterInfo,
             TEST_WRITE_LOAD_FORECASTER
         );
@@ -133,15 +129,10 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
         );
 
-        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
         double nodeWeight = randomDoubleBetween(-1, 1, true);
-        nodeWeights.put(NODE1, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(NODE2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(NODE3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
-            createDesiredBalance(clusterState, nodeWeights),
+            createDesiredBalance(clusterState, nodeWeight),
             clusterInfo,
             TEST_WRITE_LOAD_FORECASTER
         );
@@ -211,18 +202,10 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             )
         );
 
-        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights = new HashMap<>();
         double nodeWeight = randomDoubleBetween(-1, 1, true);
-        nodeWeights.put(node1, new DesiredBalanceMetrics.NodeWeightStats(3L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node2, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node3, new DesiredBalanceMetrics.NodeWeightStats(2L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node4, new DesiredBalanceMetrics.NodeWeightStats(1L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node5, new DesiredBalanceMetrics.NodeWeightStats(1L, randomDouble(), randomDouble(), nodeWeight));
-        nodeWeights.put(node6, new DesiredBalanceMetrics.NodeWeightStats(1L, randomDouble(), randomDouble(), nodeWeight));
-
         var stats = ClusterBalanceStats.createFrom(
             clusterState,
-            createDesiredBalance(clusterState, nodeWeights),
+            createDesiredBalance(clusterState, nodeWeight),
             clusterInfo,
             TEST_WRITE_LOAD_FORECASTER
         );
@@ -693,20 +676,31 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             .build();
     }
 
-    private static DesiredBalance createDesiredBalance(
-        ClusterState state,
-        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeWeights
-    ) {
+    private static DesiredBalance createDesiredBalance(ClusterState state, Double nodeWeight) {
         var assignments = new HashMap<ShardId, ShardAssignment>();
+        Map<String, Long> shardCounts = new HashMap<>();
         for (var indexRoutingTable : state.getRoutingTable()) {
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 var indexShardRoutingTable = indexRoutingTable.shard(i);
-                assignments.put(
-                    indexShardRoutingTable.shardId(),
-                    new ShardAssignment(Set.of(indexShardRoutingTable.primaryShard().currentNodeId()), 1, 0, 0)
-                );
+                final String nodeId = indexShardRoutingTable.primaryShard().currentNodeId();
+                assignments.put(indexShardRoutingTable.shardId(), new ShardAssignment(Set.of(nodeId), 1, 0, 0));
+                shardCounts.compute(nodeId, (k, v) -> v == null ? 1 : v + 1);
             }
         }
+
+        final var nodeWeights = state.nodes()
+            .stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    Function.identity(),
+                    node -> new DesiredBalanceMetrics.NodeWeightStats(
+                        shardCounts.getOrDefault(node.getId(), 0L),
+                        randomDouble(),
+                        randomDouble(),
+                        nodeWeight
+                    )
+                )
+            );
 
         return new DesiredBalance(1, assignments, nodeWeights, DesiredBalance.ComputationFinishReason.CONVERGED);
     }

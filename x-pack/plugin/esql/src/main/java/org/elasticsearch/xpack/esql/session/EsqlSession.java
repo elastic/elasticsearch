@@ -458,14 +458,8 @@ public class EsqlSession {
             try {
                 // the order here is tricky - if the cluster has been filtered and later became unavailable,
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(result.indices.failures());
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, unavailableClusters);
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indices,
-                    unavailableClusters.keySet(),
-                    null
-                );
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -529,10 +523,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         IndexResolution lookupIndexResolution
     ) {
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(
-            executionInfo,
-            EsqlCCSUtils.determineUnavailableRemoteClusters(lookupIndexResolution.failures())
-        );
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.failures());
         if (lookupIndexResolution.isValid() == false) {
             // If the index resolution is invalid, don't bother with the rest of the analysis
             return result.addLookupIndexResolution(index, lookupIndexResolution);
@@ -750,10 +741,7 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(
-            executionInfo,
-            EsqlCCSUtils.determineUnavailableRemoteClusters(indexResolution.failures())
-        );
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
         if (executionInfo.isCrossClusterSearch()
             && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
@@ -783,13 +771,7 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(result.indices.failures()).keySet();
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indices,
-                    unavailableClusters,
-                    requestFilter
-                );
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {

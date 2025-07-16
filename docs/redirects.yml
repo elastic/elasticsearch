@@ -35,3 +35,7 @@ redirects:
       'pinned-retriever': 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
       'pinned-retriever-parameters': 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md#pinned-retriever-parameters'
       'pinned-retriever-example-documents': 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md#pinned-retriever-example-documents'
+      'multi-field-field-grouping':
+      'multi-field-field-boosting':
+      'multi-field-query-format':
+      'multi-field-wildcard-field-patterns':

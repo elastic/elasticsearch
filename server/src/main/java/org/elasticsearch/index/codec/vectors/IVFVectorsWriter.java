@@ -142,15 +142,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int[][] assignmentsByCluster
     ) throws IOException;
 
-    abstract CentroidSupplier createCentroidSupplier(
-        IndexInput centroidsInput,
-        int numParentCentroids,
-        int numCentroids,
-        int numClusters,
-        FieldInfo fieldInfo,
-        float[] globalCentroid,
-        IntIntMap clusterToCentroidMap
-    ) throws IOException;
+    abstract CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo) throws IOException;
 
     @Override
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
@@ -299,25 +291,35 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final int numClusters;
             final int[][] assignmentsByCluster;
             final float[] calculatedGlobalCentroid = new float[fieldInfo.getVectorDimension()];
-            IntIntMap clusterToCentroidMap;
             String centroidTempName = null;
             IndexOutput centroidTemp = null;
             success = false;
             try {
                 centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                 centroidTempName = centroidTemp.getName();
+
+                centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
                 CentroidAssignments centroidAssignments = calculateAndWriteCentroids(
                     fieldInfo,
                     getFloatVectorValues(fieldInfo, docs, vectors, numVectors),
-                    centroidTemp,
+                    ivfCentroids,
                     mergeState,
                     calculatedGlobalCentroid
                 );
+                centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
+
+                final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+                for (int i = 0; i < centroidAssignments.centroids().length; i++) {
+                    float[] centroid = centroidAssignments.centroids()[i];
+                    buffer.asFloatBuffer().put(centroid);
+                    centroidTemp.writeBytes(buffer.array(), buffer.array().length);
+                }
+
                 numParentCentroids = centroidAssignments.numParentCentroids();
+                // TODO: remove this from meta when not used on the read side; we currently use it in degenerate cases to read all centroids
                 numCentroids = centroidAssignments.numCentroids();
                 numClusters = centroidAssignments.centroids().length;
                 assignmentsByCluster = centroidAssignments.assignmentsByCluster();
-                clusterToCentroidMap = centroidAssignments.clusterToCentroidMap();
                 success = true;
             } finally {
                 if (success == false && centroidTempName != null) {
@@ -327,7 +329,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             }
             try {
                 if (numCentroids == 0) {
-                    centroidOffset = ivfCentroids.getFilePointer();
                     writeMeta(fieldInfo, numParentCentroids, numCentroids, centroidOffset, 0, new long[0], null);
                     CodecUtil.writeFooter(centroidTemp);
                     IOUtils.close(centroidTemp);
@@ -335,20 +336,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 }
                 CodecUtil.writeFooter(centroidTemp);
                 IOUtils.close(centroidTemp);
-                centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
                 try (IndexInput centroidsInput = mergeState.segmentInfo.dir.openInput(centroidTempName, IOContext.DEFAULT)) {
-                    ivfCentroids.copyBytes(centroidsInput, centroidsInput.length() - CodecUtil.footerLength());
-                    centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
 
-                    CentroidSupplier centroidSupplier = createCentroidSupplier(
-                        centroidsInput,
-                        numParentCentroids,
-                        numCentroids,
-                        numClusters,
-                        fieldInfo,
-                        calculatedGlobalCentroid,
-                        clusterToCentroidMap
-                    );
+                    CentroidSupplier centroidSupplier = createCentroidSupplier(centroidsInput, numClusters, fieldInfo);
 
                     // build a float vector values with random access
                     // build centroids

@@ -259,7 +259,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         FieldEntry entry = fields.get(fieldInfo.number);
 
+        // TODO: pass numClusters via meta rather than computing it here?
         int numCentroids = entry.childCentroidCount();
+        int numClusters = entry.childCentroidCount() / 2;
 
         CentroidWClusterOffsetQueryScorer centroidQueryScorer = getChildCentroidScorer(
             fieldInfo,
@@ -273,9 +275,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // scaling by the number of centroids vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
             // we might want to utilize the total vector count as well, but this is a good start
-            nProbe = (int) Math.round(Math.log10(centroidQueryScorer.size()) * Math.sqrt(knnCollector.k()));
+            nProbe = (int) Math.round(Math.log10(numClusters) * Math.sqrt(knnCollector.k()));
             // clip to be between 1 and the number of centroids
-            nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
+            nProbe = Math.max(Math.min(nProbe, numClusters), 1);
         }
 
         int centroidsVisited = 0;

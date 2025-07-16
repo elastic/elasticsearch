@@ -118,16 +118,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    CentroidSupplier createCentroidSupplier(
-        IndexInput centroidsInput,
-        int numParentCentroids,
-        int numCentroids,
-        int numClusters,
-        FieldInfo fieldInfo,
-        float[] globalCentroid,
-        IntIntMap clusterToCentroidMap
-    ) {
-        return new OffHeapCentroidSupplier(centroidsInput, numParentCentroids, numCentroids, numClusters, fieldInfo, clusterToCentroidMap);
+    CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numClusters, FieldInfo fieldInfo) {
+        return new OffHeapCentroidSupplier(centroidsInput, numClusters, fieldInfo);
     }
 
     private static void writeQuantizedCentroid(
@@ -181,7 +173,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     centroidOutput
                 );
                 // TODO: put at the end of the parents region
-                centroidOutput.writeInt(centroidPartition.childOrdinal());
+                centroidOutput.writeInt(centroidPartition.childOffset());
                 centroidOutput.writeInt(centroidPartition.size());
             }
         }
@@ -252,7 +244,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid);
     }
 
-    record CentroidPartition(float[] centroid, int childOrdinal, int size, int[] assignments) {}
+    /**
+     *
+     * @param centroid the parent centroid of some set of children
+     * @param childOffset the offset of the first child within the partition defined by this parent
+     * @param size the number of children in this partition
+     * @param assignments the set of centroid ordinals (potentially duplicative) of child centroids that belong to this parent
+     */
+    record CentroidPartition(float[] centroid, int childOffset, int size, int[] assignments) {}
 
     /**
      * Calculate the centroids for the given field and write them to the given centroid output.
@@ -426,30 +425,16 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {
         private final IndexInput centroidsInput;
-        private final int numClusters;
         private final int dimension;
         private final float[] scratch;
-        private final long rawCentroidOffset;
         private int currOrd = -1;
-        private final IntIntMap clusterToCentroidMap;
+        private final int numClusters;
 
-        OffHeapCentroidSupplier(
-            IndexInput centroidsInput,
-            int numParentCentroids,
-            int numCentroids,
-            int numClusters,
-            FieldInfo info,
-            IntIntMap clusterToCentroidMap
-        ) {
+        OffHeapCentroidSupplier(IndexInput centroidsInput, int numClusters, FieldInfo info) {
             this.centroidsInput = centroidsInput;
-            this.numClusters = numClusters;
             this.dimension = info.getVectorDimension();
             this.scratch = new float[dimension];
-            long quantizedVectorByteSize = dimension + 3 * Float.BYTES + Short.BYTES;
-            long quantizedVectorNodeByteSize = quantizedVectorByteSize + Integer.BYTES;
-            long parentNodeByteSize = quantizedVectorByteSize + 2 * Integer.BYTES;
-            this.rawCentroidOffset = numParentCentroids * parentNodeByteSize + numCentroids * quantizedVectorNodeByteSize;
-            this.clusterToCentroidMap = clusterToCentroidMap;
+            this.numClusters = numClusters;
         }
 
         @Override
@@ -458,19 +443,13 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public float[] centroid(int clusterOrdinal) throws IOException {
-            if (clusterOrdinal == currOrd) {
+        public float[] centroid(int centroidOrdinal) throws IOException {
+            if (centroidOrdinal == currOrd) {
                 return scratch;
             }
-            int centroidOrdinal;
-            if (clusterToCentroidMap != null) {
-                centroidOrdinal = clusterToCentroidMap.get(clusterOrdinal);
-            } else {
-                centroidOrdinal = clusterOrdinal;
-            }
-            centroidsInput.seek(rawCentroidOffset + (long) centroidOrdinal * dimension * Float.BYTES);
+            centroidsInput.seek((long) centroidOrdinal * dimension * Float.BYTES);
             centroidsInput.readFloats(scratch, 0, dimension);
-            this.currOrd = clusterOrdinal;
+            this.currOrd = centroidOrdinal;
             return scratch;
         }
     }

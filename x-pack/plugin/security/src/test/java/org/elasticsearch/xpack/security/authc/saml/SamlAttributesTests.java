@@ -43,11 +43,11 @@ public class SamlAttributesTests extends SamlTestCase {
                     + "]["
                     + inResponseTo
                     + "]{["
-                    + "urn:oid:0.9.2342.19200300.100.1.1=[peter.ng]"
+                    + "urn:oid:0.9.2342.19200300.100.1.1=[peter.ng](len=1)"
                     + ", "
-                    + "name(urn:oid:2.5.4.3)=[Peter Ng]"
+                    + "name(urn:oid:2.5.4.3)=[Peter Ng](len=1)"
                     + ", "
-                    + "groups(urn:oid:1.3.6.1.4.1.5923.1.5.1.1)=[employees, engineering, managers]"
+                    + "groups(urn:oid:1.3.6.1.4.1.5923.1.5.1.1)=[employees, engineering, managers](len=3)"
                     + "]}"
             )
         );

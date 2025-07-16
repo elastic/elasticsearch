@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -2004,13 +2003,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         || mtf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric()) == false) {
                         aborted.set(Boolean.TRUE);
                         return aggFunc;
-                    }
-                    if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
-                        // This is related to a known bug involving AvgOverTime and aggregate_metric_double. We substitute
-                        // surrogates here so when AvgOverTime becomes Div(SumOverTime, CountOverTime), which then becomes
-                        // Div(SumOverTime(agg_metric.sum), SumOverTime(agg_metric.count)), we can distinguish between the
-                        // SumOverTimes produced here from references to Sum/CountOverTime in other parts of the query
-                        return ((SurrogateExpression) aggFunc).surrogate();
                     }
                     Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, mtf);
                     if (typeConverters == null) {

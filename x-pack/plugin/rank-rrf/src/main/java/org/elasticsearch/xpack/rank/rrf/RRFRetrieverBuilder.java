@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEIGHT;
 
 /**
@@ -57,6 +56,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField WEIGHTS_FIELD = new ParseField("weights");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
 
@@ -65,26 +65,27 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
-        false,
+        true, // Set to true to ignore unknown fields
         args -> {
-            List<Object> rawRetrievers = args[0] == null ? List.of() : (List<Object>) args[0];
+            List<RetrieverBuilder> retrievers = args[0] == null ? List.of() : (List<RetrieverBuilder>) args[0];
             List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
             int rankWindowSize = args[3] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
             int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
+            List<Float> weightsList = (List<Float>) args[5];
 
-            List<RetrieverSource> innerRetrievers = new ArrayList<>(rawRetrievers.size());
-            float[] weights = new float[rawRetrievers.size()];
+            List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = retrievers.stream()
+                .map(CompoundRetrieverBuilder.RetrieverSource::from)
+                .toList();
 
-            int weightIndex = 0;
-            for (Object retrieverOrComponent : rawRetrievers) {
-                if (retrieverOrComponent instanceof RRFRetrieverComponent component) {
-                    innerRetrievers.add(RetrieverSource.from(component.retriever));
-                    weights[weightIndex++] = component.weight;
-                } else {
-                    RetrieverBuilder bareRetriever = (RetrieverBuilder) retrieverOrComponent;
-                    innerRetrievers.add(RetrieverSource.from(bareRetriever));
-                    weights[weightIndex++] = RRFRetrieverComponent.DEFAULT_WEIGHT;
+            float[] weights;
+            if (weightsList == null) {
+                weights = new float[retrievers.size()];
+                Arrays.fill(weights, DEFAULT_WEIGHT);
+            } else {
+                weights = new float[weightsList.size()];
+                for (int i = 0; i < weightsList.size(); i++) {
+                    weights[i] = weightsList.get(i);
                 }
             }
 
@@ -93,30 +94,17 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     );
 
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
-            List<Object> list = new ArrayList<>();
-            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (p.currentToken() == XContentParser.Token.START_OBJECT
-                    && p.nextToken() == XContentParser.Token.FIELD_NAME
-                    && RRFRetrieverComponent.RETRIEVER_FIELD.match(p.currentName(), p.getDeprecationHandler())) {
-                    // Handle wrapped retriever with weight
-                    list.add(RRFRetrieverComponent.fromXContent(p, c));
-                } else {
-                    // Handle bare retriever (legacy format)
-                    String name = p.currentName();
-                    RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
-                    c.trackRetrieverUsage(retrieverBuilder.getName());
-                    p.nextToken();
-                    list.add(retrieverBuilder);
-                }
-            }
-            return list;
-        }, RETRIEVERS_FIELD);
-
-        PARSER.declareStringArray(optionalConstructorArg(), FIELDS_FIELD);
-        PARSER.declareString(optionalConstructorArg(), QUERY_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c),
+            (v) -> { /* This callback enables array syntax */ },
+            RETRIEVERS_FIELD
+        );
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RankBuilder.RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);
+        PARSER.declareFloatArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -131,11 +119,11 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     private final String query;
     private final int rankConstant;
 
-    public RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
+    public RRFRetrieverBuilder(List<CompoundRetrieverBuilder.RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
         this(childRetrievers, null, null, rankWindowSize, rankConstant, createDefaultWeights(childRetrievers));
     }
 
-    private static float[] createDefaultWeights(List<RetrieverSource> retrievers) {
+    private static float[] createDefaultWeights(List<?> retrievers) {
         int size = retrievers == null ? 0 : retrievers.size();
         float[] defaultWeights = new float[size];
         Arrays.fill(defaultWeights, DEFAULT_WEIGHT);
@@ -143,7 +131,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     public RRFRetrieverBuilder(
-        List<RetrieverSource> childRetrievers,
+        List<CompoundRetrieverBuilder.RetrieverSource> childRetrievers,
         List<String> fields,
         String query,
         int rankWindowSize,
@@ -196,7 +184,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+    protected RRFRetrieverBuilder clone(
+        List<CompoundRetrieverBuilder.RetrieverSource> newRetrievers,
+        List<QueryBuilder> newPreFilterQueryBuilders
+    ) {
         RRFRetrieverBuilder clone = new RRFRetrieverBuilder(
             newRetrievers,
             this.fields,
@@ -291,7 +282,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 query,
                 localIndicesMetadata.values(),
                 r -> {
-                    List<RetrieverSource> retrievers = new ArrayList<>(r.size());
+                    List<CompoundRetrieverBuilder.RetrieverSource> retrievers = new ArrayList<>(r.size());
                     float[] weights = new float[r.size()];
                     int i = 0;
                     for (var retriever : r) {
@@ -322,30 +313,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         return rewritten;
     }
 
-    // ---- FOR TESTING XCONTENT PARSING ----
-
-    @Override
-    public boolean doEquals(Object o) {
-        RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
-        return super.doEquals(o)
-            && Objects.equals(fields, that.fields)
-            && Objects.equals(query, that.query)
-            && rankConstant == that.rankConstant
-            && Arrays.equals(weights, that.weights);
-    }
-
-    @Override
-    public int doHashCode() {
-        return Objects.hash(super.doHashCode(), fields, query, rankConstant, Arrays.hashCode(weights));
-    }
-
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         if (innerRetrievers.isEmpty() == false) {
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
-
             for (int i = 0; i < innerRetrievers.size(); i++) {
-                new RRFRetrieverComponent(innerRetrievers.get(i).retriever(), this.weights[i]).toXContent(builder, params);
+                builder.startObject();
+                builder.field("retriever", innerRetrievers.get(i).retriever());
+                builder.field(RRFRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[i]);
+                builder.endObject();
             }
             builder.endArray();
         }
@@ -361,7 +337,30 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
 
-        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(RankBuilder.RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
+        if (fields == null && query == null) {
+            builder.startArray(WEIGHTS_FIELD.getPreferredName());
+            for (float weight : weights) {
+                builder.value(weight);
+            }
+            builder.endArray();
+        }
+    }
+
+    // ---- FOR TESTING XCONTENT PARSING ----
+    @Override
+    public boolean doEquals(Object o) {
+        RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
+        return super.doEquals(o)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(query, that.query)
+            && rankConstant == that.rankConstant
+            && Arrays.equals(weights, that.weights);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(super.doHashCode(), fields, query, rankConstant, Arrays.hashCode(weights));
     }
 }

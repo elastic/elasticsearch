@@ -60,8 +60,12 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             innerRetrievers.add(CompoundRetrieverBuilder.RetrieverSource.from(TestRetrieverBuilder.createRandomTestRetrieverBuilder()));
             --retrieverCount;
         }
+        float[] weights = new float[innerRetrievers.size()];
+        for (int i = 0; i < innerRetrievers.size(); i++) {
+            weights[i] = randomFloat();
+        }
 
-        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, null);
+        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, weights);
     }
 
     @Override
@@ -89,7 +93,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,
                 TestRetrieverBuilder.TEST_SPEC.getName(),
-                (p, c) -> TestRetrieverBuilder.TEST_SPEC.getParser().fromXContent(p, (RetrieverParserContext) c),
+                (p, c) -> TestRetrieverBuilder.fromXContent(p, (RetrieverParserContext) c),
                 TestRetrieverBuilder.TEST_SPEC.getName().getForRestApiVersion()
             )
         );
@@ -124,6 +128,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
                   "query": "baz",
                   "rank_window_size": 100,
                   "rank_constant": 10,
+                  "weights": [0.5, 0.5],
                   "min_score": 20.0,
                   "_name": "foo_rrf"
                 }

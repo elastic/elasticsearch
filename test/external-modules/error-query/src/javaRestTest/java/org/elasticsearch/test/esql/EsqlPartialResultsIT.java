@@ -214,6 +214,10 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
     }
 
     public void testAllShardsFailed() throws Exception {
+        assumeTrue(
+            "fail functionality is not enabled",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("fail_if_all_shards_fail")).orElse(false)
+        );
         setupRemoteClusters();
         populateIndices();
         try {

@@ -355,7 +355,7 @@ GET _connector/_sync_job?connector_id=my-connector-id&size=1
 If the connector encountered any errors during the sync, you’ll find these in the `error` field.
 
 
-## Cleaning up [es-connectors-tutorial-api-cleanup]
+## Clean up [es-connectors-tutorial-api-cleanup]
 
 To delete the connector and its associated sync jobs run this command:
 

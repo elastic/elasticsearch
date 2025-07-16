@@ -71,11 +71,21 @@ record SageMakerTaskSettings(
     @Override
     public SageMakerTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         var validationException = new ValidationException();
-
         var updateTaskSettings = fromMap(newSettings, apiTaskSettings.updatedTaskSettings(newSettings), validationException);
-
         validationException.throwIfValidationErrorsExist();
 
+        return override(updateTaskSettings);
+    }
+
+    public SageMakerTaskSettings override(Map<String, Object> newSettings) {
+        var validationException = new ValidationException();
+        var updateTaskSettings = fromMap(newSettings, apiTaskSettings.override(newSettings), validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        return override(updateTaskSettings);
+    }
+
+    private SageMakerTaskSettings override(SageMakerTaskSettings updateTaskSettings) {
         var updatedExtraTaskSettings = updateTaskSettings.apiTaskSettings().equals(SageMakerStoredTaskSchema.NO_OP)
             ? apiTaskSettings
             : updateTaskSettings.apiTaskSettings();

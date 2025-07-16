@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -26,11 +28,11 @@ public class EndsWithStaticTests extends ESTestCase {
     public void testLuceneQuery_AllLiterals_NonTranslatable() {
         EndsWith function = new EndsWith(
             Source.EMPTY,
-            new Literal(Source.EMPTY, "test", DataType.KEYWORD),
-            new Literal(Source.EMPTY, "test", DataType.KEYWORD)
+            new Literal(Source.EMPTY, new BytesRef("test"), DataType.KEYWORD),
+            new Literal(Source.EMPTY, new BytesRef("test"), DataType.KEYWORD)
         );
 
-        ESTestCase.assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
+        ESTestCase.assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
 
     public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
@@ -40,20 +42,20 @@ public class EndsWithStaticTests extends ESTestCase {
             new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
         );
 
-        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(false));
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
 
     public void testLuceneQuery_NonFoldableSuffix_Translatable() {
         EndsWith function = new EndsWith(
             Source.EMPTY,
             new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
-            new Literal(Source.EMPTY, "a*b?c\\", DataType.KEYWORD)
+            new Literal(Source.EMPTY, new BytesRef("a*b?c\\"), DataType.KEYWORD)
         );
 
-        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(true));
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
 
         Query query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\", false)));
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\", false, false)));
     }
 }

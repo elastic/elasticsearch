@@ -52,8 +52,15 @@ record CmdLineArgs(
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination
+    boolean earlyTermination,
+    FILTER_KIND filterKind,
+    boolean sortIndex
 ) implements ToXContentObject {
+
+    public enum FILTER_KIND {
+        RANDOM,
+        RANGE
+    }
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
     static final ParseField QUERY_VECTORS_FIELD = new ParseField("query_vectors");
@@ -79,6 +86,8 @@ record CmdLineArgs(
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
+    static final ParseField FILTER_KIND_FIELD = new ParseField("filter_kind");
+    static final ParseField SORT_INDEX_FIELD = new ParseField("sort_index");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -112,6 +121,8 @@ record CmdLineArgs(
         PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
+        PARSER.declareString(Builder::setFilterKind, FILTER_KIND_FIELD);
+        PARSER.declareBoolean(Builder::setSortIndex, SORT_INDEX_FIELD);
     }
 
     @Override
@@ -179,6 +190,8 @@ record CmdLineArgs(
         private boolean earlyTermination;
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
+        private FILTER_KIND filterKind = FILTER_KIND.RANDOM;
+        private boolean sortIndex = false;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -304,6 +317,16 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setFilterKind(String filterKind) {
+            this.filterKind = FILTER_KIND.valueOf(filterKind.toUpperCase(Locale.ROOT));
+            return this;
+        }
+
+        public Builder setSortIndex(boolean sortIndex) {
+            this.sortIndex = sortIndex;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -337,7 +360,9 @@ record CmdLineArgs(
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination
+                earlyTermination,
+                filterKind,
+                sortIndex
             );
         }
     }

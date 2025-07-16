@@ -881,15 +881,11 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     // ------------- functionality unit test --------
 
     public void testFindRolloverTargetDataStreams() {
-        ClusterState state = ClusterState.EMPTY_STATE;
-        state = ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(state.metadata())
-                    .put(DataStreamTestHelper.newInstance("ds1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
-                    .put(DataStreamTestHelper.newInstance("ds2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
-                    .put(DataStreamTestHelper.newInstance("ds3", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))))
-                    .put(DataStreamTestHelper.newInstance("ds4", Collections.singletonList(new Index(".ds-ds4-000001", "ds4i"))))
-            )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(DataStreamTestHelper.newInstance("ds1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
+            .put(DataStreamTestHelper.newInstance("ds2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
+            .put(DataStreamTestHelper.newInstance("ds3", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))))
+            .put(DataStreamTestHelper.newInstance("ds4", Collections.singletonList(new Index(".ds-ds4-000001", "ds4i"))))
             .build();
 
         ComposableIndexTemplate it1 = ComposableIndexTemplate.builder()
@@ -910,16 +906,11 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
 
-        state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).put("it1", it1).put("it2", it2).put("it5", it5))
-            .build();
+        project = ProjectMetadata.builder(project).put("it1", it1).put("it2", it2).put("it5", it5).build();
 
-        assertThat(
-            IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it1", it1),
-            containsInAnyOrder("ds1", "ds3")
-        );
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it2", it2), contains("ds2"));
-        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state.metadata().getProject(), "it5", it5), empty());
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(project, "it1", it1), containsInAnyOrder("ds1", "ds3"));
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(project, "it2", it2), contains("ds2"));
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(project, "it5", it5), empty());
     }
 
     // -------------

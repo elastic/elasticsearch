@@ -430,7 +430,7 @@ Foldable query using KNN on image_vector:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ knn_function_v2 ]
+          capabilities: [ knn_function_v3 ]
       reason: "Uses KNN function"
   - do:
       esql.query:
@@ -460,7 +460,7 @@ Foldable query using KNN on image_vector but with non-foldable expression:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ knn_function_v2 ]
+          capabilities: [ knn_function_v3 ]
       reason: "Uses KNN function"
   - do:
       catch: bad_request
@@ -483,7 +483,7 @@ KNN on non constant k():
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ knn_function_v2 ]
+          capabilities: [ knn_function_v3 ]
       reason: "Uses KNN function"
   - do:
       catch: bad_request
@@ -506,7 +506,7 @@ KNN on non constant query:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ knn_function_v2 ]
+          capabilities: [ knn_function_v3 ]
       reason: "Uses KNN function"
   - do:
       catch: bad_request

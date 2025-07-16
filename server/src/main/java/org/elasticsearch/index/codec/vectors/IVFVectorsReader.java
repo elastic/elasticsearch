@@ -325,8 +325,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     updateCentroidQueueWNextParent(parentCentroidQueryScorer, parentCentroidQueue, centroidQueryScorer, centroidQueue);
                     if (parentCentroidQueue.size() > 0) {
                         nextParentScore = parentCentroidQueue.topScore();
-                    } else {
-                        nextParentScore = -1f;
                     }
                     centroidScore = centroidQueue.topScore();
                 }

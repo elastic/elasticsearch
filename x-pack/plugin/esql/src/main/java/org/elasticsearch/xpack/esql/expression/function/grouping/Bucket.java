@@ -13,6 +13,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -377,6 +378,22 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
         double halfPower = nextPowerOfTen / 2;
         return precise < halfPower ? halfPower : nextPowerOfTen;
+    }
+
+    public BlockHash.EmptyBucketDef toEmptyBucketDef() {
+        assert emitEmptyBuckets() != null;
+        FoldContext foldContext = new FoldContext(128);
+        Boolean emit = (Boolean) emitEmptyBuckets.fold(foldContext);
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+            long f = foldToLong(foldContext, from);
+            long t = foldToLong(foldContext, to);
+            return new BlockHash.DatetimeEmptyBucketDef(emit, f, t, getDateRoundingOrNull(foldContext));
+        } else {
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            double f = ((Number) from.fold(foldContext)).doubleValue();
+            double t = ((Number) to.fold(foldContext)).doubleValue();
+            return new BlockHash.NumericEmptyBucketDef(emit, f, t, pickRounding(b, f, t));
+        }
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):

@@ -503,11 +503,13 @@ public class ESONSource {
         @Override
         public Object remove(int index) {
             Type removedType = elements.remove(index);
-            if (removedType instanceof Mutation mutation) {
+            if (removedType == null) {
+                return null;
+            } else if (removedType instanceof Mutation mutation) {
                 return mutation.object();
-            } else {
-                return convertTypeToValue(removedType);
             }
+            return convertTypeToValue(removedType);
+
         }
 
         @Override

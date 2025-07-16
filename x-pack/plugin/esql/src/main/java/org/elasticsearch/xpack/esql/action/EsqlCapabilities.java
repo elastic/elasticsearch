@@ -1213,8 +1213,11 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V2(Build.current().isSnapshot()),
+        KNN_FUNCTION_V3(Build.current().isSnapshot()),
 
+        /**
+         * Support for the LIKE operator with a list of wildcards.
+         */
         LIKE_WITH_LIST_OF_PATTERNS,
 
         LIKE_LIST_ON_INDEX_FIELDS,
@@ -1236,6 +1239,10 @@ public class EsqlCapabilities {
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
+        /**
+         * Support for the RLIKE operator with a list of regexes.
+         */
+        RLIKE_WITH_LIST_OF_PATTERNS,
 
         /**
          * FUSE command

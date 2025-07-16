@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -130,6 +129,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     public interface EmptyBucketGenerator {
         int getEmptyBucketCount();
+
         Block generate(BlockFactory blockFactory, int maxPositionsInBucket);
     }
 

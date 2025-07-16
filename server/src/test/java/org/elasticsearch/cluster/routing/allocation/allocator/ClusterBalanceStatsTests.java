@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,11 +23,19 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats.MetricStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats.NodeBalanceStats;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -265,10 +275,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testStatsForNoIndicesInTier() {
-        var clusterState = createClusterState(
-            List.of(node1, node2, node3),
-            List.of()
-        );
+        var clusterState = createClusterState(List.of(node1, node2, node3), List.of());
         var clusterInfo = createClusterInfo(List.of());
 
         var stats = ClusterBalanceStats.createFrom(clusterState, null, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
@@ -306,6 +313,354 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 )
             )
         );
+    }
+
+    // NodeBalanceStats specific tests //
+
+    private static final String UNKNOWN = "UNKNOWN";
+    private static final int UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE = -1;
+
+    public void testReadFrom() throws IOException {
+        String nodeId = "node-1";
+        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 3);
+        int shards = randomInt();
+        int undesiredWriteAllocation = randomInt();
+        double forecastWriteLoad = randomDouble();
+        long forecastShardSize = randomLong();
+        long actualShardSize = randomLong();
+        Double nodeWeights = randomOptionalDouble();
+
+        // Simulate a version before 8.8.0
+        TransportVersion version = TransportVersions.V_8_7_0;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            out.writeInt(shards);
+            out.writeDouble(forecastWriteLoad);
+            out.writeLong(forecastShardSize);
+            out.writeLong(actualShardSize);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                NodeBalanceStats nodeBalanceStats = NodeBalanceStats.readFrom(in);
+                assertEquals(UNKNOWN, nodeBalanceStats.nodeId());
+                assertEquals(List.of(), nodeBalanceStats.roles());
+                assertEquals(shards, nodeBalanceStats.shards());
+                assertEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, nodeBalanceStats.undesiredShardAllocations());
+                assertEquals(forecastWriteLoad, nodeBalanceStats.forecastWriteLoad(), 0.0001);
+                assertEquals(forecastShardSize, nodeBalanceStats.forecastShardSize());
+                assertEquals(actualShardSize, nodeBalanceStats.actualShardSize());
+                assertNull(nodeBalanceStats.nodeWeight());
+            }
+        }
+
+        // Simulate a version >= 8.8.0 but < 8.12.0
+        version = TransportVersions.V_8_8_0;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            out.writeString(nodeId);
+            out.writeStringCollection(roles);
+            out.writeInt(shards);
+            out.writeDouble(forecastWriteLoad);
+            out.writeLong(forecastShardSize);
+            out.writeLong(actualShardSize);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                NodeBalanceStats nodeBalanceStats = NodeBalanceStats.readFrom(in);
+                assertEquals(nodeId, nodeBalanceStats.nodeId());
+                assertEquals(roles, nodeBalanceStats.roles());
+                assertEquals(shards, nodeBalanceStats.shards());
+                assertEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, nodeBalanceStats.undesiredShardAllocations());
+                assertEquals(forecastWriteLoad, nodeBalanceStats.forecastWriteLoad(), 0.0001);
+                assertEquals(forecastShardSize, nodeBalanceStats.forecastShardSize());
+                assertEquals(actualShardSize, nodeBalanceStats.actualShardSize());
+                assertNull(nodeBalanceStats.nodeWeight());
+            }
+        }
+
+        // Simulate a version >= 8.12.0 but < NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS
+        version = TransportVersions.V_8_12_0;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            out.writeString(nodeId);
+            out.writeStringCollection(roles);
+            out.writeInt(shards);
+            out.writeVInt(undesiredWriteAllocation);
+            out.writeDouble(forecastWriteLoad);
+            out.writeLong(forecastShardSize);
+            out.writeLong(actualShardSize);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                NodeBalanceStats nodeBalanceStats = NodeBalanceStats.readFrom(in);
+                assertEquals(nodeId, nodeBalanceStats.nodeId());
+                assertEquals(roles, nodeBalanceStats.roles());
+                assertEquals(shards, nodeBalanceStats.shards());
+                assertEquals(undesiredWriteAllocation, nodeBalanceStats.undesiredShardAllocations());
+                assertEquals(forecastWriteLoad, nodeBalanceStats.forecastWriteLoad(), 0.0001);
+                assertEquals(forecastShardSize, nodeBalanceStats.forecastShardSize());
+                assertEquals(actualShardSize, nodeBalanceStats.actualShardSize());
+                assertNull(nodeBalanceStats.nodeWeight());
+            }
+        }
+
+        // Simulate a version >= NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS
+        version = TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            out.writeString(nodeId);
+            out.writeStringCollection(roles);
+            out.writeInt(shards);
+            out.writeVInt(undesiredWriteAllocation);
+            out.writeDouble(forecastWriteLoad);
+            out.writeLong(forecastShardSize);
+            out.writeLong(actualShardSize);
+            out.writeOptionalDouble(nodeWeights);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                NodeBalanceStats nodeBalanceStats = NodeBalanceStats.readFrom(in);
+                assertEquals(nodeId, nodeBalanceStats.nodeId());
+                assertEquals(roles, nodeBalanceStats.roles());
+                assertEquals(shards, nodeBalanceStats.shards());
+                assertEquals(undesiredWriteAllocation, nodeBalanceStats.undesiredShardAllocations());
+                assertEquals(forecastWriteLoad, nodeBalanceStats.forecastWriteLoad(), 0.0001);
+                assertEquals(forecastShardSize, nodeBalanceStats.forecastShardSize());
+                assertEquals(actualShardSize, nodeBalanceStats.actualShardSize());
+                assertEquals(nodeWeights, nodeBalanceStats.nodeWeight());
+            }
+        }
+    }
+
+    public void testWriteTo() throws IOException {
+        String nodeId = "node-1";
+        List<String> roles = List.of("data", "ingest");
+        int shards = 5;
+        int undesiredShardAllocations = 2;
+        double forecastWriteLoad = 1.23;
+        long forecastShardSize = 12345L;
+        long actualShardSize = 54321L;
+        Double nodeWeight = 0.99;
+
+        NodeBalanceStats nodeBalanceStats = new NodeBalanceStats(
+            nodeId,
+            roles,
+            shards,
+            undesiredShardAllocations,
+            forecastWriteLoad,
+            forecastShardSize,
+            actualShardSize,
+            nodeWeight
+        );
+
+        // Test for TransportVersion V_8_8_0 (should write nodeId, roles, shards, forecastWriteLoad, forecastShardSize, actualShardSize)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersions.V_8_8_0);
+            nodeBalanceStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersions.V_8_8_0);
+                assertEquals(nodeId, in.readString());
+                assertEquals(roles, in.readStringCollectionAsList());
+                assertEquals(shards, in.readInt());
+                // V_8_8_0 does not write undesiredShardAllocations
+                assertEquals(forecastWriteLoad, in.readDouble(), 0.0001);
+                assertEquals(forecastShardSize, in.readLong());
+                assertEquals(actualShardSize, in.readLong());
+                // NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS not yet present
+            }
+        }
+
+        // Test for TransportVersion V_8_12_0 (should also write undesiredShardAllocations)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersions.V_8_12_0);
+            nodeBalanceStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersions.V_8_12_0);
+                assertEquals(nodeId, in.readString());
+                assertEquals(roles, in.readStringCollectionAsList());
+                assertEquals(shards, in.readInt());
+                assertEquals(undesiredShardAllocations, in.readVInt());
+                assertEquals(forecastWriteLoad, in.readDouble(), 0.0001);
+                assertEquals(forecastShardSize, in.readLong());
+                assertEquals(actualShardSize, in.readLong());
+                // NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS not yet present
+            }
+        }
+
+        // Test for TransportVersion.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS (should also write nodeWeight)
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS);
+            nodeBalanceStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS);
+                assertEquals(nodeId, in.readString());
+                assertEquals(roles, in.readStringCollectionAsList());
+                assertEquals(shards, in.readInt());
+                assertEquals(undesiredShardAllocations, in.readVInt());
+                assertEquals(forecastWriteLoad, in.readDouble(), 0.0001);
+                assertEquals(forecastShardSize, in.readLong());
+                assertEquals(actualShardSize, in.readLong());
+                assertEquals(nodeWeight, in.readOptionalDouble());
+            }
+        }
+    }
+
+    public void testToXContentWithoutHumanReadableNames() throws IOException {
+        String nodeId = "node-1";
+        List<String> roles = List.of("data", "ingest");
+        int shards = 5;
+        int undesiredShardAllocations = 2;
+        double forecastWriteLoad = 1.23;
+        long forecastShardSize = 12345L;
+        long actualShardSize = 54321L;
+        Double nodeWeight = 0.99;
+
+        NodeBalanceStats nodeBalanceStats = new NodeBalanceStats(
+            nodeId,
+            roles,
+            shards,
+            undesiredShardAllocations,
+            forecastWriteLoad,
+            forecastShardSize,
+            actualShardSize,
+            nodeWeight
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder = nodeBalanceStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        // Convert to map for easy assertions
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+
+        // Assert fields are present
+        assertEquals(nodeId, map.get("node_id"));
+        assertEquals(roles, map.get("roles"));
+        assertEquals(shards, map.get("shard_count"));
+        assertEquals(undesiredShardAllocations, map.get("undesired_shard_allocation_count"));
+        assertEquals(forecastWriteLoad, (Double) map.get("forecast_write_load"), 0.0001);
+        assertEquals(nodeWeight, map.get("node_weight"));
+
+        // Check non human-readable fields are present
+        assertEquals(forecastShardSize, ((Number) map.get("forecast_disk_usage_bytes")).longValue());
+        assertEquals(actualShardSize, ((Number) map.get("actual_disk_usage_bytes")).longValue());
+
+        // Check human-readable fields are not present
+        assertFalse(map.containsKey("forecast_disk_usage"));
+        assertFalse(map.containsKey("actual_disk_usage"));
+    }
+
+    public void testToXContentWithHumanReadableNames() throws IOException {
+        String nodeId = "node-1";
+        List<String> roles = List.of("data", "ingest");
+        int shards = 5;
+        int undesiredShardAllocations = 2;
+        double forecastWriteLoad = 1.23;
+        long forecastShardSize = 12345L;
+        long actualShardSize = 54321L;
+        Double nodeWeight = 0.99;
+
+        NodeBalanceStats nodeBalanceStats = new NodeBalanceStats(
+            nodeId,
+            roles,
+            shards,
+            undesiredShardAllocations,
+            forecastWriteLoad,
+            forecastShardSize,
+            actualShardSize,
+            nodeWeight
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().humanReadable(true);
+        builder = nodeBalanceStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+
+        // Assert fields are present
+        assertEquals(nodeId, map.get("node_id"));
+        assertEquals(roles, map.get("roles"));
+        assertEquals(shards, map.get("shard_count"));
+        assertEquals(undesiredShardAllocations, map.get("undesired_shard_allocation_count"));
+        assertEquals(forecastWriteLoad, (Double) map.get("forecast_write_load"), 0.0001);
+        assertEquals(nodeWeight, map.get("node_weight"));
+
+        // Check human-readable fields are present
+        assertEquals("12kb", map.get("forecast_disk_usage"));
+        assertEquals("53kb", map.get("actual_disk_usage"));
+
+        // Check non human-readable fields are also present
+        assertTrue(map.containsKey("forecast_disk_usage_bytes"));
+        assertTrue(map.containsKey("actual_disk_usage_bytes"));
+    }
+
+    public void testToXContentWithUnknownNodeId() throws IOException {
+        String nodeId = "UNKNOWN";
+        List<String> roles = List.of("data", "ingest");
+        int shards = 5;
+        int undesiredShardAllocations = 2;
+        double forecastWriteLoad = 1.23;
+        long forecastShardSize = 12345L;
+        long actualShardSize = 54321L;
+        Double nodeWeight = 0.99;
+
+        NodeBalanceStats nodeBalanceStats = new NodeBalanceStats(
+            nodeId,
+            roles,
+            shards,
+            undesiredShardAllocations,
+            forecastWriteLoad,
+            forecastShardSize,
+            actualShardSize,
+            nodeWeight
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder = nodeBalanceStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+
+        // Assert node_id is not present
+        assertFalse(map.containsKey("node_id"));
+
+        // Assert the rest of the fields are present
+        assertEquals(roles, map.get("roles"));
+        assertEquals(shards, map.get("shard_count"));
+        assertEquals(undesiredShardAllocations, map.get("undesired_shard_allocation_count"));
+        assertEquals(forecastWriteLoad, (Double) map.get("forecast_write_load"), 0.0001);
+        assertEquals(nodeWeight, map.get("node_weight"));
+
+        // Check non human-readable fields are present
+        assertEquals(forecastShardSize, ((Number) map.get("forecast_disk_usage_bytes")).longValue());
+        assertEquals(actualShardSize, ((Number) map.get("actual_disk_usage_bytes")).longValue());
+    }
+
+    public void testToXContentWithNullNodeWeight() throws IOException {
+        String nodeId = "node-id";
+        List<String> roles = List.of("data", "ingest");
+        int shards = 5;
+        int undesiredShardAllocations = 2;
+        double forecastWriteLoad = 1.23;
+        long forecastShardSize = 12345L;
+        long actualShardSize = 54321L;
+
+        NodeBalanceStats nodeBalanceStats = new NodeBalanceStats(
+            nodeId,
+            roles,
+            shards,
+            undesiredShardAllocations,
+            forecastWriteLoad,
+            forecastShardSize,
+            actualShardSize,
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder = nodeBalanceStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+
+        // Assert all other fields are present
+        assertTrue(map.containsKey("node_id"));
+        assertEquals(roles, map.get("roles"));
+        assertEquals(shards, map.get("shard_count"));
+        assertEquals(undesiredShardAllocations, map.get("undesired_shard_allocation_count"));
+        assertEquals(forecastWriteLoad, (Double) map.get("forecast_write_load"), 0.0001);
+        assertEquals(forecastShardSize, ((Number) map.get("forecast_disk_usage_bytes")).longValue());
+        assertEquals(actualShardSize, ((Number) map.get("actual_disk_usage_bytes")).longValue());
+
+        // Assert node weight is not present
+        assertFalse(map.containsKey("node_weight"));
     }
 
     private static ClusterState createClusterState(List<DiscoveryNode> nodes, List<Tuple<IndexMetadata.Builder, String[]>> indices) {

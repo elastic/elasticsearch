@@ -1182,6 +1182,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return result;
     }
 
+    public static Double randomOptionalDouble() {
+        return randomFrom(randomDouble(), null);
+    }
+
     public static long randomLong() {
         return random().nextLong();
     }
@@ -1249,6 +1253,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Pick a random object from the given collection. */
     public static <T> T randomFrom(Random random, Collection<T> collection) {
         return RandomPicks.randomFrom(random, collection);
+    }
+
+    /** Returns a random subset of size n **/
+    public static <T> List<T> randomSubset(List<T> list, int n) {
+        if (n < 0 || n > list.size()) {
+            throw new IllegalArgumentException("n must be between 0 and the size of the list");
+        }
+        List<T> copy = new ArrayList<>(list);
+        Collections.shuffle(copy, new Random());
+        return copy.subList(0, n);
     }
 
     public static String randomAlphaOfLengthBetween(int minCodeUnits, int maxCodeUnits) {

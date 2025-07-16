@@ -2688,7 +2688,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         // No matching template, so we expect an IllegalArgumentException
         DataStream dataStream = createTestInstance();
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build()));
+        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build(), null));
     }
 
     public void testGetEffectiveIndexTemplateDataStreamMappingsOnly() throws IOException {

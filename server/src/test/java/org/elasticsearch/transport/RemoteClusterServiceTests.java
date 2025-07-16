@@ -470,9 +470,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -737,9 +734,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                final Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -830,9 +824,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                final Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -928,9 +919,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
             ) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
-                final Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seed", c1N1Node.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seed", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();

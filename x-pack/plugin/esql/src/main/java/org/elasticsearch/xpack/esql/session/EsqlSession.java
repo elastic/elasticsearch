@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -19,15 +24,21 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -102,13 +113,14 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -144,6 +156,7 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private Set<String> configuredClusters;
     private final InferenceRunner inferenceRunner;
+    private final RemoteClusterService remoteClusterService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -177,6 +190,7 @@ public class EsqlSession {
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceRunner = services.inferenceRunner();
         this.preMapper = new PreMapper(services);
+        this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
 
     public String sessionId() {
@@ -324,6 +338,53 @@ public class EsqlSession {
         return parsed;
     }
 
+    /**
+     * Associates errors that occurred during field-caps with the cluster info in the execution info.
+     * - Skips clusters that are no longer running, as they have already been marked as successful, skipped, or failed.
+     * - If allow_partial_results or skip_unavailable is enabled, stores the failures in the cluster info but allows execution to continue.
+     * - Otherwise, aborts execution with the failures.
+     */
+    static void handleFieldCapsFailures(
+        boolean allowPartialResults,
+        EsqlExecutionInfo executionInfo,
+        Map<String, List<FieldCapabilitiesFailure>> failures
+    ) throws Exception {
+        FailureCollector failureCollector = new FailureCollector();
+        for (var e : failures.entrySet()) {
+            String clusterAlias = e.getKey();
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
+                continue;
+            }
+            if (allowPartialResults == false && executionInfo.isSkipUnavailable(clusterAlias) == false) {
+                for (FieldCapabilitiesFailure failure : e.getValue()) {
+                    failureCollector.unwrapAndCollect(failure.getException());
+                }
+            } else if (cluster.getFailures().isEmpty()) {
+                var shardFailures = e.getValue().stream().map(f -> {
+                    ShardId shardId = null;
+                    if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
+                        shardId = es.getShardId();
+                    }
+                    if (shardId != null) {
+                        return new ShardSearchFailure(f.getException(), new SearchShardTarget(null, shardId, clusterAlias));
+                    } else {
+                        return new ShardSearchFailure(f.getException());
+                    }
+                }).toList();
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, curr) -> new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(shardFailures).build()
+                );
+            }
+        }
+        Exception failure = failureCollector.getFailure();
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
     public void analyzedPlan(
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
@@ -335,7 +396,8 @@ public class EsqlSession {
             return;
         }
 
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
+        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction = (l) -> {
+            handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, l.indices.failures());
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
                 verifier
@@ -368,7 +430,7 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, l); });
+            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
@@ -395,8 +457,8 @@ public class EsqlSession {
             try {
                 // the order here is tricky - if the cluster has been filtered and later became unavailable,
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.unavailableClusters());
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -407,16 +469,191 @@ public class EsqlSession {
         }).addListener(logicalPlanListener);
     }
 
-    private void preAnalyzeLookupIndex(IndexPattern table, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
-        Set<String> fieldNames = result.wildcardJoinIndices().contains(table.indexPattern()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+    private void preAnalyzeLookupIndex(
+        IndexPattern lookupIndexPattern,
+        PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        String localPattern = lookupIndexPattern.indexPattern();
+        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
+            : "Lookup index name should not include remote, but got: " + localPattern;
+        Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+
+        String patternWithRemotes;
+
+        if (executionInfo.getClusters().isEmpty()) {
+            patternWithRemotes = localPattern;
+        } else {
+            // convert index -> cluster1:index,cluster2:index, etc.for each running cluster
+            patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
+                .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
+                .collect(Collectors.joining(","));
+        }
+        if (patternWithRemotes.isEmpty()) {
+            return;
+        }
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            table.indexPattern(),
+            patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution))
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
-        // TODO: Verify that the resolved index actually has indexMode: "lookup"
+    }
+
+    private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
+        VerificationException error = new VerificationException(message);
+        // If we can, skip the cluster and mark it as such
+        if (executionInfo.isSkipUnavailable(clusterAlias)) {
+            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, error);
+        } else {
+            throw error;
+        }
+    }
+
+    /**
+     * Receive and process lookup index resolutions from resolveAsMergedMapping.
+     * This processes the lookup index data for a single index, updates and returns the {@link PreAnalysisResult} result
+     */
+    private PreAnalysisResult receiveLookupIndexResolution(
+        PreAnalysisResult result,
+        String index,
+        EsqlExecutionInfo executionInfo,
+        IndexResolution lookupIndexResolution
+    ) {
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.failures());
+        if (lookupIndexResolution.isValid() == false) {
+            // If the index resolution is invalid, don't bother with the rest of the analysis
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+        if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
+            // Local only case, still do some checks, since we moved analysis checks here
+            if (lookupIndexResolution.get().indexNameWithModes().size() > 1) {
+                throw new VerificationException(
+                    "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
+                );
+            }
+            var indexModeEntry = lookupIndexResolution.get().indexNameWithModes().entrySet().iterator().next();
+            if (indexModeEntry.getValue() != IndexMode.LOOKUP) {
+                throw new VerificationException(
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to ["
+                        + indexModeEntry.getKey()
+                        + "] in ["
+                        + indexModeEntry.getValue()
+                        + "] mode"
+                );
+            }
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
+        }
+        // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
+        Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
+        lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
+            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            // Check that all indices are in lookup mode
+            if (indexMode != IndexMode.LOOKUP) {
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to ["
+                        + indexName
+                        + "] in ["
+                        + indexMode
+                        + "] mode"
+                );
+            }
+            // Each cluster should have only one resolution for the lookup index
+            if (clustersWithResolvedIndices.containsKey(clusterAlias)) {
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to multiple indices "
+                        + EsqlCCSUtils.inClusterName(clusterAlias)
+                );
+            } else {
+                clustersWithResolvedIndices.put(clusterAlias, indexName);
+            }
+        });
+
+        // These are clusters that are still in the running, we need to have the index on all of them
+        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
+        // Verify that all active clusters have the lookup index resolved
+        clusters.forEach(cluster -> {
+            String clusterAlias = cluster.getClusterAlias();
+            if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
+                // Missing cluster resolution
+                skipClusterOrError(
+                    clusterAlias,
+                    executionInfo,
+                    "lookup index [" + index + "] is not available " + EsqlCCSUtils.inClusterName(clusterAlias)
+                );
+            }
+        });
+
+        return result.addLookupIndexResolution(
+            index,
+            checkSingleIndex(index, executionInfo, lookupIndexResolution, clustersWithResolvedIndices.values())
+        );
+    }
+
+    /**
+     * Check whether the lookup index resolves to a single concrete index on all clusters or not.
+     * If it's a single index, we are compatible with old pre-9.2 LOOKUP JOIN code and just need to send the same resolution as we did.
+     * If there are multiple index names (e.g. due to aliases) then pre-9.2 clusters won't be able to handle it so we need to skip them.
+     * @return An updated `IndexResolution` object if the index resolves to a single concrete index,
+     *         or the original `lookupIndexResolution` if no changes are needed.
+     */
+    private IndexResolution checkSingleIndex(
+        String index,
+        EsqlExecutionInfo executionInfo,
+        IndexResolution lookupIndexResolution,
+        Collection<String> indexNames
+    ) {
+        // If all indices resolve to the same name, we can use that for BWC
+        // Older clusters only can handle one name in LOOKUP JOIN
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(Collectors.toSet());
+        if (localIndexNames.size() == 1) {
+            String indexName = localIndexNames.iterator().next();
+            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
+            return IndexResolution.valid(newIndex, newIndex.concreteIndices(), lookupIndexResolution.failures());
+        }
+        // validate remotes to be able to handle multiple indices in LOOKUP JOIN
+        validateRemoteVersions(executionInfo);
+        return lookupIndexResolution;
+    }
+
+    /**
+     * Older clusters can only handle one name in LOCAL JOIN - verify that all the remotes involved
+     * are recent enough to be able to handle multiple indices.
+     * This is only checked if there are actually multiple indices, which happens when remotes have a different
+     * concrete indices aliased to the same index name.
+     */
+    private void validateRemoteVersions(EsqlExecutionInfo executionInfo) {
+        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
+        clusters.forEach(cluster -> {
+            String clusterAlias = cluster.getClusterAlias();
+            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                // No need to check local, obviously
+                var connection = remoteClusterService.getConnection(clusterAlias);
+                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_CCS)) {
+                    skipClusterOrError(
+                        clusterAlias,
+                        executionInfo,
+                        "remote cluster ["
+                            + clusterAlias
+                            + "] has version ["
+                            + connection.getTransportVersion()
+                            + "] that does not support multiple indices in LOOKUP JOIN, skipping"
+                    );
+                }
+            }
+        });
     }
 
     private void initializeClusterData(List<IndexPattern> indices, EsqlExecutionInfo executionInfo) {
@@ -478,11 +715,7 @@ public class EsqlSession {
                     result.fieldNames,
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
-                        if (configuration.allowPartialResults() == false && indexResolution.getUnavailableShards().isEmpty() == false) {
-                            l.onFailure(indexResolution.getUnavailableShards().iterator().next());
-                        } else {
-                            l.onResponse(result.withIndexResolution(indexResolution));
-                        }
+                        l.onResponse(result.withIndexResolution(indexResolution));
                     })
                 );
             }
@@ -507,7 +740,7 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
         if (executionInfo.isCrossClusterSearch()
             && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
@@ -521,7 +754,7 @@ public class EsqlSession {
     }
 
     private static void analyzeAndMaybeRetry(
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction,
+        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction,
         QueryBuilder requestFilter,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
@@ -537,7 +770,7 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {

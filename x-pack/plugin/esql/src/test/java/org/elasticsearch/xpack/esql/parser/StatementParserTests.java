@@ -946,10 +946,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
-    public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
-    }
-
     public void testBasicSortCommand() {
         LogicalPlan plan = statement("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
         assertThat(plan, instanceOf(OrderBy.class));
@@ -1231,7 +1227,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
         expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "mismatched input '12'");
+        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
 
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
@@ -3298,6 +3294,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testValidJoinPatternWithRemote() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier());
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(fromPatterns)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+    }
+
     public void testInvalidJoinPatterns() {
         assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -3318,18 +3325,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported with LOOKUP JOIN"
             );
         }
-        {
-            // remote cluster on the left
-            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-            expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with LOOKUP JOIN"
-            );
-        }
-
-        // If one or more patterns participating in LOOKUP JOINs are partially quoted, we expect the partial quoting
-        // error messages to take precedence over any LOOKUP JOIN error messages.
 
         {
             // Generate a syntactically invalid (partial quoted) pattern.

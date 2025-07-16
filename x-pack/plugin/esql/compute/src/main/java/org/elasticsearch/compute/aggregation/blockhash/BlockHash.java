@@ -129,6 +129,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     public interface EmptyBucketGenerator {
         int getEmptyBucketCount();
+
         Block generate(BlockFactory blockFactory, int maxPositionsInBucket);
     }
 

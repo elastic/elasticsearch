@@ -40,8 +40,10 @@ record NumericEmptyBucketGenerator(double from, double to, double roundTo) imple
     @Override
     public Block generate(BlockFactory blockFactory, int maxPositionsInBucket) {
         try (
-            DoubleBlock.Builder newBlockBuilder =
-                (DoubleBlock.Builder) ElementType.DOUBLE.newBlockBuilder(maxPositionsInBucket, blockFactory)
+            DoubleBlock.Builder newBlockBuilder = (DoubleBlock.Builder) ElementType.DOUBLE.newBlockBuilder(
+                maxPositionsInBucket,
+                blockFactory
+            )
         ) {
             int i = 0;
             for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(bucket + roundTo, 2)) {

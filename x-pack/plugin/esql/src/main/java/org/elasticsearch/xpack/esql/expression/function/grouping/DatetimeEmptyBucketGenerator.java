@@ -68,9 +68,7 @@ record DatetimeEmptyBucketGenerator(long from, long to, Rounding.Prepared roundi
 
     @Override
     public Block generate(BlockFactory blockFactory, int maxPositionsInBucket) {
-        try (
-            LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(maxPositionsInBucket, blockFactory)
-        ) {
+        try (LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(maxPositionsInBucket, blockFactory)) {
             int i = 0;
             for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
                 newBlockBuilder.appendLong(bucket);
@@ -85,7 +83,12 @@ record DatetimeEmptyBucketGenerator(long from, long to, Rounding.Prepared roundi
     }
 
     static Rounding.Prepared determineRounding(
-            Expression field, Expression buckets, Expression from, Expression to, FoldContext foldContext) {
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        FoldContext foldContext
+    ) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
         if (buckets.dataType().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();

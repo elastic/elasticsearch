@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -196,7 +197,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseRegularDataStream() {
         String dataStreamName = "logs-app1";
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        ClusterState in = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        ClusterState in = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
 
         now = now.plus(1, ChronoUnit.HOURS);
         ClusterState result = instance.updateTimeSeriesTemporalRange(in, now);

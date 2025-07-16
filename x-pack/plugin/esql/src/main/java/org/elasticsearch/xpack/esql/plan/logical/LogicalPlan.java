@@ -65,6 +65,14 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         return stage.ordinal() >= Stage.OPTIMIZED.ordinal();
     }
 
+    public void setPreOptimized() {
+        stage = Stage.PRE_OPTIMIZED;
+    }
+
+    public boolean preOptimized() {
+        return stage.ordinal() >= Stage.PRE_OPTIMIZED.ordinal();
+    }
+
     public void setOptimized() {
         stage = Stage.OPTIMIZED;
     }

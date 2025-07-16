@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -76,6 +77,7 @@ public class PreOptimizerTests extends ESTestCase {
             relation,
             List.of(new Alias(Source.EMPTY, fieldName, new TextEmbedding(Source.EMPTY, of(query), of(inferenceId))))
         );
+        eval.setAnalyzed();
 
         SetOnce<Object> preOptimizedPlanHolder = new SetOnce<>();
         preOptimizer.preOptimize(eval, ActionListener.wrap(preOptimizedPlanHolder::set, ESTestCase::fail));
@@ -83,11 +85,12 @@ public class PreOptimizerTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(preOptimizedPlanHolder.get(), notNullValue());
             Eval preOptimizedEval = as(preOptimizedPlanHolder.get(), Eval.class);
+            assertThat(preOptimizedEval.preOptimized(), equalTo(true));
             assertThat(preOptimizedEval.fields(), hasSize(1));
             assertThat(preOptimizedEval.fields().get(0).name(), equalTo(fieldName));
             Literal preOptimizedQuery = as(preOptimizedEval.fields().get(0).child(), Literal.class);
             assertThat(preOptimizedQuery.dataType(), equalTo(DENSE_VECTOR));
-            assertThat(preOptimizedQuery.value(), equalTo(textEmbeddingModel.embedding(query)));
+            assertThat(preOptimizedQuery.value(), equalTo(textEmbeddingModel.embeddingList(query)));
         });
     }
 
@@ -102,6 +105,7 @@ public class PreOptimizerTests extends ESTestCase {
             relation,
             new Knn(Source.EMPTY, getFieldAttribute("a"), new TextEmbedding(Source.EMPTY, of(query), of(inferenceId)), of(10), null)
         );
+        filter.setAnalyzed();
         Knn knn = as(filter.condition(), Knn.class);
 
         SetOnce<Object> preOptimizedHolder = new SetOnce<>();
@@ -110,6 +114,7 @@ public class PreOptimizerTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(preOptimizedHolder.get(), notNullValue());
             Filter preOptimizedFilter = as(preOptimizedHolder.get(), Filter.class);
+            assertThat(preOptimizedFilter.preOptimized(), equalTo(true));
             Knn preOptimizedKnn = as(preOptimizedFilter.condition(), Knn.class);
             assertThat(preOptimizedKnn.field(), equalTo(knn.field()));
             assertThat(preOptimizedKnn.k(), equalTo(knn.k()));
@@ -117,7 +122,7 @@ public class PreOptimizerTests extends ESTestCase {
 
             Literal preOptimizedQuery = as(preOptimizedKnn.query(), Literal.class);
             assertThat(preOptimizedQuery.dataType(), equalTo(DENSE_VECTOR));
-            assertThat(preOptimizedQuery.value(), equalTo(textEmbeddingModel.embedding(query)));
+            assertThat(preOptimizedQuery.value(), equalTo(textEmbeddingModel.embeddingList(query)));
         });
     }
 
@@ -141,6 +146,15 @@ public class PreOptimizerTests extends ESTestCase {
         TextEmbeddingResults<?> embeddingResults(String input);
 
         float[] embedding(String input);
+
+        default List<Float> embeddingList(String input) {
+            float[] embedding = embedding(input);
+            List<Float> embeddingList = new ArrayList<>(embedding.length);
+            for (float value : embedding) {
+                embeddingList.add(value);
+            }
+            return embeddingList;
+        }
     }
 
     private static final TextEmbeddingModelMock FLOAT_EMBEDDING_MODEL = new TextEmbeddingModelMock() {

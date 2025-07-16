@@ -36,7 +36,14 @@ public class PreOptimizer {
     }
 
     public void preOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        inferencePreOptimizer.foldInferenceFunctions(plan, listener);
+        if (plan.analyzed() == false) {
+            throw new IllegalStateException("Expected analyzed plan");
+        }
+
+        inferencePreOptimizer.foldInferenceFunctions(plan, listener.safeMap(p -> {
+            p.setPreOptimized();
+            return p;
+        }));
     }
 
     private static class InferencePreOptimizer {

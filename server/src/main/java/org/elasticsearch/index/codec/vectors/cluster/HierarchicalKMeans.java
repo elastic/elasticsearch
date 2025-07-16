@@ -23,6 +23,7 @@ public class HierarchicalKMeans {
     static final int MAX_ITERATIONS_DEFAULT = 6;
     static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    static final int TARGET_MARGIN = 134;  // 34% great target size is used to try to prevent oversplitting
 
     final int dimension;
     final int maxIterations;
@@ -111,7 +112,7 @@ public class HierarchicalKMeans {
         for (int c = 0; c < centroidVectorCount.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
-            if (100 * centroidVectorCount[c] > 134 * targetSize) {
+            if (100 * centroidVectorCount[c] > TARGET_MARGIN * targetSize) {
                 FloatVectorValues sample = createClusterSlice(centroidVectorCount[c], c, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
@@ -152,7 +153,6 @@ public class HierarchicalKMeans {
 
             // append the remainder
             System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
-
             current.setCentroids(newCentroids);
 
             for (int i = 0; i < subPartitions.assignments().length; i++) {
@@ -163,6 +163,7 @@ public class HierarchicalKMeans {
                     current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
                 }
             }
+
         }
     }
 }

@@ -82,7 +82,7 @@ Before you can configure the connector, you need to gather some details about yo
 * **Elasticsearch endpoint**.
 
     * If you’re an Elastic Cloud user, find your deployment’s Elasticsearch endpoint in the Cloud UI under **Cloud > Deployments > <your-deployment> > Elasticsearch**.
-    * If you’re running your Elastic deployment and the connector service in Docker, the default Elasticsearch endpoint is `<DOCKER_HOST_URL>`.
+    * If you’re running your Elastic deployment and the connector service in Docker, the default Elasticsearch endpoint is `http://host.docker.internal:9200`.
 
 * **API key.** You’ll need this key to configure the connector. Use an existing key or create a new one.
 * **Connector ID**. Your unique connector ID is automatically generated when you create the connector. Find this in the Kibana UI.

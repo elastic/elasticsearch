@@ -135,8 +135,9 @@ public class WatcherService {
      * @param state The current cluster state
      * @return true if everything is good to go, so that the service can be started
      */
-    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     public boolean validate(ClusterState state) {
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
         IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
             TriggeredWatchStoreField.INDEX_NAME,
@@ -163,7 +164,7 @@ public class WatcherService {
 
             return watcherIndexMetadata == null
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
-                    && state.routingTable(ProjectId.DEFAULT).index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
+                    && state.routingTable(projectId).index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
             logger.warn("Validation error: cannot start watcher", e);
             return false;
@@ -310,7 +311,6 @@ public class WatcherService {
      * This reads all watches from the .watches index/alias and puts them into memory for a short period of time,
      * before they are fed into the trigger service.
      */
-    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     private Collection<Watch> loadWatches(ClusterState clusterState) {
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metadata());
         // no index exists, all good, we can start
@@ -333,6 +333,7 @@ public class WatcherService {
             List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
             // find out all allocation ids
+            @NotMultiProjectCapable(description = "Watcher is not available in serverless")
             List<ShardRouting> watchIndexShardRoutings = clusterState.routingTable(ProjectId.DEFAULT).allShards(watchIndexName);
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)

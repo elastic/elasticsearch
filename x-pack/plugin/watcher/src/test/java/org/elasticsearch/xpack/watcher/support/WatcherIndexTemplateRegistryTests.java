@@ -338,9 +338,13 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().transientSettings(nodeSettings).build())
-            .putProjectMetadata(
-                ProjectMetadata.builder(projectId).templates(indexTemplates).putCustom(IndexLifecycleMetadata.TYPE, ilmMeta).build()
+            .metadata(
+                Metadata.builder()
+                    .transientSettings(nodeSettings)
+                    .put(
+                        ProjectMetadata.builder(projectId).templates(indexTemplates).putCustom(IndexLifecycleMetadata.TYPE, ilmMeta).build()
+                    )
+                    .build()
             )
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)

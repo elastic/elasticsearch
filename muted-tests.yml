@@ -403,9 +403,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
-- class: org.elasticsearch.cluster.ClusterStateSerializationTests
-  method: testSerializationPreMultiProject
-  issue: https://github.com/elastic/elasticsearch/issues/130872
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/130821
@@ -427,6 +424,27 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test090SecurityCliPackaging
   issue: https://github.com/elastic/elasticsearch/issues/131107
+- class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
+  method: testSerializationOfSimple {TestCase=<boolean>}
+  issue: https://github.com/elastic/elasticsearch/issues/131334
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testFullTextFunctionsOnlyAllowedInWhere
+  issue: https://github.com/elastic/elasticsearch/issues/131335
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testMatchInsideEval
+  issue: https://github.com/elastic/elasticsearch/issues/131336
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test022InstallPluginsFromLocalArchive
+  issue: https://github.com/elastic/elasticsearch/issues/116866
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test071BindMountCustomPathWithDifferentUID
+  issue: https://github.com/elastic/elasticsearch/issues/120917
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test171AdditionalCliOptionsAreForwarded
+  issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests}
+  issue: https://github.com/elastic/elasticsearch/issues/131348
 
 # Examples:
 #

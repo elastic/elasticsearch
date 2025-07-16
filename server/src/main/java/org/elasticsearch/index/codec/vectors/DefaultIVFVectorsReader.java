@@ -226,9 +226,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             this.centroid = centroid;
             // read the doc ids
             docIdsScratch = vectors > docIdsScratch.length ? new int[vectors] : docIdsScratch;
-            spilledDocIdsScratch = spilledVectors > spilledDocIdsScratch.length
-                ? new int[spilledVectors]
-                : spilledDocIdsScratch;
+            spilledDocIdsScratch = spilledVectors > spilledDocIdsScratch.length ? new int[spilledVectors] : spilledDocIdsScratch;
             GroupVIntUtil.readGroupVInts(indexInput, docIdsScratch, vectors);
             GroupVIntUtil.readGroupVInts(indexInput, spilledDocIdsScratch, spilledVectors);
             // reconstitute from the deltas

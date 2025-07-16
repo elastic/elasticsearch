@@ -124,10 +124,6 @@ public class EsField implements Writeable {
     private final boolean isAlias;
     private final TimeSeriesFieldType timeSeriesFieldType;
 
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
-        this(name, esDataType, properties, aggregatable, false, TimeSeriesFieldType.UNKNOWN);
-    }
-
     public EsField(
         String name,
         DataType esDataType,

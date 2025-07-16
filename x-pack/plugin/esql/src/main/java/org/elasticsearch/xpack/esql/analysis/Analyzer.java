@@ -1768,7 +1768,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             fa.fieldName().string(),
                             convertExpression.dataType(),
                             false,
-                            indexToConversionExpressions
+                            indexToConversionExpressions,
+                            fa.field().getTimeSeriesFieldType()
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }

@@ -354,8 +354,8 @@ public class IndexShardSnapshotStatus {
     public static class Copy {
 
         private final Stage stage;
-        private final long startTime;
-        private final long totalTime;
+        private final long startTimeMillis;
+        private final long totalTimeMillis;
         private final int incrementalFileCount;
         private final int totalFileCount;
         private final int processedFileCount;
@@ -379,8 +379,8 @@ public class IndexShardSnapshotStatus {
             final String statusDescription
         ) {
             this.stage = stage;
-            this.startTime = startTime;
-            this.totalTime = totalTime;
+            this.startTimeMillis = startTime;
+            this.totalTimeMillis = totalTime;
             this.incrementalFileCount = incrementalFileCount;
             this.totalFileCount = totalFileCount;
             this.processedFileCount = processedFileCount;
@@ -395,12 +395,12 @@ public class IndexShardSnapshotStatus {
             return stage;
         }
 
-        public long getStartTime() {
-            return startTime;
+        public long getStartTimeMillis() {
+            return startTimeMillis;
         }
 
-        public long getTotalTime() {
-            return totalTime;
+        public long getTotalTimeMillis() {
+            return totalTimeMillis;
         }
 
         public int getIncrementalFileCount() {
@@ -440,10 +440,10 @@ public class IndexShardSnapshotStatus {
             return "index shard snapshot status ("
                 + "stage="
                 + stage
-                + ", startTime="
-                + startTime
-                + ", totalTime="
-                + totalTime
+                + ", startTimeMillis="
+                + startTimeMillis
+                + ", totalTimeMillis="
+                + totalTimeMillis
                 + ", incrementalFileCount="
                 + incrementalFileCount
                 + ", totalFileCount="
@@ -470,9 +470,9 @@ public class IndexShardSnapshotStatus {
         return "index shard snapshot status ("
             + "stage="
             + stage
-            + ", startTime="
+            + ", startTimeMillis="
             + startTimeMillis
-            + ", totalTime="
+            + ", totalTimeMillis="
             + totalTimeMillis
             + ", incrementalFileCount="
             + incrementalFileCount

@@ -47,14 +47,6 @@ public class TestBlock implements BlockLoader.Block {
                         add(value);
                         return this;
                     }
-
-                    @Override
-                    public TestBlock build() {
-                        TestBlock result = super.build();
-                        List<?> r = (List<?>) result.values.get(0);
-                        assertThat(r, hasSize(expectedCount));
-                        return result;
-                    }
                 }
                 return new BooleansBuilder();
             }
@@ -71,6 +63,20 @@ public class TestBlock implements BlockLoader.Block {
                         add(BytesRef.deepCopyOf(value));
                         return this;
                     }
+
+                    @Override
+                    public TestBlock build() {
+                        TestBlock result = super.build();
+                        List<?> r;
+                        if (result.values.get(0) instanceof List<?> l) {
+                            r = l;
+                        } else {
+                            r = List.of(result.values.get(0));
+                        }
+                        assertThat(r, hasSize(expectedCount));
+                        return result;
+                    }
+
                 }
                 return new BytesRefsFromDocValuesBuilder();
             }

@@ -1,5 +1,5 @@
 ---
-navigation_title: "Query Log"
+navigation_title: "Troubleshooting"
 ---
 
 # Troubleshooting {{esql}} [esql-troubleshooting]

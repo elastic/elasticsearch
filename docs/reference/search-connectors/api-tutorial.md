@@ -16,7 +16,7 @@ Learn how to set up a self-managed connector using the [{{es}} connector APIs]({
 For this example we’ll use the [PostgreSQL connector](/reference/search-connectors/es-connectors-postgresql.md) to sync data from a PostgreSQL database to {{es}}. We’ll spin up a simple PostgreSQL instance in Docker with some example data, create a connector, and sync the data to {{es}}. You can follow the same steps to set up a connector for another data source.
 
 ::::{tip}
-This tutorial focuses on running a self-managed connector on your own infrastructure, and managing syncs using the Connector APIs.
+This tutorial focuses on running a self-managed connector on your own infrastructure, and managing syncs using the connector APIs.
 
 If you’re just getting started with {{es}}, this tutorial might be a bit advanced. Refer to [quickstart](docs-content://solutions/search/get-started.md) for a more beginner-friendly introduction to {{es}}.
 
@@ -143,7 +143,7 @@ Now it’s time for the real fun! We’ll set up a connector to create a searcha
 
 ## Create a connector [es-connectors-tutorial-api-create-connector]
 
-We’ll use the [Create connector API]({{es-apis}}operation/operation-connector-put) to create a PostgreSQL connector instance.
+We’ll use the [create connector API]({{es-apis}}operation/operation-connector-put) to create a PostgreSQL connector instance.
 
 Run the following API call, using the [Dev Tools Console](docs-content://explore-analyze/query-filter/tools/console.md) or `curl`:
 
@@ -267,7 +267,7 @@ GET _connector/my-connector-id
 
 Now our connector instance is up and running, but it doesn’t yet know *where* to sync data from. The final piece of the puzzle is to configure our connector with details about our PostgreSQL instance. When setting up a connector in the Elastic Cloud or Serverless UIs, you’re prompted to add these details in the user interface.
 
-But because this tutorial is all about working with connectors *programmatically*, we’ll use the [Update connector configuration API]({{es-apis}}operation/operation-connector-update-configuration) to add our configuration details.
+But because this tutorial is all about working with connectors *programmatically*, we’ll use the [update connector configuration API]({{es-apis}}operation/operation-connector-update-configuration) to add our configuration details.
 
 ::::{tip}
 Before configuring the connector, ensure that the configuration schema is registered by the service. For self-managed connectors, the schema registers on service startup (once the `config.yml` is populated).
@@ -314,13 +314,13 @@ POST _connector/_sync_job
 To store data in {{es}}, the connector needs to create an index. When we created the connector, we specified the `music` index. The connector will create and configure this {{es}} index before launching the sync job.
 
 ::::{tip}
-In the approach we’ve used here, the connector will use [dynamic mappings](docs-content://manage-data/data-store/mapping.md#mapping-dynamic) to automatically infer the data types of your fields. In a real-world scenario you would use the {{es}} [Create index API](operation/operation-indices-create) to first create the index with the desired field mappings and index settings. Defining your own mappings upfront gives you more control over how your data is indexed.
+In the approach we’ve used here, the connector will use [dynamic mappings](docs-content://manage-data/data-store/mapping.md#mapping-dynamic) to automatically infer the data types of your fields. In a real-world scenario you would use the {{es}} [create index API]({{es-apis}}operation/operation-indices-create) to first create the index with the desired field mappings and index settings. Defining your own mappings upfront gives you more control over how your data is indexed.
 
 ::::
 
 ### Check sync status [es-connectors-tutorial-api-check-sync-status]
 
-Use the [Get sync job API]({{es-apis}}operation/operation-connector-sync-job-get) to track the status and progress of the sync job. By default, the most recent job statuses are returned first. Run the following API call to check the status of the sync job:
+Use the [get sync job API]({{es-apis}}operation/operation-connector-sync-job-get) to track the status and progress of the sync job. By default, the most recent job statuses are returned first. Run the following API call to check the status of the sync job:
 
 ```console
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
@@ -389,6 +389,6 @@ Congratulations! You’ve successfully set up a self-managed connector using the
 
 Here are some next steps to explore:
 
-* Learn more about the [Connector APIs]({{es-apis}}group/endpoint-connector).
+* Learn more about the [connector APIs]({{es-apis}}group/endpoint-connector).
 * Learn how to deploy {{es}}, {{kib}}, and the connectors service using Docker Compose in our [quickstart guide](https://github.com/elastic/connectors/tree/main/scripts/stack#readme).
 

@@ -224,7 +224,6 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                         .settings(Settings.builder().put(currentProject.index("test").getSettings()))
                         .putCustom(ILM_CUSTOM_METADATA_KEY, newIndexState.build().asMap())
                 )
-                // .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
                 .build();
             registry.update(currentProject.custom(IndexLifecycleMetadata.TYPE));
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));

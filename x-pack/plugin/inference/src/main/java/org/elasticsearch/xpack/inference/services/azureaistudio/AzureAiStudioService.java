@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -71,10 +72,10 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 
 public class AzureAiStudioService extends SenderService {
 
-    static final String NAME = "azureaistudio";
+    public static final String NAME = "azureaistudio";
 
     private static final String SERVICE_NAME = "Azure AI Studio";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
     private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
@@ -270,8 +271,9 @@ public class AzureAiStudioService extends SenderService {
         ConfigurationParseContext context
     ) {
 
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            var embeddingsModel = new AzureAiStudioEmbeddingsModel(
+        AzureAiStudioModel model;
+        switch (taskType) {
+            case TEXT_EMBEDDING -> model = new AzureAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -281,16 +283,7 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            checkProviderAndEndpointTypeForTask(
-                TaskType.TEXT_EMBEDDING,
-                embeddingsModel.getServiceSettings().provider(),
-                embeddingsModel.getServiceSettings().endpointType()
-            );
-            return embeddingsModel;
-        }
-
-        if (taskType == TaskType.COMPLETION) {
-            var completionModel = new AzureAiStudioChatCompletionModel(
+            case COMPLETION -> model = new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -299,15 +292,12 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            checkProviderAndEndpointTypeForTask(
-                TaskType.COMPLETION,
-                completionModel.getServiceSettings().provider(),
-                completionModel.getServiceSettings().endpointType()
-            );
-            return completionModel;
+            case RERANK -> model = new AzureAiStudioRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
-
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        final var azureAiStudioServiceSettings = (AzureAiStudioServiceSettings) model.getServiceSettings();
+        checkProviderAndEndpointTypeForTask(taskType, azureAiStudioServiceSettings.provider(), azureAiStudioServiceSettings.endpointType());
+        return model;
     }
 
     private AzureAiStudioModel createModelFromPersistent(

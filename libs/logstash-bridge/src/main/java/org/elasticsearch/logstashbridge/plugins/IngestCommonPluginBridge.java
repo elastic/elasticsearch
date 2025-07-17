@@ -9,10 +9,10 @@
 package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class IngestCommonPluginBridge implements IngestPluginBridge {
 
@@ -23,10 +23,7 @@ public class IngestCommonPluginBridge implements IngestPluginBridge {
     }
 
     @Override
-    public Map<String, ProcessorBridge.Factory> getProcessors(ProcessorBridge.Parameters parameters) {
-        return this.delegate.getProcessors(parameters.unwrap())
-            .entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> ProcessorBridge.Factory.wrap(entry.getValue())));
+    public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
+        return StableBridgeAPI.wrap(this.delegate.getProcessors(parameters.unwrap()), ProcessorBridge.Factory::wrap);
     }
 }

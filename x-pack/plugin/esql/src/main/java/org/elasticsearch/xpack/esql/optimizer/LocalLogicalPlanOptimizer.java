@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
@@ -75,7 +74,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
 
         // add rule that should only apply locally
-        newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
+        // Waiting on https://github.com/elastic/elasticsearch/issues/131386
+        // newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
 
         return operators.with(newRules.toArray(Rule[]::new));
     }

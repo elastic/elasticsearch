@@ -2230,6 +2230,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(stripThrough(singleValue.toString()), is(stripThrough(expected)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testPushDownLowerCaseChangeRLike() {
         doTestPushDownCaseChangeRegexMatch("""
             FROM test
@@ -2255,6 +2256,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testPushDownUpperCaseChangeRLike() {
         doTestPushDownCaseChangeRegexMatch("""
             FROM test
@@ -2280,6 +2282,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testPushDownLowerCaseChangeLike() {
         doTestPushDownCaseChangeRegexMatch("""
             FROM test
@@ -2303,6 +2306,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testPushDownUpperCaseChangeLike() {
         doTestPushDownCaseChangeRegexMatch("""
             FROM test
@@ -2338,6 +2342,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           \_FieldExtractExec[first_name{f}#5, emp_no{f}#4]&lt;[],[]&gt;
      *             \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[332]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/131041")
     public void testChangeCaseAsInsensitiveWildcardLikeNotPushedDown() {
         var esql = """
             FROM test

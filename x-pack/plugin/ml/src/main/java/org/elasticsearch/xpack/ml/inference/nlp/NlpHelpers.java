@@ -107,6 +107,15 @@ public final class NlpHelpers {
         return result;
     }
 
+    /**
+     * Applies SPLADE max pooling to the input vector.
+     * @param value
+     * @return
+     */
+    static double spladeMaxPooling(double value) {
+        return Math.log(1 + Math.max(0, value));
+    }
+
     public static class ScoreAndIndex {
         final double score;
         final int index;

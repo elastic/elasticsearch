@@ -28,16 +28,75 @@
                             },
                             "heap_used_in_bytes": {
                               "type": "long"
+                            },
+                            "heap_used_percent": {
+                              "type": "half_float"
                             }
                           }
                         },
                         "uptime_in_millis": {
                           "type": "long"
+                        },
+                        "gc": {
+                          "properties": {
+                            "collectors": {
+                              "properties": {
+                                "young": {
+                                  "properties": {
+                                    "collection_count": {
+                                      "type": "long"
+                                    },
+                                    "collection_time_in_millis": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "old": {
+                                  "properties": {
+                                    "collection_count": {
+                                      "type": "long"
+                                    },
+                                    "collection_time_in_millis": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     },
                     "logstash": {
                       "properties": {
+                        "ephemeral_id": {
+                          "type": "keyword"
+                        },
+                        "host": {
+                          "type": "keyword"
+                        },
+                        "http_address": {
+                          "type": "keyword"
+                        },
+                        "name": {
+                          "type": "keyword"
+                        },
+                        "pipeline": {
+                          "properties": {
+                            "workers": {
+                              "type": "short"
+                            },
+                            "batch_size": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "snapshot": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "type": "keyword"
+                        },
                         "uuid": {
                           "ignore_above": 1024,
                           "type": "keyword"
@@ -56,6 +115,12 @@
                               "type": "double"
                             }
                           }
+                        },
+                        "max_file_descriptors": {
+                          "type": "long"
+                        },
+                        "open_file_descriptors": {
+                          "type": "long"
                         }
                       }
                     },
@@ -189,6 +254,9 @@
                                   "type": "half_float"
                                 }
                               }
+                            },
+                            "percent": {
+                              "type": "half_float"
                             }
                           }
                         },
@@ -211,11 +279,17 @@
                                 },
                                 "cfs_quota_micros": {
                                   "type": "long"
+                                },
+                                "control_group": {
+                                  "type": "keyword"
                                 }
                               }
                             },
                             "cpuacct": {
                               "properties": {
+                                "control_group": {
+                                  "type": "keyword"
+                                },
                                 "usage_nanos": {
                                   "type": "long"
                                 }
@@ -244,6 +318,16 @@
                     "queue": {
                       "properties": {
                         "events_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "reloads": {
+                      "properties": {
+                        "failures": {
+                          "type": "long"
+                        },
+                        "successes": {
                           "type": "long"
                         }
                       }
@@ -531,6 +615,14 @@
             "version": {
               "ignore_above": 1024,
               "type": "keyword"
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
             }
           }
         },
@@ -578,6 +670,25 @@
         "cluster_uuid": {
           "type": "alias",
           "path": "logstash.elasticsearch.cluster.id"
+        },
+        "agent": {
+          "properties": {
+            "ephemeral_id": {
+              "type": "keyword"
+            },
+            "id": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "version": {
+              "type": "keyword"
+            }
+          }
         }
       }
     },

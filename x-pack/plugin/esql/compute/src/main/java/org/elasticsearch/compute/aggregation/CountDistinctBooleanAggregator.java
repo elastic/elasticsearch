@@ -50,10 +50,6 @@ public class CountDistinctBooleanAggregator {
         current.collect(groupId, v);
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        current.combineStates(currentGroupId, state);
-    }
-
     public static void combineIntermediate(GroupingState current, int groupId, boolean fbit, boolean tbit) {
         if (fbit) current.bits.set(groupId * 2);
         if (tbit) current.bits.set(groupId * 2 + 1);
@@ -118,11 +114,6 @@ public class CountDistinctBooleanAggregator {
         void collect(int groupId, boolean v) {
             bits.set(groupId * 2 + (v ? 1 : 0));
             trackGroupId(groupId);
-        }
-
-        void combineStates(int currentGroupId, GroupingState state) {
-            bits.or(state.bits);
-            trackGroupId(currentGroupId);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */

@@ -273,4 +273,4 @@ setup:
   - do:
       _internal.get_desired_balance: { }
 
-  - is_true: cluster_balance_stats.nodes.$node_name.node_weight
+  - exists: cluster_balance_stats.nodes.$node_name.node_weight

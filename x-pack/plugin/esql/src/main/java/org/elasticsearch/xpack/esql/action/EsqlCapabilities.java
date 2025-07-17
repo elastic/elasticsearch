@@ -1236,6 +1236,12 @@ public class EsqlCapabilities {
         NO_PLAIN_STRINGS_IN_LITERALS,
 
         /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1248,10 +1254,12 @@ public class EsqlCapabilities {
          * FUSE command
          */
         FUSE(Build.current().isSnapshot()),
+
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */
         LIKE_ON_INDEX_FIELDS,
+
         /**
          * Support avg with aggregate metric doubles
          */
@@ -1268,10 +1276,15 @@ public class EsqlCapabilities {
          */
         FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot()),
 
-        /*
+        /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
+        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for the options field of CATEGORIZE.
+         */
+        CATEGORIZE_OPTIONS;
 
         private final boolean enabled;
 

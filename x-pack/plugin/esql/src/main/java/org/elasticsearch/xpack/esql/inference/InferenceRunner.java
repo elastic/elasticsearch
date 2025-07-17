@@ -8,77 +8,55 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+/**
+ * Interface for executing individual and bulk inference requests with concurrency control.
+ * <p>
+ * Implementations provide throttling and resource management to ensure efficient execution
+ * of inference operations while respecting system resource limits.
+ * </p>
+ */
+public interface InferenceRunner {
 
-public class InferenceRunner {
+    /**
+     * Executes a single inference request asynchronously.
+     *
+     * @param request  The inference request to execute
+     * @param listener Callback listener for the inference response or error
+     */
+    void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener);
 
-    private final Client client;
-    private final ThreadPool threadPool;
+    /**
+     * Executes multiple inference requests in bulk with coordinated processing.
+     * <p>
+     * This method provides efficient batch processing of inference requests while maintaining
+     * ordering and providing consolidated results or error handling.
+     * </p>
+     *
+     * @param requests An iterator over the inference requests to be executed in bulk
+     * @param listener Callback listener for the list of inference responses or error
+     */
+    void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener);
 
-    public InferenceRunner(Client client, ThreadPool threadPool) {
-        this.client = client;
-        this.threadPool = threadPool;
+    static Factory factory(Client client, ThreadPool threadPool) {
+        return new ThrottledInferenceRunner.Factory(client, threadPool);
     }
 
-    public ThreadPool threadPool() {
-        return threadPool;
+    interface Factory {
+        /**
+         * Creates a new inference runner with the specified execution configuration.
+         *
+         * @param inferenceExecutionConfig Configuration defining concurrency limits and execution parameters
+         * @return A configured inference runner implementation
+         */
+        InferenceRunner create(InferenceExecutionConfig inferenceExecutionConfig);
+
     }
 
-    public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
-        resolveInferenceIds(plans.stream().map(InferenceRunner::planInferenceId).collect(Collectors.toSet()), listener);
-
-    }
-
-    private void resolveInferenceIds(Set<String> inferenceIds, ActionListener<InferenceResolution> listener) {
-
-        if (inferenceIds.isEmpty()) {
-            listener.onResponse(InferenceResolution.EMPTY);
-            return;
-        }
-
-        final InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
-
-        final CountDownActionListener countdownListener = new CountDownActionListener(
-            inferenceIds.size(),
-            ActionListener.wrap(_r -> listener.onResponse(inferenceResolutionBuilder.build()), listener::onFailure)
-        );
-
-        for (var inferenceId : inferenceIds) {
-            client.execute(
-                GetInferenceModelAction.INSTANCE,
-                new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
-                ActionListener.wrap(r -> {
-                    ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
-                    inferenceResolutionBuilder.withResolvedInference(resolvedInference);
-                    countdownListener.onResponse(null);
-                }, e -> {
-                    inferenceResolutionBuilder.withError(inferenceId, e.getMessage());
-                    countdownListener.onResponse(null);
-                })
-            );
-        }
-    }
-
-    private static String planInferenceId(InferencePlan<?> plan) {
-        return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
-    }
-
-    public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, request, listener);
-    }
 }

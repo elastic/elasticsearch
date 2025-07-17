@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -164,6 +165,7 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class EsqlTestUtils {
 
@@ -422,18 +424,22 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        mockInferenceRunner()
+        mockInferenceResolverFactory(),
+        mock(InferenceRunner.Factory.class)
     );
 
     @SuppressWarnings("unchecked")
-    private static InferenceRunner mockInferenceRunner() {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
+    private static InferenceResolver.Factory mockInferenceResolverFactory() {
+        InferenceResolver inferenceResolver = mock(InferenceResolver.class);
         doAnswer(i -> {
             i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
             return null;
-        }).when(inferenceRunner).resolveInferenceIds(any(), any());
+        }).when(inferenceResolver).resolveInferenceIds(any(), any());
 
-        return inferenceRunner;
+        InferenceResolver.Factory factory = mock(InferenceResolver.Factory.class);
+        when(factory.create(any())).thenReturn(inferenceResolver);
+
+        return factory;
     }
 
     private EsqlTestUtils() {}

@@ -132,7 +132,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceRunner.Factory inferenceRunnerFactory;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
@@ -160,7 +160,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.inferenceRunner = transportActionServices.inferenceRunner();
+        this.inferenceRunnerFactory = transportActionServices.inferenceRunnerFactory();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -623,11 +623,12 @@ public class ComputeService {
                 blockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
+                transportService.getThreadPool(),
                 context.exchangeSourceSupplier(),
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                inferenceRunner,
+                inferenceRunnerFactory,
                 physicalOperationProviders,
                 contexts
             );

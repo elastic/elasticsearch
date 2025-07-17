@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -69,8 +70,9 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -96,7 +98,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -147,6 +148,7 @@ public class EsqlSession {
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
+    private final LogicalPlanPreOptimizer logicalPlanPreOptimizer;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final PreMapper preMapper;
 
@@ -155,7 +157,7 @@ public class EsqlSession {
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private Set<String> configuredClusters;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceResolver inferenceResolver;
     private final RemoteClusterService remoteClusterService;
 
     private boolean explainMode;
@@ -168,19 +170,22 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
+        LogicalPlanPreOptimizer logicalPlanPreOptimizer,
         EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        TransportActionServices services
+        TransportActionServices services,
+        InferenceResolver inferenceResolver
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
+        this.logicalPlanPreOptimizer = logicalPlanPreOptimizer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
@@ -188,7 +193,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.inferenceRunner = services.inferenceRunner();
+        this.inferenceResolver = inferenceResolver;
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
@@ -212,11 +217,10 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                LogicalPlan optimizedPlan = optimizedPlan(analyzedPlan);
-                preMapper.preMapper(
-                    optimizedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
-                );
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
     }
@@ -410,7 +414,7 @@ public class EsqlSession {
         // Capture configured remotes list to ensure consistency throughout the session
         configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
 
-        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed, new PreAnalyzerContext(inferenceResolver));
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(
                 e -> new EnrichPolicyResolver.UnresolvedPolicy(
@@ -428,7 +432,7 @@ public class EsqlSession {
             l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         )
             .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferenceIds, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
@@ -815,12 +819,8 @@ public class EsqlSession {
         }
     }
 
-    private void resolveInferences(
-        List<InferencePlan<?>> inferencePlans,
-        PreAnalysisResult preAnalysisResult,
-        ActionListener<PreAnalysisResult> l
-    ) {
-        inferenceRunner.resolveInferenceIds(inferencePlans, l.map(preAnalysisResult::withInferenceResolution));
+    private void resolveInferences(List<String> inferenceIds, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
+        inferenceResolver.resolveInferenceIds(inferenceIds, l.map(preAnalysisResult::withInferenceResolution));
     }
 
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
@@ -1043,12 +1043,16 @@ public class EsqlSession {
     }
 
     public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
-        if (logicalPlan.analyzed() == false) {
-            throw new IllegalStateException("Expected analyzed plan");
+        if (logicalPlan.preOptimized() == false) {
+            throw new IllegalStateException("Expected pre-optimized plan");
         }
         var plan = logicalPlanOptimizer.optimize(logicalPlan);
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
         return plan;
+    }
+
+    public void preOptimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
+        logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
     }
 
     public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {

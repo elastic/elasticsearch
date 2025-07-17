@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -67,12 +68,15 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -98,7 +102,6 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
@@ -131,6 +134,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  * CSV-based unit testing.
@@ -304,6 +308,10 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "can't use KNN function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
+            );
+            assumeFalse(
+                "can't use TEXT_EMBEDDING function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
@@ -521,7 +529,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
-        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed, new PreAnalyzerContext(mock(InferenceResolver.class)));
         var indices = preAnalysis.indices;
         if (indices.isEmpty()) {
             /*
@@ -582,36 +590,41 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new LogicalPlanPreOptimizer(EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES, new LogicalPreOptimizerContext(foldCtx)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
             null,
-            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
+            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES.inferenceResolver(functionRegistry)
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
 
-        session.executeOptimizedPlan(
-            new EsqlQueryRequest(),
-            new EsqlExecutionInfo(randomBoolean()),
-            planRunner(bigArrays, foldCtx, physicalOperationProviders),
-            session.optimizedPlan(analyzed),
-            listener.delegateFailureAndWrap(
-                // Wrap so we can capture the warnings in the calling thread
-                (next, result) -> next.onResponse(
-                    new ActualResults(
-                        result.schema().stream().map(Attribute::name).toList(),
-                        result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
-                        result.schema().stream().map(Attribute::dataType).toList(),
-                        result.pages(),
-                        threadPool.getThreadContext().getResponseHeaders()
+        session.preOptimizedPlan(analyzed, listener.delegateFailureAndWrap((l, preOptimized) -> {
+            session.executeOptimizedPlan(
+                new EsqlQueryRequest(),
+                new EsqlExecutionInfo(randomBoolean()),
+                planRunner(bigArrays, foldCtx, physicalOperationProviders),
+                session.optimizedPlan(preOptimized),
+                listener.delegateFailureAndWrap(
+                    // Wrap so we can capture the warnings in the calling thread
+                    (next, result) -> next.onResponse(
+                        new ActualResults(
+                            result.schema().stream().map(Attribute::name).toList(),
+                            result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
+                            result.schema().stream().map(Attribute::dataType).toList(),
+                            result.pages(),
+                            threadPool.getThreadContext().getResponseHeaders()
+                        )
                     )
                 )
-            )
-        );
+            );
+        }));
+
         return listener.get();
     }
 
@@ -697,11 +710,12 @@ public class CsvTests extends ESTestCase {
             blockFactory,
             randomNodeSettings(),
             configuration,
+            threadPool,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),
-            Mockito.mock(EnrichLookupService.class),
-            Mockito.mock(LookupFromIndexService.class),
-            Mockito.mock(InferenceRunner.class),
+            mock(EnrichLookupService.class),
+            mock(LookupFromIndexService.class),
+            mock(InferenceRunner.Factory.class),
             physicalOperationProviders,
             List.of()
         );

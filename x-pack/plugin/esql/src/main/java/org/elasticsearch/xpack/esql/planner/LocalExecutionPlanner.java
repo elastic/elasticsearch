@@ -61,6 +61,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -159,9 +160,10 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceRunner.Factory inferenceRunnerFactory;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final List<ShardContext> shardContexts;
+    private final ThreadPool threadpool;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -171,11 +173,12 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         Settings settings,
         Configuration configuration,
+        ThreadPool threadpool,
         Supplier<ExchangeSource> exchangeSourceSupplier,
         Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        InferenceRunner inferenceRunner,
+        InferenceRunner.Factory inferenceRunnerFactory,
         PhysicalOperationProviders physicalOperationProviders,
         List<ShardContext> shardContexts
     ) {
@@ -187,11 +190,12 @@ public class LocalExecutionPlanner {
         this.blockFactory = blockFactory;
         this.settings = settings;
         this.configuration = configuration;
+        this.threadpool = threadpool;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.inferenceRunner = inferenceRunner;
+        this.inferenceRunnerFactory = inferenceRunnerFactory;
         this.physicalOperationProviders = physicalOperationProviders;
         this.shardContexts = shardContexts;
     }
@@ -318,7 +322,10 @@ public class LocalExecutionPlanner {
             source.layout
         );
 
-        return source.with(new CompletionOperator.Factory(inferenceRunner, inferenceId, promptEvaluatorFactory), outputLayout);
+        return source.with(
+            new CompletionOperator.Factory(inferenceRunnerFactory, threadpool, inferenceId, promptEvaluatorFactory),
+            outputLayout
+        );
     }
 
     private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
@@ -465,7 +472,7 @@ public class LocalExecutionPlanner {
                         statusInterval,
                         settings
                     ),
-                    DriverParallelism.SINGLE
+                    context.driverParallelism().get()
                 )
             );
             context.driverParallelism.set(DriverParallelism.SINGLE);
@@ -654,7 +661,7 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceRunner, inferenceId, queryText, rowEncoderFactory, scoreChannel),
+            new RerankOperator.Factory(inferenceRunnerFactory, threadpool, inferenceId, queryText, rowEncoderFactory, scoreChannel),
             outputLayout
         );
     }

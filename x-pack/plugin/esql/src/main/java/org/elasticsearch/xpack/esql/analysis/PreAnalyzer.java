@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,38 +32,39 @@ public class PreAnalyzer {
         public final IndexMode indexMode;
         public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
-        public final List<InferencePlan<?>> inferencePlans;
+        public final List<String> inferenceIds;
         public final List<IndexPattern> lookupIndices;
 
         public PreAnalysis(
             IndexMode indexMode,
             List<IndexPattern> indices,
             List<Enrich> enriches,
-            List<InferencePlan<?>> inferencePlans,
+            List<String> inferenceIds,
             List<IndexPattern> lookupIndices
         ) {
             this.indexMode = indexMode;
             this.indices = indices;
             this.enriches = enriches;
-            this.inferencePlans = inferencePlans;
+            this.inferenceIds = inferenceIds;
             this.lookupIndices = lookupIndices;
         }
     }
 
-    public PreAnalysis preAnalyze(LogicalPlan plan) {
+    public PreAnalysis preAnalyze(LogicalPlan plan, PreAnalyzerContext context) {
         if (plan.analyzed()) {
             return PreAnalysis.EMPTY;
         }
 
-        return doPreAnalyze(plan);
+        return doPreAnalyze(plan, context);
     }
 
-    protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
+    protected PreAnalysis doPreAnalyze(LogicalPlan plan, PreAnalyzerContext context) {
         Set<IndexPattern> indices = new HashSet<>();
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-        List<InferencePlan<?>> unresolvedInferencePlans = new ArrayList<>();
+        Set<String> inferenceIds = new HashSet<>();
+
         Holder<IndexMode> indexMode = new Holder<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
             if (p.indexMode() == IndexMode.LOOKUP) {
@@ -78,11 +78,12 @@ public class PreAnalyzer {
         });
 
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
-        plan.forEachUp(InferencePlan.class, unresolvedInferencePlans::add);
 
+        context.inferenceResolver().collectInferenceIds(plan, inferenceIds::add);
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, unresolvedInferencePlans, lookupIndices);
+        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, List.copyOf(inferenceIds), lookupIndices);
     }
+
 }

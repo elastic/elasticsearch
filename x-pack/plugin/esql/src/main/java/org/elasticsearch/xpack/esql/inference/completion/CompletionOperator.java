@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -14,9 +15,9 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.inference.InferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.stream.IntStream;
@@ -31,12 +32,12 @@ public class CompletionOperator extends InferenceOperator {
 
     public CompletionOperator(
         DriverContext driverContext,
-        InferenceRunner inferenceRunner,
-        ThreadPool threadPool,
+        ThreadContext threadContext,
+        InferenceRunner.Factory inferenceRunnerFactory,
         String inferenceId,
         ExpressionEvaluator promptEvaluator
     ) {
-        super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
+        super(driverContext, threadContext, inferenceRunnerFactory, InferenceExecutionConfig.DEFAULT, inferenceId);
         this.promptEvaluator = promptEvaluator;
     }
 
@@ -88,9 +89,12 @@ public class CompletionOperator extends InferenceOperator {
     /**
      * Factory for creating {@link CompletionOperator} instances.
      */
-    public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceRunner.Factory inferenceRunnerFactory,
+        ThreadPool threadPool,
+        String inferenceId,
+        ExpressionEvaluator.Factory promptEvaluatorFactory
+    ) implements OperatorFactory {
         @Override
         public String describe() {
             return "CompletionOperator[inference_id=[" + inferenceId + "]]";
@@ -100,8 +104,8 @@ public class CompletionOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new CompletionOperator(
                 driverContext,
-                inferenceRunner,
-                inferenceRunner.threadPool(),
+                threadPool.getThreadContext(),
+                inferenceRunnerFactory,
                 inferenceId,
                 promptEvaluatorFactory.get(driverContext)
             );

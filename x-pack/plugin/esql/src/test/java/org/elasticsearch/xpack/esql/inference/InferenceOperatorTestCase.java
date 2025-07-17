@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
-    private ThreadPool threadPool;
+    protected ThreadPool threadPool;
 
     @Before
     public void setThreadPool() {
@@ -118,7 +118,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @SuppressWarnings("unchecked")
-    protected InferenceRunner mockedSimpleInferenceRunner() {
+    protected InferenceRunner.Factory mockedInferenceRunnerFactory() {
         Client client = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -144,7 +144,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
         };
 
-        return new InferenceRunner(client, threadPool);
+        return InferenceRunner.factory(client, threadPool);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

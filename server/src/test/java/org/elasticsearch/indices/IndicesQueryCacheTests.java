@@ -411,6 +411,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard);
         cache.close();
     }
+
     public void testGetCacheTotalsForAllShards() throws Exception {
         ShardId shardId1 = new ShardId("index", "_na_", 0);
         ShardId shardId2 = new ShardId("index", "_na_", 1);

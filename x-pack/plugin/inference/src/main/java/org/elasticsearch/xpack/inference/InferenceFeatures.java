@@ -36,6 +36,9 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS = new NodeFeature(
         "test_rule_retriever.with_indices_that_dont_return_rank_docs"
     );
+    private static final NodeFeature SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX = new NodeFeature(
+        "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
+    );
     private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
     private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
 
@@ -66,7 +69,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER,
             SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS,
             SEMANTIC_TEXT_INDEX_OPTIONS,
-            COHERE_V2_API
+            COHERE_V2_API,
+            SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX
         );
     }
 }

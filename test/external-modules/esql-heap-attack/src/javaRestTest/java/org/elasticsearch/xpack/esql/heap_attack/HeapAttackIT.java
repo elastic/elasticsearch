@@ -885,7 +885,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private void initGiantTextField(int docs) throws IOException {
         logger.info("loading many documents with one big text field");
-        int docsPerBulk = 5;
+        int docsPerBulk = 3;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
 
         Request request = new Request("PUT", "/bigtext");

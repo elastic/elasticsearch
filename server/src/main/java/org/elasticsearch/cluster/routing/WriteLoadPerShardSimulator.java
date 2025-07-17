@@ -128,7 +128,7 @@ public class WriteLoadPerShardSimulator {
             .values()
             .stream()
             .map(ProjectMetadata::getIndicesLookup)
-            .flatMap(il -> il.values().stream())
+            .flatMap(indicesLookup -> indicesLookup.values().stream())
             .map(IndexAbstraction::getWriteIndex)
             .filter(Objects::nonNull)
             .map(Index::getName)

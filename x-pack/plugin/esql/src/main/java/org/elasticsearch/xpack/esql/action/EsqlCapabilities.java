@@ -1254,10 +1254,12 @@ public class EsqlCapabilities {
          * FUSE command
          */
         FUSE(Build.current().isSnapshot()),
+
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */
         LIKE_ON_INDEX_FIELDS,
+
         /**
          * Support avg with aggregate metric doubles
          */
@@ -1274,10 +1276,15 @@ public class EsqlCapabilities {
          */
         FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot()),
 
-        /*
+        /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
+        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for the options field of CATEGORIZE.
+         */
+        CATEGORIZE_OPTIONS;
 
         private final boolean enabled;
 

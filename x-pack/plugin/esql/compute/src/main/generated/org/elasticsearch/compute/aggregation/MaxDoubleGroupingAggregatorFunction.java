@@ -278,18 +278,6 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    DoubleArrayState inState = ((MaxDoubleGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxDoubleAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
-  }
-
-  @Override
   public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
     state.enableGroupIdTracking(seenGroupIds);
   }

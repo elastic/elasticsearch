@@ -276,18 +276,6 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    BooleanArrayState inState = ((MaxBooleanGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
-  }
-
-  @Override
   public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
     state.enableGroupIdTracking(seenGroupIds);
   }

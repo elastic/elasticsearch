@@ -282,16 +282,6 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    MinBytesRefAggregator.GroupingState inState = ((MinBytesRefGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MinBytesRefAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
     state.enableGroupIdTracking(seenGroupIds);
   }

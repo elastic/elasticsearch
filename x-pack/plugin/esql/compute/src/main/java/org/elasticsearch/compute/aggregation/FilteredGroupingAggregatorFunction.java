@@ -116,11 +116,6 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
-    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-        next.addIntermediateRowInput(groupId, ((FilteredGroupingAggregatorFunction) input).next(), position);
-    }
-
-    @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
         next.evaluateIntermediate(blocks, offset, selected);
     }

@@ -809,11 +809,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-                        delegate.addIntermediateRowInput(groupId, input, position);
-                    }
-
-                    @Override
                     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
                         delegate.evaluateIntermediate(blocks, offset, selected);
                     }

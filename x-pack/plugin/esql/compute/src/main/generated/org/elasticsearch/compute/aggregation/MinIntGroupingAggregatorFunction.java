@@ -277,18 +277,6 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    IntArrayState inState = ((MinIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
-  }
-
-  @Override
   public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
     state.enableGroupIdTracking(seenGroupIds);
   }

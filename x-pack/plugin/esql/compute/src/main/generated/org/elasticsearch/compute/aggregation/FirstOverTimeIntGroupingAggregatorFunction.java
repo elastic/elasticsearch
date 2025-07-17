@@ -285,16 +285,6 @@ public final class FirstOverTimeIntGroupingAggregatorFunction implements Groupin
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    FirstOverTimeIntAggregator.GroupingState inState = ((FirstOverTimeIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    FirstOverTimeIntAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
     state.enableGroupIdTracking(seenGroupIds);
   }

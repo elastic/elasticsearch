@@ -320,16 +320,6 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialExtentGeoShapeDocValuesAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
     state.enableGroupIdTracking(seenGroupIds);
   }

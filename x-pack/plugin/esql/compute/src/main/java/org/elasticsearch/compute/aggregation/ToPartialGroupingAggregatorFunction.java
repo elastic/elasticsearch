@@ -85,14 +85,6 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-        if (input instanceof ToPartialGroupingAggregatorFunction toPartial) {
-            input = toPartial.delegate;
-        }
-        delegate.addIntermediateRowInput(groupId, input, position);
-    }
-
-    @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
         final Block[] partialBlocks = new Block[delegate.intermediateBlockCount()];
         boolean success = false;

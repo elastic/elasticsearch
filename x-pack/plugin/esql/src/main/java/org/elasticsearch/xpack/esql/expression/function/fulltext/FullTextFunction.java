@@ -54,7 +54,10 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.postOptimizationVerificationQuery;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
@@ -109,7 +112,9 @@ public abstract class FullTextFunction extends Function
      * @return type resolution for the query parameter
      */
     protected TypeResolution resolveQuery(TypeResolutions.ParamOrdinal queryOrdinal) {
-        TypeResolution result = isString(query(), sourceText(), queryOrdinal).and(isNotNull(query(), sourceText(), queryOrdinal));
+        TypeResolution result = isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), SECOND, "dense_vector").and(
+            isNotNull(query(), sourceText(), SECOND)
+        );
         if (result.unresolved()) {
             return result;
         }

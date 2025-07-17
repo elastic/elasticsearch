@@ -7888,6 +7888,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
             config,
+            null,
             new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),
             null,

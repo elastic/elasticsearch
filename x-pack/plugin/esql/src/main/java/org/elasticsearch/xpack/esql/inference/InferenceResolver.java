@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
@@ -155,8 +156,8 @@ public class InferenceResolver {
             this.client = client;
         }
 
-        public InferenceResolver create() {
-            return new InferenceResolver(client);
+        public InferenceResolver create(EsqlFunctionRegistry functionRegistry) {
+            return new InferenceResolver(client, functionRegistry);
         }
     }
 }

@@ -74,8 +74,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
 
         // add rule that should only apply locally
-        // Disabled until Unicode CASE_INSENSITIVE support is added to Lucine 9.0
-        // waiting on https://github.com/elastic/elasticsearch/issues/131386
+        // Waiting on https://github.com/elastic/elasticsearch/issues/131386
         // newRules.add(new ReplaceStringCasingWithInsensitiveRegexMatch());
 
         return operators.with(newRules.toArray(Rule[]::new));

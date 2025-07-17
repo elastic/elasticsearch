@@ -108,7 +108,7 @@ public class LoadMapping {
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                 field = new KeywordEsField(name, properties, docValues, length, normalized, false, EsField.TimeSeriesFieldType.NONE);
             } else if (esDataType == DATETIME) {
-                field = DateEsField.dateEsField(name, properties, docValues);
+                field = DateEsField.dateEsField(name, properties, docValues, EsField.TimeSeriesFieldType.NONE);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, List.of(type), null, properties);

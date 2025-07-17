@@ -228,7 +228,7 @@ public class IndexResolver {
             return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);

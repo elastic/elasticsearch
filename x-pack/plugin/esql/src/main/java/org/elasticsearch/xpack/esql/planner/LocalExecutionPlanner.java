@@ -61,6 +61,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -86,7 +87,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.inference.InferenceServices;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -159,9 +160,10 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceServices inferenceServices;
+    private final InferenceRunner.Factory inferenceRunnerFactory;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final List<ShardContext> shardContexts;
+    private final ThreadPool threadpool;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -171,11 +173,12 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         Settings settings,
         Configuration configuration,
+        ThreadPool threadpool,
         Supplier<ExchangeSource> exchangeSourceSupplier,
         Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        InferenceServices inferenceServices,
+        InferenceRunner.Factory inferenceRunnerFactory,
         PhysicalOperationProviders physicalOperationProviders,
         List<ShardContext> shardContexts
     ) {
@@ -187,11 +190,12 @@ public class LocalExecutionPlanner {
         this.blockFactory = blockFactory;
         this.settings = settings;
         this.configuration = configuration;
+        this.threadpool = threadpool;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.inferenceServices = inferenceServices;
+        this.inferenceRunnerFactory = inferenceRunnerFactory;
         this.physicalOperationProviders = physicalOperationProviders;
         this.shardContexts = shardContexts;
     }
@@ -319,12 +323,7 @@ public class LocalExecutionPlanner {
         );
 
         return source.with(
-            new CompletionOperator.Factory(
-                inferenceServices.inferenceRunnerFactory(),
-                inferenceServices.threadPool(),
-                inferenceId,
-                promptEvaluatorFactory
-            ),
+            new CompletionOperator.Factory(inferenceRunnerFactory, threadpool, inferenceId, promptEvaluatorFactory),
             outputLayout
         );
     }
@@ -662,14 +661,7 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(
-                inferenceServices.inferenceRunnerFactory(),
-                inferenceServices.threadPool(),
-                inferenceId,
-                queryText,
-                rowEncoderFactory,
-                scoreChannel
-            ),
+            new RerankOperator.Factory(inferenceRunnerFactory, threadpool, inferenceId, queryText, rowEncoderFactory, scoreChannel),
             outputLayout
         );
     }

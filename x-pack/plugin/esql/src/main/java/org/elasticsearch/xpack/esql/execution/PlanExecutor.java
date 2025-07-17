@@ -95,7 +95,7 @@ public class PlanExecutor {
             planTelemetry,
             indicesExpressionGrouper,
             services,
-            services.inferenceServices().inferenceResolver(functionRegistry)
+            services.inferenceResolver(functionRegistry)
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

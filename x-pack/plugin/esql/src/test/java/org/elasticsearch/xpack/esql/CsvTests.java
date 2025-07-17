@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.InferenceServices;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -598,7 +598,7 @@ public class CsvTests extends ESTestCase {
             new PlanTelemetry(functionRegistry),
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
-            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES.inferenceServices().inferenceResolver(functionRegistry)
+            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES.inferenceResolver(functionRegistry)
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
@@ -710,11 +710,12 @@ public class CsvTests extends ESTestCase {
             blockFactory,
             randomNodeSettings(),
             configuration,
+            threadPool,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
-            mock(InferenceServices.class),
+            mock(InferenceRunner.Factory.class),
             physicalOperationProviders,
             List.of()
         );

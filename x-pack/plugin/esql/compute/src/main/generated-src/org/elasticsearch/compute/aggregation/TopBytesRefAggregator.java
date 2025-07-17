@@ -69,10 +69,6 @@ class TopBytesRefAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int groupId, GroupingState state, int statePosition) {
-        current.merge(groupId, state, statePosition);
-    }
-
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory(), selected);
     }
@@ -88,10 +84,6 @@ class TopBytesRefAggregator {
 
         public void add(int groupId, BytesRef value) {
             sort.collect(value, groupId);
-        }
-
-        public void merge(int groupId, GroupingState other, int otherGroupId) {
-            sort.merge(groupId, other.sort, otherGroupId);
         }
 
         @Override
@@ -123,10 +115,6 @@ class TopBytesRefAggregator {
 
         public void add(BytesRef value) {
             internalState.add(0, value);
-        }
-
-        public void merge(GroupingState other) {
-            internalState.merge(0, other, 0);
         }
 
         @Override

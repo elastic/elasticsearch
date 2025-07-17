@@ -1416,7 +1416,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testInfer_WithRerankModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
 
             var model = AzureAiStudioRerankModelTests.createModel(

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalSubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -46,7 +47,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceTopNWithLimitAndSort(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
-            new InferNonNullAggConstraint()
+            new InferNonNullAggConstraint(),
+            new LocalSubstituteSurrogateExpressions()
         ),
         localOperators(),
         cleanup()

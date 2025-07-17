@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -2904,7 +2905,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_� foo");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -2915,7 +2916,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword");
+        var plan = planMultiIndex("FROM multi_index | INSIST_� partial_type_keyword");
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2926,7 +2927,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_multipleInsistClauses_insistsAreFolded() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword | INSIST_🐔 foo");
+        var plan = planMultiIndex("FROM multi_index | INSIST_� partial_type_keyword | INSIST_� foo");
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -6145,7 +6146,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -6160,7 +6161,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
+            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -7857,6 +7858,176 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var changePoint = as(limit.child(), ChangePoint.class);
         var topN = as(changePoint.child(), TopN.class);
         var source = as(topN.child(), EsRelation.class);
+    }
+
+    public void testPushDownConjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], 10) and integer > 10
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var knn = as(and.left(), Knn.class);
+        List<Expression> filterExpressions = knn.filterExpressions();
+        assertThat(filterExpressions.size(), equalTo(1));
+        var prefilter = as(filterExpressions.get(0), GreaterThan.class);
+        assertThat(and.right(), equalTo(prefilter));
+        var esRelation = as(filter.child(), EsRelation.class);
+    }
+
+    public void testPushDownMultipleFiltersToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], 10)
+            | where integer > 10
+            | where keyword == "test"
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var firstAnd = as(filter.condition(), And.class);
+        var knn = as(firstAnd.left(), Knn.class);
+        var prefilterAnd = as(firstAnd.right(), And.class);
+        as(prefilterAnd.left(), GreaterThan.class);
+        as(prefilterAnd.right(), Equals.class);
+        List<Expression> filterExpressions = knn.filterExpressions();
+        assertThat(filterExpressions.size(), equalTo(1));
+        assertThat(prefilterAnd, equalTo(filterExpressions.get(0)));
+    }
+
+    public void testNotPushDownDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        var query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2], 10) or integer > 10
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        var knn = as(or.left(), Knn.class);
+        List<Expression> filterExpressions = knn.filterExpressions();
+        assertThat(filterExpressions.size(), equalTo(0));
+    }
+
+    public void testPushDownConjunctionsAndNotDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        /*
+            and
+                and
+                    or
+                        knn(dense_vector, [0, 1, 2], 10)
+                        integer > 10
+                    keyword == "test"
+                 or
+                     short < 5
+                     double > 5.0
+         */
+        // Both conjunctions are pushed down to knn prefilters, disjunctions are not
+        var query = """
+            from test
+            | where
+                 ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var leftAnd = as(and.left(), And.class);
+        var rightOr = as(and.right(), Or.class);
+        var leftOr = as(leftAnd.left(), Or.class);
+        var knn = as(leftOr.left(), Knn.class);
+        var rightOrPrefilter = as(knn.filterExpressions().get(0), Or.class);
+        assertThat(rightOr, equalTo(rightOrPrefilter));
+        var leftAndPrefilter = as(knn.filterExpressions().get(1), Equals.class);
+        assertThat(leftAnd.right(), equalTo(leftAndPrefilter));
+    }
+
+    public void testMorePushDownConjunctionsAndNotDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        /*
+            or
+                or
+                    and
+                        knn(dense_vector, [0, 1, 2], 10)
+                        integer > 10
+                    keyword == "test"
+                 and
+                     short < 5
+                     double > 5.0
+         */
+        // Just the conjunction is pushed down to knn prefilters, disjunctions are not
+        var query = """
+            from test
+            | where
+                 ((knn(dense_vector, [0, 1, 2], 10) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var or = as(filter.condition(), Or.class);
+        var leftOr = as(or.left(), Or.class);
+        var leftAnd = as(leftOr.left(), And.class);
+        var knn = as(leftAnd.left(), Knn.class);
+        var rightAndPrefilter = as(knn.filterExpressions().get(0), GreaterThan.class);
+        assertThat(leftAnd.right(), equalTo(rightAndPrefilter));
+    }
+
+    public void testMultipleKnnQueriesInPrefilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        /*
+            and
+                or
+                    knn(dense_vector, [0, 1, 2], 10)
+                    integer > 10
+                or
+                    keyword == "test"
+                    knn(dense_vector, [4, 5, 6], 10)
+         */
+        var query = """
+            from test
+            | where ((knn(dense_vector, [0, 1, 2], 10) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6], 10)))
+            """;
+        var optimized = planTypes(query);
+
+        var limit = as(optimized, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+
+        // First OR (knn1 OR integer > 10)
+        var firstOr = as(and.left(), Or.class);
+        var firstKnn = as(firstOr.left(), Knn.class);
+        var integerGt = as(firstOr.right(), GreaterThan.class);
+
+        // Second OR (keyword == "test" OR knn2)
+        var secondOr = as(and.right(), Or.class);
+        as(secondOr.left(), Equals.class);
+        var secondKnn = as(secondOr.right(), Knn.class);
+
+        // First KNN should have the second OR as its filter
+        List<Expression> firstKnnFilters = firstKnn.filterExpressions();
+        assertThat(firstKnnFilters.size(), equalTo(1));
+        assertTrue(firstKnnFilters.contains(secondOr.left()));
+
+        // Second KNN should have the first OR as its filter
+        List<Expression> secondKnnFilters = secondKnn.filterExpressions();
+        assertThat(secondKnnFilters.size(), equalTo(1));
+        assertTrue(secondKnnFilters.contains(firstOr.right()));
     }
 
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(List<RuleExecutor.Batch<LogicalPlan>> batches) {

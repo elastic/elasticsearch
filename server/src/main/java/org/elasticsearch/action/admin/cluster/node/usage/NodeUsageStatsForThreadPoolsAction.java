@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -25,30 +24,23 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
- *
+ * Defines the request/response types for {@link TransportNodeUsageStatsForThreadPoolsAction}.
  */
-public class NodeUsageStatsForThreadPoolsAction extends ActionType<NodeUsageStatsForThreadPoolsAction.Response> {
-    public static final NodeUsageStatsForThreadPoolsAction INSTANCE = new NodeUsageStatsForThreadPoolsAction();
-    public static final String NAME = "internal:monitor/thread_pool/stats";
-
-    public NodeUsageStatsForThreadPoolsAction() {
-        super(NAME);
-    }
-
+public class NodeUsageStatsForThreadPoolsAction {
     /**
-     * The request specifying to which data nodes individual {@link NodeRequest} requests should be sent.
+     * The sender request type that will be resolved to send individual {@link NodeRequest} requests to every node in the cluster.
      */
     public static class Request extends BaseNodesRequest {
         public Request() {
-            super((String[]) null); // send all nodes a request by specifying `null`
+            // Send all nodes a request by specifying null.
+            super((String[]) null);
         }
     }
 
     /**
-     * Request sent to the data nodes. No additional parameters to send in the node-specific request.
+     * Request sent to and received by a cluster node. There are no parameters needed in the node-specific request.
      */
     public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
@@ -59,9 +51,9 @@ public class NodeUsageStatsForThreadPoolsAction extends ActionType<NodeUsageStat
     }
 
     /**
-     * The collection of {@link NodeUsageStatsForThreadPools} responses from all the data nodes.
+     * A collection of {@link NodeUsageStatsForThreadPools} responses from all the cluster nodes.
      */
-    public static class Response extends BaseNodesResponse<NodeResponse> {
+    public static class Response extends BaseNodesResponse<NodeUsageStatsForThreadPoolsAction.NodeResponse> {
 
         protected Response(StreamInput in) throws IOException {
             super(in);
@@ -107,7 +99,7 @@ public class NodeUsageStatsForThreadPoolsAction extends ActionType<NodeUsageStat
     }
 
     /**
-     * The {@link NodeUsageStatsForThreadPools} response from a single data node.
+     * A {@link NodeUsageStatsForThreadPools} response from a single cluster node.
      */
     public static class NodeResponse extends BaseNodeResponse {
         private final NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools;

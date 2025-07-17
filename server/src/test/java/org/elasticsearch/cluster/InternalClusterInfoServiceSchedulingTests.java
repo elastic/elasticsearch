@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -85,8 +84,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
-        final NodeUsageStatsForThreadPoolsCollector mockNodeUsageStatsForThreadPoolsCollector = spy(
-            new StubNodeUsageStatsForThreadPoolsCollector()
+        final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
+            new NodeUsageStatsForThreadPoolsCollectorImpl()
         );
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
@@ -94,7 +93,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             threadPool,
             client,
             mockEstimatedHeapUsageCollector,
-            mockNodeUsageStatsForThreadPoolsCollector
+            nodeUsageStatsForThreadPoolsCollector
         );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
@@ -132,15 +131,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             Mockito.clearInvocations(mockEstimatedHeapUsageCollector);
-            Mockito.clearInvocations(mockNodeUsageStatsForThreadPoolsCollector);
+            Mockito.clearInvocations(nodeUsageStatsForThreadPoolsCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
-            // NOMERGE: will this change? Need 3?
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
-            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
+            verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -161,21 +159,6 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         @Override
         public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
-            listener.onResponse(Map.of());
-        }
-    }
-
-    /**
-     * Simple for test {@link NodeUsageStatsForThreadPoolsCollector} implementation that returns an empty map of nodeId string to
-     * {@link NodeUsageStatsForThreadPools}.
-     */
-    private static class StubNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
-        @Override
-        public void collectUsageStats(
-            Client client,
-            ClusterState clusterState,
-            ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
-        ) {
             listener.onResponse(Map.of());
         }
     }

@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageSta
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 /**
  * Collects some thread pool stats from each data node for purposes of shard allocation balancing. The specific stats are defined in
@@ -45,31 +44,27 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     private static final Logger logger = LogManager.getLogger(TransportNodeUsageStatsForThreadPoolsAction.class);
 
-    public static final ActionType<NodeUsageStatsForThreadPoolsAction.Response> TYPE = new ActionType<>(
-        NodeUsageStatsForThreadPoolsAction.NAME
-    );
+    public static final String NAME = "internal:monitor/thread_pool/stats";
+    public static final ActionType<NodeUsageStatsForThreadPoolsAction.Response> TYPE = new ActionType<>(NAME);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
-    /**
-     * @param actionName       action name
-     * @param clusterService   cluster service
-     * @param transportService transport service
-     * @param actionFilters    action filters
-     * @param nodeRequest      node request reader
-     * @param executor         executor to execute node action and final collection
-     */
-    protected TransportNodeUsageStatsForThreadPoolsAction(
-        String actionName,
+    @Inject
+    public TransportNodeUsageStatsForThreadPoolsAction(
+        ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<NodeUsageStatsForThreadPoolsAction.NodeRequest> nodeRequest,
-        Executor executor,
-        ThreadPool threadPool
+        ActionFilters actionFilters
     ) {
-        super(actionName, clusterService, transportService, actionFilters, nodeRequest, executor);
+        super(
+            NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeUsageStatsForThreadPoolsAction.NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
     }
@@ -99,6 +94,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         NodeUsageStatsForThreadPoolsAction.NodeRequest request,
         Task task
     ) {
+        logger.info("~~~TransportNodeUsageStatsForThreadPoolsAction: START");
         DiscoveryNode localNode = clusterService.localNode();
         var writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
@@ -112,11 +108,13 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset()
         );
 
+        logger.info("~~~TransportNodeUsageStatsForThreadPoolsAction: " + threadPoolUsageStats);
+
         Map<String, ThreadPoolUsageStats> perThreadPool = new HashMap<>();
         perThreadPool.put(ThreadPool.Names.WRITE, threadPoolUsageStats);
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
-            new NodeUsageStatsForThreadPools(ThreadPool.Names.WRITE, perThreadPool)
+            new NodeUsageStatsForThreadPools(localNode.getId(), perThreadPool)
         );
     }
 }

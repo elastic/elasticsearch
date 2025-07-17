@@ -553,6 +553,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private final OptimizedScalarQuantizer quantizer;
         private final byte[] quantizedVector;
         private final int[] quantizedVectorScratch;
+        private final float[] floatVectorScratch;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private float[] currentCentroid;
         private IntToIntFunction ordTransformer = null;
@@ -563,6 +564,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.vectorValues = vectorValues;
             this.quantizer = quantizer;
             this.quantizedVector = new byte[BQVectorUtils.discretize(dimension, 64) / 8];
+            this.floatVectorScratch = new float[dimension];
             this.quantizedVectorScratch = new int[dimension];
             this.corrections = null;
         }
@@ -587,7 +589,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
-            corrections = quantizer.scalarQuantize(vector, quantizedVectorScratch, (byte) 1, currentCentroid);
+            // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
+            // due to overspill, so we copy the vector to a scratch array
+            System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
+            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
             BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }

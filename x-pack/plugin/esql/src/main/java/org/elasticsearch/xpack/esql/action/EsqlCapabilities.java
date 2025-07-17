@@ -760,7 +760,13 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values,
          * found expression [type] type [INTEGER] #127468 </a>
          */
-        KEEP_REGEX_EXTRACT_ATTRIBUTES;
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER;
 
         private final boolean enabled;
 

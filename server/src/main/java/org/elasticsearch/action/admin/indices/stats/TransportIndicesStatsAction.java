@@ -117,9 +117,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            ShardId shardId = indexShard.shardId();
             long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService.getIndicesQueryCache(), indexShard, cacheTotals);
-
             CommonStats commonStats = CommonStats.getShardLevelStats(
                 indicesService.getIndicesQueryCache(),
                 indexShard,

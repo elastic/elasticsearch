@@ -306,7 +306,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion, SourceKeepMode.NONE);
         }
 
-        public static Builder buildWithDocValuesSkipper(String name, IndexMode indexMode, IndexVersion indexCreatedVersion, boolean enableDocValuesSkipper) {
+        public static Builder buildWithDocValuesSkipper(
+            String name,
+            IndexMode indexMode,
+            IndexVersion indexCreatedVersion,
+            boolean enableDocValuesSkipper
+        ) {
             return new Builder(
                 name,
                 null,

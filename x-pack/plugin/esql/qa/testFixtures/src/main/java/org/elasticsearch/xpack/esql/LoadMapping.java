@@ -102,7 +102,7 @@ public class LoadMapping {
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
             final EsField field;
             if (esDataType == TEXT) {
-                field = new TextEsField(name, properties, docValues);
+                field = new TextEsField(name, properties, docValues, false, EsField.TimeSeriesFieldType.NONE);
             } else if (esDataType == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));

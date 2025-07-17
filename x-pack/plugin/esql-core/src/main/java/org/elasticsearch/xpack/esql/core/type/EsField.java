@@ -87,6 +87,7 @@ public class EsField implements Writeable {
 
         public static TimeSeriesFieldType fromIndexFieldCapabilities(IndexFieldCapabilities capabilities) {
             if (capabilities.isDimension()) {
+                assert capabilities.metricType() == null;
                 return DIMENSION;
             }
             if (capabilities.metricType() != null) {

@@ -18,7 +18,7 @@ redirects:
       - to: 'reference/elasticsearch/rest-apis/retrievers/rescorer-retriever.md'
         anchors: {'rescorer-retriever'}
       - to: 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
-        anchors: {'text-similarity-reranker'}
+        anchors: {'text-similarity-reranker-retriever'}
       - to: 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
         anchors: {'rule-retriever'}
       - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'

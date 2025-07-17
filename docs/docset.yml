@@ -111,3 +111,6 @@ subs:
   feat-imp:   "feature importance"
   feat-imp-cap:   "Feature importance"
   nlp:   "natural language processing"
+  index-manage-app:   "Index Management"
+  connectors-app:   "Connectors"
+  ingest-pipelines-app:   "Ingest Pipelines"

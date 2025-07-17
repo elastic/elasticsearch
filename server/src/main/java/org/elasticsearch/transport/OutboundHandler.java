@@ -437,12 +437,12 @@ public final class OutboundHandler {
                 Strings.format(
                     "unexpected exception calling sendMessage for transport message [%s] of size [%d] on [%s]",
                     messageDescription.get(),
-                    messageDescription,
+                    messageSize,
                     channel
                 ),
                 ex
             );
-            assert false : ex;
+            assert Thread.currentThread().getName().startsWith("TEST-") : ex;
             channel.setCloseException(ex);
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;

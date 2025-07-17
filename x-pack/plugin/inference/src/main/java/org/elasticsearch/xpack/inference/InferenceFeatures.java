@@ -31,6 +31,9 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
         "test_reranking_service.parse_text_as_score"
     );
+    private static final NodeFeature SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX = new NodeFeature(
+        "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -52,7 +55,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
             SEMANTIC_KNN_FILTER_FIX,
             SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER,
-            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE
+            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
+            SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX
         );
     }
 }

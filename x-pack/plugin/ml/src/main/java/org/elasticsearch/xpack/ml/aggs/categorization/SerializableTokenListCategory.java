@@ -162,6 +162,13 @@ public class SerializableTokenListCategory implements Writeable {
         return Arrays.stream(keyTokenIndexes).mapToObj(index -> baseTokens[index]).toArray(BytesRef[]::new);
     }
 
+    public String getKeyTokensString() {
+        return Arrays.stream(keyTokenIndexes)
+            .mapToObj(index -> baseTokens[index])
+            .map(BytesRef::utf8ToString)
+            .collect(Collectors.joining(" "));
+    }
+
     public String getRegex() {
         if (keyTokenIndexes.length == 0 || orderedCommonTokenBeginIndex == orderedCommonTokenEndIndex) {
             return ".*";

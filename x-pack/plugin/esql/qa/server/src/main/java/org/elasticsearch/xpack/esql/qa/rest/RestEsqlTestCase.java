@@ -396,7 +396,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Content-Type", mediaType);
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
-        HttpEntity entity = performRequest(request, new AssertWarnings.NoWarnings());
+        Response response = performRequest(request);
+        assertWarnings(response, new AssertWarnings.NoWarnings());
+        HttpEntity entity = response.getEntity();
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
     }
@@ -1258,7 +1260,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var results = mode == ASYNC
             ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
             : runEsqlSync(requestObject, assertWarnings);
-        return checkPartialResults ? assertNotPartial(results) : results;
+        if (checkPartialResults) {
+            assertNotPartial(results);
+        }
+        return results;
     }
 
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
@@ -1266,11 +1271,32 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsql(requestObject, assertWarnings, mode, true);
     }
 
-    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        Request request = prepareRequestWithOptions(requestObject, SYNC);
+    /**
+     * A response from an ESQL query.
+     * @param response the HTTP response that contains the JSON response body
+     * @param json the parsed JSON response body
+     * @param asyncInitialResponse for async only. The response that was returned from the initial async request.
+     *                             May be the same as {@code response} if the async request completed immediately.
+     */
+    public record EsqlResponse(Response response, Map<String, Object> json, Response asyncInitialResponse) {
+        public EsqlResponse(Response response, Map<String, Object> json) {
+            this(response, json, null);
+        }
+    }
 
-        HttpEntity entity = performRequest(request, assertWarnings);
-        return entityToMap(entity, requestObject.contentType());
+    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
+        EsqlResponse response = runEsqlSyncNoWarningsChecks(requestObject);
+        assertWarnings(response.response, assertWarnings);
+        return response.json;
+    }
+
+    public static EsqlResponse runEsqlSyncNoWarningsChecks(RequestObjectBuilder requestObject) throws IOException {
+        Boolean profileEnabled = requestObject.profile;
+        requestObject.profile(true);
+        Request request = prepareRequestWithOptions(requestObject, SYNC);
+        Response response = performRequest(request);
+        Map<String, Object> json = entityToMap(response.getEntity(), requestObject.contentType());
+        return new EsqlResponse(response, json);
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
@@ -1282,6 +1308,20 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         boolean keepOnCompletion,
         AssertWarnings assertWarnings
     ) throws IOException {
+        EsqlResponse response = runEsqlAsyncNoWarningsChecks(requestObject, keepOnCompletion);
+
+        assertWarnings(response.response(), assertWarnings);
+        if (response.asyncInitialResponse() != response.response()) {
+            assertWarnings(response.asyncInitialResponse(), assertWarnings);
+        }
+
+        return response.json;
+    }
+
+    public static EsqlResponse runEsqlAsyncNoWarningsChecks(
+        RequestObjectBuilder requestObject,
+        boolean keepOnCompletion
+    ) throws IOException {
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1290,6 +1330,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         Response response = performRequest(request);
+        Response initialResponse = response;
         HttpEntity entity = response.getEntity();
 
         Object initialColumns = null;
@@ -1309,9 +1350,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
                 assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
             }
-            assertWarnings(response, assertWarnings);
             json.remove("is_running"); // remove this to not mess up later map assertions
-            return Collections.unmodifiableMap(json);
+            return new EsqlResponse(response, Collections.unmodifiableMap(json), initialResponse);
         } else {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
@@ -1319,7 +1359,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
-                assertWarnings(response, assertWarnings);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1356,9 +1395,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValues, result.get("values"));
         }
 
-        assertWarnings(response, assertWarnings);
         assertDeletable(id);
-        return removeAsyncProperties(result);
+        return new EsqlResponse(response, removeAsyncProperties(result), initialResponse);
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
@@ -1589,8 +1627,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         Response response = performRequest(request);
-        HttpEntity entity = assertWarnings(response, new AssertWarnings.NoWarnings());
+        assertWarnings(response, new AssertWarnings.NoWarnings());
 
+        HttpEntity entity = response.getEntity();
         // get the content, it could be empty because the request might have not completed
         String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         String id = response.getHeader("X-Elasticsearch-Async-Id");
@@ -1642,7 +1681,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // if `addParam` is false, `options` will already have an `Accept` header
             getRequest.setOptions(options);
             response = performRequest(getRequest);
-            entity = assertWarnings(response, new AssertWarnings.NoWarnings());
+            assertWarnings(response, new AssertWarnings.NoWarnings());
+            entity = response.getEntity();
         }
         String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
 
@@ -1681,10 +1721,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return mediaType;
     }
 
-    private static HttpEntity performRequest(Request request, AssertWarnings assertWarnings) throws IOException {
-        return assertWarnings(performRequest(request), assertWarnings);
-    }
-
     protected static Response performRequest(Request request) throws IOException {
         Response response = client().performRequest(request);
         if (shouldLog()) {
@@ -1695,14 +1731,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return response;
     }
 
-    private static HttpEntity assertWarnings(Response response, AssertWarnings assertWarnings) {
+    public static void assertWarnings(Response response, AssertWarnings assertWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
         assertWarnings.assertWarnings(warnings);
-        return response.getEntity();
     }
 
     private static Set<String> mutedWarnings() {

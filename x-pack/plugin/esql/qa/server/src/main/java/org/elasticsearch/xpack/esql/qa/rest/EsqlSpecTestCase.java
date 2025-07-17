@@ -38,6 +38,9 @@ import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -302,12 +305,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    static Map<String, Object> assertNotPartial(Map<String, Object> answer) {
+    static void assertNotPartial(Map<String, Object> answer) {
         var clusters = answer.get("_clusters");
         var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
         assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
-
-        return answer;
     }
 
     private Map<?, ?> tooks() throws IOException {
@@ -336,12 +337,37 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return false;
     }
 
-    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings);
+    public class ProfileLogger extends TestWatcher {
+        private Object profile;
+
+        void setProfile(RestEsqlTestCase.EsqlResponse response) {
+            profile = response.json().get("profile");
         }
+
+        @Override
+        protected void failed(Throwable e, Description description) {
+            LOGGER.warn("Profile: {}", profile);
+        }
+    }
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
+    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
+        requestObject.profile(true);
+
+        RestEsqlTestCase.EsqlResponse response = mode == Mode.ASYNC
+         ? RestEsqlTestCase.runEsqlAsyncNoWarningsChecks(requestObject, randomBoolean())
+            : RestEsqlTestCase.runEsqlSyncNoWarningsChecks(requestObject);
+
+        profileLogger.setProfile(response);
+
+        RestEsqlTestCase.assertWarnings(response.response(), assertWarnings);
+        if (response.asyncInitialResponse() != response.response()) {
+            RestEsqlTestCase.assertWarnings(response.response(), assertWarnings);
+        }
+
+        return response.json();
     }
 
     protected void assertResults(

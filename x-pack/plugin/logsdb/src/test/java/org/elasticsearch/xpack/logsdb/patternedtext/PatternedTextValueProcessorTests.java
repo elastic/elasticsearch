@@ -127,11 +127,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
         StringBuilder sb = new StringBuilder();
         int numTokens = randomIntBetween(1, 20);
         for (int i = 0; i < numTokens; i++) {
-            var token = switch (randomInt(1)) {
-                case 0 -> randomAlphaOfLength(between(1, 10));
-                case 1 -> randomPlaceholder();
-                default -> throw new IllegalStateException("Unexpected value");
-            };
+            var token = randomBoolean() ? randomAlphaOfLength(between(1, 10)) : randomPlaceholder();
             sb.append(token);
             sb.append(randomDelimiter());
         }

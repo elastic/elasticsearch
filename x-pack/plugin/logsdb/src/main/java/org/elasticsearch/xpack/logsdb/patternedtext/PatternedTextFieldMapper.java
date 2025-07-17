@@ -13,6 +13,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
@@ -30,6 +32,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -55,20 +59,38 @@ public class PatternedTextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
-
+        private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-
         private final TextParams.Analyzers analyzers;
+        private final boolean enableDocValuesSkipper;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, MappingParserContext context) {
+            this(
+                name,
+                context.indexVersionCreated(),
+                context.getIndexSettings(),
+                context.getIndexAnalyzers(),
+                USE_DOC_VALUES_SKIPPER.get(context.getSettings())
+            );
+        }
+
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexSettings indexSettings,
+            IndexAnalyzers indexAnalyzers,
+            boolean enableDocValuesSkipper
+        ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
+            this.indexSettings = indexSettings;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((PatternedTextFieldMapper) m).indexAnalyzer,
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
+            this.enableDocValuesSkipper = enableDocValuesSkipper;
         }
 
         @Override
@@ -94,19 +116,23 @@ public class PatternedTextFieldMapper extends FieldMapper {
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
             PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
             BuilderParams builderParams = builderParams(this, context);
-            var templateIdMapper = KeywordFieldMapper.Builder.buildForTemplateId(
+            var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternedTextFieldType.templateIdFieldName(),
-                indexCreatedVersion
+                indexSettings.getMode(),
+                indexCreatedVersion,
+                enableDocValuesSkipper
             ).build(context);
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser(Builder::new);
 
     private final IndexVersion indexCreatedVersion;
     private final IndexAnalyzers indexAnalyzers;
+    private final IndexSettings indexSettings;
     private final NamedAnalyzer indexAnalyzer;
+    private final boolean enableDocValuesSkipper;
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
@@ -125,6 +151,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
+        this.indexSettings = builder.indexSettings;
+        this.enableDocValuesSkipper = builder.enableDocValuesSkipper;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
     }
@@ -136,7 +164,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers, enableDocValuesSkipper).init(this);
     }
 
     @Override

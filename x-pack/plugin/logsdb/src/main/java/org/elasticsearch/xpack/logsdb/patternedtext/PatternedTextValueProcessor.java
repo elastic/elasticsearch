@@ -21,15 +21,19 @@ public class PatternedTextValueProcessor {
     private static final String DELIMITER = "[\\s\\[\\]]";
     private static final String SPACE = " ";
 
-    record Parts(String template, List<String> args) {
-        String templateId() {
-            byte[] bytes = template.getBytes(StandardCharsets.UTF_8);
-            MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-            MurmurHash3.hash128(bytes, 0, bytes.length, 0, hash);
-            byte[] hashBytes = new byte[8];
-            ByteUtils.writeLongLE(hash.h1, hashBytes, 0);
-            return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
+    record Parts(String template, String templateId, List<String> args) {
+        Parts(String template, List<String> args) {
+            this(template, PatternedTextValueProcessor.templateId(template), args);
         }
+    }
+
+    static String templateId(String template) {
+        byte[] bytes = template.getBytes(StandardCharsets.UTF_8);
+        MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+        MurmurHash3.hash128(bytes, 0, bytes.length, 0, hash);
+        byte[] hashBytes = new byte[8];
+        ByteUtils.writeLongLE(hash.h1, hashBytes, 0);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
     }
 
     static Parts split(String text) {

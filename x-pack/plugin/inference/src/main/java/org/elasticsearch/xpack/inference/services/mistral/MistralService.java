@@ -91,10 +91,9 @@ public class MistralService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents, context);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    // for testing
     public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService);
     }

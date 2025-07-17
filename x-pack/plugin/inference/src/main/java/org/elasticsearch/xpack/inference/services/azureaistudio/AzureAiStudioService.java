@@ -90,10 +90,9 @@ public class AzureAiStudioService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents, context);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    // for testing
     public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService);
     }

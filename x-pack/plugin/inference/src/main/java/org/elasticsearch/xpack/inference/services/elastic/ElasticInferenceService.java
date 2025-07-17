@@ -151,11 +151,10 @@ public class ElasticInferenceService extends SenderService {
             elasticInferenceServiceSettings,
             modelRegistry,
             authorizationRequestHandler,
-            Objects.requireNonNull(context.clusterService())
+            context.clusterService()
         );
     }
 
-    // for testing
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,

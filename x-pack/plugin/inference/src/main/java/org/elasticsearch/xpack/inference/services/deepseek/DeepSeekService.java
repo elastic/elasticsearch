@@ -65,10 +65,9 @@ public class DeepSeekService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents, context);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    // for testing
     public DeepSeekService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService);
     }

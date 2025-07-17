@@ -99,7 +99,7 @@ public class AmazonBedrockService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(httpSenderFactory, amazonBedrockFactory, serviceComponents, Objects.requireNonNull(context.clusterService()));
+        this(httpSenderFactory, amazonBedrockFactory, serviceComponents, context.clusterService());
     }
 
     public AmazonBedrockService(

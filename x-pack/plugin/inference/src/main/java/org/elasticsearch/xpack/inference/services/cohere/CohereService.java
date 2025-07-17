@@ -91,10 +91,9 @@ public class CohereService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents, context);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    // For testing
     public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         super(factory, serviceComponents, clusterService);
     }

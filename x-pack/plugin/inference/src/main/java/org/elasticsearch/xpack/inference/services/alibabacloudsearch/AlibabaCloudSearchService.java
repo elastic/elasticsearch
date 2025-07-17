@@ -92,10 +92,9 @@ public class AlibabaCloudSearchService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents, context);
+        this(factory, serviceComponents, context.clusterService());
     }
 
-    // for testing
     public AlibabaCloudSearchService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,

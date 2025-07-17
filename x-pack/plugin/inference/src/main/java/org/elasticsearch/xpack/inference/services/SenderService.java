@@ -46,20 +46,11 @@ public abstract class SenderService implements InferenceService {
     private final ServiceComponents serviceComponents;
     private final ClusterService clusterService;
 
-    public SenderService(
-        HttpRequestSender.Factory factory,
-        ServiceComponents serviceComponents,
-        InferenceServiceExtension.InferenceServiceFactoryContext context
-    ) {
-        this(factory, serviceComponents, Objects.requireNonNull(context.clusterService()));
-    }
-
-    // for testing
     public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
-        this.clusterService = clusterService;
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     public Sender getSender() {

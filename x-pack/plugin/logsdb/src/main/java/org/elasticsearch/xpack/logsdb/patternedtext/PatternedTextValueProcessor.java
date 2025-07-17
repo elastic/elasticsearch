@@ -25,7 +25,7 @@ public class PatternedTextValueProcessor {
         String templateId() {
             byte[] bytes = template.getBytes(StandardCharsets.UTF_8);
             MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-            MurmurHash3.hash128(bytes, 0, bytes.length, 2395629059195601932L, hash);
+            MurmurHash3.hash128(bytes, 0, bytes.length, 0, hash);
             byte[] hashBytes = new byte[8];
             ByteUtils.writeLongLE(hash.h1, hashBytes, 0);
             return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);

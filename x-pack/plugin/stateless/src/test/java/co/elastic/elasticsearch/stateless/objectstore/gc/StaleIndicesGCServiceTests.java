@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class StaleIndicesGCServiceTests extends ESTestCase {
@@ -154,6 +155,7 @@ public class StaleIndicesGCServiceTests extends ESTestCase {
         safeGet(future);
         verify(objectStoreService).getIndexBlobContainer(projectId, indexUUIDToDelete);
         verify(blobContainer).delete(OperationPurpose.INDICES);
+        verifyNoMoreInteractions(objectStoreService, blobContainer);
     }
 
     private ObjectStoreService createObjectStoreService() throws IOException {

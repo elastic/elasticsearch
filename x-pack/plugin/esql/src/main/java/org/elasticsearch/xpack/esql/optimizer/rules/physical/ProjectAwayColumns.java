@@ -62,13 +62,16 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         for (Attribute attribute : logicalFragment.output()) {
                             if (requiredAttributes.get().contains(attribute)) {
                                 output.add(attribute);
-                                requiredAttributes.get().remove(attribute);
                             }
                         }
-                        // requiredAttrBuilder should be empty unless the plan is inconsistent due to a bug.
-                        // This can happen in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
+                        // requiredAttributes should only have attributes that are also in the fragment's output.
+                        // This assumption can be wrong in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
                         // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
-                        output.addAll(requiredAttributes.get());
+                        if (output.size() != requiredAttributes.get().size()) {
+                            AttributeSet alreadyAdded = AttributeSet.of(output);
+                            AttributeSet remaining = requiredAttributes.get().subtract(alreadyAdded);
+                            output.addAll(remaining);
+                        }
 
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)

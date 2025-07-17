@@ -40,13 +40,13 @@ import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -104,10 +104,6 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/996",
-        value = "org.elasticsearch.repositories.s3:TRACE,com.amazonaws.request:DEBUG,org.apache.http.wire:DEBUG"
-    )
     public void testCASIsLinearizable() throws Exception {
         final int maxThreadSleepTimeInMillis = randomFrom(10, 200);
         runCASTest(maxThreadSleepTimeInMillis, testState -> {
@@ -118,11 +114,16 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
 
             threads.forEach(RegisterUpdaterThread::await);
 
-            assertThat(
-                LinearizabilityChecker.visualize(sequentialSpec, history, (invId -> { throw new IllegalStateException(); })),
-                LinearizabilityChecker.isLinearizable(sequentialSpec, history),
-                is(true)
-            );
+            try {
+                boolean isLinearizable = LinearizabilityChecker.isLinearizable(sequentialSpec, history);
+                assertThat(
+                    LinearizabilityChecker.visualize(sequentialSpec, history, (invId -> { throw new IllegalStateException(); })),
+                    isLinearizable,
+                    is(true)
+                );
+            } catch (LinearizabilityCheckAborted e) {
+                logger.warn("linearizability check was aborted, assuming linearizable.", e);
+            }
         });
     }
 

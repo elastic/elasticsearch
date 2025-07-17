@@ -161,12 +161,13 @@ public abstract class IndexRouting {
      */
     protected final int rerouteIfResharding(int shardId) {
         if (indexReshardingMetadata != null && indexReshardingMetadata.getSplit().isTargetShard(shardId)) {
+            assert indexReshardingMetadata.isSplit() : "Index resharding state is not a split";
             if (indexReshardingMetadata.getSplit()
                 .targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF) == false) {
-                return (indexReshardingMetadata.getSplit().sourceShard(shardId));
+                return indexReshardingMetadata.getSplit().sourceShard(shardId);
             }
         }
-        return (shardId);
+        return shardId;
     }
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
@@ -216,21 +217,21 @@ public abstract class IndexRouting {
             }
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
-            return (rerouteIfResharding(shardId));
+            return rerouteIfResharding(shardId);
         }
 
         @Override
         public int updateShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
-            return (rerouteIfResharding(shardId));
+            return rerouteIfResharding(shardId);
         }
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
             int shardId = shardId(id, routing);
-            return (rerouteIfResharding(shardId));
+            return rerouteIfResharding(shardId);
         }
 
         @Override

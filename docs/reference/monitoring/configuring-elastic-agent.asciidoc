@@ -33,6 +33,11 @@ other considerations.
 +
 TIP: If you're installing an integration for the first time, you may be prompted
 to install {agent}. Click **Add integration only (skip agent installation)**.
++
+TIP: If you plan to send data to a separate monitoring cluster, ensure that the
+integration is installed in the monitoring cluster as well. Click **Add integration
+only (skip agent installation)**.
+
 
 . Configure the integration name and optionally add a description. Make sure you
 configure all required settings:

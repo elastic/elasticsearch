@@ -12,12 +12,23 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import org.junit.ClassRule;
 
 public class AutoscalingRestIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-autoscaling")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .rolesFile(Resource.fromClasspath("autoscaling-roles.yml"))
+        .user("autoscaling-admin", "autoscaling-admin-password", "superuser", false)
+        .user("autoscaling-user", "autoscaling-user-password", "autoscaling", false)
+        .build();
 
     public AutoscalingRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -40,4 +51,8 @@ public class AutoscalingRestIT extends ESClientYamlSuiteTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
     }
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 }

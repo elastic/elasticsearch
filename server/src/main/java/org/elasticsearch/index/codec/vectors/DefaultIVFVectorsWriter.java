@@ -17,8 +17,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -46,7 +49,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    long[] buildAndWritePostingsLists(
+    LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -81,7 +84,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
         // write the posting lists
-        final long[] offsets = new long[centroidSupplier.size()];
+        final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
@@ -89,19 +92,25 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
-            // TODO align???
-            offsets[c] = postingsOutput.getFilePointer();
-            int size = cluster.length;
-            postingsOutput.writeVInt(size);
+            offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+            buffer.asFloatBuffer().put(centroid);
+            // write raw centroid for quantizing the query vectors
+            postingsOutput.writeBytes(buffer.array(), buffer.array().length);
+            // write centroid dot product for quantizing the query vectors
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            int size = cluster.length;
+            // write docIds
+            postingsOutput.writeVInt(size);
             onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[ord]);
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+            // write vectors
             bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
 
@@ -109,11 +118,11 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             printClusterQualityStatistics(assignmentsByCluster);
         }
 
-        return offsets;
+        return offsets.build();
     }
 
     @Override
-    long[] buildAndWritePostingsLists(
+    LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -199,34 +208,40 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
-            final long[] offsets = new long[centroidSupplier.size()];
+            final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
             );
             DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+            final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 boolean[] isOverspill = isOverspillByCluster[c];
-                // TODO align???
-                offsets[c] = postingsOutput.getFilePointer();
+                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+                // write raw centroid for quantizing the query vectors
+                buffer.asFloatBuffer().put(centroid);
+                postingsOutput.writeBytes(buffer.array(), buffer.array().length);
+                // write centroid dot product for quantizing the query vectors
+                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                // write docIds
                 int size = cluster.length;
                 postingsOutput.writeVInt(size);
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
                 docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+                // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
             if (logger.isDebugEnabled()) {
                 printClusterQualityStatistics(assignmentsByCluster);
             }
-            return offsets;
+            return offsets.build();
         }
     }
 
@@ -270,7 +285,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
-        long[] offsets,
+        LongValues offsets,
         IndexOutput centroidOutput
     ) throws IOException {
 
@@ -295,14 +310,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
             writeQuantizedValue(centroidOutput, quantized, result);
         }
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {
-            float[] centroid = centroidSupplier.centroid(i);
-            buffer.asFloatBuffer().put(centroid);
-            // write the centroids
-            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
-            // write the offset of this posting list
-            centroidOutput.writeLong(offsets[i]);
+            centroidOutput.writeLong(offsets.get(i));
         }
     }
 

@@ -53,7 +53,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
 
         // Awaiting fixes for correctness
-        "Expecting the following columns \\[.*\\], got", // https://github.com/elastic/elasticsearch/issues/129000
         "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
     );
 

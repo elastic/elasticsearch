@@ -94,7 +94,6 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         NodeUsageStatsForThreadPoolsAction.NodeRequest request,
         Task task
     ) {
-        logger.info("~~~TransportNodeUsageStatsForThreadPoolsAction: START");
         DiscoveryNode localNode = clusterService.localNode();
         var writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
@@ -107,8 +106,6 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             ),
             trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset()
         );
-
-        logger.info("~~~TransportNodeUsageStatsForThreadPoolsAction: " + threadPoolUsageStats);
 
         Map<String, ThreadPoolUsageStats> perThreadPool = new HashMap<>();
         perThreadPool.put(ThreadPool.Names.WRITE, threadPoolUsageStats);

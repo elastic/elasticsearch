@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ai21.Ai21Service;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
@@ -400,7 +401,8 @@ public class InferencePlugin extends Plugin
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new,
-            context -> new CustomService(httpFactory.get(), serviceComponents.get())
+            context -> new CustomService(httpFactory.get(), serviceComponents.get()),
+            context -> new Ai21Service(httpFactory.get(), serviceComponents.get())
         );
     }
 

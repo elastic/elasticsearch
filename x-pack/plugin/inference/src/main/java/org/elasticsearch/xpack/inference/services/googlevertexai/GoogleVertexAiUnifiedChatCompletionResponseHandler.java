@@ -149,7 +149,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             }
         }
 
-        static ErrorResponse fromString(String response) {
+        public static ErrorResponse fromString(String response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response)

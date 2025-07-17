@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.mistral.request.completion;
+package org.elasticsearch.xpack.inference.services.ai21.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
-import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class MistralChatCompletionRequestTests extends ESTestCase {
+public class Ai21ChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithStreaming() throws IOException {
         var request = createRequest("secret", randomAlphaOfLength(15), "model", true);
@@ -40,21 +40,21 @@ public class MistralChatCompletionRequestTests extends ESTestCase {
         String input = randomAlphaOfLength(5);
         var request = createRequest("secret", input, "model", true);
         var truncatedRequest = request.truncate();
-        assertThat(request.getURI().toString(), is(MistralConstants.API_COMPLETIONS_PATH));
+        assertThat(request.getURI().toString(), is(Ai21ChatCompletionModel.API_COMPLETIONS_PATH));
 
         var httpRequest = truncatedRequest.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap, aMapWithSize(5));
 
-        // We do not truncate for Mistral chat completions
+        // We do not truncate for AI21 chat completions
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
         assertTrue((Boolean) requestMap.get("stream"));
-        assertNull(requestMap.get("stream_options")); // Mistral does not use stream options
+        assertThat(requestMap.get("stream_options"), is(Map.of("include_usage", true)));
     }
 
     public void testTruncationInfo_ReturnsNull() {
@@ -62,13 +62,13 @@ public class MistralChatCompletionRequestTests extends ESTestCase {
         assertNull(request.getTruncationInfo());
     }
 
-    public static MistralChatCompletionRequest createRequest(String apiKey, String input, @Nullable String model) {
+    public static Ai21ChatCompletionRequest createRequest(String apiKey, String input, @Nullable String model) {
         return createRequest(apiKey, input, model, false);
     }
 
-    public static MistralChatCompletionRequest createRequest(String apiKey, String input, @Nullable String model, boolean stream) {
-        var chatCompletionModel = MistralChatCompletionModelTests.createCompletionModel(apiKey, model);
-        return new MistralChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
+    public static Ai21ChatCompletionRequest createRequest(String apiKey, String input, @Nullable String model, boolean stream) {
+        var chatCompletionModel = Ai21ChatCompletionModelTests.createCompletionModel(apiKey, model);
+        return new Ai21ChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 
 }

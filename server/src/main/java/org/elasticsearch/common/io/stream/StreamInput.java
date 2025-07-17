@@ -76,12 +76,15 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public abstract class StreamInput extends InputStream {
 
-    private TransportVersion version = TransportVersion.current();
+    private TransportVersion version;
 
     /**
      * The transport version the data is serialized as.
      */
     public TransportVersion getTransportVersion() {
+        if (version == null) {
+            version = TransportVersion.current();
+        }
         return this.version;
     }
 

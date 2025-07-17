@@ -310,7 +310,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
                 }
             }
 
-            // set the lookup values
+            // set the transport version lookups
             ALL_VERSIONS = Collections.unmodifiableList(allVersions);
             ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
             ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
@@ -320,7 +320,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
         private static Map<String, TransportVersion> loadTransportVersionsByName() {
             Map<String, TransportVersion> transportVersions = new HashMap<>();
 
-            String latestLocation = "/transport/latest" + Version.CURRENT.major + "." + Version.CURRENT.minor + "-LATEST.json";
+            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + "-LATEST.json";
             int latestId;
             try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
                 TransportVersion latest = fromXContent(inputStream, Integer.MAX_VALUE);
@@ -336,7 +336,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
 
             String manifestLocation = "/transport/generated/generated-transport-versions-files-manifest.txt";
             List<String> versionFileNames;
-            try (InputStream transportVersionsManifest = TransportVersion.class.getClassLoader().getResourceAsStream(manifestLocation)) {
+            try (InputStream transportVersionsManifest = TransportVersion.class.getResourceAsStream(manifestLocation)) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionsManifest, StandardCharsets.UTF_8));
                 versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
             } catch (IOException ioe) {
@@ -347,7 +347,9 @@ public class TransportVersion implements VersionId<TransportVersion> {
                 String versionLocation = "/transport/generated/" + name;
                 try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
                     TransportVersion transportVersion = TransportVersion.fromXContent(inputStream, latestId);
-                    transportVersions.put(transportVersion.name(), transportVersion);
+                    if (transportVersion != null) {
+                        transportVersions.put(transportVersion.name(), transportVersion);
+                    }
                 } catch (IOException ioe) {
                     throw new UncheckedIOException("transport version set file not found at [ " + versionLocation + "]", ioe);
                 }

@@ -1,0 +1,5 @@
+pr: 131435
+summary: Drop unused plugin declaration `com.gradleup.nmcp.aggregation`
+area: build.versions.toml
+type: chore
+issues: []

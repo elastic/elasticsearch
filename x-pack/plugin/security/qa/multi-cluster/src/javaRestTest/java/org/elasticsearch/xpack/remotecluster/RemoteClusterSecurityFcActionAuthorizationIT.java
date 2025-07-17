@@ -282,7 +282,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 GetCcrRestoreFileChunkAction.REMOTE_TYPE,
                 new GetCcrRestoreFileChunkRequest(response2.getNode(), sessionUUID2, leaderIndex2FileName, 1, shardId2)
             );
-            assertFalse(getChunkResponse.getChunk().hasReferences());
+            assertBusy(() -> assertFalse(getChunkResponse.getChunk().hasReferences()));
 
             // Clear restore session fails if index is unauthorized
             final var e4 = expectThrows(

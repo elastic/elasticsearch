@@ -991,6 +991,8 @@ public class EsqlCapabilities {
          */
         LIKE_WITH_LIST_OF_PATTERNS,
 
+        LIKE_LIST_ON_INDEX_FIELDS,
+
         /**
          * Support for the SAMPLE command
          */
@@ -1015,6 +1017,16 @@ public class EsqlCapabilities {
         NO_PLAIN_STRINGS_IN_LITERALS,
 
         /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
+        /**
          * Support avg with aggregate metric doubles
          */
         AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -1023,7 +1035,12 @@ public class EsqlCapabilities {
          * Forbid usage of brackets in unquoted index and enrich policy names
          * https://github.com/elastic/elasticsearch/issues/130378
          */
-        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES;
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
+
+        /**
+         * Fail if all shards fail
+         */
+        FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot());
 
         private final boolean enabled;
 

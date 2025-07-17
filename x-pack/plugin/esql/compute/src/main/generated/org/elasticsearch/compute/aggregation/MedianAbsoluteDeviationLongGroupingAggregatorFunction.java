@@ -216,16 +216,6 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    QuantileStates.GroupingState inState = ((MedianAbsoluteDeviationLongGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MedianAbsoluteDeviationLongAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     state.toIntermediate(blocks, offset, selected, driverContext);
   }

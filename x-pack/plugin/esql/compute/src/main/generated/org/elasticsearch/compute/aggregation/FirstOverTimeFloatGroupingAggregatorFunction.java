@@ -235,16 +235,6 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    FirstOverTimeFloatAggregator.GroupingState inState = ((FirstOverTimeFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    FirstOverTimeFloatAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     state.toIntermediate(blocks, offset, selected, driverContext);
   }

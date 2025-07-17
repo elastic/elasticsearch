@@ -80,13 +80,8 @@ class ValuesBytesRefAggregator {
         state.addValue(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
-        BytesRef scratch = new BytesRef();
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
-        for (int i = start; i < end; i++) {
-            state.addValue(groupId, values.getBytesRef(i, scratch));
-        }
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntVector groups, BytesRefBlock values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
     public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
@@ -216,7 +211,7 @@ class ValuesBytesRefAggregator {
             }
 
             try (var sorted = buildSorted(selected)) {
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(bytes.size()))) {
                     return buildOrdinalOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
                 } else {
                     return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);

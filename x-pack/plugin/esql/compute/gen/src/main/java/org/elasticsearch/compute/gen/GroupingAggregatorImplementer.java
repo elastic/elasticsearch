@@ -609,63 +609,80 @@ public class GroupingAggregatorImplementer {
                         .collect(joining(" && "))
             );
         }
-        if (intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
-            builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
-        }
-        builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
-        {
-            builder.addStatement("int groupId = groups.getInt(groupPosition)");
-            if (aggState.declaredType().isPrimitive()) {
-                if (warnExceptions.isEmpty()) {
-                    assert intermediateState.size() == 2;
-                    assert intermediateState.get(1).name().equals("seen");
-                    builder.beginControlFlow("if (seen.getBoolean(groupPosition + positionOffset))");
-                } else {
-                    assert intermediateState.size() == 3;
-                    assert intermediateState.get(1).name().equals("seen");
-                    assert intermediateState.get(2).name().equals("failed");
-                    builder.beginControlFlow("if (failed.getBoolean(groupPosition + positionOffset))");
-                    {
-                        builder.addStatement("state.setFailed(groupId)");
-                    }
-                    builder.nextControlFlow("else if (seen.getBoolean(groupPosition + positionOffset))");
-                }
-
-                warningsBlock(builder, () -> {
-                    var name = intermediateState.get(0).name();
-                    var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
-                    builder.addStatement(
-                        "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
-                        declarationType,
-                        name,
-                        vectorAccessor
-                    );
-                });
-                builder.endControlFlow();
-            } else {
-                var stateHasBlock = intermediateState.stream().anyMatch(AggregatorImplementer.IntermediateStateDesc::block);
-                requireStaticMethod(
-                    declarationType,
-                    requireVoidType(),
-                    requireName("combineIntermediate"),
-                    requireArgs(
-                        Stream.of(
-                            Stream.of(aggState.declaredType(), TypeName.INT), // aggState and groupId
-                            intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::combineArgType),
-                            Stream.of(TypeName.INT).filter(p -> stateHasBlock) // position
-                        ).flatMap(Function.identity()).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
-                    )
-                );
-
-                builder.addStatement(
-                    "$T.combineIntermediate(state, groupId, "
-                        + intermediateState.stream().map(desc -> desc.access("groupPosition + positionOffset")).collect(joining(", "))
-                        + (stateHasBlock ? ", groupPosition + positionOffset" : "")
-                        + ")",
-                    declarationType
-                );
+        var bulkCombineIntermediateMethod = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combineIntermediate"),
+            requireArgs(
+                Stream.of(
+                    Stream.of(aggState.declaredType(), TypeName.INT, INT_VECTOR), // aggState, positionOffset, groupIds
+                    intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::combineArgType)
+                ).flatMap(Function.identity()).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
+            )
+        );
+        if (bulkCombineIntermediateMethod != null) {
+            var states = intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::name).collect(Collectors.joining(","));
+            builder.addStatement("$T.combineIntermediate(state, positionOffset, groups," + states + ")", declarationType);
+        } else {
+            if (intermediateState.stream()
+                .map(AggregatorImplementer.IntermediateStateDesc::elementType)
+                .anyMatch(n -> n.equals("BYTES_REF"))) {
+                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
             }
-            builder.endControlFlow();
+            builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
+            {
+                builder.addStatement("int groupId = groups.getInt(groupPosition)");
+                if (aggState.declaredType().isPrimitive()) {
+                    if (warnExceptions.isEmpty()) {
+                        assert intermediateState.size() == 2;
+                        assert intermediateState.get(1).name().equals("seen");
+                        builder.beginControlFlow("if (seen.getBoolean(groupPosition + positionOffset))");
+                    } else {
+                        assert intermediateState.size() == 3;
+                        assert intermediateState.get(1).name().equals("seen");
+                        assert intermediateState.get(2).name().equals("failed");
+                        builder.beginControlFlow("if (failed.getBoolean(groupPosition + positionOffset))");
+                        {
+                            builder.addStatement("state.setFailed(groupId)");
+                        }
+                        builder.nextControlFlow("else if (seen.getBoolean(groupPosition + positionOffset))");
+                    }
+
+                    warningsBlock(builder, () -> {
+                        var name = intermediateState.get(0).name();
+                        var vectorAccessor = vectorAccessorName(intermediateState.get(0).elementType());
+                        builder.addStatement(
+                            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.$L(groupPosition + positionOffset)))",
+                            declarationType,
+                            name,
+                            vectorAccessor
+                        );
+                    });
+                    builder.endControlFlow();
+                } else {
+                    var stateHasBlock = intermediateState.stream().anyMatch(AggregatorImplementer.IntermediateStateDesc::block);
+                    requireStaticMethod(
+                        declarationType,
+                        requireVoidType(),
+                        requireName("combineIntermediate"),
+                        requireArgs(
+                            Stream.of(
+                                Stream.of(aggState.declaredType(), TypeName.INT), // aggState and groupId
+                                intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::combineArgType),
+                                Stream.of(TypeName.INT).filter(p -> stateHasBlock) // position
+                            ).flatMap(Function.identity()).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
+                        )
+                    );
+                    builder.addStatement(
+                        "$T.combineIntermediate(state, groupId, "
+                            + intermediateState.stream().map(desc -> desc.access("groupPosition + positionOffset")).collect(joining(", "))
+                            + (stateHasBlock ? ", groupPosition + positionOffset" : "")
+                            + ")",
+                        declarationType
+                    );
+                }
+                builder.endControlFlow();
+            }
         }
         return builder.build();
     }

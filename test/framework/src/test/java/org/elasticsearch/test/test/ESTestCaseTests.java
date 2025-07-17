@@ -205,46 +205,6 @@ public class ESTestCaseTests extends ESTestCase {
         assertNotNull(randomValueOtherThan(null, usuallyNull));
     }
 
-    public void testRandomSubsetWhenSubsetSizeIsZero() {
-        List<String> input = List.of("a", "b", "c");
-        List<String> result = randomSubset(input, 0);
-        assertTrue(result.isEmpty());
-    }
-
-    public void testRandomSubsetWhenSubsetSizeIsMaxLength() {
-        List<String> input = List.of("a", "b", "c");
-        List<String> result = randomSubset(input, 3);
-        // Should contain all elements, order may differ
-        assertEquals(Set.copyOf(input), Set.copyOf(result));
-        assertEquals(3, result.size());
-    }
-
-    public void testRandomSubsetWhenSubsetSizeIsValid() {
-        List<String> input = List.of("a", "b", "c", "d", "e");
-        List<String> result = randomSubset(input, 2);
-        assertEquals(2, result.size());
-        // All elements in result should be from input
-        assertTrue(input.containsAll(result));
-        // No duplicates
-        assertEquals(2, Set.copyOf(result).size());
-    }
-
-    public void testRandomSubsetWhenSubsetSizeIsNegative() {
-        List<String> input = List.of("a", "b", "c");
-        expectThrows(IllegalArgumentException.class, () -> randomSubset(input, -1));
-    }
-
-    public void testRandomSubsetWhenSubsetSizeIsLargerThanList() {
-        List<String> input = List.of("a", "b", "c");
-        expectThrows(IllegalArgumentException.class, () -> randomSubset(input, 4));
-    }
-
-    public void testRandomSubsetWithEmptyList() {
-        List<String> input = List.of();
-        List<String> result = randomSubset(input, 0);
-        assertTrue(result.isEmpty());
-    }
-
     public void testWorkerSystemProperty() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
 

@@ -306,7 +306,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testReadFrom() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 3);
+        List<String> roles = randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"));
         int shards = randomInt();
         int undesiredWriteAllocation = randomInt();
         double forecastWriteLoad = randomDouble();
@@ -414,7 +414,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testWriteTo() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
+        List<String> roles = randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"));
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -487,7 +487,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testToXContentWithoutHumanReadableNames() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
+        List<String> roles = randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"));
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -530,7 +530,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testToXContentWithHumanReadableNames() throws IOException {
         String nodeId = "node-1";
-        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
+        List<String> roles = randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"));
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -571,7 +571,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
     }
 
     public void testToXContentWithUnknownNodeId() throws IOException {
-        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
+        List<String> roles = randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"));
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;
@@ -611,7 +611,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     public void testToXContentWithNullNodeWeight() throws IOException {
         String nodeId = "node-id";
-        List<String> roles = randomSubset(List.of("ingest", "data", "master", "ml"), 2);
+        List<String> roles = randomNonEmptySubsetOf(List.of("ingest", "data", "master", "ml"));
         int shards = 5;
         int undesiredShardAllocations = 2;
         double forecastWriteLoad = 1.23;

@@ -37,7 +37,7 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> aggregatable = false == aggregatable;
-            case 3 -> tsType = randomFrom(EsField.TimeSeriesFieldType.values());
+            case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
         return DateEsField.dateEsField(name, properties, aggregatable, tsType);

@@ -218,7 +218,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public boolean isDimension() {
-        return false;
+        return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.DIMENSION;
     }
 
     public EsField field() {

@@ -1,3 +1,13 @@
 redirects:
-# Related to https://github.com/elastic/elasticsearch/pull/130716/
+  # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
+  
+  # Redirects for splitting retrievers per https://github.com/elastic/elasticsearch/pull/131385
+  'reference/elasticsearch/rest-apis/retrievers.md#standard-retriever': 'reference/elasticsearch/rest-apis/retrievers/standard-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#knn-retriever': 'reference/elasticsearch/rest-apis/retrievers/knn-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#linear-retriever': 'reference/elasticsearch/rest-apis/retrievers/linear-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever': 'reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#rescorer-retriever': 'reference/elasticsearch/rest-apis/retrievers/rescorer-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#text-similarity-reranker-retriever': 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#rule-retriever': 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
+  'reference/elasticsearch/rest-apis/retrievers.md#pinned-retriever': 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'

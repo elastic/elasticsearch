@@ -81,8 +81,8 @@ The following parameters are accepted by `keyword` fields:
     | Index type | Default | Effect |
     | ---------- | ------- | ------ |
     | Standard indices | `2147483647` (effectively unbounded) | Documents will be rejected if this keyword exceeds `32766` UTF-8 encoded bytes. |
-    | `logsdb` indices | `8191` | This `keyword` field will never cause documents to be rejected. If this field is longer than `8191` characters it won't be indexed and it's values are available from `_source`. |
-    | [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields | `text` field with a [sub](/reference/elasticsearch/mapping-reference/multi-fields.md)-`keyword` field with an `ignore_above` of `256` | All string fields are availale. Values longer than 256 characters are only available for full text search and won't have a value in their `.keyword` sub-field they can not do exact matching over _search. |
+    | `logsdb` indices | `8191` | This `keyword` field will never cause documents to be rejected. If this field is longer than `8191` characters it won't be indexed but its values are still available from `_source`. |
+    | [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields | `text` field with a [sub](/reference/elasticsearch/mapping-reference/multi-fields.md)-`keyword` field with an `ignore_above` of `256` | All string fields are available. Values longer than 256 characters are only available for full text search and won't have a value in their `.keyword` sub-field, so they can not be used for exact matching over _search. |
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.

@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
@@ -22,7 +23,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.client.internal.RemoteClusterClient;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -48,9 +50,10 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -91,6 +94,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private final IndicesService indicesService;
     private final boolean ccsCheckCompatibility;
+    private final ThreadPool threadPool;
+    private final TimeValue forceConnectTimeoutSecs;
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -117,6 +122,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             new NodeTransportHandler()
         );
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
+        this.threadPool = threadPool;
+        this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
     }
 
     @Override
@@ -124,7 +131,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         executeRequest(
             task,
             request,
-            (remoteClient, remoteRequest, remoteListener) -> remoteClient.execute(REMOTE_TYPE, remoteRequest, remoteListener),
+            (transportService, conn, fieldCapabilitiesRequest, responseHandler) -> transportService.sendRequest(
+                conn,
+                REMOTE_TYPE.name(),
+                fieldCapabilitiesRequest,
+                TransportRequestOptions.EMPTY,
+                responseHandler
+            ),
             listener
         );
     }
@@ -268,12 +281,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                var remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(
-                        clusterAlias,
-                        singleThreadedExecutor,
-                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                    );
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(clusterAlias, request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
@@ -299,9 +306,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                     }
                 });
-                remoteRequestExecutor.executeRemoteRequest(
-                    remoteClusterClient,
-                    remoteRequest,
+
+                SubscribableListener<Transport.Connection> connectionListener = new SubscribableListener<>();
+                if (forceConnectTimeoutSecs != null) {
+                    connectionListener.addTimeout(forceConnectTimeoutSecs, threadPool, singleThreadedExecutor);
+                }
+
+                connectionListener.addListener(
                     // The underlying transport service may call onFailure with a thread pool other than search_coordinator.
                     // This fork is a workaround to ensure that the merging of field-caps always occurs on the search_coordinator.
                     // TODO: remove this workaround after we fixed https://github.com/elastic/elasticsearch/issues/107439
@@ -309,8 +320,20 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         singleThreadedExecutor,
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
+                    ).delegateFailure(
+                        (responseListener, conn) -> remoteRequestExecutor.executeRemoteRequest(
+                            transportService,
+                            conn,
+                            remoteRequest,
+                            new ActionListenerResponseHandler<>(responseListener, FieldCapabilitiesResponse::new, singleThreadedExecutor)
+                        )
                     )
                 );
+
+                boolean ensureConnected = forceConnectTimeoutSecs != null
+                    || transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+                transportService.getRemoteClusterService()
+                    .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }
         }
     }
@@ -340,9 +363,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     public interface RemoteRequestExecutor {
         void executeRemoteRequest(
-            RemoteClusterClient remoteClient,
+            TransportService transportService,
+            Transport.Connection conn,
             FieldCapabilitiesRequest remoteRequest,
-            ActionListener<FieldCapabilitiesResponse> remoteListener
+            ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
         );
     }
 

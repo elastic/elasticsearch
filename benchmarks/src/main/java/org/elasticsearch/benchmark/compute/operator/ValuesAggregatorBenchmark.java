@@ -355,10 +355,10 @@ public class ValuesAggregatorBenchmark {
                 for (int i = 0; i < opCount; i++) {
                     finalAggregator.addInput(intermediatePage.shallowCopy());
                 }
-                finalAggregator.finish();
-                Page outputPage = finalAggregator.getOutput();
-                checkExpected(groups, dataType, outputPage);
             }
+            finalAggregator.finish();
+            Page outputPage = finalAggregator.getOutput();
+            checkExpected(groups, dataType, outputPage);
         }
     }
 

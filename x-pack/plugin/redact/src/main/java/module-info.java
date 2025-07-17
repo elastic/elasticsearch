@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-/** Elasticsearch X-Pack Constant Keyword Mapper Plugin. */
-module org.elasticsearch.xpack.constantkeyword {
+/** Elasticsearch Redact Plugin. */
+module org.elasticsearch.xpack.redact {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.painless.spi;
-    requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.grok;
     requires org.elasticsearch.xcore;
-    requires org.apache.lucene.core;
+    requires org.apache.logging.log4j;
+    requires org.jruby.joni;
 
-    exports org.elasticsearch.xpack.constantkeyword;
+    exports org.elasticsearch.xpack.redact;
 }

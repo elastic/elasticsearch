@@ -17,22 +17,8 @@ module org.elasticsearch.xpack.spatial {
     requires org.elasticsearch.legacy.geo;
     requires org.apache.lucene.core;
     requires org.apache.lucene.spatial3d;
-    
+
     exports org.elasticsearch.xpack.spatial;
-    exports org.elasticsearch.xpack.spatial.action;
     exports org.elasticsearch.xpack.spatial.common;
-    exports org.elasticsearch.xpack.spatial.index.fielddata;
-    exports org.elasticsearch.xpack.spatial.index.fielddata.plain;
-    exports org.elasticsearch.xpack.spatial.index.mapper;
-    exports org.elasticsearch.xpack.spatial.index.query;
-    exports org.elasticsearch.xpack.spatial.ingest;
-    exports org.elasticsearch.xpack.spatial.script.field;
-    exports org.elasticsearch.xpack.spatial.search.aggregations;
     exports org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
-    exports org.elasticsearch.xpack.spatial.search.aggregations.metrics;
-    exports org.elasticsearch.xpack.spatial.search.aggregations.support;
-    exports org.elasticsearch.xpack.spatial.search.runtime;
-    
-    provides org.elasticsearch.painless.spi.PainlessExtension 
-        with org.elasticsearch.xpack.spatial.SpatialPainlessExtension;
 }

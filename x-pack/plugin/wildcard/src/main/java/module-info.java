@@ -14,10 +14,6 @@ module org.elasticsearch.xpack.wildcard {
     requires org.elasticsearch.xcore;
     requires org.apache.lucene.core;
     requires org.apache.lucene.analysis.common;
-    
+
     exports org.elasticsearch.xpack.wildcard;
-    exports org.elasticsearch.xpack.wildcard.mapper;
-    
-    provides org.elasticsearch.painless.spi.PainlessExtension 
-        with org.elasticsearch.xpack.wildcard.WildcardPainlessExtension;
 }

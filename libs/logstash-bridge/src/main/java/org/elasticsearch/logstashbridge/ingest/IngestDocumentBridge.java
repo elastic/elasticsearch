@@ -15,7 +15,6 @@ import org.elasticsearch.logstashbridge.script.MetadataBridge;
 import org.elasticsearch.logstashbridge.script.TemplateScriptBridge;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -67,8 +66,6 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
     }
 
     public Map<String, Object> getIngestMetadata() {
-        Objects.requireNonNull(delegate, "IngestDocument cannot be null");
-        Objects.requireNonNull(delegate.getIngestMetadata(), "IngestDocument ingest metadata cannot be null");
         return delegate.getIngestMetadata();
     }
 

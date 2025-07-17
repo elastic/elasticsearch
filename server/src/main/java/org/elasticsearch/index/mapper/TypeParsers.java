@@ -54,9 +54,9 @@ public class TypeParsers {
         }
         for (Object value : meta.values()) {
             if (value instanceof String sValue) {
-                if (sValue.codePointCount(0, sValue.length()) > 50) {
+                if (sValue.codePointCount(0, sValue.length()) > 500) {
                     throw new MapperParsingException(
-                        "[meta] values can't be longer than 50 chars, but got [" + value + "] for field [" + name + "]"
+                        "[meta] values can't be longer than 500 chars, but got [" + value + "] for field [" + name + "]"
                     );
                 }
             } else if (value == null) {

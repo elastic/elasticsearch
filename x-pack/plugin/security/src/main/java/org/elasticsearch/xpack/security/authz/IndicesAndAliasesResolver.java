@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.CrossProjectRequest;
+import org.elasticsearch.CrossProjectEnabledRequest;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -138,14 +138,14 @@ public class IndicesAndAliasesResolver {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
-        if (request instanceof CrossProjectRequest crossProjectRequest) {
-            maybeRewriteCrossProjectRequest(resolvedProjects, crossProjectRequest);
+        if (request instanceof CrossProjectEnabledRequest crossProjectEnabledRequest) {
+            maybeRewriteCrossProjectRequest(resolvedProjects, crossProjectEnabledRequest);
         }
 
         return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
     }
 
-    void maybeRewriteCrossProjectRequest(CrossProjectTargetResolver.ResolvedProjects resolvedProjects, CrossProjectRequest request) {
+    void maybeRewriteCrossProjectRequest(CrossProjectTargetResolver.ResolvedProjects resolvedProjects, CrossProjectEnabledRequest request) {
         if (resolvedProjects == CrossProjectTargetResolver.ResolvedProjects.VOID) {
             logger.info("Cross-project search is disabled or not applicable, skipping request [{}]...", request);
             return;
@@ -167,18 +167,18 @@ public class IndicesAndAliasesResolver {
             return;
         }
 
-        List<CrossProjectRequest.QualifiedExpression> qualifiedExpressions = new ArrayList<>(indices.length);
+        List<CrossProjectEnabledRequest.QualifiedExpression> qualifiedExpressions = new ArrayList<>(indices.length);
         for (String local : resolved.getLocal()) {
-            List<CrossProjectRequest.ExpressionWithProject> expressionWithProjects = new ArrayList<>();
-            expressionWithProjects.add(new CrossProjectRequest.ExpressionWithProject(local, "_local"));
+            List<CrossProjectEnabledRequest.ExpressionWithProject> expressionWithProjects = new ArrayList<>();
+            expressionWithProjects.add(new CrossProjectEnabledRequest.ExpressionWithProject(local, "_local"));
             for (String targetProject : resolvedProjects.projects()) {
                 expressionWithProjects.add(
-                    new CrossProjectRequest.ExpressionWithProject(
+                    new CrossProjectEnabledRequest.ExpressionWithProject(
                         RemoteClusterAware.buildRemoteIndexName(targetProject, local),
                         targetProject
                     )
                 );
-                qualifiedExpressions.add(new CrossProjectRequest.QualifiedExpression(local, expressionWithProjects));
+                qualifiedExpressions.add(new CrossProjectEnabledRequest.QualifiedExpression(local, expressionWithProjects));
             }
             logger.info("Rewrote [{}] to [{}]", local, expressionWithProjects);
         }

@@ -11,6 +11,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 
 import java.util.List;
 
+/**
+ * Resolves linked and authorized projects, if running in a cross-project environment.
+ * <b>
+ * In non-cross-project environments, `resolve` returns `ResolvedProjects.VOID`
+ */
 public interface CrossProjectTargetResolver {
     ResolvedProjects resolve(SecurityContext securityContext);
 
@@ -22,7 +27,6 @@ public interface CrossProjectTargetResolver {
     }
 
     record ResolvedProjects(List<String> projects) {
-        // I need a better name
         public static ResolvedProjects VOID = new ResolvedProjects(List.of());
     }
 }

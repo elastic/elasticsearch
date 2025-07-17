@@ -245,7 +245,7 @@ public class ReshardIndexService {
         );
     }
 
-    public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) throws Exception {
+    public void deleteUnownedDocuments(ShardId shardId, ActionListener<Void> listener) {
         // may throw if the index is deleted
         var indexService = indicesService.indexServiceSafe(shardId.getIndex());
         // may throw if the shard id is invalid
@@ -257,7 +257,7 @@ public class ReshardIndexService {
             indexShard.mapperService().hasNested()
         );
 
-        indexShard.ensureMutable(listener.delegateFailure((l, ignored) -> indexShard.withEngine(engine -> {
+        indexShard.ensureMutable(listener.delegateFailureAndWrap((l, ignored) -> indexShard.withEngine(engine -> {
             ActionListener.run(l, runListener -> {
                 assert engine instanceof IndexEngine : engine.getClass().getSimpleName();
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.AbstractCollection;
 import java.util.AbstractList;
+import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -405,13 +406,11 @@ public class ESONSource {
 
         private class LazyEntry implements Entry<String, Object> {
             private final String key;
-            private final Type type;
             private Object cachedValue;
             private boolean valueComputed = false;
 
             LazyEntry(String key, Type type) {
                 this.key = key;
-                this.type = type;
             }
 
             @Override
@@ -430,7 +429,9 @@ public class ESONSource {
 
             @Override
             public Object setValue(Object value) {
-                return ESONObject.this.put(key, value);
+                Object oldValue = ESONObject.this.put(key, value);
+                cachedValue = value;
+                return oldValue;
             }
 
             @Override
@@ -444,7 +445,7 @@ public class ESONSource {
 
             @Override
             public int hashCode() {
-                return java.util.Objects.hash(getKey(), getValue());
+                return new AbstractMap.SimpleEntry<>(getKey(), getValue()).hashCode();
             }
         }
 

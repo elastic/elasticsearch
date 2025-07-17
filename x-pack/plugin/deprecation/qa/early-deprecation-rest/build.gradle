@@ -23,12 +23,15 @@ dependencies {
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 
-  clusterModules project(xpackModule('deprecation'))
-  clusterModules project(':x-pack:plugin:deprecation:qa:rest')
+  clusterPlugins project(':x-pack:plugin:deprecation:qa::early-deprecation-rest')
 }
 
 // let the javaRestTest see the classpath of main
 GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+}
 
 restResources {
   restApi {

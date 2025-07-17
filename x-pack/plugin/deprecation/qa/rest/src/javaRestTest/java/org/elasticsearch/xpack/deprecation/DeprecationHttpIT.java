@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -66,8 +67,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("x-pack-deprecation")
-        .module("deprecation-test-plugin")
+        .distribution(DistributionType.DEFAULT)
+        .plugin("deprecation-test-plugin")
         .setting("cluster.deprecation_indexing.enabled", "true")
         .setting("cluster.deprecation_indexing.flush_interval", "100ms")
         .setting("xpack.security.enabled", "false")

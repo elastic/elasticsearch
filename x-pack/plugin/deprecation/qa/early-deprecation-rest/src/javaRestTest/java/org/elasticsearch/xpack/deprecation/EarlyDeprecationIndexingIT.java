@@ -16,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
@@ -39,16 +40,20 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("x-pack-deprecation")
-        .module("deprecation-test-plugin")
+        .distribution(DistributionType.DEFAULT)
+        .plugin("deprecation-test-plugin")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.deprecation_indexing.enabled", "true")
         .setting("cluster.deprecation_indexing.flush_interval", "1ms")
-        .setting("logger.org.elasticsearch.xpack.deprecation","TRACE")
-        .setting("logger.org.elasticsearch.xpack.deprecation.logging","TRACE")
+        .setting("logger.org.elasticsearch.xpack.deprecation", "TRACE")
+        .setting("logger.org.elasticsearch.xpack.deprecation.logging", "TRACE")
         .build();
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     /**
      * In EarlyDeprecationTestPlugin#onNodeStarted we simulate a very early deprecation that can happen before the template is loaded

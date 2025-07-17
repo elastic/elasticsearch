@@ -164,6 +164,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -3793,8 +3794,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * After local optimizations we expect no changes because field is extracted:
      * <code>
      * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],FINAL,50]
-     *   \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],PARTIAL,50]
+     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@7ff910a{r}#7) AS centroid],SINGLE,50]
      *     \_EvalExec[[[1 1 0 0 0 0 0 30 e2 4c 7c 45 40 0 0 e0 92 b0 82 2d 40][GEO_POINT] AS __centroid_SPATIALCENTROID@7ff910a]]
      *       \_RowExec[[[50 4f 49 4e 54 28 34 32 2e 39 37 31 30 39 36 32 39 39 35 38 38 36 38 20 31 34 2e 37 35 35 32 35 33 34 30 30
      *       36 35 33 36 29][KEYWORD] AS wkt]]
@@ -3822,11 +3822,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         limit = as(optimized, LimitExec.class);
         agg = as(limit.child(), AggregateExec.class);
-        assertThat("Aggregation is FINAL", agg.getMode(), equalTo(FINAL));
-        assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
-        agg = as(agg.child(), AggregateExec.class);
-        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertThat("Aggregation is SINGLE", agg.getMode(), equalTo(SINGLE));
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
         eval = as(agg.child(), EvalExec.class);
@@ -7813,6 +7809,33 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP JOIN lookup_index ON first_name
             """;
         assertLookupJoinFieldNames(query, data, List.of(Set.of(), Set.of("foo", "bar", "baz")));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER],null]
+     * \_AggregateExec[[last_name{r}#8],[COUNT(first_name{r}#5,true[BOOLEAN]) AS count(first_name)#11, last_name{r}#8],SINGLE,[last_name
+     * {r}#8, $$count(first_name)$count{r}#25, $$count(first_name)$seen{r}#26],null]
+     *   \_AggregateExec[[emp_no{f}#12],[VALUES(first_name{f}#13,true[BOOLEAN]) AS first_name#5, VALUES(last_name{f}#16,true[BOOLEAN]) A
+     * S last_name#8],FINAL,[emp_no{f}#12, $$first_name$values{r}#23, $$last_name$values{r}#24],null]
+     *     \_ExchangeExec[[emp_no{f}#12, $$first_name$values{r}#23, $$last_name$values{r}#24],true]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * Aggregate[[emp_no{f}#12],[VALUES(first_name{f}#13,true[BOOLEAN]) AS first_name#5, VALUES(last_name{f}#16,true[BOOLEAN]) A
+     * S last_name#8]]
+     * \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]]]
+     */
+    public void testSingleModeAggregate() {
+        String q = """
+            FROM test
+            | STATS first_name = VALUES(first_name), last_name = VALUES(last_name) BY emp_no
+            | STATS count(first_name) BY last_name""";
+        PhysicalPlan plan = physicalPlan(q);
+        PhysicalPlan optimized = physicalPlanOptimizer.optimize(plan);
+        LimitExec limit = as(optimized, LimitExec.class);
+        AggregateExec second = as(limit.child(), AggregateExec.class);
+        assertThat(second.getMode(), equalTo(SINGLE));
+        AggregateExec first = as(second.child(), AggregateExec.class);
+        assertThat(first.getMode(), equalTo(FINAL));
+        as(first.child(), ExchangeExec.class);
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {

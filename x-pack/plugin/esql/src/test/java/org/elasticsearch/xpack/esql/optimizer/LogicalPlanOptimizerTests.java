@@ -2905,7 +2905,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_� foo");
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_\uD83D\uDC14 foo");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -2916,7 +2916,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        var plan = planMultiIndex("FROM multi_index | INSIST_� partial_type_keyword");
+        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword");
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2927,7 +2927,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_multipleInsistClauses_insistsAreFolded() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        var plan = planMultiIndex("FROM multi_index | INSIST_� partial_type_keyword | INSIST_� foo");
+        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword | INSIST_\uD83D\uDC14 foo");
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,8 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -106,76 +102,16 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(rule)));
     }
 
-    public void transformExpressionsOnly(BiConsumer<Expression, ActionListener<Expression>> rule, ActionListener<PlanType> listener) {
-        transformPropertiesOnly(
-            Object.class,
-            (prop, propListener) -> doTransformExpression(
-                prop,
-                (expr, exprListener) -> expr.transformDown(rule, exprListener),
-                propListener
-            ),
-            listener
-        );
-    }
-
     public <E extends Expression> PlanType transformExpressionsOnly(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
-    }
-
-    public <E extends Expression> void transformExpressionsOnly(
-        Class<E> typeToken,
-        BiConsumer<E, ActionListener<Expression>> rule,
-        ActionListener<PlanType> listener
-    ) {
-        transformPropertiesOnly(
-            Object.class,
-            (prop, propListener) -> doTransformExpression(
-                prop,
-                (expr, exprListener) -> expr.transformDown(typeToken, rule, exprListener),
-                propListener
-            ),
-            listener
-        );
     }
 
     public <E extends Expression> PlanType transformExpressionsOnlyUp(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
     }
 
-    public <E extends Expression> void transformExpressionsOnlyUp(
-        Class<E> typeToken,
-        BiConsumer<E, ActionListener<Expression>> rule,
-        ActionListener<PlanType> listener
-    ) {
-        transformPropertiesOnly(
-            Object.class,
-            (prop, propListener) -> doTransformExpression(
-                prop,
-                (expr, exprListener) -> expr.transformUp(typeToken, rule, exprListener),
-                propListener
-            ),
-            listener
-        );
-    }
-
     public <E extends Expression> PlanType transformExpressionsDown(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesDown(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
-    }
-
-    public <E extends Expression> void transformExpressionsDown(
-        Class<E> typeToken,
-        BiConsumer<E, ActionListener<Expression>> rule,
-        ActionListener<PlanType> listener
-    ) {
-        transformPropertiesDown(
-            Object.class,
-            (prop, propListener) -> doTransformExpression(
-                prop,
-                (expr, exprListener) -> expr.transformDown(typeToken, rule, exprListener),
-                propListener
-            ),
-            listener
-        );
     }
 
     public <E extends Expression> PlanType transformExpressionsDown(
@@ -189,45 +125,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         );
     }
 
-    public <E extends Expression> void transformExpressionsDown(
-        Predicate<Node<?>> shouldVisit,
-        Class<E> typeToken,
-        BiConsumer<E, ActionListener<Expression>> rule,
-        ActionListener<PlanType> listener
-    ) {
-        transformDown(
-            shouldVisit,
-            (plan, planListener) -> plan.transformNodeProps(
-                Object.class,
-                (prop, propListener) -> doTransformExpression(
-                    prop,
-                    (expr, exprListener) -> expr.transformDown(typeToken, rule, exprListener),
-                    propListener
-                ),
-                planListener
-            ),
-            listener
-        );
-    }
-
     public <E extends Expression> PlanType transformExpressionsUp(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesUp(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
-    }
-
-    public <E extends Expression> void transformExpressionsUp(
-        Class<E> typeToken,
-        BiConsumer<E, ActionListener<Expression>> rule,
-        ActionListener<PlanType> listener
-    ) {
-        transformPropertiesUp(
-            Object.class,
-            (prop, propListener) -> doTransformExpression(
-                prop,
-                (expr, exprListener) -> expr.transformUp(typeToken, rule, exprListener),
-                propListener
-            ),
-            listener
-        );
     }
 
     public <E extends Expression> PlanType transformExpressionsUp(
@@ -238,27 +137,6 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return transformUp(
             shouldVisit,
             t -> t.transformNodeProps(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)))
-        );
-    }
-
-    public <E extends Expression> void transformExpressionsUp(
-        Predicate<Node<?>> shouldVisit,
-        Class<E> typeToken,
-        BiConsumer<E, ActionListener<Expression>> rule,
-        ActionListener<PlanType> listener
-    ) {
-        transformUp(
-            shouldVisit,
-            (plan, planListener) -> plan.transformNodeProps(
-                Object.class,
-                (prop, propListener) -> doTransformExpression(
-                    prop,
-                    (expr, exprListener) -> expr.transformUp(typeToken, rule, exprListener),
-                    propListener
-                ),
-                planListener
-            ),
-            listener
         );
     }
 
@@ -337,57 +215,6 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             for (Object o : c) {
                 doForEachExpression(o, traversal);
             }
-        }
-    }
-
-    private static void doTransformExpression(
-        Object arg,
-        BiConsumer<Expression, ActionListener<Expression>> traversal,
-        ActionListener<Object> listener
-    ) {
-        if (arg instanceof Expression exp) {
-            traversal.accept(exp, listener.map(r -> (Object) r));
-        } else if (arg instanceof Collection<?> c && c.isEmpty()) {
-            listener.onResponse(arg);
-        } else if (arg instanceof List<?> list) {
-            AtomicReference<List<Object>> transformed = new AtomicReference<>(null);
-            CountDownActionListener completionListener = new CountDownActionListener(
-                list.size(),
-                listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(transformed.get() != null ? transformed.get() : arg))
-            );
-            for (int i = 0; i < list.size(); i++) {
-                final int idx = i;
-                Object el = list.get(i);
-                doTransformExpression(el, traversal, completionListener.map(next -> {
-                    if (el.equals(next) == false) {
-                        transformed.compareAndSet(null, new ArrayList<>(list));
-                        transformed.get().set(idx, next);
-                    }
-                    return null;
-                }));
-            }
-            return;
-        } else if (arg instanceof Collection<?> c) {
-            AtomicReference<List<Object>> transformed = new AtomicReference<>(null);
-            CountDownActionListener completionListener = new CountDownActionListener(
-                c.size(),
-                listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(transformed.get() != null ? transformed.get() : arg))
-            );
-            int i = 0;
-            for (Object el : c) {
-                final int idx = i++;
-                doTransformExpression(el, traversal, completionListener.map(next -> {
-                    if (next.equals(el) == false) {
-                        if (el.equals(next) == false) {
-                            transformed.compareAndSet(null, new ArrayList<>(c));
-                            transformed.get().set(idx, next);
-                        }
-                    }
-                    return null;
-                }));
-            }
-        } else {
-            listener.onResponse(arg);
         }
     }
 }

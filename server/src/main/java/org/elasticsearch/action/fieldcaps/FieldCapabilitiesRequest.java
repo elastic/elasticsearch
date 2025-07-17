@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.CrossProjectEnabledRequest;
+import org.elasticsearch.CrossProjectAwareRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -44,7 +44,7 @@ import java.util.Set;
 
 public final class FieldCapabilitiesRequest extends LegacyActionRequest
     implements
-        CrossProjectEnabledRequest,
+        CrossProjectAwareRequest,
         IndicesRequest.Replaceable,
         ToXContentObject {
     public static final String NAME = "field_caps_request";

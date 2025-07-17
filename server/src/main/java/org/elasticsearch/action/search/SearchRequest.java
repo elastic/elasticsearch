@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.CrossProjectEnabledRequest;
+import org.elasticsearch.CrossProjectAwareRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -56,7 +56,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SearchRequest extends LegacyActionRequest
     implements
-        CrossProjectEnabledRequest,
+        CrossProjectAwareRequest,
         IndicesRequest.Replaceable,
         Rewriteable<SearchRequest> {
 

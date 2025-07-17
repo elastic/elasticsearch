@@ -14,7 +14,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 
-public interface CrossProjectEnabledRequest extends IndicesRequest {
+public interface CrossProjectAwareRequest extends IndicesRequest {
     /**
      * Can be used to determine if this should be processed in cross-project mode vs. stateful CCS.
      */

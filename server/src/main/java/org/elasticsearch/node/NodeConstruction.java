@@ -788,7 +788,6 @@ class NodeConstruction {
 
         clusterInfoService.addListener(
             new NodeUsageStatsForThreadPoolsMonitor(
-                settings,
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,

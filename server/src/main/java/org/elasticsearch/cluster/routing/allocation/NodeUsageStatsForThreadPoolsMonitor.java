@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.util.function.LongSupplier;
@@ -42,13 +41,12 @@ public class NodeUsageStatsForThreadPoolsMonitor {
     private final RerouteService rerouteService;
 
     public NodeUsageStatsForThreadPoolsMonitor(
-        Settings settings,
         ClusterSettings clusterSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
         RerouteService rerouteService
     ) {
-        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(settings, clusterSettings);
+        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
@@ -56,7 +54,8 @@ public class NodeUsageStatsForThreadPoolsMonitor {
 
     /**
      * Receives a copy of the latest {@link ClusterInfo} whenever the {@link ClusterInfoService} collects it. Processes the new
-     * {@link org.elasticsearch.cluster.NodeUsageStatsForThreadPools} and initiates rebalancing, via reroute, if necessary.
+     * {@link org.elasticsearch.cluster.NodeUsageStatsForThreadPools} and initiates rebalancing, via reroute, if a node in the cluster
+     * exceeds thread pool usage thresholds.
      */
     public void onNewInfo(ClusterInfo clusterInfo) {
         final ClusterState state = clusterStateSupplier.get();

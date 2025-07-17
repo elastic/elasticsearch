@@ -875,10 +875,11 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerTurnedInsensitiveUnicode#[skip:-8.18.99]
+rlikeWithLowerTurnedInsensitiveUnicode#[skip:-8.12.99]
 FROM airport_city_boundaries
 | WHERE TO_UPPER(region) RLIKE ".*Л.*" and abbrev == "FRU"
 | KEEP region
+| LIMIT 1
 ;
 
 region:text

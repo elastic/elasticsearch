@@ -26,7 +26,7 @@ You have the following options:
 * Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
 
     * Then set up an [{{es}} service inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
-    * Refer to the [example](retrievers/text-similarity-reranker-retriever.md-example-eland) on this page for a step-by-step guide.
+    * Refer to the [example](#text-similarity-reranker-retriever-example-eland) on this page for a step-by-step guide.
 
 
 ::::{important}

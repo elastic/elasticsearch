@@ -19,7 +19,7 @@ To use the `rule` retriever you must first create one or more query rulesets usi
 `retriever`
 :   (Required, `retriever`)
 
-    The child retriever that returns the results to apply query rules on top of. This can be a standalone retriever such as the [standard](retrievers/standard-retriever.md) or [knn](retrievers/knn-retriever.md) retriever, or it can be a compound retriever.
+    The child retriever that returns the results to apply query rules on top of. This can be a standalone retriever such as the [standard](standard-retriever.md) or [knn](knn-retriever.md) retriever, or it can be a compound retriever.
 
 
 `ruleset_ids`
@@ -70,7 +70,7 @@ GET movies/_search
 
 ## Example: Rule retriever combined with RRF [rule-retriever-example-rrf]
 
-This example shows how to combine the `rule` retriever with other rerank retrievers such as [rrf](retrievers/rrf-retriever.md) or [text_similarity_reranker](retrievers/text-similarity-reranker-retriever.md).
+This example shows how to combine the `rule` retriever with other rerank retrievers such as [rrf](rrf-retriever.md) or [text_similarity_reranker](text-similarity-reranker-retriever.md).
 
 ::::{warning}
 The `rule` retriever will apply rules to any documents returned from its defined `retriever` or any of its sub-retrievers. This means that for the best results, the `rule` retriever should be the outermost defined retriever. Nesting a `rule` retriever as a sub-retriever under a reranker such as `rrf` or `text_similarity_reranker` may not produce the expected results.

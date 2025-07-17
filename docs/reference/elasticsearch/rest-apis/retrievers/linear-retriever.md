@@ -34,7 +34,7 @@ Combining `query` and `retrievers` is not supported.
 :   (Optional, String)
 
     The normalizer to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
-    See [normalizers](retrievers/linear-retriever.md-normalizers) for supported values.
+    See [normalizers](#linear-retriever-normalizers) for supported values.
     Required when `query` is specified.
 
     ::::{warning}
@@ -77,7 +77,7 @@ Each entry in the `retrievers` array specifies the following parameters:
 :   (Optional, String)
 
     Specifies how the retriever’s score will be normalized before applying the specified `weight`.
-    See [normalizers](retrievers/linear-retriever.md-normalizers) for supported values.
+    See [normalizers](#linear-retriever-normalizers) for supported values.
     Defaults to `none`.
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.

@@ -1318,10 +1318,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return response.json;
     }
 
-    public static EsqlResponse runEsqlAsyncNoWarningsChecks(
-        RequestObjectBuilder requestObject,
-        boolean keepOnCompletion
-    ) throws IOException {
+    public static EsqlResponse runEsqlAsyncNoWarningsChecks(RequestObjectBuilder requestObject, boolean keepOnCompletion)
+        throws IOException {
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 

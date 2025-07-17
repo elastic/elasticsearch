@@ -357,7 +357,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         requestObject.profile(true);
 
         RestEsqlTestCase.EsqlResponse response = mode == Mode.ASYNC
-         ? RestEsqlTestCase.runEsqlAsyncNoWarningsChecks(requestObject, randomBoolean())
+            ? RestEsqlTestCase.runEsqlAsyncNoWarningsChecks(requestObject, randomBoolean())
             : RestEsqlTestCase.runEsqlSyncNoWarningsChecks(requestObject);
 
         profileLogger.setProfile(response);

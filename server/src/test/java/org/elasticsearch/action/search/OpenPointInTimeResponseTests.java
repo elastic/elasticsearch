@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -40,7 +41,7 @@ public class OpenPointInTimeResponseTests extends ESTestCase {
         }
 
         String encodedId = Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pointInTimeId));
-        BytesReference expected = new BytesArray(String.format("""
+        BytesReference expected = new BytesArray(String.format(Locale.ROOT, """
             {
               "id": "%s",
               "_shards": {

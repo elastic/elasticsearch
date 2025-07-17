@@ -11,8 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -95,19 +93,30 @@ public class InboundAggregator implements Releasable {
 
     public InboundMessage finishAggregation() throws IOException {
         ensureOpen();
-        final ReleasableBytesReference releasableContent;
+        final ReleasableBytesReference[] releasableContent;
+        final int len;
         if (isFirstContent()) {
-            releasableContent = ReleasableBytesReference.empty();
+            releasableContent = new ReleasableBytesReference[] { ReleasableBytesReference.empty() };
+            len = 0;
         } else if (contentAggregation == null) {
-            releasableContent = firstContent;
+            releasableContent = new ReleasableBytesReference[] { firstContent };
+            len = firstContent.length();
         } else {
-            final ReleasableBytesReference[] references = contentAggregation.toArray(new ReleasableBytesReference[0]);
-            final BytesReference content = CompositeBytesReference.of(references);
-            releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
+            releasableContent = contentAggregation.toArray(new ReleasableBytesReference[0]);
+            int l = 0;
+            for (ReleasableBytesReference releasableBytesReference : releasableContent) {
+                l += releasableBytesReference.length();
+            }
+            len = l;
         }
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
-        final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
+        final InboundMessage aggregated = new InboundMessage(
+            currentHeader,
+            ReleasableBytesReference.consumingStreamInput(releasableContent),
+            len,
+            breakerControl
+        );
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {

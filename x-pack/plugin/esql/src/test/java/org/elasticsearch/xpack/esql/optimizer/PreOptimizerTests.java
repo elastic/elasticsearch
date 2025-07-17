@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -180,7 +181,7 @@ public class PreOptimizerTests extends ESTestCase {
         }
 
         private byte[] bytes(String input) {
-            return input.getBytes();
+            return input.getBytes(StandardCharsets.UTF_8);
         }
 
         public float[] embedding(String input) {

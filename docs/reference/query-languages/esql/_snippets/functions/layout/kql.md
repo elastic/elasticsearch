@@ -2,8 +2,7 @@
 
 ## `KQL` [esql-kql]
 ```{applies_to}
-stack: preview 9.0.0
-serverless: preview
+stack: preview 9.0.0, ga 9.1.0
 ```
 
 **Syntax**

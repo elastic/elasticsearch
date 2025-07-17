@@ -58,6 +58,6 @@
   "examples" : [
     "FROM books\n| WHERE MATCH_PHRASE(author, \"William Faulkner\")"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

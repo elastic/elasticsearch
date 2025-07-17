@@ -66,15 +66,8 @@ public class GroupingAggregator implements Releasable {
                 public void close() {}
             };
         } else {
-            return aggregatorFunction.prepareProcessPage(seenGroupIds, page);
+            return aggregatorFunction.prepareProcessRawInputPage(seenGroupIds, page);
         }
-    }
-
-    /**
-     * Add the position-th row from the intermediate output of the given aggregator to this aggregator at the groupId position
-     */
-    public void addIntermediateRow(int groupId, GroupingAggregator input, int position) {
-        aggregatorFunction.addIntermediateRowInput(groupId, input.aggregatorFunction, position);
     }
 
     /**

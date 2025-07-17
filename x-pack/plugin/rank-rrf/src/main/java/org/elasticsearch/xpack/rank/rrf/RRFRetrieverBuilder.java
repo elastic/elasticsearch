@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils;
-import org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +39,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEIGHT;
-import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.RETRIEVER_FIELD;
 
 /**
  * An rrf retriever is used to represent an rrf rank element, but
@@ -292,12 +290,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
-                RRFRetrieverBuilder generated = (RRFRetrieverBuilder) fieldsInnerRetrievers.get(0);
-                rewritten = new RRFRetrieverBuilder(generated.innerRetrievers, null, null, rankWindowSize, rankConstant, generated.weights);
+                List<CompoundRetrieverBuilder.RetrieverSource> sources = new ArrayList<>();
+                float[] weights = new float[fieldsInnerRetrievers.size()];
+                Arrays.fill(weights, RRFRetrieverComponent.DEFAULT_WEIGHT);
+                for (int i = 0; i < fieldsInnerRetrievers.size(); i++) {
+                    sources.add(CompoundRetrieverBuilder.RetrieverSource.from(fieldsInnerRetrievers.get(i)));
+                    weights[i] = RRFRetrieverComponent.DEFAULT_WEIGHT;
+                }
+                rewritten = new RRFRetrieverBuilder(sources, null, null, rankWindowSize, rankConstant, weights);
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
-            } else {
-                // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
-                rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
 

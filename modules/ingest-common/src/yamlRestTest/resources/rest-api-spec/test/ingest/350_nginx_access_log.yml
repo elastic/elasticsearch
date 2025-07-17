@@ -356,6 +356,7 @@ teardown:
         index: "test-logs-nginx-access"
         id: "1"
   - match: { _source.event.kind: "event" }
+  - match: { _source.@timestamp: "2020-01-03T21:05:52.000Z" }
   - match: { _source.event.category: ["web"] }
   - match: { _source.event.type: ["access"] }
   - match: { _source.event.outcome: "success" }

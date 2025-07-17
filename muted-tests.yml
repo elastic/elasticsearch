@@ -238,7 +238,21 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
-
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForKeyStoreOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForPemKeyOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForPemCertificateOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForTrustStoreOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForCertificateAuthoritiesOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

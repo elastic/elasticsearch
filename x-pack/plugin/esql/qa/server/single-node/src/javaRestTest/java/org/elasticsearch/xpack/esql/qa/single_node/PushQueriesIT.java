@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for pushing queries to lucene.
  */
-// @Repeat(iterations = 50)
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
@@ -639,7 +638,7 @@ public class PushQueriesIT extends ESRestTestCase {
 
     private List<String> emulateLargeTextTokens(String value) {
         // The default tokenizer splits at 255 characters
-        if (value.length() < StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH) {
+        if (value.length() <= StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH) {
             return List.of("test:" + "v".repeat(value.length()));
         }
         String first = "#test:" + "v".repeat(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);

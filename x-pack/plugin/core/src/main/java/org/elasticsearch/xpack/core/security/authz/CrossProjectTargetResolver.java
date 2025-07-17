@@ -13,7 +13,6 @@ import java.util.List;
 
 /**
  * Resolves linked and authorized projects, if running in a cross-project environment.
- * <b>
  * In non-cross-project environments, `resolve` returns `ResolvedProjects.VOID`
  */
 public interface CrossProjectTargetResolver {

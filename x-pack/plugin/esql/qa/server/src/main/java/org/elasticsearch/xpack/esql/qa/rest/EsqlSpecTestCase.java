@@ -88,6 +88,22 @@ import static org.hamcrest.Matchers.nullValue;
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
+    public class ProfileLogger extends TestWatcher {
+        private Object profile;
+
+        void setProfile(RestEsqlTestCase.EsqlResponse response) {
+            profile = response.json().get("profile");
+        }
+
+        @Override
+        protected void failed(Throwable e, Description description) {
+            LOGGER.warn("Profile: {}", profile);
+        }
+    }
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -336,22 +352,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected boolean deduplicateExactWarnings() {
         return false;
     }
-
-    public class ProfileLogger extends TestWatcher {
-        private Object profile;
-
-        void setProfile(RestEsqlTestCase.EsqlResponse response) {
-            profile = response.json().get("profile");
-        }
-
-        @Override
-        protected void failed(Throwable e, Description description) {
-            LOGGER.warn("Profile: {}", profile);
-        }
-    }
-
-    @Rule(order = Integer.MIN_VALUE)
-    public ProfileLogger profileLogger = new ProfileLogger();
 
     private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         requestObject.profile(true);

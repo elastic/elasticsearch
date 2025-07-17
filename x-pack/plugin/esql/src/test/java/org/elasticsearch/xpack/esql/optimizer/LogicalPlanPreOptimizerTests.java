@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
-import org.elasticsearch.xpack.esql.inference.InferenceServices;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -214,9 +213,9 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
     }
 
     private static TransportActionServices mockTransportActionServices(InferenceRunner inferenceRunner) {
-        InferenceServices inferenceServices = mock(InferenceServices.class);
-        when(inferenceServices.inferenceRunner()).thenReturn(inferenceRunner);
-        return new TransportActionServices(null, null, null, null, null, null, null, inferenceServices);
+        TransportActionServices services = mock(TransportActionServices.class);
+        when(services.inferenceRunner()).thenReturn(inferenceRunner);
+        return services;
     }
 
     private static InferenceRunner mockInferenceRunner(TextEmbeddingModelMock textEmbeddingModel) {

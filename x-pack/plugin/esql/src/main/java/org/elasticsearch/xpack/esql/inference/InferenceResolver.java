@@ -194,4 +194,20 @@ public class InferenceResolver {
 
         return null;
     }
+
+    public static Factory factory(Client client) {
+        return new Factory(client);
+    }
+
+    public static class Factory {
+        private final Client client;
+
+        private Factory(Client client) {
+            this.client = client;
+        }
+
+        public InferenceResolver create(EsqlFunctionRegistry functionRegistry) {
+            return new InferenceResolver(functionRegistry, client);
+        }
+    }
 }

@@ -80,6 +80,54 @@ public class ES91OSQVectorsScorer {
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
 
+    public long quantizeScoreThreeUpperBit(byte[] q) throws IOException {
+        assert q.length == length * 4;
+        final int size = length;
+        long subRet1 = 0;
+        long subRet2 = 0;
+        long subRet3 = 0;
+        int r = 0;
+        for (final int upperBound = size & -Long.BYTES; r < upperBound; r += Long.BYTES) {
+            final long value = in.readLong();
+            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + size) & value);
+            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * size) & value);
+            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * size) & value);
+        }
+        for (final int upperBound = size & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
+            final int value = in.readInt();
+            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + size) & value);
+            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 2 * size) & value);
+            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r + 3 * size) & value);
+        }
+        for (; r < size; r++) {
+            final byte value = in.readByte();
+            subRet1 += Integer.bitCount((q[r + size] & value) & 0xFF);
+            subRet2 += Integer.bitCount((q[r + 2 * size] & value) & 0xFF);
+            subRet3 += Integer.bitCount((q[r + 3 * size] & value) & 0xFF);
+        }
+        return (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    }
+
+    public long quantizeScoreLowerBit(byte[] q) throws IOException {
+        assert q.length == length * 4;
+        final int size = length;
+        long subRet = 0;
+        int r = 0;
+        for (final int upperBound = size & -Long.BYTES; r < upperBound; r += Long.BYTES) {
+            final long value = in.readLong();
+            subRet += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
+        }
+        for (final int upperBound = size & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
+            final int value = in.readInt();
+            subRet += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, r) & value);
+        }
+        for (; r < size; r++) {
+            final byte value = in.readByte();
+            subRet += Integer.bitCount((q[r] & value) & 0xFF);
+        }
+        return subRet;
+    }
+
     /**
      * compute the quantize distance between the provided quantized query and the quantized vectors
      * that are read from the wrapped {@link IndexInput}. The number of quantized vectors to read is
@@ -88,6 +136,12 @@ public class ES91OSQVectorsScorer {
     public void quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
         for (int i = 0; i < count; i++) {
             scores[i] = quantizeScore(q);
+        }
+    }
+
+    public void quantizeScoreThreeUpperBitBulk(byte[] q, int count, float[] scores) throws IOException {
+        for (int i = 0; i < count; i++) {
+            scores[i] = quantizeScoreThreeUpperBit(q);
         }
     }
 
@@ -174,4 +228,40 @@ public class ES91OSQVectorsScorer {
             );
         }
     }
+
+    // public void scoreThreeUpperBitBulk(
+    // byte[] q,
+    // int lowerBitQscoreEstimated,
+    // float queryLowerInterval,
+    // float queryUpperInterval,
+    // int queryComponentSum,
+    // float queryAdditionalCorrection,
+    // VectorSimilarityFunction similarityFunction,
+    // float centroidDp,
+    // float[] qScores,
+    // float[] scores
+    // ) throws IOException {
+    // quantizeScoreThreeUpperBitBulk(q, BULK_SIZE, qScores);
+    // in.readFloats(lowerIntervals, 0, BULK_SIZE);
+    // in.readFloats(upperIntervals, 0, BULK_SIZE);
+    // for (int i = 0; i < BULK_SIZE; i++) {
+    // targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
+    // }
+    // in.readFloats(additionalCorrections, 0, BULK_SIZE);
+    // for (int i = 0; i < BULK_SIZE; i++) {
+    // scores[i] = score(
+    // queryLowerInterval,
+    // queryUpperInterval,
+    // queryComponentSum,
+    // queryAdditionalCorrection,
+    // similarityFunction,
+    // centroidDp,
+    // lowerIntervals[i],
+    // upperIntervals[i],
+    // targetComponentSums[i],
+    // additionalCorrections[i],
+    // qScores[i] + Math.min(lowerBitQscoreEstimated, targetComponentSums[i]) // add the lower bit score estimate
+    // );
+    // }
+    // }
 }

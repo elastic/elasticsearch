@@ -68,10 +68,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
         return new CentroidQueryScorer() {
             int currentCentroid = -1;
-            private final float[] centroid = new float[fieldInfo.getVectorDimension()];
+            long postingListOffset;
             private final float[] centroidCorrectiveValues = new float[3];
-            private final long rawCentroidsOffset = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES);
-            private final long rawCentroidsByteSize = (long) Float.BYTES * fieldInfo.getVectorDimension();
+            private final long quantizeCentroidsLength = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES
+                + Short.BYTES);
 
             @Override
             public int size() {
@@ -79,13 +79,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
 
             @Override
-            public float[] centroid(int centroidOrdinal) throws IOException {
+            public long postingListOffset(int centroidOrdinal) throws IOException {
                 if (centroidOrdinal != currentCentroid) {
-                    centroids.seek(rawCentroidsOffset + rawCentroidsByteSize * centroidOrdinal);
-                    centroids.readFloats(centroid, 0, centroid.length);
+                    centroids.seek(quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
+                    postingListOffset = centroids.readLong();
                     currentCentroid = centroidOrdinal;
                 }
-                return centroid;
+                return postingListOffset;
             }
 
             public void bulkScore(NeighborQueue queue) throws IOException {
@@ -182,7 +182,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         int vectors, spilledVectors;
         boolean quantized = false;
         float centroidDp;
-        float[] centroid;
+        final float[] centroid;
         long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
 
@@ -205,7 +205,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             this.entry = entry;
             this.fieldInfo = fieldInfo;
             this.needsScoring = needsScoring;
-
+            centroid = new float[fieldInfo.getVectorDimension()];
             scratch = new float[target.length];
             quantizationScratch = new int[target.length];
             final int discretizedDimensions = discretize(fieldInfo.getVectorDimension(), 64);
@@ -217,13 +217,14 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
 
         @Override
-        public int resetPostingsScorer(int centroidOrdinal, float[] centroid) throws IOException {
+        public int resetPostingsScorer(long offset) throws IOException {
             quantized = false;
-            indexInput.seek(entry.postingListOffsets()[centroidOrdinal]);
+            indexInput.seek(offset);
+            indexInput.readFloats(centroid, 0, centroid.length);
+            centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readInt();
             spilledVectors = indexInput.readInt();
-            centroidDp = Float.intBitsToFloat(indexInput.readInt());
-            this.centroid = centroid;
+            vectors = indexInput.readVInt();
             // read the doc ids
             docIdsScratch = vectors > docIdsScratch.length ? new int[vectors] : docIdsScratch;
             spilledDocIdsScratch = spilledVectors > spilledDocIdsScratch.length ? new int[spilledVectors] : spilledDocIdsScratch;

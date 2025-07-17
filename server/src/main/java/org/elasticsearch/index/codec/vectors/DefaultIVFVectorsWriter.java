@@ -18,8 +18,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -47,7 +50,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    long[] buildAndWritePostingsLists(
+    LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -86,7 +89,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
         // write the posting lists
-        final long[] offsets = new long[centroidSupplier.size()];
+        final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
@@ -99,12 +102,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         int[] spillDocIds = null;
         int[] spillDeltas = null;
         int[] spillClusterOrds = null;
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
             int[] overspillCluster = overspillAssignmentsByCluster[c];
-            // TODO align???
-            offsets[c] = postingsOutput.getFilePointer();
+            offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+            buffer.asFloatBuffer().put(centroid);
+            // write raw centroid for quantizing the query vectors
+            postingsOutput.writeBytes(buffer.array(), buffer.array().length);
             int size = cluster.length;
             int spillSize = overspillCluster.length;
             if (docIds == null || docIds.length < size) {
@@ -165,11 +171,11 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             printClusterQualityStatistics(assignmentsByCluster);
         }
 
-        return offsets;
+        return offsets.build();
     }
 
     @Override
-    long[] buildAndWritePostingsLists(
+    LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -255,7 +261,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
-            final long[] offsets = new long[centroidSupplier.size()];
+            final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
@@ -267,12 +273,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             int[] spillDocIds = null;
             int[] spillDeltas = null;
             int[] spillClusterOrds = null;
+            final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 int[] overspillCluster = overspillAssignmentsByCluster[c];
-                // TODO align???
-                offsets[c] = postingsOutput.getFilePointer();
+                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+                // write raw centroid for quantizing the query vectors
+                buffer.asFloatBuffer().put(centroid);
+                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
                 int size = cluster.length;
                 int spillSize = overspillCluster.length;
                 if (docIds == null || docIds.length < size) {
@@ -317,21 +326,22 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 postingsOutput.writeInt(size);
                 postingsOutput.writeInt(spillSize);
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
-                offHeapQuantizedVectors.reset(size, unused -> false, ord -> cluster[finalOrds[ord]]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
                 postingsOutput.writeGroupVInts(docDeltas, size);
-                bulkWriter.writeVectors(offHeapQuantizedVectors);
                 // write overspill vectors
                 postingsOutput.writeGroupVInts(spillDeltas, overspillCluster.length);
+                offHeapQuantizedVectors.reset(size, unused -> false, ord -> cluster[finalOrds[ord]]);
+                bulkWriter.writeVectors(offHeapQuantizedVectors);
                 offHeapQuantizedVectors.reset(overspillCluster.length, unused -> true, ord -> overspillCluster[finalSpillOrds[ord]]);
+                bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
             if (logger.isDebugEnabled()) {
                 printClusterQualityStatistics(assignmentsByCluster);
             }
-            return offsets;
+            return offsets.build();
         }
     }
 
@@ -370,8 +380,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo);
     }
 
-    static void writeCentroids(float[][] centroids, FieldInfo fieldInfo, float[] globalCentroid, IndexOutput centroidOutput)
-        throws IOException {
+    @Override
+    void writeCentroids(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        float[] globalCentroid,
+        LongValues offsets,
+        IndexOutput centroidOutput
+    ) throws IOException {
+
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         int[] quantizedScratch = new int[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
@@ -379,7 +396,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
         // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
-        for (float[] centroid : centroids) {
+        for (int i = 0; i < centroidSupplier.size(); i++) {
+            float[] centroid = centroidSupplier.centroid(i);
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
             OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(
                 centroidScratch,
@@ -387,54 +405,36 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 (byte) 4,
                 globalCentroid
             );
-            for (int i = 0; i < quantizedScratch.length; i++) {
-                quantized[i] = (byte) quantizedScratch[i];
+            for (int j = 0; j < quantizedScratch.length; j++) {
+                quantized[j] = (byte) quantizedScratch[j];
             }
             writeQuantizedValue(centroidOutput, quantized, result);
         }
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (float[] centroid : centroids) {
-            buffer.asFloatBuffer().put(centroid);
-            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
+        // write the centroid offsets at the end of the file
+        for (int i = 0; i < centroidSupplier.size(); i++) {
+            centroidOutput.writeLong(offsets.get(i));
         }
     }
 
-    @Override
-    CentroidAssignments calculateAndWriteCentroids(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        IndexOutput centroidOutput,
-        MergeState mergeState,
-        float[] globalCentroid
-    ) throws IOException {
-        // TODO: take advantage of prior generated clusters from mergeState in the future
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid);
-    }
-
     /**
-     * Calculate the centroids for the given field and write them to the given centroid output.
+     * Calculate the centroids for the given field.
      * We use the {@link HierarchicalKMeans} algorithm to partition the space of all vectors across merging segments
      *
      * @param fieldInfo merging field info
      * @param floatVectorValues the float vector values to merge
-     * @param centroidOutput the centroid output
      * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
      * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
      * @throws IOException if an I/O error occurs
      */
     @Override
-    CentroidAssignments calculateAndWriteCentroids(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        IndexOutput centroidOutput,
-        float[] globalCentroid
-    ) throws IOException {
+    CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid)
+        throws IOException {
 
         long nanoTime = System.nanoTime();
 
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
-        KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
-        float[][] centroids = kMeansResult.centroids();
+        CentroidAssignments centroidAssignments = buildCentroidAssignments(floatVectorValues, vectorPerCluster);
+        float[][] centroids = centroidAssignments.centroids();
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation
         // TODO: push this logic into vector util?
@@ -447,17 +447,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             globalCentroid[j] /= centroids.length;
         }
 
-        // write centroids
-        writeCentroids(centroids, fieldInfo, globalCentroid, centroidOutput);
-
         if (logger.isDebugEnabled()) {
             logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
             logger.debug("final centroid count: {}", centroids.length);
         }
-        return buildCentroidAssignments(kMeansResult);
+        return centroidAssignments;
     }
 
-    static CentroidAssignments buildCentroidAssignments(KMeansResult kMeansResult) {
+    static CentroidAssignments buildCentroidAssignments(FloatVectorValues floatVectorValues, int vectorPerCluster) throws IOException {
+        KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         int[] assignments = kMeansResult.assignments();
         int[] soarAssignments = kMeansResult.soarAssignments();
@@ -479,7 +477,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private final int numCentroids;
         private final int dimension;
         private final float[] scratch;
-        private final long rawCentroidOffset;
         private int currOrd = -1;
 
         OffHeapCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo info) {
@@ -487,7 +484,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.numCentroids = numCentroids;
             this.dimension = info.getVectorDimension();
             this.scratch = new float[dimension];
-            this.rawCentroidOffset = (dimension + 3 * Float.BYTES + Short.BYTES) * numCentroids;
         }
 
         @Override
@@ -500,7 +496,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             if (centroidOrdinal == currOrd) {
                 return scratch;
             }
-            centroidsInput.seek(rawCentroidOffset + (long) centroidOrdinal * dimension * Float.BYTES);
+            centroidsInput.seek((long) centroidOrdinal * dimension * Float.BYTES);
             centroidsInput.readFloats(scratch, 0, dimension);
             this.currOrd = centroidOrdinal;
             return scratch;

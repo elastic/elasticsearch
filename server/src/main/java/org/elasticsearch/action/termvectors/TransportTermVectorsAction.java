@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Performs the get operation.
@@ -40,6 +41,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     private final NodeClient client;
     private final IndicesService indicesService;
+    private final boolean stateless;
 
     @Inject
     public TransportTermVectorsAction(
@@ -65,6 +67,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         );
         this.client = client;
         this.indicesService = indicesService;
+        this.stateless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
 
     @Override
@@ -85,7 +88,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
                 request.request().preference()
             );
         if (iterator == null) {
-            return null;
+            return new ShardIterator(null, List.of());
         }
         return ShardIterator.allSearchableShards(iterator);
     }
@@ -107,7 +110,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
-            if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+            if (stateless) {
                 // Ensure that the document is searchable before we execute the term vectors request
                 final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
                     request.index(),

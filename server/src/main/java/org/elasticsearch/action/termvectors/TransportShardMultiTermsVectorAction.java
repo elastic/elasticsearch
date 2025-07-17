@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -43,6 +44,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     private final NodeClient client;
     private final IndicesService indicesService;
+    private final boolean stateless;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
     public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME);
@@ -71,6 +73,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         );
         this.client = client;
         this.indicesService = indicesService;
+        this.stateless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
 
     @Override
@@ -93,7 +96,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(project, request.concreteIndex(), request.request().shardId(), request.request().preference());
         if (iterator == null) {
-            return null;
+            return new ShardIterator(null, List.of());
         }
         return ShardIterator.allSearchableShards(iterator);
     }
@@ -104,7 +107,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         ShardId shardId,
         ActionListener<MultiTermVectorsShardResponse> listener
     ) throws IOException {
-        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+        if (stateless) {
             final String[] realTimeIds = request.requests.stream()
                 .filter(r -> r.realtime())
                 .map(TermVectorsRequest::id)

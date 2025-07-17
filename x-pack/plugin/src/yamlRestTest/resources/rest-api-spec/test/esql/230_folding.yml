@@ -262,7 +262,10 @@ Foldable query using MATCH_PHRASE on name but with non-foldable expression:
             | KEEP hire_date, salary, salary_change, salary_change_long, name
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [MATCH_PHRASE(name, CONCAT(\"Bob \", name))], found [CONCAT(\"Bob \", name)]" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #second argument of [MATCH_PHRASE(name, CONCAT("Bob ", name))] must be a constant, received [CONCAT("Bob ", name)]"
+    #Query must be a valid string in [MATCH_PHRASE(name, CONCAT(\"Bob \", name))], found [CONCAT(\"Bob \", name)]
+  - contains: { error.reason: "[MATCH_PHRASE(name, CONCAT(\"Bob \", name))]" }
 
 ---
 
@@ -285,7 +288,10 @@ Foldable query using MATCH_PHRASE on name but with non constant query:
             | KEEP hire_date, salary, salary_change, salary_change_long, name
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [MATCH_PHRASE(name, name)], found [name" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    # second argument of [MATCH_PHRASE(name, name)] must be a constant, received [name]
+    # Query must be a valid string in [MATCH_PHRASE(name, name)], found [name
+  - contains: { error.reason: "[MATCH_PHRASE(name, name)]" }
 
 ---
 
@@ -401,7 +407,10 @@ Foldable query using QSTR on name but with non-foldable expression:
             | KEEP hire_date, salary, salary_change, salary_change_long, name
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [QSTR(CONCAT(name, \"Bob\"))], found [CONCAT(name, \"Bob\")]" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #first argument of [QSTR(CONCAT(name, "Bob"))] must be a constant, received [CONCAT(name, "Bob")]"
+    #Query must be a valid string in [QSTR(CONCAT(name, \"Bob\"))], found [CONCAT(name, \"Bob\")]
+  - contains: { error.reason: "[QSTR(CONCAT(name, \"Bob\"))]" }
 
 ---
 

@@ -220,12 +220,12 @@ public class VerifierTests extends ESTestCase {
             // LOOKUP with unsupported type
             assertEquals(
                 "1:43: column type mismatch, table column was [integer] and original column was [unsupported]",
-                error("from test* | lookup_� int_number_names on int", analyzer)
+                error("from test* | lookup_🐔 int_number_names on int", analyzer)
             );
             // LOOKUP with multi-typed field
             assertEquals(
                 "1:46: column type mismatch, table column was [double] and original column was [unsupported]",
-                error("from test* | lookup_� double_number_names on double", analyzer)
+                error("from test* | lookup_🐔 double_number_names on double", analyzer)
             );
         }
 
@@ -2187,7 +2187,7 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
         assertThat(
-            error("FROM test | EVAL foo = 42 | INSIST_� bar"),
+            error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
             containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
         );
     }

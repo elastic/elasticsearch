@@ -188,6 +188,7 @@ import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
@@ -730,6 +731,7 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
+        final SnapshotMetrics snapshotMetrics = new SnapshotMetrics(telemetryProvider.getMeterRegistry());
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
@@ -739,7 +741,8 @@ class NodeConstruction {
             bigArrays,
             xContentRegistry,
             recoverySettings,
-            telemetryProvider
+            telemetryProvider,
+            snapshotMetrics
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
@@ -1119,7 +1122,8 @@ class NodeConstruction {
             transportService,
             actionModule.getActionFilters(),
             systemIndices,
-            projectResolver.supportsMultipleProjects()
+            projectResolver.supportsMultipleProjects(),
+            snapshotMetrics
         );
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,

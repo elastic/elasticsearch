@@ -45,6 +45,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -272,7 +273,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,
@@ -284,7 +286,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    new GcsRepositoryStatsCollector()
+                    new GcsRepositoryStatsCollector(),
+                    snapshotMetrics
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {

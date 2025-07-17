@@ -58,6 +58,7 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -132,7 +133,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
         NodeClient client,
-        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks,
+        SnapshotMetrics snapshotMetrics
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -152,6 +154,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
+        snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
     }
 
     /**
@@ -902,13 +905,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     public RepositoriesStats getRepositoriesThrottlingStats() {
         return new RepositoriesStats(
-            getRepositories().stream()
-                .collect(
-                    Collectors.toMap(
-                        r -> r.getMetadata().name(),
-                        r -> new RepositoriesStats.ThrottlingStats(r.getRestoreThrottleTimeInNanos(), r.getSnapshotThrottleTimeInNanos())
-                    )
-                )
+            getRepositories().stream().collect(Collectors.toMap(r -> r.getMetadata().name(), Repository::getSnapshotStats))
         );
     }
 
@@ -1073,6 +1070,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         assert DiscoveryNode.isStateless(clusterService.getSettings())
             : "outside stateless only project level repositories are allowed: " + repositoryMetadata;
         return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+    }
+
+    private Collection<LongWithAttributes> getShardSnapshotsInProgress() {
+        return repositories.values()
+            .stream()
+            .flatMap(repositories -> repositories.values().stream())
+            .map(Repository::getShardSnapshotsInProgress)
+            .filter(Objects::nonNull)
+            .toList();
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {

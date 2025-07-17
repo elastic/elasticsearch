@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
@@ -59,8 +60,9 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         long snapshotPause = 0L;
         long restorePause = 0L;
         for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            snapshotPause += repositoriesService.repository("test-repo").getSnapshotThrottleTimeInNanos();
-            restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
+            final RepositoriesStats.SnapshotStats snapshotStats = repositoriesService.repository("test-repo").getSnapshotStats();
+            snapshotPause += snapshotStats.totalWriteThrottledNanos();
+            restorePause += snapshotStats.totalReadThrottledNanos();
         }
         cluster().wipeIndices("test2-idx");
         logger.warn("--> tested throttled repository with snapshot pause [{}] and restore pause [{}]", snapshotPause, restorePause);

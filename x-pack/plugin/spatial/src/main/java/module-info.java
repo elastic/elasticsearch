@@ -21,4 +21,6 @@ module org.elasticsearch.xpack.spatial {
     exports org.elasticsearch.xpack.spatial;
     exports org.elasticsearch.xpack.spatial.common;
     exports org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
+    
+    opens org.elasticsearch.xpack.spatial;
 }

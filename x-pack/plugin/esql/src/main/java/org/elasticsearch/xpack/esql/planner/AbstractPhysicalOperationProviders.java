@@ -343,8 +343,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-
-            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize, null);
+            return new BlockHash.GroupSpec(
+                channel,
+                elementType(),
+                Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
+                null
+            );
         }
 
         ElementType elementType() {

@@ -38,16 +38,8 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
      * We should not adjust the values if there's no movement
      */
     public void testNoShardMovement() {
-        final var originalNode0WriteLoadStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-            randomIntBetween(4, 32),
-            randomFloatBetween(0f, 1f, true),
-            randomLongBetween(0L, 7_000L)
-        );
-        final var originalNode1WriteLoadStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-            randomIntBetween(4, 32),
-            randomFloatBetween(0f, 1f, true),
-            randomLongBetween(0L, 7_000L)
-        );
+        final var originalNode0WriteLoadStats = randomUsageStats();
+        final var originalNode1WriteLoadStats = randomUsageStats();
         final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats);
 
         final var writeLoadPerShardSimulator = new WriteLoadPerShardSimulator(allocation);
@@ -64,18 +56,9 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
     }
 
     public void testMovementOfAShardWillReduceThreadPoolUtilisation() {
-        final var originalNode0WriteLoadStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-            randomIntBetween(4, 16),
-            randomFloatBetween(0.2f, 1.0f, true),
-            0
-        );
-        final var originalNode1WriteLoadStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-            randomIntBetween(4, 16),
-            randomFloatBetween(0.1f, 0.5f, true),
-            0
-        );
+        final var originalNode0WriteLoadStats = randomUsageStats();
+        final var originalNode1WriteLoadStats = randomUsageStats();
         final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats);
-
         final var writeLoadPerShardSimulator = new WriteLoadPerShardSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
@@ -161,7 +144,11 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
     }
 
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats randomUsageStats() {
-        return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(randomIntBetween(4, 16), randomFloatBetween(0.0f, 1.0f, false), 0);
+        return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+            randomIntBetween(4, 16),
+            randomFloatBetween(0.1f, 1.0f, true),
+            randomLongBetween(0, 60_000)
+        );
     }
 
     private RoutingAllocation createRoutingAllocation(

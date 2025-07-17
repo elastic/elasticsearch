@@ -138,7 +138,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
             new IntSorter(clusterOrds, i -> finalDocs[i]).sort(0, size);
             // sort overspillCluster.buffer by docIds values, this way overspill ordinals are sorted by docIds
-            new IntSorter(spillClusterOrds, i -> finalSpillDocs[i]).sort(0, overspillCluster.length);
+            new IntSorter(spillClusterOrds, i -> finalSpillDocs[i]).sort(0, spillSize);
             // encode doc deltas
             if (size > 0) {
                 docDeltas[0] = finalDocs[finalOrds[0]];
@@ -331,10 +331,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 // keeping them in the same file indicates we pull the entire file into cache
                 postingsOutput.writeGroupVInts(docDeltas, size);
                 // write overspill vectors
-                postingsOutput.writeGroupVInts(spillDeltas, overspillCluster.length);
-                offHeapQuantizedVectors.reset(size, unused -> false, ord -> cluster[finalOrds[ord]]);
+                postingsOutput.writeGroupVInts(spillDeltas, spillSize);
+                offHeapQuantizedVectors.reset(size, false, ord -> cluster[finalOrds[ord]]);
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
-                offHeapQuantizedVectors.reset(overspillCluster.length, unused -> true, ord -> overspillCluster[finalSpillOrds[ord]]);
+                offHeapQuantizedVectors.reset(spillSize, true, ord -> overspillCluster[finalSpillOrds[ord]]);
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
@@ -615,7 +615,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private short bitSum;
         private int currOrd = -1;
         private int count;
-        private IntToBooleanFunction isOverspill = null;
+        private boolean isOverspill;
         private IntToIntFunction ordTransformer = null;
 
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int dimension) {
@@ -624,7 +624,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
         }
 
-        private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
+        private void reset(int count, boolean isOverspill, IntToIntFunction ordTransformer) {
             this.count = count;
             this.isOverspill = isOverspill;
             this.ordTransformer = ordTransformer;
@@ -643,7 +643,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
-            boolean isOverspill = this.isOverspill.apply(currOrd);
             return getVector(ord, isOverspill);
         }
 

@@ -158,8 +158,9 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                 return;
             }
             if (offsetToOrd != null && hasValue) {
-                long[] ords = new long[valueDocValues.docValueCount()];
-                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
+                int docValueCount = valueDocValues.docValueCount();
+                long[] ords = new long[docValueCount];
+                for (int i = 0; i < docValueCount; i++) {
                     ords[i] = valueDocValues.nextOrd();
                 }
 
@@ -181,7 +182,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                     b.nullValue();
                 }
             } else {
-                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
+                for (int i = 0, dvc = valueDocValues.docValueCount(); i < dvc; i++) {
                     BytesRef c = valueDocValues.lookupOrd(valueDocValues.nextOrd());
                     c = converter.apply(c);
                     b.utf8Value(c.bytes, c.offset, c.length);

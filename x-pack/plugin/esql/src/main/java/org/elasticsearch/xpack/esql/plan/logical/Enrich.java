@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -297,19 +298,26 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
     private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
         boolean[] agg = { false };
         boolean[] enrichCoord = { false };
+        boolean[] lookupJoin = { false };
 
-        plan.forEachUp(UnaryPlan.class, u -> {
+        plan.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
                 agg[0] = true;
             } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 enrichCoord[0] = true;
+            } else if (u instanceof LookupJoin) {
+                lookupJoin[0] = true;
             }
+
             if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
                 if (agg[0]) {
                     failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
                 }
                 if (enrichCoord[0]) {
                     failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+                }
+                if (lookupJoin[0]) {
+                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
                 }
             }
         });

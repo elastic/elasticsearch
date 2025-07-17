@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -38,9 +39,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -2343,7 +2348,60 @@ public class VerifierTests extends ESTestCase {
             () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
         );
         assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
+    }
 
+    public void testRemoteEnrichAfterLookupJoin() {
+        EnrichResolution enrichResolution = new EnrichResolution();
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            Enrich.Mode.REMOTE,
+            MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        var analyzer = AnalyzerTestUtils.analyzer(
+            loadMapping("mapping-default.json", "test"),
+            defaultLookupResolution(),
+            enrichResolution,
+            TEST_VERIFIER
+        );
+
+        query("""
+            FROM test
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, analyzer);
+
+        String err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+
+        err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH _remote:languages ON language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+
+        err = error("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | EVAL x = 1
+            | MV_EXPAND language_name
+            | DISSECT language_name "%{foo}"
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

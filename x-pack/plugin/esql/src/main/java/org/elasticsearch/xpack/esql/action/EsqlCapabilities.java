@@ -930,7 +930,13 @@ public class EsqlCapabilities {
         /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
-        TO_LOWER_EMPTY_STRING;
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER;
 
         private final boolean enabled;
 

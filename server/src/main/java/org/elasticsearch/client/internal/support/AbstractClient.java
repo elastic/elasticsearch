@@ -76,6 +76,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -96,6 +97,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final AdminClient admin;
+    private ProjectClient defaultProjectClient;
 
     @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
@@ -122,7 +124,7 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public final AdminClient admin() {
+    public AdminClient admin() {
         return admin;
     }
 
@@ -417,29 +419,27 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public Client projectClient(ProjectId projectId) {
+    public ProjectClient projectClient(ProjectId projectId) {
         // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
         // take care of error handling.
         if (projectResolver.supportsMultipleProjects() == false && projectId.equals(projectResolver.getProjectId())) {
-            return this;
+            // We construct a dedicated project client for the default project if we're in single project mode. This dedicated project
+            // client is an optimization in that it does not use the project resolver and instead executes the request directly.
+            if (defaultProjectClient == null) {
+                defaultProjectClient = new ProjectClient(this, projectId) {
+                    @Override
+                    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        in().execute(action, request, listener);
+                    }
+                };
+            }
+            return defaultProjectClient;
         }
-        return new FilterClient(this) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                projectResolver.executeOnProject(projectId, () -> super.doExecute(action, request, listener));
-            }
-
-            @Override
-            public Client projectClient(ProjectId projectId) {
-                throw new IllegalStateException(
-                    "Unable to create a project client for project [" + projectId + "], nested project client creation is not supported"
-                );
-            }
-        };
+        return new ProjectClient(this, projectId);
     }
 
     /**

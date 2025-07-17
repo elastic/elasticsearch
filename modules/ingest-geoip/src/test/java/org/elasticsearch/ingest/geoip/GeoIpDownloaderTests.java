@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -702,12 +703,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
         return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
     }
 
-    private static class MockClient extends NoOpClient {
+    private static class MockClient extends ProjectClient {
 
         private final Map<ActionType<?>, BiConsumer<? extends ActionRequest, ? extends ActionListener<?>>> handlers = new HashMap<>();
 
         private MockClient(ThreadPool threadPool, ProjectId projectId) {
-            super(threadPool, TestProjectResolvers.singleProject(projectId));
+            super(new NoOpClient(threadPool, TestProjectResolvers.singleProject(projectId)), projectId);
         }
 
         public <Response extends ActionResponse, Request extends ActionRequest> void addHandler(

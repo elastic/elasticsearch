@@ -316,6 +316,6 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             assertDownsampleActionRequest(request, sourceIndex);
             listener.onResponse(AcknowledgedResponse.of(true));
             return null;
-        }).when(client).execute(Mockito.any(), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
     }
 }

@@ -84,7 +84,7 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
     public void testBoostAndQueryNameInMatchQueryRewrite() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME })
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryBuilder original = createTestQueryBuilder();

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -88,7 +87,7 @@ public class Mapper {
         PhysicalPlan mappedChild = map(unary.child());
 
         //
-        // TODO - this is hard to follow and needs reworking
+        // TODO - this is hard to follow, causes bugs and needs reworking
         // https://github.com/elastic/elasticsearch/issues/115897
         //
         if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
@@ -106,10 +105,6 @@ public class Mapper {
             // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
             // include the plan up until this ENRICH in the fragment.
             var childTransformed = mappedChild.transformUp(f -> {
-                if (f instanceof BinaryExec be) {
-                    // Remove any LOOKUP JOIN or inline Join from INLINE STATS do avoid double execution
-                    return be.left();
-                }
                 // Once we reached FragmentExec, we stuff our Enrich under it
                 if (f instanceof FragmentExec) {
                     hasFragment.set(true);

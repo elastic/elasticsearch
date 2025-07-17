@@ -300,12 +300,13 @@ public class EsField implements Writeable {
             && isAlias == field.isAlias
             && esDataType == field.esDataType
             && Objects.equals(name, field.name)
-            && Objects.equals(properties, field.properties);
+            && Objects.equals(properties, field.properties)
+            && Objects.equals(timeSeriesFieldType, field.timeSeriesFieldType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esDataType, aggregatable, properties, name, isAlias);
+        return Objects.hash(esDataType, aggregatable, properties, name, isAlias, timeSeriesFieldType);
     }
 
     public static final class Exact {

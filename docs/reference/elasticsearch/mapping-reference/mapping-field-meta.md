@@ -24,7 +24,7 @@ PUT my-index-000001
 ```
 
 ::::{note}
-Field metadata enforces at most 5 entries, that keys have a length that is less than or equal to 20, and that values are strings whose length is less than or equal to 50.
+Field metadata enforces at most 5 entries, that keys have a length that is less than or equal to 20, and that values are strings whose length is less than or equal to 500.
 ::::
 
 

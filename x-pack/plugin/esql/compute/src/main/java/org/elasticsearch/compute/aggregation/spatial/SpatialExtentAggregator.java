@@ -29,8 +29,4 @@ abstract class SpatialExtentAggregator {
     public static Block evaluateFinal(SpatialExtentGroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(selected, driverContext);
     }
-
-    public static void combineStates(SpatialExtentGroupingState current, int groupId, SpatialExtentGroupingState inState, int inPosition) {
-        current.add(groupId, inState, inPosition);
-    }
 }

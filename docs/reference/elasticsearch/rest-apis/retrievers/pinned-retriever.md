@@ -2,14 +2,11 @@
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/current/retriever.html
 applies_to:
- stack: all
+ stack: ga 9.1
  serverless: ga
 ---
 
 # Pinned retriever [pinned-retriever]
-```yaml {applies_to}
-stack: ga 9.1
-```
 
 A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever.
 

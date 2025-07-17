@@ -953,7 +953,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void collectUsageStats(Client client, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
+        public void collectUsageStats(
+            Client client,
+            ClusterState clusterState,
+            ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
+        ) {
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()

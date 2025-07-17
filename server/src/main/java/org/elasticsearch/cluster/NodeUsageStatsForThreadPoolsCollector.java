@@ -23,12 +23,12 @@ public interface NodeUsageStatsForThreadPoolsCollector {
     /**
      * This will be used when there is no NodeUsageLoadCollector available.
      */
-    NodeUsageStatsForThreadPoolsCollector EMPTY = (client, listener) -> listener.onResponse(Map.of());
+    NodeUsageStatsForThreadPoolsCollector EMPTY = (client, clusterState, listener) -> listener.onResponse(Map.of());
 
     /**
      * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
      *
      * @param listener The listener to receive the usage results.
      */
-    void collectUsageStats(Client client, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
+    void collectUsageStats(Client client, ClusterState clusterState, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
 }

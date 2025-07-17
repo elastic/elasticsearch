@@ -140,7 +140,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             // NOMERGE: will this change? Need 3?
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
-            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any());
+            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -171,7 +171,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
      */
     private static class StubNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
         @Override
-        public void collectUsageStats(Client client, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
+        public void collectUsageStats(
+            Client client,
+            ClusterState clusterState,
+            ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
+        ) {
             listener.onResponse(Map.of());
         }
     }

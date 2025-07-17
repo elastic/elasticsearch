@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollectorImpl;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -82,7 +83,7 @@ class NodeServiceProvider {
         );
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = pluginsService.loadSingletonServiceProvider(
             NodeUsageStatsForThreadPoolsCollector.class,
-            () -> NodeUsageStatsForThreadPoolsCollector.EMPTY
+            () -> new NodeUsageStatsForThreadPoolsCollectorImpl()
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,

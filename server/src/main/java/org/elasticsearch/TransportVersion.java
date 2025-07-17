@@ -57,7 +57,27 @@ import java.util.stream.Stream;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(int id) implements VersionId<TransportVersion> {
+public class TransportVersion implements VersionId<TransportVersion> {
+
+    private final int id;
+    private final TransportVersion patchVersion;
+
+    public TransportVersion(int id) {
+        this(id, null);
+    }
+
+    public TransportVersion(int id, TransportVersion patchVersion) {
+        this.id = id;
+        this.patchVersion = patchVersion;
+    }
+
+    public int id() {
+        return id;
+    }
+
+    public TransportVersion patchVersion() {
+        return patchVersion;
+    }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -75,7 +95,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             return known;
         }
         // this is a version we don't otherwise know about - just create a placeholder
-        return new TransportVersion(id);
+        return new TransportVersion(id, null);
     }
 
     public static void writeVersion(TransportVersion version, StreamOutput out) throws IOException {
@@ -169,6 +189,20 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      */
     public boolean isPatchFrom(TransportVersion version) {
         return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+    }
+
+    public boolean supports(TransportVersion version) {
+        if (onOrAfter(version)) {
+            return true;
+        }
+        TransportVersion patchVersion = this.patchVersion;
+        while (patchVersion != null) {
+            if (isPatchFrom(version)) {
+                return true;
+            }
+            patchVersion = patchVersion.patchVersion;
+        }
+        return false;
     }
 
     /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -15,6 +16,11 @@ import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The class is responsible for invoking any steps that need to be applied to the logical plan,
@@ -56,7 +62,33 @@ public class PreOptimizer {
         }
 
         private void foldInferenceFunctions(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-            plan.transformExpressionsUp(InferenceFunction.class, this::foldInferenceFunction, listener);
+            // First let's collect all the inference functions
+            List<InferenceFunction<?>> inferenceFunctions = new ArrayList<>();
+            plan.forEachExpressionUp(InferenceFunction.class, inferenceFunctions::add);
+
+            if (inferenceFunctions.isEmpty()) {
+                // No inference functions found. Return the original plan.
+                listener.onResponse(plan);
+                return;
+            }
+
+            // This is a map of inference functions to their results.
+            // We will use this map to replace the inference functions in the plan.
+            Map<InferenceFunction<?>, Expression> inferenceFunctionsToResults = new HashMap<>();
+
+            // Prepare a listener that will be called when all inference functions are done.
+            // This listener will replace the inference functions in the plan with their results.
+            CountDownActionListener completionListener = new CountDownActionListener(inferenceFunctions.size(), listener.map(ignored ->
+                plan.transformExpressionsUp(InferenceFunction.class, f -> inferenceFunctionsToResults.getOrDefault(f, f))
+            ));
+
+            // Try to compute the result for each inference function.
+            for (InferenceFunction<?> inferenceFunction : inferenceFunctions) {
+                foldInferenceFunction(inferenceFunction, completionListener.map(e -> {
+                    inferenceFunctionsToResults.put(inferenceFunction, e);
+                    return null;
+                }));
+            }
         }
 
         private void foldInferenceFunction(InferenceFunction<?> inferenceFunction, ActionListener<Expression> listener) {

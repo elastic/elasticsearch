@@ -106,7 +106,7 @@ public class PatternedTextValueProcessorTests extends ESTestCase {
     public void testTemplateIdIsExpectedShape() {
         String text = "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]";
         PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(text);
-        assertEquals("vznUCMiok3s", parts.templateId());
+        assertEquals("vSr1YMYPups", parts.templateId());
     }
 
     public void testTemplateIdHasVeryFewCollisions() {

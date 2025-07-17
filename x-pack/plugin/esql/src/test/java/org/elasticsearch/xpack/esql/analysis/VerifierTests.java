@@ -1213,7 +1213,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands, or in EVAL within score(.) function\n"
+            "1:36: [:] operator is only supported in WHERE and STATS commands"
+                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                + "\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
@@ -1385,7 +1387,8 @@ public class VerifierTests extends ESTestCase {
                     + functionName
                     + "] "
                     + functionType
-                    + " is only supported in WHERE and STATS commands, or in EVAL within score(.) function"
+                    + " is only supported in WHERE and STATS commands"
+                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
             )
         );
         assertThat(
@@ -1400,7 +1403,14 @@ public class VerifierTests extends ESTestCase {
         if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
             assertThat(
                 error("row a = " + functionInvocation, fullTextAnalyzer),
-                containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+                containsString(
+                    "["
+                        + functionName
+                        + "] "
+                        + functionType
+                        + " is only supported in WHERE and STATS commands"
+                        + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                )
             );
         }
     }
@@ -1959,6 +1969,57 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:34: cannot reference CATEGORIZE grouping function [category] within an aggregation filter",
             error("FROM test | STATS COUNT(*) WHERE category == \"Doe\" BY category = CATEGORIZE(last_name)")
+        );
+    }
+
+    public void testCategorizeInvalidOptionsField() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        assertEquals(
+            "1:31: second argument of [CATEGORIZE(last_name, first_name)] must be a map expression, received [first_name]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, first_name)")
+        );
+        assertEquals(
+            "1:31: Invalid option [blah] in [CATEGORIZE(last_name, { \"blah\": 42 })], "
+                + "expected one of [analyzer, output_format, similarity_threshold]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"blah\": 42 })")
+        );
+    }
+
+    public void testCategorizeOptionOutputFormat() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"regex\" })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"REGEX\" })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"tokens\" })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"ToKeNs\" })");
+        assertEquals(
+            "1:31: invalid output format [blah], expecting one of [REGEX, TOKENS]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"blah\" })")
+        );
+        assertEquals(
+            "1:31: invalid output format [42], expecting one of [REGEX, TOKENS]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": 42 })")
+        );
+    }
+
+    public void testCategorizeOptionSimilarityThreshold() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 100 })");
+        assertEquals(
+            "1:31: invalid similarity threshold [0], expecting a number between 1 and 100, inclusive",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 0 })")
+        );
+        assertEquals(
+            "1:31: invalid similarity threshold [101], expecting a number between 1 and 100, inclusive",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 101 })")
+        );
+        assertEquals(
+            "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })], "
+                + "cannot cast [blah] to [integer]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })")
         );
     }
 

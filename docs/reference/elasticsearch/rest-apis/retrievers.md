@@ -17,29 +17,29 @@ Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) 
 
 The following retrievers are available:
 
-`standard`
-:   The [standard retriever](retrievers/standard-retriever.md) replaces the functionality of a traditional [query](/reference/query-languages/querydsl.md).
-
 `knn`
-:   The [KNN retriever](retrievers/knn-retriever.md) replaces the functionality of a [knn search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn).
+:   The [knn](retrievers/knn-retriever.md) retriever replaces the functionality of a [knn search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn).
 
 `linear`
-:   The [linear retriever](retrievers/linear-retriever.md) linearly combines the scores of other retrievers for the top documents.
-
-`rescorer`
-:   The [rescorer retriever](retrievers/rescorer-retriever.md) replaces the functionality of the [query rescorer](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore).
-
-`rrf`
-:   The [RRF retriever](retrievers/rrf-retriever.md) produces top documents from [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
-
-`text_similarity_reranker`
-:   The [text similarity reranker retriever](retrievers/text-similarity-reranker-retriever.md) enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
+:   The [linear](retrievers/linear-retriever.md) retriever linearly combines the scores of other retrievers for the top documents.
 
 `pinned` {applies_to}`stack: GA 9.1`
-:   The [pinned retriever](retrievers/pinned-retriever.md) always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+:   The [pinned](retrievers/pinned-retriever.md) retriever always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+
+`rescorer`
+:   The [rescorer](retrievers/rescorer-retriever.md) retriever replaces the functionality of the [query rescorer](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore).
+
+`rrf`
+:   The [rrf](retrievers/rrf-retriever.md) retriever produces top documents from [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md).
 
 `rule`
-:   The [rule retriever](retrievers/rule-retriever.md) applies contextual [Searching with query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries.
+:   The [rule](retrievers/rule-retriever.md) retriever applies contextual [Searching with query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries.
+
+`standard`
+:   The [standard](retrievers/standard-retriever.md) retriever replaces the functionality of a traditional [query](/reference/query-languages/querydsl.md).
+
+`text_similarity_reranker`
+:   The [text_similarity_reranker](retrievers/text-similarity-reranker-retriever.md) retriever enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
 ## Common usage guidelines [retriever-common-parameters]
 

@@ -1,6 +1,4 @@
 ---
-mapped_pages:
- - https://www.elastic.co/guide/en/elasticsearch/reference/current/retriever.html
 applies_to:
  stack: ga 9.1
  serverless: ga

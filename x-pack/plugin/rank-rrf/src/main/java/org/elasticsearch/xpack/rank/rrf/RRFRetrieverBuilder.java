@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils;
+import org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEIGHT;
+import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.RETRIEVER_FIELD;
 
 /**
  * An rrf retriever is used to represent an rrf rank element, but
@@ -67,26 +69,20 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         NAME,
         true, // Set to true to ignore unknown fields
         args -> {
-            List<RetrieverBuilder> retrievers = args[0] == null ? List.of() : (List<RetrieverBuilder>) args[0];
+            List<RRFRetrieverComponent> retrieverComponents = args[0] == null ? List.of() : (List<RRFRetrieverComponent>) args[0];
             List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
             int rankWindowSize = args[3] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
             int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
-            List<Float> weightsList = (List<Float>) args[5];
 
-            List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = retrievers.stream()
-                .map(CompoundRetrieverBuilder.RetrieverSource::from)
-                .toList();
+            float[] weights = new float[retrieverComponents.size()];
 
-            float[] weights;
-            if (weightsList == null) {
-                weights = new float[retrievers.size()];
-                Arrays.fill(weights, DEFAULT_WEIGHT);
-            } else {
-                weights = new float[weightsList.size()];
-                for (int i = 0; i < weightsList.size(); i++) {
-                    weights[i] = weightsList.get(i);
-                }
+            int index = 0;
+            List<RetrieverSource> innerRetrievers = new ArrayList<>();
+            for (RRFRetrieverComponent component : retrieverComponents) {
+                innerRetrievers.add(RetrieverSource.from(component.retriever));
+                weights[index] = component.weight;
+                index++;
             }
 
             return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, weights);
@@ -94,12 +90,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     );
 
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c),
-            (v) -> { /* This callback enables array syntax */ },
-            RETRIEVERS_FIELD
-        );
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RRFRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RankBuilder.RANK_WINDOW_SIZE_FIELD);

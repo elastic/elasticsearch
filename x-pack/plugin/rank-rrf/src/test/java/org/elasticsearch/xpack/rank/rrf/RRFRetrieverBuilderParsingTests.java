@@ -115,20 +115,28 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
                   "retrievers": [
                     {
                       "test": {
-                        "value": "foo"
+                        "value": "foobar"
                       }
                     },
                     {
-                      "test": {
-                        "value": "bar"
+                      "retriever": {
+                        "test": {
+                          "value": "foo"
+                        }
                       }
+                    },
+                    {
+                      "retriever": {
+                        "test": {
+                            "value": "bar"
+                        }
+                      },
+                      "weight": 1.3
                     }
                   ],
-                  "fields": ["field1", "field2"],
                   "query": "baz",
                   "rank_window_size": 100,
                   "rank_constant": 10,
-                  "weights": [0.5, 0.5],
                   "min_score": 20.0,
                   "_name": "foo_rrf"
                 }

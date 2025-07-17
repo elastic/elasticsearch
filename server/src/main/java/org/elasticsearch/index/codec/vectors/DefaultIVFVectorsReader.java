@@ -224,7 +224,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readInt();
             spilledVectors = indexInput.readInt();
-            vectors = indexInput.readVInt();
             // read the doc ids
             docIdsScratch = vectors > docIdsScratch.length ? new int[vectors] : docIdsScratch;
             spilledDocIdsScratch = spilledVectors > spilledDocIdsScratch.length ? new int[spilledVectors] : spilledDocIdsScratch;

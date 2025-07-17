@@ -152,9 +152,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     spillDeltas[j] = finalSpillDocs[finalSpillOrds[j]] - finalSpillDocs[finalSpillOrds[j - 1]];
                 }
             }
+            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             postingsOutput.writeInt(size);
             postingsOutput.writeInt(spillSize);
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
@@ -163,7 +163,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             onHeapQuantizedVectors.reset(centroid, size, j -> cluster[finalOrds[j]]);
             bulkWriter.writeVectors(onHeapQuantizedVectors);
             // write overspill vectors
-            onHeapQuantizedVectors.reset(centroid, overspillCluster.length, j -> overspillCluster[finalSpillOrds[j]]);
+            onHeapQuantizedVectors.reset(centroid, spillSize, j -> overspillCluster[finalSpillOrds[j]]);
             bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
 
@@ -281,7 +281,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
                 // write raw centroid for quantizing the query vectors
                 buffer.asFloatBuffer().put(centroid);
-                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+                postingsOutput.writeBytes(buffer.array(), buffer.array().length);
                 int size = cluster.length;
                 int spillSize = overspillCluster.length;
                 if (docIds == null || docIds.length < size) {
@@ -323,9 +323,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                         spillDeltas[j] = finalSpillDocs[finalSpillOrds[j]] - finalSpillDocs[finalSpillOrds[j - 1]];
                     }
                 }
+                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
                 postingsOutput.writeInt(size);
                 postingsOutput.writeInt(spillSize);
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
@@ -567,7 +567,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.corrections = null;
         }
 
-        private void reset(float[] centroid, int count, IntToIntFunction ordTransformer) {
+        void reset(float[] centroid, int count, IntToIntFunction ordTransformer) {
             this.currentCentroid = centroid;
             this.ordTransformer = ordTransformer;
             this.currOrd = -1;

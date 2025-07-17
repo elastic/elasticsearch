@@ -306,10 +306,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion, SourceKeepMode.NONE);
         }
 
-        public static Builder buildForTemplateId(
-            String name,
-            IndexVersion indexCreatedVersion
-        ) {
+        public static Builder buildForTemplateId(String name, IndexVersion indexCreatedVersion) {
             return new Builder(
                 name,
                 null,
@@ -514,7 +511,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            return hasDocValues && IndexMode.LOGSDB.equals(indexMode)
+            return hasDocValues
+                && IndexMode.LOGSDB.equals(indexMode)
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSortConfig);
         }

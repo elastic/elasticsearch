@@ -94,9 +94,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
             PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
             BuilderParams builderParams = builderParams(this, context);
-            var templateIdMapper = KeywordFieldMapper.Builder
-                .buildForTemplateId(patternedTextFieldType.templateIdFieldName(), indexCreatedVersion)
-                .build(context);
+            var templateIdMapper = KeywordFieldMapper.Builder.buildForTemplateId(
+                patternedTextFieldType.templateIdFieldName(),
+                indexCreatedVersion
+            ).build(context);
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
     }

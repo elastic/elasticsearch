@@ -4,12 +4,22 @@ redirects:
   
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':
-    anchors:
-      'standard-retriever': 'reference/elasticsearch/rest-apis/retrievers/standard-retriever.md'
-      'knn-retriever': 'reference/elasticsearch/rest-apis/retrievers/knn-retriever.md'
-      'linear-retriever': 'reference/elasticsearch/rest-apis/retrievers/linear-retriever.md'
-      'rrf-retriever': 'reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md'
-      'rescorer-retriever': 'reference/elasticsearch/rest-apis/retrievers/rescorer-retriever.md'
-      'text-similarity-reranker-retriever': 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
-      'rule-retriever': 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
-      'pinned-retriever': 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
+    to: 'reference/elasticsearch/rest-apis/retrievers.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/rest-apis/retrievers/standard-retriever.md'
+        anchors: {'standard-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/knn-retriever.md'
+        anchors: {'knn-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/linear-retriever.md'
+        anchors: {'linear-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md'
+        anchors: {'rrf-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rescorer-retriever.md'
+        anchors: {'rescorer-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
+        anchors: {'text-similarity-reranker'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
+        anchors: {'rule-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
+        anchors: {'pinned-retriever'}

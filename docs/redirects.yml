@@ -13,3 +13,7 @@ redirects:
       'text-similarity-reranker-retriever': 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
       'rule-retriever': 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
       'pinned-retriever': 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
+      'multi-field-field-grouping': 
+      'multi-field-field-boosting': 
+      'multi-field-query-format': 
+      'multi-field-wildcard-field-patterns':

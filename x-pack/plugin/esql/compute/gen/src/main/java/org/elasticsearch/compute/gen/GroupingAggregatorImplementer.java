@@ -207,7 +207,6 @@ public class GroupingAggregatorImplementer {
         }
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
-        builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
         builder.addMethod(evaluateFinal());
         builder.addMethod(toStringMethod());
@@ -666,38 +665,6 @@ public class GroupingAggregatorImplementer {
                 );
             }
             builder.endControlFlow();
-        }
-        return builder.build();
-    }
-
-    private MethodSpec addIntermediateRowInput() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateRowInput");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(int.class, "groupId").addParameter(GROUPING_AGGREGATOR_FUNCTION, "input").addParameter(int.class, "position");
-        builder.beginControlFlow("if (input.getClass() != getClass())");
-        {
-            builder.addStatement("throw new IllegalArgumentException($S + getClass() + $S + input.getClass())", "expected ", "; got ");
-        }
-        builder.endControlFlow();
-        builder.addStatement("$T inState = (($T) input).state", aggState.type(), implementation);
-        builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
-        if (aggState.declaredType().isPrimitive()) {
-            builder.beginControlFlow("if (inState.hasValue(position))");
-            builder.addStatement("state.set(groupId, $T.combine(state.getOrDefault(groupId), inState.get(position)))", declarationType);
-            builder.endControlFlow();
-        } else {
-            requireStaticMethod(
-                declarationType,
-                requireVoidType(),
-                requireName("combineStates"),
-                requireArgs(
-                    requireType(aggState.declaredType()),
-                    requireType(TypeName.INT),
-                    requireType(aggState.declaredType()),
-                    requireType(TypeName.INT)
-                )
-            );
-            builder.addStatement("$T.combineStates(state, groupId, inState, position)", declarationType);
         }
         return builder.build();
     }

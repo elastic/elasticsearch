@@ -121,7 +121,13 @@ public class QueryPlanningBenchmark {
         defaultPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(FoldContext.small()));
     }
 
-    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, LogicalPlanPreOptimizer preOptimizer, String query) {
+    private LogicalPlan plan(
+        EsqlParser parser,
+        Analyzer analyzer,
+        LogicalPlanOptimizer optimizer,
+        LogicalPlanPreOptimizer preOptimizer,
+        String query
+    ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
         var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
         var analyzed = analyzer.analyze(parsed);

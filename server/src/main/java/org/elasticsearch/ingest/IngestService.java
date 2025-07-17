@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -78,9 +77,12 @@ import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
+import java.time.Instant;
+import java.time.InstantSource;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -553,7 +555,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(projectId, l, request),
+                new PutPipelineClusterStateUpdateTask(projectId, l, request, Instant::now),
                 request.masterNodeTimeout()
             );
         }));
@@ -569,16 +571,32 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         validatePipeline(ingestInfos, projectId, request.getId(), config);
     }
 
+    public static void validateNoSystemPropertiesInPipelineConfig(final Map<String, Object> pipelineConfig) {
+        if (pipelineConfig.containsKey(Pipeline.CREATED_DATE_KEY)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: created_date.");
+        } else if (pipelineConfig.containsKey(Pipeline.MODIFIED_DATE_KEY)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: modified_date.");
+        }
+    }
+
+    /** Check whether updating a potentially existing pipeline will be a NOP.
+     * Will return <code>false</code> if request contains system-properties like `{created,modified}_date,
+     * these should be rejected later.`*/
     public static boolean isNoOpPipelineUpdate(ProjectMetadata metadata, PutPipelineRequest request) {
         IngestMetadata currentIngestMetadata = metadata.custom(IngestMetadata.TYPE);
         if (request.getVersion() == null
             && currentIngestMetadata != null
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
-            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfig().equals(pipelineConfig)) {
-                return true;
-            }
+
+            var newPipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+
+            Map<String, Object> currentConfigWithoutSystemProps = new HashMap<>(
+                currentIngestMetadata.getPipelines().get(request.getId()).getConfig()
+            );
+            currentConfigWithoutSystemProps.remove(Pipeline.CREATED_DATE_KEY);
+            currentConfigWithoutSystemProps.remove(Pipeline.MODIFIED_DATE_KEY);
+
+            return newPipelineConfig.equals(currentConfigWithoutSystemProps);
         }
 
         return false;
@@ -675,26 +693,42 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Used in this class and externally by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
      */
     public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
-        private final PutPipelineRequest request;
+        // always output millis even if instantSource returns millis == 0
+        private static final DateTimeFormatter ISO8601_WITH_MILLIS_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3)
+            .toFormatter(Locale.ROOT);
 
-        PutPipelineClusterStateUpdateTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener, PutPipelineRequest request) {
+        private final PutPipelineRequest request;
+        private final InstantSource instantSource;
+
+        PutPipelineClusterStateUpdateTask(
+            final ProjectId projectId,
+            final ActionListener<AcknowledgedResponse> listener,
+            final PutPipelineRequest request,
+            final InstantSource instantSource
+        ) {
             super(projectId, listener);
             this.request = request;
+            this.instantSource = instantSource;
         }
 
         /**
          * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
          */
         public PutPipelineClusterStateUpdateTask(ProjectId projectId, PutPipelineRequest request) {
-            this(projectId, null, request);
+            this(projectId, null, request, Instant::now);
         }
 
         @Override
         public IngestMetadata execute(IngestMetadata currentIngestMetadata, Collection<IndexMetadata> allIndexMetadata) {
-            BytesReference pipelineSource = request.getSource();
+            final Map<String, PipelineConfiguration> existingPipelines = currentIngestMetadata == null
+                ? new HashMap<>(1)
+                : new HashMap<>(currentIngestMetadata.getPipelines());
+            final PipelineConfiguration existingPipeline = existingPipelines.get(request.getId());
+            final Map<String, Object> newPipelineConfig = XContentHelper.convertToMap(request.getSource(), true, request.getXContentType())
+                .v2();
+
             if (request.getVersion() != null) {
-                var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
-                if (currentPipeline == null) {
+                if (existingPipeline == null) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -705,7 +739,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     );
                 }
 
-                final Integer currentVersion = currentPipeline.getVersion();
+                final Integer currentVersion = existingPipeline.getVersion();
                 if (Objects.equals(request.getVersion(), currentVersion) == false) {
                     throw new IllegalArgumentException(
                         String.format(
@@ -718,9 +752,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     );
                 }
 
-                var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-                final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
-                if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
+                final Integer specifiedVersion = (Integer) newPipelineConfig.get("version");
+                if (newPipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -733,25 +766,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 // if no version specified in the pipeline definition, inject a version of [request.getVersion() + 1]
                 if (specifiedVersion == null) {
-                    pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
-                    try {
-                        var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
-                        pipelineSource = BytesReference.bytes(builder);
-                    } catch (IOException e) {
-                        throw new IllegalStateException(e);
-                    }
+                    newPipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
                 }
             }
 
-            Map<String, PipelineConfiguration> pipelines;
-            if (currentIngestMetadata != null) {
-                pipelines = new HashMap<>(currentIngestMetadata.getPipelines());
+            final String iso8601WithMillisNow = ISO8601_WITH_MILLIS_FORMATTER.format(
+                instantSource.instant().truncatedTo(ChronoUnit.MILLIS)
+            );
+            if (existingPipeline == null) {
+                newPipelineConfig.put(Pipeline.CREATED_DATE_KEY, iso8601WithMillisNow);
             } else {
-                pipelines = new HashMap<>();
+                Object existingCreatedAt = existingPipeline.getConfig().get(Pipeline.CREATED_DATE_KEY);
+                // only set/carry over `created_date` if existing pipeline already has it.
+                // would be confusing if existing pipelines were all updated to have `created_date` set to now.
+                if (existingCreatedAt != null) {
+                    newPipelineConfig.put(Pipeline.CREATED_DATE_KEY, existingCreatedAt);
+                }
             }
+            newPipelineConfig.put(Pipeline.MODIFIED_DATE_KEY, iso8601WithMillisNow);
 
-            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
-            return new IngestMetadata(pipelines);
+            existingPipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
+            return new IngestMetadata(existingPipelines);
         }
     }
 
@@ -762,6 +797,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String pipelineId,
         Map<String, Object> pipelineConfig
     ) throws Exception {
+        validateNoSystemPropertiesInPipelineConfig(pipelineConfig);
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }

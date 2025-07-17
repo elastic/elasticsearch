@@ -2408,8 +2408,7 @@ public class Security extends Plugin
                 Authentication originalAuthentication = Authentication.getAuthenticationFromCrossClusterAccessMetadata(authentication);
                 // For RCS 2.0, we log the user from the querying cluster
                 populateAuthContextMap(originalAuthentication, authContext);
-            }
-            else {
+            } else {
                 populateAuthContextMap(authentication, authContext);
             }
             return authContext;

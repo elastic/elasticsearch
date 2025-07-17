@@ -17,8 +17,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
@@ -46,7 +49,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    long[] buildAndWritePostingsLists(
+    LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -81,7 +84,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
         // write the posting lists
-        final long[] offsets = new long[centroidSupplier.size()];
+        final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
@@ -93,7 +96,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
             // TODO align???
-            offsets[c] = postingsOutput.getFilePointer();
+            offsets.add(postingsOutput.getFilePointer());
             int size = cluster.length;
             postingsOutput.writeVInt(size);
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
@@ -109,11 +112,11 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             printClusterQualityStatistics(assignmentsByCluster);
         }
 
-        return offsets;
+        return offsets.build();
     }
 
     @Override
-    long[] buildAndWritePostingsLists(
+    LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
@@ -199,7 +202,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
-            final long[] offsets = new long[centroidSupplier.size()];
+            final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
@@ -210,9 +213,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 boolean[] isOverspill = isOverspillByCluster[c];
-                // TODO align???
-                offsets[c] = postingsOutput.getFilePointer();
+                offsets.add(postingsOutput.getFilePointer());
                 int size = cluster.length;
+                // TODO align???
                 postingsOutput.writeVInt(size);
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
@@ -226,7 +229,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             if (logger.isDebugEnabled()) {
                 printClusterQualityStatistics(assignmentsByCluster);
             }
-            return offsets;
+            return offsets.build();
         }
     }
 
@@ -270,7 +273,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
-        long[] offsets,
+        LongValues offsets,
         IndexOutput centroidOutput
     ) throws IOException {
 
@@ -302,7 +305,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // write the centroids
             centroidOutput.writeBytes(buffer.array(), buffer.array().length);
             // write the offset of this posting list
-            centroidOutput.writeLong(offsets[i]);
+            centroidOutput.writeLong(offsets.get(i));
         }
     }
 

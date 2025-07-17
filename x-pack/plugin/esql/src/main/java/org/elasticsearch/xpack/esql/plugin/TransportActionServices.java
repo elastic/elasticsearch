@@ -28,6 +28,6 @@ public record TransportActionServices(
     InferenceServices inferenceServices
 ) {
     public InferenceRunner inferenceRunner() {
-        return inferenceServices.inferenceRunner();
+        return inferenceServices == null ? null : inferenceServices.inferenceRunner();
     }
 }

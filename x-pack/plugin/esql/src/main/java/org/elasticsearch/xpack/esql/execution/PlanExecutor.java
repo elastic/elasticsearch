@@ -87,7 +87,7 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             preAnalyzer,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext)),
+            new LogicalPlanPreOptimizer(services, new LogicalPreOptimizerContext(foldContext)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
             mapper,

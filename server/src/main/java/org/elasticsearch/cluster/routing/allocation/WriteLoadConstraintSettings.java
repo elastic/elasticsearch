@@ -12,7 +12,9 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
 
@@ -98,4 +100,18 @@ public class WriteLoadConstraintSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    WriteLoadDeciderStatus status;
+
+    WriteLoadConstraintSettings(Settings settings, ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
+    };
+
+    private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus status) {
+        this.status = status;
+    }
+
+    public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
+        return this.status;
+    }
 }

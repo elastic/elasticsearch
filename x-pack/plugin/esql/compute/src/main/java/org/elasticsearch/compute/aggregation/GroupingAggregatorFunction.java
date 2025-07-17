@@ -129,11 +129,6 @@ public interface GroupingAggregatorFunction extends Releasable {
     void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**
-     * Add the position-th row from the intermediate output of the given aggregator function to the groupId
-     */
-    void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position);
-
-    /**
      * Build the intermediate results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.

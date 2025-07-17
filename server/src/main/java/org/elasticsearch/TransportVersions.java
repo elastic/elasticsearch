@@ -340,6 +340,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
     public static final TransportVersion LOOKUP_JOIN_CCS = def(9_120_0_00);
     public static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = def(9_121_0_00);
+    public static final TransportVersion ESQL_CATEGORIZE_OPTIONS = def(9_122_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

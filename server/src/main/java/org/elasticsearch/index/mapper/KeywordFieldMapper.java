@@ -135,8 +135,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static class KeywordField extends Field {
-        public KeywordField(String field, BytesRef term, FieldType ft) {
 
+        public KeywordField(String field, BytesRef term, FieldType ft) {
             super(field, term, ft);
         }
 
@@ -314,7 +314,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 Integer.MAX_VALUE,
                 indexCreatedVersion,
                 indexMode,
-                // IndexSortConfig only used to decide if can use DocValueSkippers. Since skippers are forced, a sort config is not needed.
+                // Sort config is used to decide if DocValueSkippers can be used. Since skippers are forced, a sort config is not needed.
                 null,
                 enableDocValuesSkipper,
                 true,

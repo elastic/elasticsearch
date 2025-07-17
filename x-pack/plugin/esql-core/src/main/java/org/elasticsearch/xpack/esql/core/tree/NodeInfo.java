@@ -6,15 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
-
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -66,26 +60,7 @@ public abstract class NodeInfo<T extends Node<?>> {
         return innerTransform(realRule);
     }
 
-    public <E> void transform(
-        BiConsumer<? super E, ActionListener<? super E>> rule,
-        Class<E> typeToken,
-        ActionListener<? super T> listener
-    ) {
-        List<?> children = node.children();
-        BiConsumer<Object, ActionListener<Object>> realRule = (p, l) -> {
-            if (p != children && (p == null || typeToken.isInstance(p)) && false == children.contains(p)) {
-                rule.accept(typeToken.cast(p), l);
-            } else {
-                l.onResponse(p);
-            }
-        };
-
-        innerTransform(realRule, listener);
-    }
-
     protected abstract T innerTransform(Function<Object, Object> rule);
-
-    protected abstract void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener);
 
     /**
      * Builds a {@link NodeInfo} for Nodes without any properties.
@@ -99,10 +74,6 @@ public abstract class NodeInfo<T extends Node<?>> {
 
             protected T innerTransform(Function<Object, Object> rule) {
                 return node;
-            }
-
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                listener.onResponse(node);
             }
         };
     }
@@ -122,16 +93,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p1, newP1);
 
                 return same ? node : ctor.apply(node.source(), newP1);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps) ? node : ctor.apply(node.source(), (P1) newProps.get(0))
-                    )
-                );
             }
         };
     }
@@ -154,18 +115,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p2, newP2);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(node.source(), (P1) newProps.get(0), (P2) newProps.get(1))
-                    )
-                );
             }
         };
     }
@@ -195,18 +144,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p3, newP3);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(node.source(), (P1) newProps.get(0), (P2) newProps.get(1), (P3) newProps.get(2))
-                    )
-                );
             }
         };
     }
@@ -246,24 +183,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p4, newP4);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3)
-                            )
-                    )
-                );
             }
         };
     }
@@ -307,25 +226,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p5, newP5);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3),
-                                (P5) newProps.get(4)
-                            )
-                    )
-                );
             }
         };
     }
@@ -373,26 +273,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p6, newP6);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3),
-                                (P5) newProps.get(4),
-                                (P6) newProps.get(5)
-                            )
-                    )
-                );
             }
         };
     }
@@ -444,27 +324,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p7, newP7);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3),
-                                (P5) newProps.get(4),
-                                (P6) newProps.get(5),
-                                (P7) newProps.get(6)
-                            )
-                    )
-                );
             }
         };
     }
@@ -520,28 +379,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p8, newP8);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3),
-                                (P5) newProps.get(4),
-                                (P6) newProps.get(5),
-                                (P7) newProps.get(6),
-                                (P8) newProps.get(7)
-                            )
-                    )
-                );
             }
         };
     }
@@ -601,29 +438,6 @@ public abstract class NodeInfo<T extends Node<?>> {
                 same &= Objects.equals(p9, newP9);
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8, newP9);
-            }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3),
-                                (P5) newProps.get(4),
-                                (P6) newProps.get(5),
-                                (P7) newProps.get(6),
-                                (P8) newProps.get(7),
-                                (P9) newProps.get(8)
-                            )
-                    )
-                );
             }
         };
     }
@@ -688,60 +502,10 @@ public abstract class NodeInfo<T extends Node<?>> {
 
                 return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8, newP9, newP10);
             }
-
-            @SuppressWarnings("unchecked")
-            protected void innerTransform(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<? super T> listener) {
-                transformProperties(
-                    rule,
-                    listener.safeMap(
-                        newProps -> innerProperties().equals(newProps)
-                            ? node
-                            : ctor.apply(
-                                node.source(),
-                                (P1) newProps.get(0),
-                                (P2) newProps.get(1),
-                                (P3) newProps.get(2),
-                                (P4) newProps.get(3),
-                                (P5) newProps.get(4),
-                                (P6) newProps.get(5),
-                                (P7) newProps.get(6),
-                                (P8) newProps.get(7),
-                                (P9) newProps.get(8),
-                                (P10) newProps.get(9)
-                            )
-                    )
-                );
-            }
         };
     }
 
     public interface NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10);
-    }
-
-    protected void transformProperties(BiConsumer<Object, ActionListener<Object>> rule, ActionListener<List<Object>> listener) {
-        List<Object> properties = innerProperties();
-        if (properties.isEmpty()) {
-            listener.onResponse(properties);
-            return;
-        }
-
-        AtomicReference<List<Object>> transformedProperties = new AtomicReference<>(null);
-        CountDownActionListener completionListener = new CountDownActionListener(properties.size(), ActionListener.wrap(ignored -> {
-            List<Object> result = transformedProperties.get() != null ? transformedProperties.get() : properties;
-            listener.onResponse(result);
-        }, listener::onFailure));
-
-        for (int i = 0, size = properties.size(); i < size; i++) {
-            final int currentIndex = i;
-            Object property = properties.get(currentIndex);
-            rule.accept(property, completionListener.delegateFailureAndWrap((l, transformed) -> {
-                if (properties.get(currentIndex).equals(transformed) == false) {
-                    transformedProperties.compareAndSet(null, new ArrayList<>(properties));
-                    transformedProperties.get().set(currentIndex, transformed);
-                }
-                l.onResponse(null);
-            }));
-        }
     }
 }

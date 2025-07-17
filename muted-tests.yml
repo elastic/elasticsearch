@@ -463,6 +463,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=vector-tile/20_aggregations/stats agg}
   issue: https://github.com/elastic/elasticsearch/issues/131484
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test050BasicApiTests
+  issue: https://github.com/elastic/elasticsearch/issues/120911
 
 # Examples:
 #

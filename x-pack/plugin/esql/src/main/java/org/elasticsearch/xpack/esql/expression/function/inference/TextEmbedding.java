@@ -92,6 +92,11 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     }
 
     @Override
+    public boolean foldable() {
+        return inferenceId.foldable() && inputText.foldable();
+    }
+
+    @Override
     public DataType dataType() {
         return DataType.DENSE_VECTOR;
     }

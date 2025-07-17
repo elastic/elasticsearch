@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -70,6 +73,7 @@ public class QueryPlanningBenchmark {
     private EsqlParser defaultParser;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
+    private LogicalPlanPreOptimizer defaultPreOptimizer;
     private Configuration config;
 
     @Setup
@@ -112,18 +116,22 @@ public class QueryPlanningBenchmark {
             ),
             new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
         );
+
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
+        defaultPreOptimizer = new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(FoldContext.small()));
     }
 
-    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
+    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, LogicalPlanPreOptimizer preOptimizer, String query) {
+        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
         var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
         var analyzed = analyzer.analyze(parsed);
-        var optimized = optimizer.optimize(analyzed);
-        return optimized;
+        analyzed.setAnalyzed();
+        preOptimizer.preOptimize(analyzed, future.map(optimizer::optimize));
+        return future.actionGet();
     }
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        blackhole.consume(plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, defaultPreOptimizer, "FROM test | LIMIT 10"));
     }
 }

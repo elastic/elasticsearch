@@ -296,30 +296,43 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
      * retaining the originating cluster and restructing pages for routing, which might be complicated.
      */
     private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
-        boolean[] agg = { false };
-        boolean[] enrichCoord = { false };
+        // First look for remote ENRICH, and then look at its children. Going over the whole plan once is trickier as remote ENRICHs can be
+        // in separate FORK branches which are valid by themselves.
+        plan.forEachUp(Enrich.class, enrich -> { checkForPlansForbiddenBeforeRemoteEnrich(enrich, failures); });
+    }
+
+    /**
+     * For a given remote {@link Enrich}, check if there are any forbidden plans upstream.
+     */
+    private static void checkForPlansForbiddenBeforeRemoteEnrich(Enrich enrich, Failures failures) {
+        if (enrich.mode != Mode.REMOTE) {
+            return;
+        }
+
+        // TODO: shouldn't we also include FORK? Everything downstream from FORK should be coordinator-only.
+        // https://github.com/elastic/elasticsearch/issues/131445
+        boolean[] aggregate = { false };
+        boolean[] coordinatorOnlyEnrich = { false };
         boolean[] lookupJoin = { false };
 
-        plan.forEachUp(LogicalPlan.class, u -> {
+        enrich.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
-                agg[0] = true;
-            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                enrichCoord[0] = true;
+                aggregate[0] = true;
+            } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
+                coordinatorOnlyEnrich[0] = true;
             } else if (u instanceof LookupJoin) {
                 lookupJoin[0] = true;
             }
-
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (agg[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-                }
-                if (enrichCoord[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-                }
-                if (lookupJoin[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
-                }
-            }
         });
+
+        if (aggregate[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
+        }
+        if (coordinatorOnlyEnrich[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+        }
+        if (lookupJoin[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        }
     }
 }

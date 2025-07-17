@@ -495,6 +495,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         ) {
             if (requireDocValueSkippers) {
                 assert indexMode == IndexMode.LOGSDB;
+                assert hasDocValues.getValue();
                 return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             if (useDocValuesSkipper

@@ -1343,4 +1343,44 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             3
         );
     }
+
+    public void testCalculateReturnsNotApplicableForLookupIndexMode() {
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.LOOKUP)
+            .build();
+        builder.put(dataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
+            .putProjectMetadata(builder.build())
+            .build();
+
+        AutoShardingResult autoShardingResult = service.calculate(
+            state.projectState(projectId),
+            dataStream,
+            createIndexStats(1, 1.0, 1.0, 1.0)
+        );
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+        assertThat(decisionsLogged, hasSize(0));
+    }
+
+    public void testCalculateReturnsNotApplicableForLookupIndexModeWithNullStats() {
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.LOOKUP)
+            .build();
+        builder.put(dataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
+            .putProjectMetadata(builder.build())
+            .build();
+
+        AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, null);
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+        assertThat(decisionsLogged, hasSize(0));
+    }
 }

@@ -1,6 +1,7 @@
 
 # intellij files
 .idea/
+!.idea/icon.png
 *.iml
 *.ipr
 *.iws

@@ -55,8 +55,8 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
-        return delegate.prepareProcessPage(seenGroupIds, page);
+    public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return delegate.prepareProcessRawInputPage(seenGroupIds, page);
     }
 
     @Override

@@ -67,10 +67,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
         return new CentroidQueryScorer() {
             int currentCentroid = -1;
+            long postingListOffset;
             private final float[] centroid = new float[fieldInfo.getVectorDimension()];
             private final float[] centroidCorrectiveValues = new float[3];
             private final long rawCentroidsOffset = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES);
-            private final long rawCentroidsByteSize = (long) Float.BYTES * fieldInfo.getVectorDimension();
+            private final long rawCentroidsByteSize = (long) Float.BYTES * fieldInfo.getVectorDimension() + Long.BYTES;
 
             @Override
             public int size() {
@@ -79,12 +80,23 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             @Override
             public float[] centroid(int centroidOrdinal) throws IOException {
+                readDataIfNecessary(centroidOrdinal);
+                return centroid;
+            }
+
+            @Override
+            public long postingListOffset(int centroidOrdinal) throws IOException {
+                readDataIfNecessary(centroidOrdinal);
+                return postingListOffset;
+            }
+
+            private void readDataIfNecessary(int centroidOrdinal) throws IOException {
                 if (centroidOrdinal != currentCentroid) {
                     centroids.seek(rawCentroidsOffset + rawCentroidsByteSize * centroidOrdinal);
                     centroids.readFloats(centroid, 0, centroid.length);
+                    postingListOffset = centroids.readLong();
                     currentCentroid = centroidOrdinal;
                 }
-                return centroid;
             }
 
             public void bulkScore(NeighborQueue queue) throws IOException {
@@ -217,9 +229,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
 
         @Override
-        public int resetPostingsScorer(int centroidOrdinal, float[] centroid) throws IOException {
+        public int resetPostingsScorer(long offset, float[] centroid) throws IOException {
             quantized = false;
-            indexInput.seek(entry.postingListOffsets()[centroidOrdinal]);
+            indexInput.seek(offset);
             vectors = indexInput.readVInt();
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             this.centroid = centroid;

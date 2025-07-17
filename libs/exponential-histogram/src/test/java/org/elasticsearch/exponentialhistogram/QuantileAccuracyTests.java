@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notANumber;
 
 public class QuantileAccuracyTests extends ESTestCase {
 
-    public static final double[] QUANTILES_TO_TEST = { 0, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0 };
+    public static final double[] QUANTILES_TO_TEST = { 0, 0.0000001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999, 1.0 };
 
     public void testUniformDistribution() {
         testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(42), 0, 100), 50000, 500);

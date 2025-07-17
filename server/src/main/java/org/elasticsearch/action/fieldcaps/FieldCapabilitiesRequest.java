@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.CrossProjectRequest;
+import org.elasticsearch.CrossProjectEnabledRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -44,7 +44,7 @@ import java.util.Set;
 
 public final class FieldCapabilitiesRequest extends LegacyActionRequest
     implements
-        CrossProjectRequest,
+        CrossProjectEnabledRequest,
         IndicesRequest.Replaceable,
         ToXContentObject {
     public static final String NAME = "field_caps_request";
@@ -382,13 +382,12 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean alreadyQualified() {
+    public boolean crossProjectModeEnabled() {
         return qualifiedExpressions != null;
     }
 
     @Override
     public void qualified(List<QualifiedExpression> qualifiedExpressions) {
-        assert false == alreadyQualified();
         this.qualifiedExpressions = qualifiedExpressions;
         indices(
             qualifiedExpressions.stream()

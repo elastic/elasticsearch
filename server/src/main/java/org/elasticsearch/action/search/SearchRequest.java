@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.CrossProjectRequest;
+import org.elasticsearch.CrossProjectEnabledRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -56,7 +56,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SearchRequest extends LegacyActionRequest
     implements
-        CrossProjectRequest,
+        CrossProjectEnabledRequest,
         IndicesRequest.Replaceable,
         Rewriteable<SearchRequest> {
 
@@ -871,13 +871,12 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public boolean alreadyQualified() {
+    public boolean crossProjectModeEnabled() {
         return qualifiedExpressions != null;
     }
 
     @Override
     public void qualified(List<QualifiedExpression> qualifiedExpressions) {
-        assert false == alreadyQualified();
         this.qualifiedExpressions = qualifiedExpressions;
         indices(
             qualifiedExpressions.stream()

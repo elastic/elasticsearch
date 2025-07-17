@@ -41,7 +41,7 @@ public class WriteLoadPerShardSimulator {
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
-        float writeLoadForShard = writeLoadsPerShard.get(shardRouting.shardId());
+        final float writeLoadForShard = writeLoadsPerShard.get(shardRouting.shardId());
         if (writeLoadForShard > 0.0) {
             if (shardRouting.relocatingNodeId() != null) {
                 // relocating

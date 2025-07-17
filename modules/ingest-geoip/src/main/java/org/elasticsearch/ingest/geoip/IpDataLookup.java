@@ -9,6 +9,10 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.Reader;
+
+import org.elasticsearch.common.CheckedBiFunction;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +28,18 @@ interface IpDataLookup {
      */
     Map<String, Object> getData(IpDatabase ipDatabase, String ip) throws IOException;
 
+    default <RECORD extends GeoIpCache.Response> RECORD databaseLookup(
+        IpDatabase ipDatabase,
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RECORD, Exception> responseProvider
+    ) {
+        if (ipDatabase instanceof CacheingIpDatabase cacheingIpDatabase) {
+            return cacheingIpDatabase.getCacheableResponse(ipAddress, responseProvider);
+        } else {
+            return ipDatabase.getResponse(ipAddress, responseProvider);
+        }
+    }
+
     /**
      * @return the set of properties this lookup will provide
      */
@@ -34,5 +50,5 @@ interface IpDataLookup {
      * as a network for which the  record applies. Having a helper record prevents each individual response record from needing to
      * track these bits of information.
      */
-    record Result<T>(T result, String ip, String network) {}
+    record Result<T extends GeoIpCache.Response>(T result, String ip, String network) implements GeoIpCache.Response {}
 }

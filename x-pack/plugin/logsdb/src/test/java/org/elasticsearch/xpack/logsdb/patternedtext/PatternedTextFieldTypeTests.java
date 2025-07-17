@@ -42,13 +42,10 @@ import java.util.List;
 public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
-
-
-        var ft = new PatternedTextFieldType("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));
         assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")), ft.termQueryCaseInsensitive("fOo", null));
     }
-
 
     public void testTermsQuery() {
         MappedFieldType ft = new PatternedTextFieldType("field");

@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -63,7 +62,6 @@ public class PatternedTextFieldType extends StringFieldType {
 
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;
-    private final KeywordFieldMapper.KeywordFieldType templateIdFieldType;
 
     PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
         // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
@@ -71,7 +69,6 @@ public class PatternedTextFieldType extends StringFieldType {
         super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
-        this.templateIdFieldType = new KeywordFieldMapper.KeywordFieldType(templateIdFieldName(), false, true, Collections.emptyMap());
     }
 
     PatternedTextFieldType(String name) {

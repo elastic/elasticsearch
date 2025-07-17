@@ -228,40 +228,4 @@ public class ES91OSQVectorsScorer {
             );
         }
     }
-
-    // public void scoreThreeUpperBitBulk(
-    // byte[] q,
-    // int lowerBitQscoreEstimated,
-    // float queryLowerInterval,
-    // float queryUpperInterval,
-    // int queryComponentSum,
-    // float queryAdditionalCorrection,
-    // VectorSimilarityFunction similarityFunction,
-    // float centroidDp,
-    // float[] qScores,
-    // float[] scores
-    // ) throws IOException {
-    // quantizeScoreThreeUpperBitBulk(q, BULK_SIZE, qScores);
-    // in.readFloats(lowerIntervals, 0, BULK_SIZE);
-    // in.readFloats(upperIntervals, 0, BULK_SIZE);
-    // for (int i = 0; i < BULK_SIZE; i++) {
-    // targetComponentSums[i] = Short.toUnsignedInt(in.readShort());
-    // }
-    // in.readFloats(additionalCorrections, 0, BULK_SIZE);
-    // for (int i = 0; i < BULK_SIZE; i++) {
-    // scores[i] = score(
-    // queryLowerInterval,
-    // queryUpperInterval,
-    // queryComponentSum,
-    // queryAdditionalCorrection,
-    // similarityFunction,
-    // centroidDp,
-    // lowerIntervals[i],
-    // upperIntervals[i],
-    // targetComponentSums[i],
-    // additionalCorrections[i],
-    // qScores[i] + Math.min(lowerBitQscoreEstimated, targetComponentSums[i]) // add the lower bit score estimate
-    // );
-    // }
-    // }
 }

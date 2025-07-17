@@ -68,7 +68,7 @@ public class SageMakerService implements InferenceService {
         CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(modelBuilder, client, schemas, threadPool, configurationMap, Objects.requireNonNull(context.clusterService()));
+        this(modelBuilder, client, schemas, threadPool, configurationMap, context.clusterService());
     }
 
     public SageMakerService(
@@ -90,7 +90,7 @@ public class SageMakerService implements InferenceService {
                 .setConfigurations(configurationMap.get())
                 .build()
         );
-        this.clusterService = clusterService;
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     @Override

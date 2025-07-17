@@ -77,10 +77,12 @@ import static org.mockito.Mockito.mock;
 public class ModelRegistryIT extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
+    private ClusterService clusterService;
     private ModelRegistry modelRegistry;
 
     @Before
     public void createComponents() {
+        clusterService = node().injector().getInstance(ClusterService.class);
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         modelRegistry.clearDefaultIds();
     }
@@ -123,12 +125,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(modelHolder.get(), not(nullValue()));
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
-
         var elserService = new ElasticsearchInternalService(
             new InferenceServiceExtension.InferenceServiceFactoryContext(
                 mock(Client.class),
                 mock(ThreadPool.class),
-                mock(ClusterService.class),
+                clusterService,
                 Settings.EMPTY
             )
         );

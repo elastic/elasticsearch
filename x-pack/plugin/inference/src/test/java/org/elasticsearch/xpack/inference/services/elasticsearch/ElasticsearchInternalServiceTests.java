@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -89,6 +91,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1038,28 +1041,19 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assertTrue("Listener not called", gotResults.get());
     }
 
-    public void testChunkInfer_SparseWithNullChunkingSettings() throws InterruptedException {
+    public void testChunkInfer_SparseWithNullChunkingSettings() throws Exception {
         testChunkInfer_Sparse(null);
     }
 
-    public void testChunkInfer_SparseWithChunkingSettingsSet() throws InterruptedException {
+    public void testChunkInfer_SparseWithChunkingSettingsSet() throws Exception {
         testChunkInfer_Sparse(ChunkingSettingsTests.createRandomChunkingSettings());
     }
 
     @SuppressWarnings("unchecked")
-    private void testChunkInfer_Sparse(ChunkingSettings chunkingSettings) throws InterruptedException {
+    private void testChunkInfer_Sparse(ChunkingSettings chunkingSettings) throws Exception {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
         mlTrainedModelResults.add(TextExpansionResultsTests.createRandomResults());
         mlTrainedModelResults.add(TextExpansionResultsTests.createRandomResults());
-        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
-
-        Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
-        doAnswer(invocationOnMock -> {
-            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
-            return null;
-        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
         var model = new CustomElandModel(
             "foo",
@@ -1068,46 +1062,30 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             new ElasticsearchInternalServiceSettings(1, 1, "model-id", null, null),
             chunkingSettings
         );
-        var service = createService(client);
 
-        var gotResults = new AtomicBoolean();
-
-        var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
-            assertThat(chunkedResponse, hasSize(2));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
-            var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
-            assertEquals(
-                ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
-            );
-            assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
-            var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
-            assertEquals(
-                ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
-            );
-            assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
-            gotResults.set(true);
-        }, ESTestCase::fail);
-
-        var latch = new CountDownLatch(1);
-        var latchedListener = new LatchedActionListener<>(resultsListener, latch);
-
-        service.chunkedInfer(
+        var chunkedResponse = chunkedInferWithFailures(
             model,
-            null,
             List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
-            Map.of(),
-            InputType.SEARCH,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            latchedListener
+            mlTrainedModelResults
         );
 
-        latch.await();
-        assertTrue("Listener not called", gotResults.get());
+        assertThat(chunkedResponse, hasSize(2));
+        assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
+        var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
+        assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
+        assertEquals(
+            ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
+            ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
+        );
+        assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
+        assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
+        var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
+        assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
+        assertEquals(
+            ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
+            ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
+        );
+        assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
     }
 
     public void testChunkInfer_ElserWithNullChunkingSettings() throws InterruptedException {
@@ -1806,9 +1784,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     }
 
     public void testUpdateWithoutMlEnabled() throws IOException, InterruptedException {
-        var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
-        when(cs.getClusterSettings()).thenReturn(cSettings);
+        var cs = createClusterService();
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
             mock(),
             threadPool,
@@ -1848,9 +1824,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
         when(client.threadPool()).thenReturn(threadPool);
 
-        var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
-        when(cs.getClusterSettings()).thenReturn(cSettings);
+        var cs = createClusterService();
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
             client,
             threadPool,
@@ -1911,11 +1885,64 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private List<ChunkedInference> chunkedInferWithFailures(
+        Model model,
+        List<ChunkInferenceInput> inputs,
+        List<InferenceResults> finalResults
+    ) throws Exception {
+        var response = new InferModelAction.Response(finalResults, "foo", true);
+
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        AtomicInteger retryCount = new AtomicInteger();
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            int count = retryCount.incrementAndGet();
+            if (count < 2) {
+                listener.onFailure(new Exception("boom"));
+            } else if (count < 3) {
+                listener.onResponse(replaceWithFailures(response));
+            } else {
+                listener.onResponse(response);
+            }
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        try (var service = createService(client)) {
+            var actualResponse = new AtomicReference<List<ChunkedInference>>();
+            var resultsListener = ActionListener.<List<ChunkedInference>>wrap(
+                chunkedResponse -> { actualResponse.set(chunkedResponse); },
+                ESTestCase::fail
+            );
+
+            var latch = new CountDownLatch(1);
+            var latchedListener = new LatchedActionListener<>(resultsListener, latch);
+
+            service.chunkedInfer(model, null, inputs, Map.of(), InputType.SEARCH, InferenceAction.Request.DEFAULT_TIMEOUT, latchedListener);
+
+            latch.await();
+            assertNotNull("Listener not called", actualResponse.get());
+            return actualResponse.get();
+        }
+    }
+
+    private InferModelAction.Response replaceWithFailures(InferModelAction.Response current) {
+        List<InferenceResults> newResults = new ArrayList<>();
+        for (var result : current.getInferenceResults()) {
+            if (result instanceof ErrorInferenceResults) {
+                newResults.add(result);
+            } else {
+                newResults.add(new ErrorInferenceResults(new Exception("boom")));
+            }
+        }
+        return new InferModelAction.Response(newResults, "foo", true);
+    }
+
     private ElasticsearchInternalService createService(Client client) {
-        var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
-        when(cs.getClusterSettings()).thenReturn(cSettings);
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY);
+        var cs = createClusterService();
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, cs.getSettings());
         return new ElasticsearchInternalService(context);
     }
 
@@ -1923,9 +1950,24 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
             client,
             threadPool,
-            mock(ClusterService.class),
+            createClusterService(),
             Settings.EMPTY
         );
         return new ElasticsearchInternalService(context, l -> l.onResponse(modelVariant));
+    }
+
+    private static ClusterService createClusterService() {
+        Set<Setting<?>> addSettings = new HashSet<>(RetrySettings.getSettingsDefinitions());
+        addSettings.add(MachineLearningField.MAX_LAZY_ML_NODES);
+        var cs = mock(ClusterService.class);
+
+        var settings = Settings.builder()
+            .put(RetrySettings.RETRY_INITIAL_DELAY_SETTING.getKey(), "1ms")
+            .put(RetrySettings.RETRY_TIMEOUT_SETTING.getKey(), "100ms")
+            .build();
+        when(cs.getSettings()).thenReturn(settings);
+        var cSettings = new ClusterSettings(settings, addSettings);
+        when(cs.getClusterSettings()).thenReturn(cSettings);
+        return cs;
     }
 }

@@ -16,8 +16,10 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+
   testImplementation testArtifact(project(':server'))
   testImplementation testArtifact(project(xpackModule('core')))
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 
   internalClusterTestImplementation project(':modules:data-streams')
   internalClusterTestImplementation project(xpackModule('blob-cache'))
@@ -25,8 +27,6 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('ilm'))
   internalClusterTestImplementation project(xpackModule('slm'))
   internalClusterTestImplementation project(xpackModule('ccr'))
-
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 restResources {

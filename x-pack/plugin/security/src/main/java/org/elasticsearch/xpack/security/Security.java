@@ -2404,15 +2404,12 @@ public class Security extends Plugin
             Authentication authentication = this.securityContext.get().getAuthentication();
             Map<String, String> authContext = new HashMap<>();
 
-            // Handle Cross-Cluster Access (RCS 2.0) scenario
             if (authentication.isCrossClusterAccess()) {
                 Authentication originalAuthentication = Authentication.getAuthenticationFromCrossClusterAccessMetadata(authentication);
-                // Call the helper method for the originalAuthentication (from querying cluster)
+                // For RCS 2.0, we log the user from the querying cluster
                 populateAuthContextMap(originalAuthentication, authContext);
             }
-            // Logic for obtaining non-cross-cluster access authentication information
             else {
-                // Call the helper method for the authentication itself
                 populateAuthContextMap(authentication, authContext);
             }
             return authContext;
@@ -2442,7 +2439,7 @@ public class Security extends Plugin
         }
 
         // Only include effective user if different from authenticating user (run-as)
-        if (auth.isRunAs()) { // Use auth.isRunAs() for consistency
+        if (auth.isRunAs()) {
             if (effectiveSubject.getUser() != null) {
                 authContext.put("user.effective.name", effectiveSubject.getUser().principal());
                 authContext.put("user.effective.realm", effectiveSubject.getRealm().getName());
@@ -2452,17 +2449,13 @@ public class Security extends Plugin
             }
         }
 
-        // Auth type
         authContext.put("auth.type", auth.getAuthenticationType().name());
 
-        // Add API key details if this authentication was an API key itself
         if (auth.isApiKey()) {
-            // These metadata fields are expected to be on the authenticating subject of the API key
-            // Use Objects.toString() for safety against null metadata values if not strictly guaranteed
             authContext.put("apikey.id", Objects.toString(authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY)));
 
             Object apiKeyName = authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
-            if (apiKeyName != null) { // Name can be null for API keys, so check explicitly
+            if (apiKeyName != null) {
                 authContext.put("apikey.name", apiKeyName.toString());
             }
         }

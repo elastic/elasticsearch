@@ -225,7 +225,7 @@ public class IndexResolver {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias);
+            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
         }
         if (type == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);

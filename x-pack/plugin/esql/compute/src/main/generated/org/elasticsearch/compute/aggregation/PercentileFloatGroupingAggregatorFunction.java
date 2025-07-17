@@ -219,16 +219,6 @@ public final class PercentileFloatGroupingAggregatorFunction implements Grouping
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    QuantileStates.GroupingState inState = ((PercentileFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    PercentileFloatAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     state.toIntermediate(blocks, offset, selected, driverContext);
   }

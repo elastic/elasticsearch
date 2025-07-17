@@ -542,6 +542,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#enrichPolicyName}.
+   * @param ctx the parse tree
+   */
+  void enterEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#enrichPolicyName}.
+   * @param ctx the parse tree
+   */
+  void exitEnrichPolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#enrichWithClause}.
    * @param ctx the parse tree
    */
@@ -562,26 +572,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSampleCommand(EsqlBaseParser.SampleCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
-   * @param ctx the parse tree
-   */
-  void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
-   * @param ctx the parse tree
-   */
-  void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   */
-  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   */
-  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
    * @param ctx the parse tree
    */
@@ -591,16 +581,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   */
-  void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   */
-  void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#forkCommand}.
    * @param ctx the parse tree
@@ -666,15 +646,45 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#rrfCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#completionCommand}.
    * @param ctx the parse tree
    */
-  void enterRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#rrfCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
    * @param ctx the parse tree
    */
-  void exitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
+   * @param ctx the parse tree
+   */
+  void enterInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
+   * @param ctx the parse tree
+   */
+  void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
    * @param ctx the parse tree
@@ -725,16 +735,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#completionCommand}.
-   * @param ctx the parse tree
-   */
-  void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
-   * @param ctx the parse tree
-   */
-  void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -855,6 +855,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code rlikeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code rlikeListExpression}
+   * labeled alternative in {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#matchBooleanExpression}.
    * @param ctx the parse tree

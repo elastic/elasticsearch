@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Aggregates field values for float.
@@ -47,34 +49,19 @@ class ValuesFloatAggregator {
         return state.toBlock(driverContext.blockFactory());
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext);
     }
 
     public static void combine(GroupingState state, int groupId, float v) {
-        /*
-         * Encode the groupId and value into a single long -
-         * the top 32 bits for the group, the bottom 32 for the value.
-         */
-        state.values.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
+        state.addValue(groupId, v);
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, FloatBlock values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getFloat(i));
-        }
-    }
-
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        for (int id = 0; id < state.values.size(); id++) {
-            long both = state.values.get(id);
-            int group = (int) (both >>> Float.SIZE);
-            if (group == statePosition) {
-                float value = Float.intBitsToFloat((int) both);
-                combine(current, currentGroupId, value);
-            }
+            state.addValue(groupId, values.getFloat(i));
         }
     }
 
@@ -118,6 +105,20 @@ class ValuesFloatAggregator {
     }
 
     /**
+     * Values are collected in a hash. Iterating over them in order (row by row) to build the output,
+     * or merging with other state, can be expensive. To optimize this, we build a sorted structure once,
+     * and then use it to iterate over the values in order.
+     *
+     * @param ids positions of the {@link GroupingState#values} to read.
+     */
+    private record Sorted(Releasable releasable, int[] counts, int[] ids) implements Releasable {
+        @Override
+        public void close() {
+            releasable.close();
+        }
+    }
+
+    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over the performance of rendering
      * results. That's good, but it's a pretty intensive emphasis, requiring
@@ -125,15 +126,27 @@ class ValuesFloatAggregator {
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
+        private int maxGroupId = -1;
+        private final BlockFactory blockFactory;
         private final LongHash values;
 
-        private GroupingState(BigArrays bigArrays) {
-            values = new LongHash(1, bigArrays);
+        private GroupingState(DriverContext driverContext) {
+            this.blockFactory = driverContext.blockFactory();
+            values = new LongHash(1, driverContext.bigArrays());
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+        }
+
+        void addValue(int groupId, float v) {
+            /*
+             * Encode the groupId and value into a single long -
+             * the top 32 bits for the group, the bottom 32 for the value.
+             */
+            values.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
+            maxGroupId = Math.max(maxGroupId, groupId);
         }
 
         /**
@@ -145,8 +158,15 @@ class ValuesFloatAggregator {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
 
+            try (var sorted = buildSorted(selected)) {
+                return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
+            }
+        }
+
+        private Sorted buildSorted(IntVector selected) {
             long selectedCountsSize = 0;
             long idsSize = 0;
+            Sorted sorted = null;
             try {
                 /*
                  * Get a count of all groups less than the maximum selected group. Count
@@ -225,9 +245,13 @@ class ValuesFloatAggregator {
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-                return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
+                final long totalMemoryUsed = selectedCountsSize + idsSize;
+                sorted = new Sorted(() -> blockFactory.adjustBreaker(-totalMemoryUsed), selectedCounts, ids);
+                return sorted;
             } finally {
-                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                if (sorted == null) {
+                    blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                }
             }
         }
 
@@ -243,11 +267,11 @@ class ValuesFloatAggregator {
                     int count = end - start;
                     switch (count) {
                         case 0 -> builder.appendNull();
-                        case 1 -> append(builder, ids[start]);
+                        case 1 -> builder.appendFloat(getValue(ids[start]));
                         default -> {
                             builder.beginPositionEntry();
                             for (int i = start; i < end; i++) {
-                                append(builder, ids[i]);
+                                builder.appendFloat(getValue(ids[i]));
                             }
                             builder.endPositionEntry();
                         }
@@ -258,10 +282,9 @@ class ValuesFloatAggregator {
             }
         }
 
-        private void append(FloatBlock.Builder builder, int id) {
-            long both = values.get(id);
-            float value = Float.intBitsToFloat((int) both);
-            builder.appendFloat(value);
+        float getValue(int valueId) {
+            long both = values.get(valueId);
+            return Float.intBitsToFloat((int) both);
         }
 
         @Override
@@ -271,7 +294,7 @@ class ValuesFloatAggregator {
 
         @Override
         public void close() {
-            values.close();
+            Releasables.closeExpectNoException(values);
         }
     }
 }

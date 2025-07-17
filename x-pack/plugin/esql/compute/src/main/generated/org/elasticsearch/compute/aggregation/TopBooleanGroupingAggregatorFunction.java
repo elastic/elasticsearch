@@ -62,7 +62,7 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     BooleanVector valuesVector = valuesBlock.asVector();
@@ -115,16 +115,13 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -150,16 +147,13 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -185,10 +179,10 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
+      int groupId = groups.getInt(groupPosition);
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
@@ -222,16 +216,6 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       TopBooleanAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    TopBooleanAggregator.GroupingState inState = ((TopBooleanGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    TopBooleanAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

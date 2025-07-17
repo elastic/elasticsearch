@@ -21,3 +21,4 @@ This reference section provides detailed technical information about {{esql}} fe
 * [Types and fields](esql/esql-types-and-fields.md): Learn about how {{esql}} handles different data types and special fields
 * [Limitations](esql/limitations.md): Learn about the current limitations of {{esql}}
 * [Examples](esql/esql-examples.md): Explore some example queries
+* [Troubleshooting](esql/esql-troubleshooting.md): Learn how to diagnose and resolve issues with {{esql}}

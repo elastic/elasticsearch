@@ -10,7 +10,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -23,8 +23,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
-public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation> extends
-    InternalAggregationTestCase<T> {
+public abstract class SingleBucketAggregationTestCase<T extends SingleBucketAggregation> extends InternalAggregationTestCase<T> {
 
     private boolean hasInternalMax;
     private boolean hasInternalMin;
@@ -88,7 +87,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
 
     @Override
     protected final void assertReduced(T reduced, List<T> inputs) {
-        assertEquals(inputs.stream().mapToLong(InternalSingleBucketAggregation::getDocCount).sum(), reduced.getDocCount());
+        assertEquals(inputs.stream().mapToLong(SingleBucketAggregation::getDocCount).sum(), reduced.getDocCount());
         if (hasInternalMax) {
             double expected = inputs.stream().mapToDouble(i -> {
                 Max max = i.getAggregations().get("max");

@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -154,14 +155,14 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 StringTerms result = searchAndReduce(indexReader, new AggTestConfig(request, withJoinFields(longField("number"), kwd)));
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
-                InternalChildren evenChildren = evenBucket.getAggregations().get("children");
+                SingleBucketAggregation evenChildren = evenBucket.getAggregations().get("children");
                 Min evenMin = evenChildren.getAggregations().get("min");
                 assertThat(evenChildren.getDocCount(), equalTo(expectedEvenChildCount));
                 assertThat(evenMin.value(), equalTo(expectedEvenMin));
 
                 if (expectedOddChildCount > 0) {
                     StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
-                    InternalChildren oddChildren = oddBucket.getAggregations().get("children");
+                    SingleBucketAggregation oddChildren = oddBucket.getAggregations().get("children");
                     Min oddMin = oddChildren.getAggregations().get("min");
                     assertThat(oddChildren.getDocCount(), equalTo(expectedOddChildCount));
                     assertThat(oddMin.value(), equalTo(expectedOddMin));
@@ -224,7 +225,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
-                    InternalChildren result = searchAndReduce(
+                    SingleBucketAggregation result = searchAndReduce(
                         indexReader,
                         new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(
                             new TermQuery(new Term("join_field", "parent_type"))
@@ -291,13 +292,13 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
-    private void testCase(Query query, IndexReader indexReader, Consumer<InternalChildren> verify) throws IOException {
+    private void testCase(Query query, IndexReader indexReader, Consumer<SingleBucketAggregation> verify) throws IOException {
 
         ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(
+        SingleBucketAggregation result = searchAndReduce(
             indexReader,
             new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
         );

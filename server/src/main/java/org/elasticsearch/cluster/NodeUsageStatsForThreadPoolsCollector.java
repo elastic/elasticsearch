@@ -23,9 +23,6 @@ import java.util.Map;
  * Results are returned as a map of node ID to node usage stats.
  */
 public class NodeUsageStatsForThreadPoolsCollector {
-    /**
-     * This will be used when there is no NodeUsageStatsForThreadPoolsCollector available.
-     */
     public static final NodeUsageStatsForThreadPoolsCollector EMPTY = new NodeUsageStatsForThreadPoolsCollector() {
         public void collectUsageStats(
             Client client,

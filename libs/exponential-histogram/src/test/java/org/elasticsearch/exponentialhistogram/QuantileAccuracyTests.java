@@ -27,6 +27,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notANumber;
 
@@ -66,6 +67,13 @@ public class QuantileAccuracyTests extends ESTestCase {
         DoubleStream values = IntStream.range(1, 10).mapToDouble(Double::valueOf);
         double maxError = testQuantileAccuracy(values.toArray(), 100);
         assertThat(maxError, lessThan(0.000001));
+    }
+
+    public void testPercentileOverlapsZeroBucket() {
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-1, 0, 1);
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 0.5), equalTo(0.0));
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 0.375), closeTo(-0.5, 0.000001));
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 0.625), closeTo(0.5, 0.000001));
     }
 
     public void testBigJump() {

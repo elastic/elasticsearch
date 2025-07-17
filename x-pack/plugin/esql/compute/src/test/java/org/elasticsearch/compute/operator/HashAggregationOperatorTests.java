@@ -277,7 +277,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
 
             return new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, false, 3))),
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
                 mode,
                 List.of(
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),

@@ -2,6 +2,17 @@ This library provides an implementation of merging and analysis algorithms for e
 
 ## Overview
 
+The library implements base-2 exponential histograms with perfect subsetting. The most imporant properties are:
+
+* The histogram has a scale parameter, which defines the accuracy. A higher scale implies a higher accuracy.
+* The `base` for the buckets is defined as `base = 2^(2^-scale)`.
+* The histogram bucket at index `i` has the range `(base^i, base^(i+1)]`
+* Negative values are represented by a separate negative range of buckets with the boundaries `(-base^(i+1), -base^i]`
+* Histograms are perfectly subsetting: increasing the scale by one merges each pair of neighboring buckets
+* A special zero bucket with a zero-threshold is used to handle zero and close-to-zero values
+
+For more details please refer to the [OpenTelemetry definition](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram).
+
 The library implements a sparse storage approach where only populated buckets consume memory and count towards the bucket limit. This differs from the OpenTelemetry implementation, which uses dense storage. While dense storage allows for O(1) time insertion of individual values, our sparse representation requires O(log m) time where m is the bucket capacity. However, the sparse representation enables more efficient storage and provides a simple merging algorithm with runtime linear in the number of populated buckets. Additionally, this library also provides an array-backed sparse storage, ensuring cache efficiency.
 
 The sparse storage approach offers significant advantages for distributions with fewer distinct values than the bucket count, allowing the library to achieve representation of such distributions with an error so small that it won't be noticed in practice. This makes it suitable not only for exponential histograms but also as a universal solution for handling explicit bucket histograms.

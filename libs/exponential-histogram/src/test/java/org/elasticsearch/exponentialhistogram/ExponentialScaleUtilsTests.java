@@ -25,7 +25,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.SCALE_UP_CONSTANT_TABLE;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareLowerBoundaries;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareExponentiallyScaledValues;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getLowerBucketBoundary;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
@@ -109,17 +109,19 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
         for (int i = 0; i < 100_000; i++) {
             long index = rnd.nextLong(MAX_INDEX);
             int currentScale = rnd.nextInt(MIN_SCALE, MAX_SCALE);
-            int maxAdjustment = getMaximumScaleIncrease(index);
+            int maxAdjustment = Math.min(MAX_SCALE - currentScale, getMaximumScaleIncrease(index));
 
             assertThat(
                 adjustScale(adjustScale(index, currentScale, maxAdjustment), currentScale + maxAdjustment, -maxAdjustment),
                 equalTo(index)
             );
-            if (index > 0) {
-                assertThat(adjustScale(index, currentScale, maxAdjustment) * 2, greaterThan(MAX_INDEX));
-            } else {
-                assertThat(adjustScale(index, currentScale, maxAdjustment) * 2, lessThan(MIN_INDEX));
+            if (currentScale + maxAdjustment < MAX_SCALE) {
+                if (index > 0) {
+                    assertThat(adjustScale(index, currentScale, maxAdjustment) * 2, greaterThan(MAX_INDEX));
+                } else if (index < 0) {
+                    assertThat(adjustScale(index, currentScale, maxAdjustment) * 2, lessThan(MIN_INDEX));
 
+                }
             }
         }
 
@@ -129,10 +131,10 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
         Random rnd = new Random(42);
 
         for (int i = 0; i < 100_000; i++) {
-            long indexA = rnd.nextLong() % MAX_INDEX;
-            long indexB = rnd.nextLong() % MAX_INDEX;
-            int scaleA = rnd.nextInt() % MAX_SCALE;
-            int scaleB = rnd.nextInt() % MAX_SCALE;
+            long indexA = rnd.nextLong(MIN_INDEX, MAX_INDEX + 1);
+            long indexB = rnd.nextLong(MIN_INDEX, MAX_INDEX + 1);
+            int scaleA = rnd.nextInt(MIN_SCALE, MAX_SCALE + 1);
+            int scaleB = rnd.nextInt(MIN_SCALE, MAX_SCALE + 1);
 
             double lowerBoundA = getLowerBucketBoundary(indexA, scaleA);
             while (Double.isInfinite(lowerBoundA)) {
@@ -146,7 +148,10 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
             }
 
             if (lowerBoundA != lowerBoundB) {
-                assertThat(Double.compare(lowerBoundA, lowerBoundB), equalTo(compareLowerBoundaries(indexA, scaleA, indexB, scaleB)));
+                assertThat(
+                    Double.compare(lowerBoundA, lowerBoundB),
+                    equalTo(compareExponentiallyScaledValues(indexA, scaleA, indexB, scaleB))
+                );
             }
         }
     }

@@ -38,10 +38,14 @@ public class ExponentialHistogramMerger {
     }
 
     // Only intended for testing, using this in production means an unnecessary reduction of precision
-    ExponentialHistogramMerger(int resultBucketCount, int minScale) {
-        this(resultBucketCount);
+    private ExponentialHistogramMerger(int bucketLimit, int minScale) {
+        this(bucketLimit);
         result.resetBuckets(minScale);
         buffer.resetBuckets(minScale);
+    }
+
+    static ExponentialHistogramMerger createForTesting(int bucketLimit, int minScale) {
+        return new ExponentialHistogramMerger(bucketLimit, minScale);
     }
 
     /**
@@ -54,22 +58,15 @@ public class ExponentialHistogramMerger {
         if (isFinished) {
             throw new IllegalStateException("get() has already been called");
         }
-        merge(buffer, result, toAdd);
-        FixedCapacityExponentialHistogram temp = result;
-        result = buffer;
-        buffer = temp;
+        doMerge(toAdd);
     }
 
     /**
      * Returns the merged histogram.
-     * Must not be called multiple times.
      *
      * @return the merged histogram
      */
     public ExponentialHistogram get() {
-        if (isFinished) {
-            throw new IllegalStateException("get() has already been called");
-        }
         isFinished = true;
         return result;
     }
@@ -80,7 +77,10 @@ public class ExponentialHistogramMerger {
     // then in O(log(b)) turn them into a single, merged histogram
     // (b is the number of buffered buckets)
 
-    private void merge(FixedCapacityExponentialHistogram output, ExponentialHistogram a, ExponentialHistogram b) {
+    private void doMerge(ExponentialHistogram b) {
+
+        ExponentialHistogram a = result;
+
         ExponentialHistogram.CopyableBucketIterator posBucketsA = a.positiveBuckets();
         ExponentialHistogram.CopyableBucketIterator negBucketsA = a.negativeBuckets();
         ExponentialHistogram.CopyableBucketIterator posBucketsB = b.positiveBuckets();
@@ -89,7 +89,7 @@ public class ExponentialHistogramMerger {
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
         zeroBucket = zeroBucket.collapseOverlappingBuckets(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
-        output.setZeroBucket(zeroBucket);
+        buffer.setZeroBucket(zeroBucket);
 
         // We attempt to bring everything to the scale of A.
         // This might involve increasing the scale for B, which would increase its indices.
@@ -117,25 +117,28 @@ public class ExponentialHistogramMerger {
         MergingBucketIterator positiveMerged = new MergingBucketIterator(posBucketsA.copy(), posBucketsB.copy(), targetScale);
         MergingBucketIterator negativeMerged = new MergingBucketIterator(negBucketsA.copy(), negBucketsB.copy(), targetScale);
 
-        output.resetBuckets(targetScale);
+        buffer.resetBuckets(targetScale);
         downscaleStats.reset();
-        int overflowCount = putBuckets(output, negativeMerged, false, downscaleStats);
-        overflowCount += putBuckets(output, positiveMerged, true, downscaleStats);
+        int overflowCount = putBuckets(buffer, negativeMerged, false, downscaleStats);
+        overflowCount += putBuckets(buffer, positiveMerged, true, downscaleStats);
 
         if (overflowCount > 0) {
             // UDD-sketch approach: decrease the scale and retry.
             int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
             targetScale -= reduction;
-            output.resetBuckets(targetScale);
+            buffer.resetBuckets(targetScale);
             positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale);
             negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale);
-            overflowCount = putBuckets(output, negativeMerged, false, null);
-            overflowCount += putBuckets(output, positiveMerged, true, null);
+            overflowCount = putBuckets(buffer, negativeMerged, false, null);
+            overflowCount += putBuckets(buffer, positiveMerged, true, null);
 
             if (overflowCount > 0) {
                 throw new IllegalStateException("Should never happen, the histogram should have had enough space");
             }
         }
+        FixedCapacityExponentialHistogram temp = result;
+        result = buffer;
+        buffer = temp;
     }
 
     private static int putBuckets(

@@ -83,7 +83,11 @@ public class ExponentialHistogramGenerator {
      * @return a new {@link ExponentialHistogram}
      */
     public static ExponentialHistogram createFor(double... values) {
-        return createFor(values.length, Arrays.stream(values));
+        ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(values.length);
+        for (double val : values) {
+            generator.add(val);
+        }
+        return generator.get();
     }
 
     /**

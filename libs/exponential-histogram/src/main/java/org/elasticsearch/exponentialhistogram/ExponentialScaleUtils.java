@@ -11,6 +11,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
 
@@ -92,6 +93,13 @@ public class ExponentialScaleUtils {
      * @return the index of the bucket in the new scale
      */
     static long adjustScale(long index, int currentScale, int scaleAdjustment) {
+        checkIndexAndScaleBounds(index, currentScale);
+
+        int newScale = currentScale + scaleAdjustment;
+        if (newScale < MIN_SCALE || newScale > MAX_SCALE) {
+            throw new IllegalArgumentException("adjusted scale must be in the range [" + MIN_SCALE + "..." + MAX_SCALE + "]");
+        }
+
         if (scaleAdjustment <= 0) {
             return index >> -scaleAdjustment;
         } else {
@@ -116,6 +124,7 @@ public class ExponentialScaleUtils {
     /**
      * Compares the lower boundaries of two buckets, which may have different scales.
      * This is equivalent to a mathematically correct comparison of the lower bucket boundaries.
+     * Note that this method allows for scales and indices of the full numeric range of the types.
      *
      * @param idxA           the index of the first bucket
      * @param scaleA         the scale of the first bucket
@@ -123,13 +132,13 @@ public class ExponentialScaleUtils {
      * @param scaleB         the scale of the second bucket
      * @return a negative integer, zero, or a positive integer as the first bucket's lower boundary is less than, equal to, or greater than the second bucket's lower boundary
      */
-    public static int compareLowerBoundaries(long idxA, int scaleA, long idxB, int scaleB) {
+    public static int compareExponentiallyScaledValues(long idxA, int scaleA, long idxB, int scaleB) {
         if (scaleA > scaleB) {
-            return -compareLowerBoundaries(idxB, scaleB, idxA, scaleA);
+            return -compareExponentiallyScaledValues(idxB, scaleB, idxA, scaleA);
         }
         // scaleA <= scaleB
         int shifts = scaleB - scaleA;
-        int maxScaleAdjustment = getMaximumScaleIncrease(idxA);
+        int maxScaleAdjustment = getMaximumScaleIncreaseIgnoringIndexLimits(idxA);
         if (maxScaleAdjustment < shifts) {
             // We would overflow if we adjusted A to the scale of B.
             // If A is negative, scaling would produce a number less than Long.MIN_VALUE, so it is smaller than B.
@@ -154,9 +163,11 @@ public class ExponentialScaleUtils {
      * @return the maximum permissible scale increase
      */
     public static int getMaximumScaleIncrease(long index) {
-        if (index < MIN_INDEX || index > MAX_INDEX) {
-            throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
-        }
+        checkIndexBounds(index);
+        return getMaximumScaleIncreaseIgnoringIndexLimits(index);
+    }
+
+    private static int getMaximumScaleIncreaseIgnoringIndexLimits(long index) {
         if (index < 0) {
             index = ~index;
         }
@@ -171,17 +182,27 @@ public class ExponentialScaleUtils {
      * @return the upper boundary of the bucket
      */
     public static double getUpperBucketBoundary(long index, int scale) {
-        return getLowerBucketBoundary(index + 1, scale);
+        checkIndexAndScaleBounds(index, scale);
+        return exponentiallyScaledToDoubleValue(index + 1, scale);
     }
 
     /**
      * Returns the lower boundary of the bucket with the given index and scale.
      *
-     * @param index the index of the bucket
+     * @param index the index of the bucket in the [{@link ExponentialHistogram#MIN_INDEX}, {@link ExponentialHistogram#MAX_INDEX}] range.
      * @param scale the scale of the bucket
      * @return the lower boundary of the bucket
      */
     public static double getLowerBucketBoundary(long index, int scale) {
+        checkIndexAndScaleBounds(index, scale);
+        return exponentiallyScaledToDoubleValue(index, scale);
+    }
+
+    /**
+     * Computes (2^2^(-scale))^index,
+     * allowing also indices outside of the [{@link ExponentialHistogram#MIN_INDEX}, {@link ExponentialHistogram#MAX_INDEX}] range.
+     */
+    static double exponentiallyScaledToDoubleValue(long index, int scale) {
         double inverseFactor = Math.scalb(LN_2, -scale);
         return Math.exp(inverseFactor * index);
     }
@@ -198,6 +219,7 @@ public class ExponentialScaleUtils {
      * @return the point of least relative error
      */
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
+        checkIndexAndScaleBounds(bucketIndex, scale);
         double upperBound = getUpperBucketBoundary(bucketIndex, scale);
         double histogramBase = Math.pow(2, Math.scalb(1, -scale));
         return 2 / (histogramBase + 1) * upperBound;
@@ -211,7 +233,25 @@ public class ExponentialScaleUtils {
      * @return the index of the bucket
      */
     public static long computeIndex(double value, int scale) {
+        checkScaleBounds(scale);
         return Indexing.computeIndex(value, scale);
+    }
+
+    private static void checkIndexAndScaleBounds(long index, int scale) {
+        checkIndexBounds(index);
+        checkScaleBounds(scale);
+    }
+
+    private static void checkScaleBounds(int scale) {
+        if (scale < MIN_SCALE || scale > MAX_SCALE) {
+            throw new IllegalArgumentException("scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]");
+        }
+    }
+
+    private static void checkIndexBounds(long index) {
+        if (index < MIN_INDEX || index > MAX_INDEX) {
+            throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
+        }
     }
 
     /**
@@ -265,7 +305,6 @@ public class ExponentialScaleUtils {
          *     Scales: Use the Logarithm Function</a>
          */
         private static long getIndexByLogarithm(double value, int scale) {
-            double scaleFactor = Math.scalb(LOG_BASE2_E, scale);
             return (long) Math.ceil(Math.scalb(Math.log(value) * LOG_BASE2_E, scale)) - 1;
         }
 

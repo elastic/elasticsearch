@@ -12,9 +12,9 @@ package org.elasticsearch.exponentialhistogram;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareLowerBoundaries;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareExponentiallyScaledValues;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getLowerBucketBoundary;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.exponentiallyScaledToDoubleValue;
 
 /**
  * Represents the bucket for values around zero in an exponential histogram.
@@ -110,14 +110,14 @@ public record ZeroBucket(long index, int scale, long count) {
      * @return A negative integer, zero, or a positive integer if this bucket's threshold is less than, equal to, or greater than the other's.
      */
     public int compareZeroThreshold(ZeroBucket other) {
-        return compareLowerBoundaries(index, scale, other.index, other.scale);
+        return compareExponentiallyScaledValues(index, scale, other.index, other.scale);
     }
 
     /**
      * @return The value of the zero threshold.
      */
     public double zeroThreshold() {
-        return getLowerBucketBoundary(index, scale);
+        return exponentiallyScaledToDoubleValue(index, scale);
     }
 
     /**
@@ -131,7 +131,7 @@ public record ZeroBucket(long index, int scale, long count) {
 
         long collapsedCount = 0;
         long highestCollapsedIndex = 0;
-        while (buckets.hasNext() && compareLowerBoundaries(buckets.peekIndex(), buckets.scale(), index, scale) < 0) {
+        while (buckets.hasNext() && compareExponentiallyScaledValues(buckets.peekIndex(), buckets.scale(), index, scale) < 0) {
             highestCollapsedIndex = buckets.peekIndex();
             collapsedCount += buckets.peekCount();
             buckets.advance();
@@ -141,8 +141,8 @@ public record ZeroBucket(long index, int scale, long count) {
         } else {
             long newZeroCount = count + collapsedCount;
             // +1 because we need to adjust the zero threshold to the upper boundary of the collapsed bucket
-            long collapsedUpperBoundIndex = Math.addExact(highestCollapsedIndex, 1);
-            if (compareLowerBoundaries(index, scale, collapsedUpperBoundIndex, buckets.scale()) >= 0) {
+            long collapsedUpperBoundIndex = highestCollapsedIndex + 1;
+            if (compareExponentiallyScaledValues(index, scale, collapsedUpperBoundIndex, buckets.scale()) >= 0) {
                 // Our current zero-threshold is larger than the upper boundary of the largest collapsed bucket, so we keep it.
                 return new ZeroBucket(index, scale, newZeroCount);
             } else {

@@ -11,6 +11,10 @@ package org.elasticsearch.exponentialhistogram;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
+
 /**
  * A data structure for efficiently computing the required scale reduction for a histogram to reach a target number of buckets.
  * This works by examining pairs of neighboring buckets and determining at which scale reduction they would merge into a single bucket.
@@ -19,7 +23,7 @@ class DownscaleStats {
 
     // collapsedBucketCount[i] stores the number of additional
     // collapsed buckets when increasing the scale by (i+1) instead of just by (i)
-    int[] collapsedBucketCount = new int[63];
+    int[] collapsedBucketCount = new int[MAX_INDEX_BITS];
 
     /**
      * Resets the data structure to its initial state.
@@ -31,6 +35,12 @@ class DownscaleStats {
     void add(long previousBucketIndex, long currentBucketIndex) {
         if (currentBucketIndex <= previousBucketIndex) {
             throw new IllegalArgumentException("currentBucketIndex must be greater than previousBucketIndex");
+        }
+        if (currentBucketIndex < MIN_INDEX || currentBucketIndex > MAX_INDEX) {
+            throw new IllegalArgumentException("currentBucketIndex must be in the range [" + MIN_INDEX + "..." + MAX_INDEX + "]");
+        }
+        if (previousBucketIndex < MIN_INDEX || previousBucketIndex > MAX_INDEX) {
+            throw new IllegalArgumentException("previousBucketIndex must be in the range [" + MIN_INDEX + "..." + MAX_INDEX + "]");
         }
         /*
          * Below is an efficient variant of the following algorithm:
@@ -44,12 +54,12 @@ class DownscaleStats {
          */
         long bitXor = previousBucketIndex ^ currentBucketIndex;
         int numEqualLeadingBits = Long.numberOfLeadingZeros(bitXor);
-        if (numEqualLeadingBits == 0) {
-            // right-shifting will never make the buckets combine, because one is positive and the other is negative
-            return;
+        // if there are zero equal leading bits, the indices have a different sign.
+        // Therefore right-shifting will never make the buckets combine
+        if (numEqualLeadingBits > 0) {
+            int requiredScaleChange = 64 - numEqualLeadingBits;
+            collapsedBucketCount[requiredScaleChange - 1]++;
         }
-        int requiredScaleChange = 64 - numEqualLeadingBits;
-        collapsedBucketCount[requiredScaleChange - 1]++;
     }
 
     /**
@@ -59,6 +69,9 @@ class DownscaleStats {
      * @return the number of buckets that will be merged
      */
     int getCollapsedBucketCountAfterScaleReduction(int reduction) {
+        if (reduction < 0 || reduction > MAX_INDEX_BITS) {
+            throw new IllegalArgumentException("reduction must be between 0 and " + (MAX_INDEX_BITS));
+        }
         int totalCollapsed = 0;
         for (int i = 0; i < reduction; i++) {
             totalCollapsed += collapsedBucketCount[i];
@@ -73,6 +86,9 @@ class DownscaleStats {
      * @return the required scale reduction
      */
     int getRequiredScaleReductionToReduceBucketCountBy(int desiredCollapsedBucketCount) {
+        if (desiredCollapsedBucketCount < 0) {
+            throw new IllegalArgumentException("desiredCollapsedBucketCount must be greater than or equal to 0");
+        }
         if (desiredCollapsedBucketCount == 0) {
             return 0;
         }

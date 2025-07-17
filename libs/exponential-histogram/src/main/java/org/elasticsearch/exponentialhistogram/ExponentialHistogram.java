@@ -17,8 +17,8 @@ import java.util.OptionalLong;
  * This interface supports sparse implementations, allowing iteration over buckets without requiring direct index access.<br>
  * The most important properties are:
  * <ul>
- *     <li>The histogram has a scale parameter, which defines the accuracy.
- *     The {@code base} for the buckets is defined as {@code base = 2^(2^-scale)}</li>
+ *     <li>The histogram has a scale parameter, which defines the accuracy. A higher scale implies a higher accuracy.
+ *     The {@code base} for the buckets is defined as {@code base = 2^(2^-scale)}.</li>
  *     <li>The histogram bucket at index {@code i} has the range {@code (base^i, base^(i+1)]}</li>
  *     <li>Negative values are represented by a separate negative range of buckets with the boundaries {@code (-base^(i+1), -base^i]}</li>
  *     <li>Histograms are perfectly subsetting: increasing the scale by one merges each pair of neighboring buckets</li>
@@ -44,7 +44,8 @@ public interface ExponentialHistogram {
     // At this scale, all double values fall into a single bucket.
     int MIN_SCALE = -11;
 
-    // Only use 62 bits at max to allow computing the difference between the smallest and largest index without causing an overflow.
+    // Only use 62 bits (plus the sign bit) at max to allow computing the difference between the smallest and largest index without causing
+    // an overflow.
     // The extra bit also provides room for compact storage tricks.
     int MAX_INDEX_BITS = 62;
     long MAX_INDEX = (1L << MAX_INDEX_BITS) - 1;

@@ -154,7 +154,7 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
     }
 
     private static ExponentialHistogram mergeWithMinimumScale(int bucketCount, int scale, ExponentialHistogram... histograms) {
-        ExponentialHistogramMerger merger = new ExponentialHistogramMerger(bucketCount, scale);
+        ExponentialHistogramMerger merger = ExponentialHistogramMerger.createForTesting(bucketCount, scale);
         Arrays.stream(histograms).forEach(merger::add);
         return merger.get();
     }

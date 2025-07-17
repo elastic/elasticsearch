@@ -51,7 +51,13 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         String index = "test-index";
         int shard = randomInt();
         boolean primary = randomBoolean();
-        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(randomTimeValue(), index, shard, primary, null);
+        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(
+            randomTimeValue(),
+            index,
+            shard,
+            primary,
+            null
+        );
         clusterAllocationExplainRequest.includeYesDecisions(false);
         clusterAllocationExplainRequest.includeDiskInfo(true);
 
@@ -71,7 +77,13 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         int shard = randomInt();
         boolean primary = randomBoolean();
         String currentNode = "current_node";
-        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(randomTimeValue(), index, shard, primary, currentNode);
+        ClusterAllocationExplainRequest clusterAllocationExplainRequest = new ClusterAllocationExplainRequest(
+            randomTimeValue(),
+            index,
+            shard,
+            primary,
+            currentNode
+        );
         clusterAllocationExplainRequest.includeYesDecisions(false);
         clusterAllocationExplainRequest.includeDiskInfo(true);
 

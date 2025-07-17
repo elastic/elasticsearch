@@ -1632,6 +1632,19 @@ l:integer
 -10000
 ;
 
+leastMv
+// tag::least-mv[]
+ROW a = 10, b = [20, 1]
+| EVAL g = LEAST(a, b)
+// end::least-mv[]
+;
+
+// tag::least-mv-result[]
+a:integer | b:integer | g:integer
+       10 |   [20, 1] | 1
+// end::least-mv-result[]
+;
+
 
 greatest
 // tag::greatest[]
@@ -1661,10 +1674,16 @@ g:integer
 ;
 
 greatestMv
-ROW g=GREATEST([10, 4], 1);
+// tag::greatest-mv[]
+ROW a = 10, b = [20, 1]
+| EVAL g = GREATEST(a, b)
+// end::greatest-mv[]
+;
 
-g:integer
-10
+// tag::greatest-mv-result[]
+a:integer | b:integer | g:integer
+       10 |   [20, 1] | 20
+// end::greatest-mv-result[]
 ;
 
 leastGreatestMany

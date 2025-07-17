@@ -45,32 +45,88 @@ public class ExponentialHistogramQuantile {
         long upperRank = (long) Math.ceil(exactRank);
         double upperFactor = exactRank - lowerRank;
 
-        // TODO: This can be optimized to iterate over the buckets once instead of twice.
-        return getElementAtRank(histo, lowerRank, negCount, zeroCount) * (1 - upperFactor) + getElementAtRank(
-            histo,
-            upperRank,
-            negCount,
-            zeroCount
-        ) * upperFactor;
-    }
+        ValueAndPreviousValue values = getElementAtRank(histo, upperRank);
 
-    private static double getElementAtRank(ExponentialHistogram histo, long rank, long negCount, long zeroCount) {
-        if (rank < negCount) {
-            return -getBucketMidpointForRank(histo.negativeBuckets().iterator(), (negCount - 1) - rank);
-        } else if (rank < (negCount + zeroCount)) {
-            return 0.0;
+        if (lowerRank == upperRank) {
+            return values.valueAtRank();
         } else {
-            return getBucketMidpointForRank(histo.positiveBuckets().iterator(), rank - (negCount + zeroCount));
+            return values.valueAtPreviousRank() * (1 - upperFactor) + values.valueAtRank() * upperFactor;
         }
     }
 
-    private static double getBucketMidpointForRank(BucketIterator buckets, long rank) {
+    /**
+     * @param valueAtPreviousRank the value at the rank before the desired rank, NaN if not applicable.
+     * @param valueAtRank         the value at the desired rank
+     */
+    private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank
+    ) {
+        ValueAndPreviousValue negateAndSwap() {
+            return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
+        }
+    }
+
+    private static ValueAndPreviousValue getElementAtRank(ExponentialHistogram histo, long rank) {
+        long negativeValuesCount = histo.negativeBuckets().valueCount();
+        long zeroCount = histo.zeroBucket().count();
+        if (rank < negativeValuesCount) {
+            if (negativeValuesCount == 1) {
+                return new ValueAndPreviousValue(Double.NaN, -getFirstBucketMidpoint(histo.negativeBuckets()));
+            } else {
+                return getBucketMidpointForRank(histo.negativeBuckets().iterator(), negativeValuesCount - rank - 1).negateAndSwap();
+            }
+        } else if (rank < (negativeValuesCount + zeroCount)) {
+            if (rank == negativeValuesCount) {
+                // the element at the previous rank falls into the negative bucket range
+                return new ValueAndPreviousValue(-getFirstBucketMidpoint(histo.negativeBuckets()), 0.0);
+            } else {
+                return new ValueAndPreviousValue(0.0, 0.0);
+            }
+        } else {
+            ValueAndPreviousValue result = getBucketMidpointForRank(histo.positiveBuckets().iterator(), rank - negativeValuesCount - zeroCount);
+            if ( (rank-1) < negativeValuesCount) {
+                // previous value falls into the negative bucket range or is -1
+                return new ValueAndPreviousValue(-getFirstBucketMidpoint(histo.negativeBuckets()), result.valueAtRank);
+            } else if ( (rank-1) < (negativeValuesCount + zeroCount) ) {
+                // previous value falls into the zero bucket
+                return new ValueAndPreviousValue(0.0, result.valueAtRank);
+            } else {
+                return result;
+            }
+        }
+    }
+
+    private static double getFirstBucketMidpoint(ExponentialHistogram.Buckets buckets) {
+        CopyableBucketIterator iterator = buckets.iterator();
+        if (iterator.hasNext()) {
+            return ExponentialScaleUtils.getPointOfLeastRelativeError(iterator.peekIndex(), iterator.scale());
+        } else {
+            return Double.NaN;
+        }
+    }
+
+    private static ValueAndPreviousValue getBucketMidpointForRank(BucketIterator buckets, long rank) {
+        long prevIndex = Long.MIN_VALUE;
         long seenCount = 0;
         while (buckets.hasNext()) {
             seenCount += buckets.peekCount();
             if (rank < seenCount) {
-                return ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
+                double center = ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
+                double prevCenter;
+                if (rank > 0) {
+                    if (buckets.peekCount() > 1) {
+                        // element at previous rank is in same bucket
+                        prevCenter = center;
+                    } else {
+                        // element at previous rank is in the previous bucket
+                        prevCenter = ExponentialScaleUtils.getPointOfLeastRelativeError(prevIndex, buckets.scale());
+                    }
+                } else {
+                    // there is no previous element
+                    prevCenter = Double.NaN;
+                }
+                return new ValueAndPreviousValue(prevCenter, center);
             }
+            prevIndex = buckets.peekIndex();
             buckets.advance();
         }
         throw new IllegalStateException("The total number of elements in the buckets is less than the desired rank.");

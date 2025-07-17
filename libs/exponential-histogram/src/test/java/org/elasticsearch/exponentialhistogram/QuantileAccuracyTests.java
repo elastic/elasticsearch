@@ -70,10 +70,12 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testPercentileOverlapsZeroBucket() {
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-1, 0, 1);
-        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 0.5), equalTo(0.0));
-        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 0.375), closeTo(-0.5, 0.000001));
-        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 0.625), closeTo(0.5, 0.000001));
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-2,-1, 0, 0, 0, 1, 1);
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 8.0 / 16.0), equalTo(0.0));
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 7.0 / 16.0), equalTo(0.0));
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 9.0 / 16.0), equalTo(0.0));
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 5.0 / 16.0), closeTo(-0.5, 0.000001));
+        assertThat(ExponentialHistogramQuantile.getQuantile(histo, 11.0 / 16.0), closeTo(0.5, 0.000001));
     }
 
     public void testBigJump() {

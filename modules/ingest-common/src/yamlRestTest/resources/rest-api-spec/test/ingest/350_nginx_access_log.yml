@@ -1,0 +1,370 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "logs-nginx-access-pipeline"
+        body: >
+          {
+            "description": "Pipeline for parsing Nginx access logs. Requires the geoip and user_agent plugins.",
+            "processors": [
+              {
+                "pipeline": {
+                  "if": "ctx.message.startsWith('{')",
+                  "name": "logs-nginx.access-1.20.0-third-party"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.ingested",
+                  "value": "{{_ingest.timestamp}}"
+                }
+              },
+              {
+                "set": {
+                  "field": "ecs.version",
+                  "value": "8.5.1"
+                }
+              },
+              {
+                "rename": {
+                  "field": "message",
+                  "target_field": "event.original",
+                  "ignore_missing": true,
+                  "if": "ctx.event?.original == null"
+                }
+              },
+              {
+                "grok": {
+                  "field": "event.original",
+                  "patterns": [
+                    "(%{NGINX_HOST} )?\"?(?:%{NGINX_ADDRESS_LIST:nginx.access.remote_ip_list}|%{NOTSPACE:source.address}) - (-|%{DATA:user.name}) \\[%{HTTPDATE:nginx.access.time}\\] \"%{DATA:nginx.access.info}\" %{NUMBER:http.response.status_code:long} %{NUMBER:http.response.body.bytes:long} \"(-|%{DATA:http.request.referrer})\" \"(-|%{DATA:user_agent.original})\""
+                  ],
+                  "pattern_definitions": {
+                    "NGINX_HOST": "(?:%{IP:destination.ip}|%{NGINX_NOTSEPARATOR:destination.domain})(:%{NUMBER:destination.port})?",
+                    "NGINX_NOTSEPARATOR": "[^\t ,:]+",
+                    "NGINX_ADDRESS_LIST": "(?:%{IP}|%{WORD})(\"?,?\\s*(?:%{IP}|%{WORD}))*"
+                  },
+                  "ignore_missing": true
+                }
+              },
+              {
+                "grok": {
+                  "field": "nginx.access.info",
+                  "patterns": [
+                    "%{WORD:http.request.method} %{DATA:_tmp.url_orig} HTTP/%{NUMBER:http.version}",
+                    ""
+                  ],
+                  "ignore_missing": true
+                }
+              },
+              {
+                "uri_parts": {
+                  "field": "_tmp.url_orig",
+                  "ignore_failure": true
+                }
+              },
+              {
+                "set": {
+                  "field": "url.domain",
+                  "value": "{{destination.domain}}",
+                  "if": "ctx.url?.domain == null && ctx.destination?.domain != null"
+                }
+              },
+              {
+                "remove": {
+                  "field": [
+                    "nginx.access.info",
+                    "_tmp.url_orig"
+                  ],
+                  "ignore_missing": true
+                }
+              },
+              {
+                "split": {
+                  "field": "nginx.access.remote_ip_list",
+                  "separator": "\"?,?\\s+",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "split": {
+                  "field": "nginx.access.origin",
+                  "separator": "\"?,?\\s+",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "set": {
+                  "field": "source.address",
+                  "if": "ctx.source?.address == null",
+                  "value": ""
+                }
+              },
+              {
+                "script": {
+                  "if": "ctx.nginx?.access?.remote_ip_list != null && ctx.nginx.access.remote_ip_list.length > 0",
+                  "lang": "painless",
+                  "source": "boolean isPrivate(def dot, def ip) {\n  try {\n    StringTokenizer tok = new StringTokenizer(ip, dot);\n    int firstByte = Integer.parseInt(tok.nextToken());\n    int secondByte = Integer.parseInt(tok.nextToken());\n    if (firstByte == 10) {\n      return true;\n    }\n    if (firstByte == 192 && secondByte == 168) {\n      return true;\n    }\n    if (firstByte == 172 && secondByte >= 16 && secondByte <= 31) {\n      return true;\n    }\n    if (firstByte == 127) {\n      return true;\n    }\n    return false;\n  }\n  catch (Exception e) {\n    return false;\n  }\n} try {\n  ctx.source.address = null;\n  if (ctx.nginx.access.remote_ip_list == null) {\n    return;\n  }\n  def found = false;\n  for (def item : ctx.nginx.access.remote_ip_list) {\n    if (!isPrivate(params.dot, item)) {\n      ctx.source.address = item;\n      found = true;\n      break;\n    }\n  }\n  if (!found) {\n    ctx.source.address = ctx.nginx.access.remote_ip_list[0];\n  }\n} catch (Exception e) {\n  ctx.source.address = null;\n}",
+                  "params": {
+                    "dot": "."
+                  }
+                }
+              },
+              {
+                "remove": {
+                  "field": "source.address",
+                  "if": "ctx.source.address == null"
+                }
+              },
+              {
+                "grok": {
+                  "field": "source.address",
+                  "patterns": [
+                    "^%{IP:source.ip}$"
+                  ],
+                  "ignore_failure": true
+                }
+              },
+              {
+                "remove": {
+                  "field": "event.created",
+                  "ignore_missing": true,
+                  "ignore_failure": true
+                }
+              },
+              {
+                "rename": {
+                  "field": "@timestamp",
+                  "target_field": "event.created"
+                }
+              },
+              {
+                "convert": {
+                  "field": "destination.port",
+                  "type": "long",
+                  "if": "ctx.destination?.port != null"
+                }
+              },
+              {
+                "date": {
+                  "field": "nginx.access.time",
+                  "target_field": "@timestamp",
+                  "formats": [
+                    "dd/MMM/yyyy:H:m:s Z"
+                  ],
+                  "on_failure": [
+                    {
+                      "append": {
+                        "field": "error.message",
+                        "value": "{{ _ingest.on_failure_message }}"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "remove": {
+                  "field": "nginx.access.time"
+                }
+              },
+              {
+                "user_agent": {
+                  "field": "user_agent.original",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "geoip": {
+                  "field": "source.ip",
+                  "target_field": "source.geo",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "geoip": {
+                  "database_file": "GeoLite2-ASN.mmdb",
+                  "field": "source.ip",
+                  "target_field": "source.as",
+                  "properties": [
+                    "asn",
+                    "organization_name"
+                  ],
+                  "ignore_missing": true
+                }
+              },
+              {
+                "rename": {
+                  "field": "source.as.asn",
+                  "target_field": "source.as.number",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "rename": {
+                  "field": "source.as.organization_name",
+                  "target_field": "source.as.organization.name",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "set": {
+                  "field": "event.kind",
+                  "value": "event"
+                }
+              },
+              {
+                "append": {
+                  "field": "event.category",
+                  "value": "web"
+                }
+              },
+              {
+                "append": {
+                  "field": "event.type",
+                  "value": "access"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.outcome",
+                  "value": "success",
+                  "if": "ctx?.http?.response?.status_code != null && ctx.http.response.status_code < 400"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.outcome",
+                  "value": "failure",
+                  "if": "ctx?.http?.response?.status_code != null && ctx.http.response.status_code >= 400"
+                }
+              },
+              {
+                "append": {
+                  "field": "related.ip",
+                  "value": "{{source.ip}}",
+                  "if": "ctx?.source?.ip != null"
+                }
+              },
+              {
+                "append": {
+                  "field": "related.ip",
+                  "value": "{{destination.ip}}",
+                  "if": "ctx?.destination?.ip != null"
+                }
+              },
+              {
+                "append": {
+                  "field": "related.user",
+                  "value": "{{user.name}}",
+                  "if": "ctx?.user?.name != null"
+                }
+              },
+              {
+                "script": {
+                  "lang": "painless",
+                  "description": "This script processor iterates over the whole document to remove fields with null values.",
+                  "source": "void handleMap(Map map) {\n  for (def x : map.values()) {\n    if (x instanceof Map) {\n        handleMap(x);\n    } else if (x instanceof List) {\n        handleList(x);\n    }\n  }\n  map.values().removeIf(v -> v == null);\n}\nvoid handleList(List list) {\n  for (def x : list) {\n      if (x instanceof Map) {\n          handleMap(x);\n      } else if (x instanceof List) {\n          handleList(x);\n      }\n  }\n}\nhandleMap(ctx);\n"
+                }
+              },
+              {
+                "remove": {
+                  "field": "event.original",
+                  "if": "ctx?.tags == null || !(ctx.tags.contains('preserve_original_event'))",
+                  "ignore_failure": true,
+                  "ignore_missing": true
+                }
+              },
+              {
+                "pipeline": {
+                  "name": "global@custom",
+                  "ignore_missing_pipeline": true,
+                  "description": "[Fleet] Global pipeline for all data streams"
+                }
+              },
+              {
+                "pipeline": {
+                  "name": "logs@custom",
+                  "ignore_missing_pipeline": true,
+                  "description": "[Fleet] Pipeline for all data streams of type `logs`"
+                }
+              },
+              {
+                "pipeline": {
+                  "name": "logs-nginx.integration@custom",
+                  "ignore_missing_pipeline": true,
+                  "description": "[Fleet] Pipeline for all data streams of type `logs` defined by the `nginx` integration"
+                }
+              },
+              {
+                "pipeline": {
+                  "name": "logs-nginx.access@custom",
+                  "ignore_missing_pipeline": true,
+                  "description": "[Fleet] Pipeline for the `nginx.access` dataset"
+                }
+              }
+            ],
+            "on_failure": [
+              {
+                "set": {
+                  "field": "error.message",
+                  "value": "{{ _ingest.on_failure_message }}"
+                }
+              }
+            ],
+            "_meta": {
+              "managed_by": "fleet",
+              "managed": true,
+              "package": {
+                "name": "nginx"
+              }
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-logs-nginx-access
+        body:
+          settings:
+            index:
+              default_pipeline: "logs-nginx-access-pipeline"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-logs-nginx-access"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "logs-nginx-access-pipeline"
+        ignore: 404
+
+---
+"Test Nginx access log parsing":
+  - do:
+      index:
+        index: "test-logs-nginx-access"
+        id: "1"
+        pipeline: "logs-nginx-access-pipeline"
+        body:
+          "@timestamp": "2022-06-01T12:00:00.000Z"
+          message: "28.27.251.216 - dustin03 [03/Jan/2020:21:05:52 +0000] \"GET /computer/api/json HTTP/1.1\" 200 602 \"-\" \"Go-http-client/1.1\""
+
+  - do:
+      get:
+        index: "test-logs-nginx-access"
+        id: "1"
+  - match: { _source.event.kind: "event" }
+  - match: { _source.event.category: ["web"] }
+  - match: { _source.event.type: ["access"] }
+  - match: { _source.event.outcome: "success" }
+  - match: { _source.http.request.method: "GET" }
+  - match: { _source.http.version: "1.1" }
+  - match: { _source.http.response.status_code: 200 }
+  - match: { _source.http.response.body.bytes: 602 }
+  - match: { _source.source.address: "28.27.251.216" }
+  - match: { _source.url.path: "/computer/api/json" }
+  - match: { _source.http.request.referrer: null }
+  - match: { _source.user_agent.original: "Go-http-client/1.1" }
+  - match: { _source.user.name: "dustin03" }

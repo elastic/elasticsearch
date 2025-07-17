@@ -1,0 +1,297 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "logs-apache-access-pipeline"
+        body: >
+          {
+            "description": "Pipeline for parsing Apache HTTP Server access logs. Requires the geoip and user_agent plugins.",
+            "processors": [
+              {
+                "pipeline": {
+                  "if": "ctx.message.startsWith('{')",
+                  "name": "logs-apache.access-1.18.0-third-party"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.ingested",
+                  "value": "{{_ingest.timestamp}}"
+                }
+              },
+              {
+                "set": {
+                  "field": "ecs.version",
+                  "value": "8.5.1"
+                }
+              },
+              {
+                "rename": {
+                  "field": "message",
+                  "target_field": "event.original",
+                  "ignore_missing": true,
+                  "if": "ctx.event?.original == null"
+                }
+              },
+              {
+                "remove": {
+                  "field": "message",
+                  "ignore_missing": true,
+                  "if": "ctx.event?.original != null",
+                  "description": "The `message` field is no longer required if the document has an `event.original` field."
+                }
+              },
+              {
+                "grok": {
+                  "field": "event.original",
+                  "patterns": [
+                    "(%{IPORHOST:destination.domain} )?%{IPORHOST:source.address} %{DATA:apache.access.identity} %{DATA:user.name} \\[%{HTTPDATE:apache.access.time}\\] \"(?:%{WORD:http.request.method} %{DATA:_tmp.url_orig} HTTP/%{NUMBER:http.version}|-)?\" %{NUMBER:http.response.status_code:long} (?:%{NUMBER:http.response.body.bytes:long}|-)( \"%{DATA:http.request.referrer}\")?( \"%{DATA:user_agent.original}\")?( X-Forwarded-For=\"%{ADDRESS_LIST:apache.access.remote_addresses}\")?",
+                    "%{IPORHOST:source.address} - %{DATA:user.name} \\[%{HTTPDATE:apache.access.time}\\] \"-\" %{NUMBER:http.response.status_code:long} -",
+                    "\\[%{HTTPDATE:apache.access.time}\\] %{IPORHOST:source.address} %{DATA:apache.access.ssl.protocol} %{DATA:apache.access.ssl.cipher} \"%{WORD:http.request.method} %{DATA:_tmp.url_orig} HTTP/%{NUMBER:http.version}\" (-|%{NUMBER:http.response.body.bytes:long})"
+                  ],
+                  "ignore_missing": true,
+                  "pattern_definitions": {
+                    "ADDRESS_LIST": "(%{IP})(\"?,?\\s*(%{IP}))*"
+                  }
+                }
+              },
+              {
+                "split": {
+                  "field": "apache.access.remote_addresses",
+                  "separator": "\"?,\\s*",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "set": {
+                  "field": "network.forwarded_ip",
+                  "value": "{{{apache.access.remote_addresses.0}}}",
+                  "if": "ctx.apache?.access?.remote_addresses != null && ctx.apache.access.remote_addresses.length > 0"
+                }
+              },
+              {
+                "script": {
+                  "if": "ctx.apache?.access?.remote_addresses != null && ctx.apache.access.remote_addresses.length > 0",
+                  "lang": "painless",
+                  "tag": "Get source address",
+                  "description": "Extract from remote_addresses, the first non-private IP to ctx.client.ip",
+                  "source": "boolean isPrivateCIDR(def ip) {\n  CIDR class_a_network = new CIDR('10.0.0.0/8');\n  CIDR class_b_network = new CIDR('172.16.0.0/12');\n  CIDR class_c_network = new CIDR('192.168.0.0/16');\n\n  try {\n    return class_a_network.contains(ip) || class_b_network.contains(ip) || class_c_network.contains(ip);\n  } catch (IllegalArgumentException e) {\n    return false;\n  }\n}\ntry {\n  if (ctx.client == null) {\n    Map map = new HashMap();\n    ctx.put(\"client\", map);\n  }\n\n  def found = false;\n  for (def item : ctx.apache.access.remote_addresses) {\n    if (!isPrivateCIDR(item)) {\n      ctx.client.ip = item;\n      found = true;\n      break;\n    }\n  }\n  if (!found) {\n    ctx.client.ip = ctx.apache.access.remote_addresses[0];\n  }\n} catch (Exception e) {\n  ctx.client.ip = null;\n}"
+                }
+              },
+              {
+                "append": {
+                  "field": "apache.access.remote_addresses",
+                  "value": [
+                    "{{source.address}}"
+                  ],
+                  "if": "ctx.source?.address != null"
+                }
+              },
+              {
+                "uri_parts": {
+                  "field": "_tmp.url_orig",
+                  "ignore_failure": true
+                }
+              },
+              {
+                "remove": {
+                  "field": [
+                    "_tmp"
+                  ],
+                  "ignore_missing": true
+                }
+              },
+              {
+                "set": {
+                  "field": "url.domain",
+                  "value": "{{destination.domain}}",
+                  "if": "ctx.url?.domain == null && ctx.destination?.domain != null"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.kind",
+                  "value": "event"
+                }
+              },
+              {
+                "append": {
+                  "field": "event.category",
+                  "value": "web"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.outcome",
+                  "value": "success",
+                  "if": "ctx.http?.response?.status_code != null && ctx.http.response.status_code < 400"
+                }
+              },
+              {
+                "set": {
+                  "field": "event.outcome",
+                  "value": "failure",
+                  "if": "ctx.http?.response?.status_code != null && ctx.http.response.status_code > 399"
+                }
+              },
+              {
+                "grok": {
+                  "field": "source.address",
+                  "ignore_missing": true,
+                  "patterns": [
+                    "^(%{IP:source.ip}|%{HOSTNAME:source.domain})$"
+                  ]
+                }
+              },
+              {
+                "remove": {
+                  "field": "event.created",
+                  "ignore_missing": true,
+                  "ignore_failure": true
+                }
+              },
+              {
+                "rename": {
+                  "field": "@timestamp",
+                  "target_field": "event.created"
+                }
+              },
+              {
+                "date": {
+                  "field": "apache.access.time",
+                  "target_field": "@timestamp",
+                  "formats": [ "dd/MMM/yyyy:H:m:s Z" ],
+                  "ignore_failure": true
+                }
+              },
+              {
+                "remove": {
+                  "field": "apache.access.time",
+                  "ignore_failure": true
+                }
+              },
+              {
+                "user_agent": {
+                  "field": "user_agent.original",
+                  "ignore_failure": true
+                }
+              },
+              {
+                "geoip": {
+                  "field": "source.ip",
+                  "target_field": "source.geo",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "geoip": {
+                  "database_file": "GeoLite2-ASN.mmdb",
+                  "field": "source.ip",
+                  "target_field": "source.as",
+                  "properties": [ "asn", "organization_name" ],
+                  "ignore_missing": true
+                }
+              },
+              {
+                "rename": {
+                  "field": "source.as.asn",
+                  "target_field": "source.as.number",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "rename": {
+                  "field": "source.as.organization_name",
+                  "target_field": "source.as.organization.name",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "set": {
+                  "field": "tls.cipher",
+                  "value": "{{apache.access.ssl.cipher}}",
+                  "if": "ctx.apache?.access?.ssl?.cipher != null"
+                }
+              },
+              {
+                "script": {
+                  "lang": "painless",
+                  "if": "ctx.apache?.access?.ssl?.protocol != null",
+                  "source": "def parts = ctx.apache.access.ssl.protocol.toLowerCase().splitOnToken(\"v\"); if (parts.length != 2) {\n return;\n} if (parts[1].contains(\".\")) {\n ctx.tls.version = parts[1];\n} else {\n ctx.tls.version = parts[1] + \".0\";\n} ctx.tls.version_protocol = parts[0];"
+                }
+              },
+              {
+                "script": {
+                  "lang": "painless",
+                  "description": "This script processor iterates over the whole document to remove fields with null values.",
+                  "source": "void handleMap(Map map) {\n for (def x : map.values()) {\n if (x instanceof Map) {\n handleMap(x);\n } else if (x instanceof List) {\n handleList(x);\n }\n }\n map.values().removeIf(v -> v == null);\n}\nvoid handleList(List list) {\n for (def x : list) {\n if (x instanceof Map) {\n handleMap(x);\n } else if (x instanceof List) {\n handleList(x);\n }\n }\n}\nhandleMap(ctx);\n"
+                }
+              },
+              {
+                "remove": {
+                  "field": "event.original",
+                  "if": "ctx.tags == null || !(ctx.tags.contains('preserve_original_event'))",
+                  "ignore_failure": true,
+                  "ignore_missing": true
+                }
+              },
+              {
+                "remove": {
+                  "field": "apache.access.identity",
+                  "if": "ctx.apache?.access?.identity == \"-\"",
+                  "ignore_failure": true,
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.create:
+        index: test-logs-apache-access
+        body:
+          settings:
+            index:
+              default_pipeline: "logs-apache-access-pipeline"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-logs-apache-access"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "logs-apache-access-pipeline"
+        ignore: 404
+
+---
+"Test Apache access log parsing":
+  - do:
+      index:
+        index: "test-logs-apache-access"
+        id: "1"
+        pipeline: "logs-apache-access-pipeline"
+        body:
+          "@timestamp": "2022-06-01T12:00:00.000Z"
+          message: '192.168.1.10 - john.doe [01/Jun/2022:12:00:00 +0000] "GET /api/users HTTP/1.1" 200 1024 "https://example.com/home" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36" X-Forwarded-For="203.0.113.195, 10.0.0.1"'
+
+  - do:
+      get:
+        index: "test-logs-apache-access"
+        id: "1"
+  - match: { _source.event.kind: "event" }
+  - match: { _source.event.category: ["web"] }
+  - match: { _source.event.outcome: "success" }
+  - match: { _source.http.request.method: "GET" }
+  - match: { _source.http.version: "1.1" }
+  - match: { _source.http.response.status_code: 200 }
+  - match: { _source.http.response.body.bytes: 1024 }
+  - match: { _source.source.address: "192.168.1.10" }
+  - match: { _source.url.path: "/api/users" }
+  - match: { _source.http.request.referrer: "https://example.com/home" }
+  - match: { _source.user_agent.original: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36" }
+  - match: { _source.user.name: "john.doe" }
+  - match: { _source.network.forwarded_ip: "203.0.113.195" }
+  - match: { _source.client.ip: "203.0.113.195" }

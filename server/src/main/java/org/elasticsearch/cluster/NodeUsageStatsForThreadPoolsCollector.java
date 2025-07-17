@@ -9,7 +9,12 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.client.internal.Client;
 
 import java.util.Map;
@@ -19,16 +24,38 @@ import java.util.Map;
  * <p>
  * Results are returned as a map of node ID to node usage stats.
  */
-public interface NodeUsageStatsForThreadPoolsCollector {
+public class NodeUsageStatsForThreadPoolsCollector {
     /**
-     * This will be used when there is no NodeUsageLoadCollector available.
+     * This will be used when there is no NodeUsageStatsForThreadPoolsCollector available.
      */
-    NodeUsageStatsForThreadPoolsCollector EMPTY = (client, clusterState, listener) -> listener.onResponse(Map.of());
+    public static final NodeUsageStatsForThreadPoolsCollector EMPTY = new NodeUsageStatsForThreadPoolsCollector() {
+        public void collectUsageStats(
+            Client client,
+            ClusterState clusterState,
+            ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
+        ) {
+            listener.onResponse(Map.of());
+        }
+    };
 
     /**
      * Collects the thread pool usage stats ({@link NodeUsageStatsForThreadPools}) for each node in the cluster.
      *
      * @param listener The listener to receive the usage results.
      */
-    void collectUsageStats(Client client, ClusterState clusterState, ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
+    public void collectUsageStats(
+        Client client,
+        ClusterState clusterState,
+        ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
+    ) {
+        if (clusterState.getMinTransportVersion().onOrAfter(TransportVersions.TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
+            client.execute(
+                TransportNodeUsageStatsForThreadPoolsAction.TYPE,
+                new NodeUsageStatsForThreadPoolsAction.Request(),
+                listener.map(response -> response.getAllNodeUsageStatsForThreadPools())
+            );
+        } else {
+            listener.onResponse(Map.of());
+        }
+    }
 }

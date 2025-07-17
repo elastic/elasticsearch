@@ -85,7 +85,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
-            new NodeUsageStatsForThreadPoolsCollectorImpl()
+            new NodeUsageStatsForThreadPoolsCollector()
         );
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,

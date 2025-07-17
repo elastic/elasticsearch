@@ -473,6 +473,11 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                         channel.sendResponse(exception);
 
                     }
+
+                    @Override
+                    public Compression.Scheme compressionScheme() {
+                        return channel.compressionScheme();
+                    }
                 }, task);
             } else {
                 return actualHandler;

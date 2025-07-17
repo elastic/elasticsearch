@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -212,6 +213,11 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                     @Override
                     public void sendResponse(Exception exception) {
                         channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public Compression.Scheme compressionScheme() {
+                        return channel.compressionScheme();
                     }
                 }, task)
             );

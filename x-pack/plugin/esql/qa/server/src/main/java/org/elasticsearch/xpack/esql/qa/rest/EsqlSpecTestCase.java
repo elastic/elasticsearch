@@ -77,6 +77,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -251,8 +252,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean requiresInferenceEndpoint() {
-        return Stream.of(SEMANTIC_TEXT_FIELD_CAPS.capabilityName(), RERANK.capabilityName(), COMPLETION.capabilityName())
-            .anyMatch(testCase.requiredCapabilities::contains);
+        return Stream.of(
+            SEMANTIC_TEXT_FIELD_CAPS.capabilityName(),
+            RERANK.capabilityName(),
+            COMPLETION.capabilityName(),
+            TEXT_EMBEDDING_FUNCTION.capabilityName()
+        ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {

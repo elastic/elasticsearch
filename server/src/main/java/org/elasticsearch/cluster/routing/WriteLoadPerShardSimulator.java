@@ -30,13 +30,13 @@ import java.util.stream.Collectors;
 
 public class WriteLoadPerShardSimulator {
 
-    private final ObjectFloatMap<String> writeLoadDeltas;
+    private final ObjectFloatMap<String> simulatedWriteLoadDeltas;
     private final RoutingAllocation routingAllocation;
     private final ObjectFloatMap<ShardId> writeLoadsPerShard;
 
     public WriteLoadPerShardSimulator(RoutingAllocation routingAllocation) {
         this.routingAllocation = routingAllocation;
-        this.writeLoadDeltas = new ObjectFloatHashMap<>();
+        this.simulatedWriteLoadDeltas = new ObjectFloatHashMap<>();
         writeLoadsPerShard = estimateWriteLoadsPerShard(routingAllocation);
     }
 
@@ -45,11 +45,11 @@ public class WriteLoadPerShardSimulator {
         if (writeLoadForShard > 0.0) {
             if (shardRouting.relocatingNodeId() != null) {
                 // relocating
-                writeLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
-                writeLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
+                simulatedWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
+                simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             } else {
                 // not sure how this would come about, perhaps when allocating a replica after a delay?
-                writeLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
+                simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             }
         }
     }
@@ -60,13 +60,13 @@ public class WriteLoadPerShardSimulator {
             .entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-                if (writeLoadDeltas.containsKey(e.getKey())) {
+                if (simulatedWriteLoadDeltas.containsKey(e.getKey())) {
                     return new NodeUsageStatsForThreadPools(
                         e.getKey(),
                         Maps.copyMapWithAddedOrReplacedEntry(
                             e.getValue().threadPoolUsageStatsMap(),
                             "write",
-                            replaceWritePoolStats(e.getValue(), writeLoadDeltas.get(e.getKey()))
+                            replaceWritePoolStats(e.getValue(), simulatedWriteLoadDeltas.get(e.getKey()))
                         )
                     );
                 }

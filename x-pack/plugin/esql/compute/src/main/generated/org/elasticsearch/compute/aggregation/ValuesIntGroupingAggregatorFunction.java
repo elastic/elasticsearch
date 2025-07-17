@@ -211,16 +211,6 @@ public final class ValuesIntGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    ValuesIntAggregator.GroupingState inState = ((ValuesIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    ValuesIntAggregator.combineStates(state, groupId, inState, position);
-  }
-
-  @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     state.toIntermediate(blocks, offset, selected, driverContext);
   }

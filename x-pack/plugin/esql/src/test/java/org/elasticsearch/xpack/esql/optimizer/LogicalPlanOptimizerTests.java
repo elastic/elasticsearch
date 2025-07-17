@@ -8052,20 +8052,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
         var salary = as(min.field(), NamedExpression.class);
         assertThat(salary.name(), is("salary"));
-
+        Holder<Integer> appliedCount = new Holder<>(0);
         // use a custom rule that adds another output attribute
         var customRuleBatch = new RuleExecutor.Batch<>(
             "CustomRuleBatch",
             RuleExecutor.Limiter.ONCE,
             new OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext>(UP) {
-                static Integer appliedCount = 0;
-
                 @Override
                 protected LogicalPlan rule(Aggregate plan, LogicalOptimizerContext context) {
                     // This rule adds a missing attribute to the plan output
                     // We only want to apply it once, so we use a static counter
-                    if (appliedCount == 0) {
-                        appliedCount++;
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
                         Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
                         return new Eval(plan.source(), plan, List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral)));
                     }
@@ -8091,19 +8089,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
         var salary = as(min.field(), NamedExpression.class);
         assertThat(salary.name(), is("salary"));
-
+        Holder<Integer> appliedCount = new Holder<>(0);
         // use a custom rule that changes the datatype of an output attribute
         var customRuleBatch = new RuleExecutor.Batch<>(
             "CustomRuleBatch",
             RuleExecutor.Limiter.ONCE,
             new OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext>(DOWN) {
-                static Integer appliedCount = 0;
-
                 @Override
                 protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {
                     // We only want to apply it once, so we use a static counter
-                    if (appliedCount == 0) {
-                        appliedCount++;
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
                         Limit limit = as(plan, Limit.class);
                         Limit newLimit = new Limit(plan.source(), limit.limit(), limit.child()) {
                             @Override

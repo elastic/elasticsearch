@@ -2425,20 +2425,18 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
         var salary = as(min.field(), NamedExpression.class);
         assertThat(salary.name(), is("salary"));
-
+        Holder<Integer> appliedCount = new Holder<>(0);
         // use a custom rule that adds another output attribute
         var customRuleBatch = new RuleExecutor.Batch<>(
             "CustomRuleBatch",
             RuleExecutor.Limiter.ONCE,
             new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext>() {
-                static Integer appliedCount = 0;
-
                 @Override
                 public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
                     // This rule adds a missing attribute to the plan output
                     // We only want to apply it once, so we use a static counter
-                    if (appliedCount == 0) {
-                        appliedCount++;
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
                         Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
                         return new EvalExec(
                             plan.source(),
@@ -2470,19 +2468,17 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
         var salary = as(min.field(), NamedExpression.class);
         assertThat(salary.name(), is("salary"));
-
+        Holder<Integer> appliedCount = new Holder<>(0);
         // use a custom rule that changes the datatype of an output attribute
         var customRuleBatch = new RuleExecutor.Batch<>(
             "CustomRuleBatch",
             RuleExecutor.Limiter.ONCE,
             new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext>() {
-                static Integer appliedCount = 0;
-
                 @Override
                 public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
                     // We only want to apply it once, so we use a static counter
-                    if (appliedCount == 0) {
-                        appliedCount++;
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
                         LimitExec limit = as(plan, LimitExec.class);
                         LimitExec newLimit = new LimitExec(
                             plan.source(),

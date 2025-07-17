@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -8335,20 +8336,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
         var salary = as(min.field(), NamedExpression.class);
         assertThat(salary.name(), is("salary"));
-
+        Holder<Integer> appliedCount = new Holder<>(0);
         // use a custom rule that adds another output attribute
         var customRuleBatch = new RuleExecutor.Batch<>(
             "CustomRuleBatch",
             RuleExecutor.Limiter.ONCE,
             new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
-                static Integer appliedCount = 0;
-
                 @Override
                 public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
                     // This rule adds a missing attribute to the plan output
                     // We only want to apply it once, so we use a static counter
-                    if (appliedCount == 0) {
-                        appliedCount++;
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
                         Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
                         return new EvalExec(
                             plan.source(),
@@ -8378,19 +8377,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
         var salary = as(min.field(), NamedExpression.class);
         assertThat(salary.name(), is("salary"));
-
+        Holder<Integer> appliedCount = new Holder<>(0);
         // use a custom rule that changes the datatype of an output attribute
         var customRuleBatch = new RuleExecutor.Batch<>(
             "CustomRuleBatch",
             RuleExecutor.Limiter.ONCE,
             new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
-                static Integer appliedCount = 0;
-
                 @Override
                 public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
                     // We only want to apply it once, so we use a static counter
-                    if (appliedCount == 0) {
-                        appliedCount++;
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
                         LimitExec limit = as(plan, LimitExec.class);
                         LimitExec newLimit = new LimitExec(
                             plan.source(),

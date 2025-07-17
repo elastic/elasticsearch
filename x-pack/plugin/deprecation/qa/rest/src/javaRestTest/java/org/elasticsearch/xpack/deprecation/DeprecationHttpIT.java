@@ -25,11 +25,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 
@@ -61,6 +63,21 @@ import static org.hamcrest.Matchers.matchesRegex;
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
 public class DeprecationHttpIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-deprecation")
+        .module("deprecation-test-plugin")
+        .setting("cluster.deprecation_indexing.enabled", "true")
+        .setting("cluster.deprecation_indexing.flush_interval", "100ms")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Rule
     public TestName testName = new TestName();

@@ -13,9 +13,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,6 +29,22 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class MlDeprecationIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-deprecation")
+        .module("deprecation-test-plugin")
+        .module("x-pack-ml")
+        .setting("cluster.deprecation_indexing.enabled", "true")
+        .setting("cluster.deprecation_indexing.flush_interval", "100ms")
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static final RequestOptions REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(WarningsHandler.PERMISSIVE)

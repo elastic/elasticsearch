@@ -194,7 +194,7 @@ class ValuesBytesRefAggregator {
             }
 
             try (var sorted = buildSorted(selected)) {
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(bytes.size()))) {
+                if (OrdinalBytesRefBlock.isDense(values.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
                 } else {
                     return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);

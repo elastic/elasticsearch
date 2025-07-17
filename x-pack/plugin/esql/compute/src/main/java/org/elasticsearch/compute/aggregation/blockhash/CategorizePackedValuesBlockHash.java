@@ -56,6 +56,8 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         int emitBatchSize
     ) {
         super(blockFactory);
+        assert specs.get(0).categorizeDef() != null;
+
         this.specs = specs;
         this.aggregatorMode = aggregatorMode;
         blocks = new Block[specs.size()];
@@ -68,7 +70,13 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
         boolean success = false;
         try {
-            categorizeBlockHash = new CategorizeBlockHash(blockFactory, specs.get(0).channel(), aggregatorMode, analysisRegistry);
+            categorizeBlockHash = new CategorizeBlockHash(
+                blockFactory,
+                specs.get(0).channel(),
+                aggregatorMode,
+                specs.get(0).categorizeDef(),
+                analysisRegistry
+            );
             packedValuesBlockHash = new PackedValuesBlockHash(delegateSpecs, blockFactory, emitBatchSize);
             success = true;
         } finally {

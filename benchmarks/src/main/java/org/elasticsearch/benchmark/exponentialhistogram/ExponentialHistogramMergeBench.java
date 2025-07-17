@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.exponentialhistogram;
 
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
@@ -86,7 +87,7 @@ public class ExponentialHistogramMergeBench {
 
     private static int getBucketCount(ExponentialHistogram histo) {
         int cnt = 0;
-        for (ExponentialHistogram.BucketIterator it : List.of(histo.negativeBuckets(), histo.positiveBuckets())) {
+        for (BucketIterator it : List.of(histo.negativeBuckets(), histo.positiveBuckets())) {
             while (it.hasNext()) {
                 cnt++;
                 it.advance();

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import java.util.OptionalLong;
-
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
 
 /**
@@ -81,10 +79,10 @@ public class ExponentialHistogramMerger {
 
         ExponentialHistogram a = result;
 
-        ExponentialHistogram.CopyableBucketIterator posBucketsA = a.positiveBuckets();
-        ExponentialHistogram.CopyableBucketIterator negBucketsA = a.negativeBuckets();
-        ExponentialHistogram.CopyableBucketIterator posBucketsB = b.positiveBuckets();
-        ExponentialHistogram.CopyableBucketIterator negBucketsB = b.negativeBuckets();
+        CopyableBucketIterator posBucketsA = a.positiveBuckets().iterator();
+        CopyableBucketIterator negBucketsA = a.negativeBuckets().iterator();
+        CopyableBucketIterator posBucketsB = b.positiveBuckets().iterator();
+        CopyableBucketIterator negBucketsB = b.negativeBuckets().iterator();
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
         zeroBucket = zeroBucket.collapseOverlappingBuckets(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
@@ -96,17 +94,17 @@ public class ExponentialHistogramMerger {
         // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
         int targetScale = a.scale();
         if (targetScale > b.scale()) {
-            if (posBucketsB.hasNext()) {
-                long smallestIndex = posBucketsB.peekIndex();
-                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(smallestIndex));
-            }
             if (negBucketsB.hasNext()) {
                 long smallestIndex = negBucketsB.peekIndex();
-                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(smallestIndex));
+                long highestIndex = b.negativeBuckets().maxBucketIndex().getAsLong();
+                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(highestIndex));
+                targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
             }
-            OptionalLong maxIndex = b.maximumBucketIndex();
-            if (maxIndex.isPresent()) {
-                targetScale = Math.min(targetScale, b.scale() + getMaximumScaleIncrease(maxIndex.getAsLong()));
+            if (posBucketsB.hasNext()) {
+                long smallestIndex = posBucketsB.peekIndex();
+                long highestIndex = b.positiveBuckets().maxBucketIndex().getAsLong();
+                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(highestIndex));
+                targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
             }
         }
 
@@ -143,7 +141,7 @@ public class ExponentialHistogramMerger {
 
     private static int putBuckets(
         FixedCapacityExponentialHistogram output,
-        ExponentialHistogram.BucketIterator buckets,
+        BucketIterator buckets,
         boolean isPositive,
         DownscaleStats downscaleStats
     ) {

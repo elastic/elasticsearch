@@ -20,7 +20,7 @@ public class ExponentialHistogramGeneratorTests extends ESTestCase {
         double value = Double.MAX_VALUE / 10;
         ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(value);
 
-        long index = histo.positiveBuckets().peekIndex();
+        long index = histo.positiveBuckets().iterator().peekIndex();
         int scale = histo.scale();
 
         double lowerBound = ExponentialScaleUtils.getLowerBucketBoundary(index, scale);

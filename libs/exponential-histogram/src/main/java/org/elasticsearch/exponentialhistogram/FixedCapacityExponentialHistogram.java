@@ -14,7 +14,7 @@ import java.util.OptionalLong;
 /**
  * An implementation of a mutable {@link ExponentialHistogram} with a sparse, array-backed representation.
  * <br>
- * Consumers must ensure that if the histogram is mutated, all previously acquired {@link ExponentialHistogram.BucketIterator}
+ * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
  */
 public final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
@@ -26,11 +26,23 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
     private final long[] bucketIndices;
     private final long[] bucketCounts;
 
-    private int negativeBucketCount;
-    private int positiveBucketCount;
     private int bucketScale;
 
+    private final AbstractBuckets negativeBuckets = new AbstractBuckets() {
+        @Override
+        int startSlot() {
+            return 0;
+        }
+    };
+
     private ZeroBucket zeroBucket;
+
+    private final AbstractBuckets positiveBuckets = new AbstractBuckets() {
+        @Override
+        int startSlot() {
+            return negativeBuckets.numBuckets;
+        }
+    };
 
     /**
      * Creates an empty histogram with the given capacity and a {@link ZeroBucket#minimalEmpty()} zero bucket.
@@ -59,8 +71,8 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
         if (scale > MAX_SCALE || scale < MIN_SCALE) {
             throw new IllegalArgumentException("scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]");
         }
-        negativeBucketCount = 0;
-        positiveBucketCount = 0;
+        negativeBuckets.reset();
+        positiveBuckets.reset();
         bucketScale = scale;
     }
 
@@ -101,30 +113,17 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
         if (index < MIN_INDEX || index > MAX_INDEX) {
             throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
         }
-        if (isPositive == false && positiveBucketCount > 0) {
+        if (isPositive == false && positiveBuckets.numBuckets > 0) {
             throw new IllegalArgumentException("Cannot add negative buckets after a positive bucket has been added");
         }
         if (count <= 0) {
             throw new IllegalArgumentException("Cannot add an empty or negative bucket");
         }
-        int slot = negativeBucketCount + positiveBucketCount;
-        if (slot >= bucketCounts.length) {
-            return false; // no more space
-        }
-        bucketIndices[slot] = index;
-        bucketCounts[slot] = count;
         if (isPositive) {
-            if (positiveBucketCount > 0 && bucketIndices[slot - 1] >= index) {
-                throw new IllegalStateException("Buckets must be added in strictly ascending index order");
-            }
-            positiveBucketCount++;
+            return positiveBuckets.tryAddBucket(index, count);
         } else {
-            if (negativeBucketCount > 0 && bucketIndices[slot - 1] >= index) {
-                throw new IllegalStateException("Buckets must be added in strictly ascending index order");
-            }
-            negativeBucketCount++;
+            return negativeBuckets.tryAddBucket(index, count);
         }
-        return true;
     }
 
     @Override
@@ -133,25 +132,68 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
     }
 
     @Override
-    public CopyableBucketIterator negativeBuckets() {
-        return new BucketArrayIterator(0, negativeBucketCount);
+    public Buckets negativeBuckets() {
+        return negativeBuckets;
     }
 
     @Override
-    public OptionalLong maximumBucketIndex() {
-        long maxIndex = Long.MIN_VALUE;
-        if (negativeBucketCount > 0) {
-            maxIndex = bucketIndices[negativeBucketCount - 1];
-        }
-        if (positiveBucketCount > 0) {
-            maxIndex = Math.max(maxIndex, bucketIndices[negativeBucketCount + positiveBucketCount - 1]);
-        }
-        return maxIndex == Long.MIN_VALUE ? OptionalLong.empty() : OptionalLong.of(maxIndex);
+    public Buckets positiveBuckets() {
+        return positiveBuckets;
     }
 
-    @Override
-    public CopyableBucketIterator positiveBuckets() {
-        return new BucketArrayIterator(negativeBucketCount, negativeBucketCount + positiveBucketCount);
+    private abstract class AbstractBuckets implements Buckets {
+
+        private int numBuckets;
+        private int cachedValueSumForNumBuckets;
+        private long cachedValueSum;
+
+        AbstractBuckets() {
+            reset();
+        }
+
+        abstract int startSlot();
+
+        final void reset() {
+            numBuckets = 0;
+            cachedValueSumForNumBuckets = 0;
+            cachedValueSum = 0;
+        }
+
+        boolean tryAddBucket(long index, long count) {
+            int slot = startSlot() + numBuckets;
+            if (slot >= bucketCounts.length) {
+                return false; // no more space
+            }
+            bucketIndices[slot] = index;
+            bucketCounts[slot] = count;
+            numBuckets++;
+            return true;
+        }
+
+        @Override
+        public CopyableBucketIterator iterator() {
+            int start = startSlot();
+            return new BucketArrayIterator(start, start + numBuckets);
+        }
+
+        @Override
+        public OptionalLong maxBucketIndex() {
+            if (numBuckets == 0) {
+                return OptionalLong.empty();
+            } else {
+                return OptionalLong.of(bucketIndices[startSlot() + numBuckets - 1]);
+            }
+        }
+
+        @Override
+        public long valueCount() {
+            int startSlot = startSlot();
+            while (cachedValueSumForNumBuckets < numBuckets) {
+                cachedValueSum += bucketCounts[startSlot + cachedValueSumForNumBuckets];
+                cachedValueSumForNumBuckets++;
+            }
+            return cachedValueSum;
+        }
     }
 
     private class BucketArrayIterator implements CopyableBucketIterator {

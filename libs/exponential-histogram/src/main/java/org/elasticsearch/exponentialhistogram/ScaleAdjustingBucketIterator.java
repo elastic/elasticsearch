@@ -15,9 +15,9 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjus
  * An iterator that wraps another bucket iterator and adjusts its scale.
  * When scaling down, multiple buckets can collapse into a single one. This iterator ensures they are merged correctly.
  */
-final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketIterator {
+final class ScaleAdjustingBucketIterator implements BucketIterator {
 
-    private final ExponentialHistogram.BucketIterator delegate;
+    private final BucketIterator delegate;
     private final int scaleAdjustment;
 
     private long currentIndex;
@@ -30,7 +30,7 @@ final class ScaleAdjustingBucketIterator implements ExponentialHistogram.BucketI
      * @param delegate    the iterator to wrap
      * @param targetScale the target scale for the new iterator
      */
-    ScaleAdjustingBucketIterator(ExponentialHistogram.BucketIterator delegate, int targetScale) {
+    ScaleAdjustingBucketIterator(BucketIterator delegate, int targetScale) {
         this.delegate = delegate;
         scaleAdjustment = targetScale - delegate.scale();
         hasNextValue = true;

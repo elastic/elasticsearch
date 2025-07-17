@@ -65,84 +65,38 @@ public interface ExponentialHistogram {
     ZeroBucket zeroBucket();
 
     /**
-     * @return a {@link BucketIterator} for the populated, positive buckets of this histogram.
-     * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
+     * @return a {@link Buckets} instance for the populated buckets covering the positive value range of this histogram.
+     * The {@link BucketIterator#scale()} of iterators obtained via {@link Buckets#iterator()} must be the same as {@link #scale()}.
      */
-    CopyableBucketIterator positiveBuckets();
+    Buckets positiveBuckets();
 
     /**
-     * @return a {@link BucketIterator} for the populated, negative buckets of this histogram.
-     * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
+     * @return a {@link Buckets} instance for the populated buckets covering the negative value range of this histogram.
+     * The {@link BucketIterator#scale()} of iterators obtained via {@link Buckets#iterator()} must be the same as {@link #scale()}.
      */
-    CopyableBucketIterator negativeBuckets();
+    Buckets negativeBuckets();
 
     /**
-     * Returns the highest populated bucket index, taking both negative and positive buckets into account.
-     *
-     * @return the highest populated bucket index, or an empty optional if no buckets are populated
+     * Represents a bucket range of an {@link ExponentialHistogram}, either the positive or the negative range.
      */
-    OptionalLong maximumBucketIndex();
-
-    /**
-     * An iterator over the non-empty buckets of the histogram for either the positive or negative range.
-     *  <ul>
-     *      <li>The iterator always iterates from the lowest bucket index to the highest.</li>
-     *      <li>The iterator never returns duplicate buckets (buckets with the same index).</li>
-     *      <li>The iterator never returns empty buckets ({@link #peekCount()} is never zero).</li>
-     *  </ul>
-     */
-    interface BucketIterator {
-        /**
-         * Checks if there are any buckets remaining to be visited by this iterator.
-         * If the end has been reached, it is illegal to call {@link #peekCount()}, {@link #peekIndex()}, or {@link #advance()}.
-         *
-         * @return {@code true} if the iterator has more elements, {@code false} otherwise
-         */
-        boolean hasNext();
+    interface Buckets {
 
         /**
-         * The number of items in the bucket at the current iterator position. Does not advance the iterator.
-         * Must not be called if {@link #hasNext()} returns {@code false}.
-         *
-         * @return the number of items in the bucket, always greater than zero
+         * @return a {@link BucketIterator} for the populated buckets of this bucket range.
+         * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
          */
-        long peekCount();
+        CopyableBucketIterator iterator();
 
         /**
-         * The index of the bucket at the current iterator position. Does not advance the iterator.
-         * Must not be called if {@link #hasNext()} returns {@code false}.
-         *
-         * @return the index of the bucket, guaranteed to be in the range [{@link #MIN_INDEX}, {@link #MAX_INDEX}]
+         * @return the highest populated bucket index, or an empty optional if no buckets are populated
          */
-        long peekIndex();
+        OptionalLong maxBucketIndex();
 
         /**
-         * Moves the iterator to the next, non-empty bucket.
-         * If {@link #hasNext()} is {@code true} after calling {@link #advance()}, {@link #peekIndex()} is guaranteed to return a value
-         * greater than the value returned prior to the {@link #advance()} call.
+         * @return the sum of the counts across all buckets of this range
          */
-        void advance();
+        long valueCount();
 
-        /**
-         * Provides the scale that can be used to convert indices returned by {@link #peekIndex()} to the bucket boundaries,
-         * e.g., via {@link ExponentialScaleUtils#getLowerBucketBoundary(long, int)}.
-         *
-         * @return the scale, which is guaranteed to be constant over the lifetime of this iterator
-         */
-        int scale();
     }
 
-    /**
-     * A {@link BucketIterator} that can be copied.
-     */
-    interface CopyableBucketIterator extends BucketIterator {
-
-        /**
-         * Creates a copy of this bucket iterator, pointing at the same bucket of the same range of buckets.
-         * Calling {@link #advance()} on the copied iterator does not affect this instance and vice-versa.
-         *
-         * @return a copy of this iterator
-         */
-        CopyableBucketIterator copy();
-    }
 }

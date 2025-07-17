@@ -31,8 +31,8 @@ public class ExponentialHistogramQuantile {
         }
 
         long zeroCount = histo.zeroBucket().count();
-        long negCount = getTotalCount(histo.negativeBuckets());
-        long posCount = getTotalCount(histo.positiveBuckets());
+        long negCount = histo.negativeBuckets().valueCount();
+        long posCount = histo.positiveBuckets().valueCount();
 
         long totalCount = zeroCount + negCount + posCount;
         if (totalCount == 0) {
@@ -56,15 +56,15 @@ public class ExponentialHistogramQuantile {
 
     private static double getElementAtRank(ExponentialHistogram histo, long rank, long negCount, long zeroCount) {
         if (rank < negCount) {
-            return -getBucketMidpointForRank(histo.negativeBuckets(), (negCount - 1) - rank);
+            return -getBucketMidpointForRank(histo.negativeBuckets().iterator(), (negCount - 1) - rank);
         } else if (rank < (negCount + zeroCount)) {
             return 0.0;
         } else {
-            return getBucketMidpointForRank(histo.positiveBuckets(), rank - (negCount + zeroCount));
+            return getBucketMidpointForRank(histo.positiveBuckets().iterator(), rank - (negCount + zeroCount));
         }
     }
 
-    private static double getBucketMidpointForRank(ExponentialHistogram.BucketIterator buckets, long rank) {
+    private static double getBucketMidpointForRank(BucketIterator buckets, long rank) {
         long seenCount = 0;
         while (buckets.hasNext()) {
             seenCount += buckets.peekCount();
@@ -74,14 +74,5 @@ public class ExponentialHistogramQuantile {
             buckets.advance();
         }
         throw new IllegalStateException("The total number of elements in the buckets is less than the desired rank.");
-    }
-
-    private static long getTotalCount(ExponentialHistogram.BucketIterator buckets) {
-        long count = 0;
-        while (buckets.hasNext()) {
-            count += buckets.peekCount();
-            buckets.advance();
-        }
-        return count;
     }
 }

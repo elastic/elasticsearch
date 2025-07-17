@@ -12,10 +12,10 @@ package org.elasticsearch.exponentialhistogram;
 /**
  * An iterator that merges two bucket iterators, aligning them to a common scale and combining buckets with the same index.
  */
-final class MergingBucketIterator implements ExponentialHistogram.BucketIterator {
+final class MergingBucketIterator implements BucketIterator {
 
-    private final ExponentialHistogram.BucketIterator itA;
-    private final ExponentialHistogram.BucketIterator itB;
+    private final BucketIterator itA;
+    private final BucketIterator itB;
 
     private boolean endReached;
     private long currentIndex;
@@ -28,7 +28,7 @@ final class MergingBucketIterator implements ExponentialHistogram.BucketIterator
      * @param itB         the second iterator to merge
      * @param targetScale the histogram scale to which both iterators should be aligned
      */
-    MergingBucketIterator(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB, int targetScale) {
+    MergingBucketIterator(BucketIterator itA, BucketIterator itB, int targetScale) {
         this.itA = new ScaleAdjustingBucketIterator(itA, targetScale);
         this.itB = new ScaleAdjustingBucketIterator(itB, targetScale);
         endReached = false;

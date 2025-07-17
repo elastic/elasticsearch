@@ -91,12 +91,12 @@ public record ZeroBucket(long index, int scale, long count) {
      * @param bucketIterators The iterators whose buckets may be collapsed.
      * @return A potentially updated {@link ZeroBucket} with the collapsed buckets' counts and an adjusted threshold.
      */
-    public ZeroBucket collapseOverlappingBuckets(ExponentialHistogram.BucketIterator... bucketIterators) {
+    public ZeroBucket collapseOverlappingBuckets(BucketIterator... bucketIterators) {
         ZeroBucket current = this;
         ZeroBucket previous;
         do {
             previous = current;
-            for (ExponentialHistogram.BucketIterator buckets : bucketIterators) {
+            for (BucketIterator buckets : bucketIterators) {
                 current = current.collapseOverlappingBuckets(buckets);
             }
         } while (previous.compareZeroThreshold(current) != 0);
@@ -127,7 +127,7 @@ public record ZeroBucket(long index, int scale, long count) {
      * @param buckets The iterator whose buckets may be collapsed.
      * @return A potentially updated {@link ZeroBucket} with the collapsed buckets' counts and an adjusted threshold.
      */
-    public ZeroBucket collapseOverlappingBuckets(ExponentialHistogram.BucketIterator buckets) {
+    public ZeroBucket collapseOverlappingBuckets(BucketIterator buckets) {
 
         long collapsedCount = 0;
         long highestCollapsedIndex = 0;

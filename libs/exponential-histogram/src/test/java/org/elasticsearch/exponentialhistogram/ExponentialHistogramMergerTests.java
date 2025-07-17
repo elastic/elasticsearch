@@ -48,13 +48,13 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         // only the (4, 8] bucket should be left
         assertThat(mergeResult.scale(), equalTo(0));
 
-        ExponentialHistogram.BucketIterator negBuckets = mergeResult.negativeBuckets();
+        BucketIterator negBuckets = mergeResult.negativeBuckets().iterator();
         assertThat(negBuckets.peekIndex(), equalTo(2L));
         assertThat(negBuckets.peekCount(), equalTo(7L));
         negBuckets.advance();
         assertThat(negBuckets.hasNext(), equalTo(false));
 
-        ExponentialHistogram.BucketIterator posBuckets = mergeResult.positiveBuckets();
+        BucketIterator posBuckets = mergeResult.positiveBuckets().iterator();
         assertThat(posBuckets.peekIndex(), equalTo(2L));
         assertThat(posBuckets.peekCount(), equalTo(42L));
         posBuckets.advance();
@@ -67,8 +67,8 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         mergeResult = mergeWithMinimumScale(100, 0, mergeResult, third);
         assertThat(mergeResult.zeroBucket().zeroThreshold(), closeTo(45.0, 0.000001));
         assertThat(mergeResult.zeroBucket().count(), equalTo(1L + 14L + 42L + 7L));
-        assertThat(mergeResult.positiveBuckets().hasNext(), equalTo(false));
-        assertThat(mergeResult.negativeBuckets().hasNext(), equalTo(false));
+        assertThat(mergeResult.positiveBuckets().iterator().hasNext(), equalTo(false));
+        assertThat(mergeResult.negativeBuckets().iterator().hasNext(), equalTo(false));
     }
 
     public void testEmptyZeroBucketIgnored() {
@@ -85,7 +85,7 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         assertThat(mergeResult.zeroBucket().zeroThreshold(), equalTo(2.0));
         assertThat(mergeResult.zeroBucket().count(), equalTo(10L));
 
-        ExponentialHistogram.BucketIterator posBuckets = mergeResult.positiveBuckets();
+        BucketIterator posBuckets = mergeResult.positiveBuckets().iterator();
         assertThat(posBuckets.peekIndex(), equalTo(2L));
         assertThat(posBuckets.peekCount(), equalTo(42L));
         posBuckets.advance();
@@ -111,9 +111,9 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
 
             assertThat(result.scale(), equalTo(21));
             if (isPositive) {
-                assertThat(result.positiveBuckets().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+                assertThat(result.positiveBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
             } else {
-                assertThat(result.negativeBuckets().peekIndex(), equalTo(adjustScale(index, 20, 1)));
+                assertThat(result.negativeBuckets().iterator().peekIndex(), equalTo(adjustScale(index, 20, 1)));
             }
         }
     }
@@ -142,8 +142,10 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
         }
     }
 
-    private void assertBucketsEqual(ExponentialHistogram.BucketIterator itA, ExponentialHistogram.BucketIterator itB) {
-        assertThat("Expecting both set of buckets to be emptry or non-empty", itA.hasNext(), equalTo(itB.hasNext()));
+    private void assertBucketsEqual(ExponentialHistogram.Buckets bucketsA, ExponentialHistogram.Buckets bucketsB) {
+        BucketIterator itA = bucketsA.iterator();
+        BucketIterator itB = bucketsB.iterator();
+        assertThat("Expecting both set of buckets to be empty or non-empty", itA.hasNext(), equalTo(itB.hasNext()));
         while (itA.hasNext() && itB.hasNext()) {
             assertThat(itA.peekIndex(), equalTo(itB.peekIndex()));
             assertThat(itA.peekCount(), equalTo(itB.peekCount()));

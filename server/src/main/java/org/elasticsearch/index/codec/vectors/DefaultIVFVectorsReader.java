@@ -69,7 +69,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             int currentCentroid = -1;
             long postingListOffset;
             private final float[] centroidCorrectiveValues = new float[3];
-            private final long rawCentroidsOffset = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES);
+            private final long quantizeCentroidsLength = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES
+                + Short.BYTES);
 
             @Override
             public int size() {
@@ -79,7 +80,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             @Override
             public long postingListOffset(int centroidOrdinal) throws IOException {
                 if (centroidOrdinal != currentCentroid) {
-                    centroids.seek(rawCentroidsOffset + (long) Long.BYTES * centroidOrdinal);
+                    centroids.seek(quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
                     postingListOffset = centroids.readLong();
                     currentCentroid = centroidOrdinal;
                 }

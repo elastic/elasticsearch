@@ -43,14 +43,18 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -61,8 +65,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -93,18 +98,24 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         startIndexNode();
         ensureStableCluster(3);
 
-        var indexName = randomIdentifier();
-        createAndPopulateIndex(indexName, indexNode);
+        var indexNames = randomArray(1, 3, String[]::new, ESTestCase::randomIdentifier);
+        createAndPopulateIndex(indexNode, indexNames);
 
-        var indexUUID = resolveIndexUUID(indexName);
+        var indexUUIDs = resolveIndexUUID(indexNames);
         internalCluster().stopNode(indexNode);
 
         ensureRed(masterNode);
-        assertIndexExistsInObjectStore(indexUUID);
+        assertIndexExistsInObjectStore(indexUUIDs);
 
-        client().admin().indices().prepareDelete(indexName).get();
+        final int numDeleted = between(1, indexNames.length);
+        client().admin().indices().prepareDelete(subArray(indexNames, 0, numDeleted)).get();
 
-        assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
+        assertBusy(() -> {
+            assertIndexDoesNotExistsInObjectStore(subArray(indexUUIDs, 0, numDeleted));
+            if (numDeleted < indexNames.length) {
+                assertIndexExistsInObjectStore(subArray(indexUUIDs, numDeleted));
+            }
+        });
     }
 
     public void testStaleIndicesAreCleanedAfterAMasterFailover() throws Exception {
@@ -118,21 +129,27 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
         var stoppedMasterNode = internalCluster().getMasterName();
 
-        var indexName = randomIdentifier();
-        createAndPopulateIndex(indexName, indexNode);
+        var indexNames = randomArray(1, 3, String[]::new, ESTestCase::randomIdentifier);
+        createAndPopulateIndex(indexNode, indexNames);
 
         internalCluster().stopCurrentMasterNode();
 
         internalCluster().stopNode(indexNode);
 
-        var indexUUID = resolveIndexUUID(indexName);
+        var indexUUIDs = resolveIndexUUID(indexNames);
 
         ensureRed(stoppedMasterNode.equals(masterNode) ? masterNode2 : masterNode);
-        assertIndexExistsInObjectStore(indexUUID);
+        assertIndexExistsInObjectStore(indexUUIDs);
 
-        client().admin().indices().prepareDelete(indexName).get();
+        final int numDeleted = between(1, indexNames.length);
+        client().admin().indices().prepareDelete(subArray(indexNames, 0, numDeleted)).get();
 
-        assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
+        assertBusy(() -> {
+            assertIndexDoesNotExistsInObjectStore(subArray(indexUUIDs, 0, numDeleted));
+            if (numDeleted < indexNames.length) {
+                assertIndexExistsInObjectStore(subArray(indexUUIDs, numDeleted));
+            }
+        });
     }
 
     public void testStaleIndicesAreCleanedAfterThePersistentTaskNodeFails() throws Exception {
@@ -144,19 +161,25 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         var indexNode = startIndexNode();
         ensureStableCluster(2);
 
-        var indexName = randomIdentifier();
-        createAndPopulateIndex(indexName, indexNode);
-        var indexUUID = resolveIndexUUID(indexName);
+        var indexNames = randomArray(1, 3, String[]::new, ESTestCase::randomIdentifier);
+        createAndPopulateIndex(indexNode, indexNames);
+        var indexUUIDs = resolveIndexUUID(indexNames);
 
         internalCluster().stopNode(indexNode);
-        assertIndexExistsInObjectStore(indexUUID);
+        assertIndexExistsInObjectStore(indexUUIDs);
 
-        client().admin().indices().prepareDelete(indexName).get();
+        final int numDeleted = between(1, indexNames.length);
+        client().admin().indices().prepareDelete(subArray(indexNames, 0, numDeleted)).get();
         // no index node can take care of cleaning the stale files
-        assertIndexExistsInObjectStore(indexUUID);
+        assertIndexExistsInObjectStore(indexUUIDs);
 
         startIndexNode();
-        assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
+        assertBusy(() -> {
+            assertIndexDoesNotExistsInObjectStore(subArray(indexUUIDs, 0, numDeleted));
+            if (numDeleted < indexNames.length) {
+                assertIndexExistsInObjectStore(subArray(indexUUIDs, numDeleted));
+            }
+        });
     }
 
     public void testStaleIndicesAreCleanedOnlyWhenGCIsEnabled() throws Exception {
@@ -167,18 +190,19 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         startIndexNode(Settings.builder().put(ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING.getKey(), false).build());
         ensureStableCluster(3);
 
-        var indexName = randomIdentifier();
-        createAndPopulateIndex(indexName, indexNode);
+        var indexNames = randomArray(1, 3, String[]::new, ESTestCase::randomIdentifier);
+        createAndPopulateIndex(indexNode, indexNames);
 
-        var indexUUID = resolveIndexUUID(indexName);
+        var indexUUIDs = resolveIndexUUID(indexNames);
         internalCluster().stopNode(indexNode);
 
-        assertIndexExistsInObjectStore(indexUUID);
+        assertIndexExistsInObjectStore(indexUUIDs);
 
-        client().admin().indices().prepareDelete(indexName).get();
+        final int numDeleted = between(1, indexNames.length);
+        client().admin().indices().prepareDelete(subArray(indexNames, 0, numDeleted)).get();
 
         safeSleep(5000);
-        assertIndexExistsInObjectStore(indexUUID);
+        assertIndexExistsInObjectStore(indexUUIDs);
     }
 
     enum DisruptionScenario {
@@ -224,37 +248,40 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         executingTaskNodeRepositoryStrategy.waitUntilGetChildrenIsBlocked();
 
         // Once the cluster is partitioned, all requests must go through the non-isolated nodes, so they can make progress
-        var newIndex = randomIdentifier();
-        client(masterNode).admin()
-            .indices()
-            .prepareCreate(newIndex)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.require._name", nodeWhereIndexIsAllocated)
-                    .build()
-            )
-            .execute()
-            .get();
+        var newIndices = randomArray(1, 2, String[]::new, ESTestCase::randomIdentifier);
+        for (var newIndex : newIndices) {
+            client(masterNode).admin()
+                .indices()
+                .prepareCreate(newIndex)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.allocation.require._name", nodeWhereIndexIsAllocated)
+                        .build()
+                )
+                .setTimeout(TimeValue.timeValueSeconds(10)) // No need to wait long for the disrupted node to ack
+                .execute()
+                .get();
+        }
 
         var healthResponse = client(masterNode).admin()
             .cluster()
-            .prepareHealth(TEST_REQUEST_TIMEOUT, newIndex)
+            .prepareHealth(TEST_REQUEST_TIMEOUT, newIndices)
             .setWaitForGreenStatus()
             .get();
         assertFalse(healthResponse.isTimedOut());
 
-        var indexUUID = resolveIndexUUID(newIndex, masterNode);
-        assertIndexExistsInObjectStore(indexUUID, masterNode);
+        var indexUUIDs = resolveIndexUUID(masterNode, newIndices);
+        assertIndexExistsInObjectStore(masterNode, indexUUIDs);
 
         var bulkRequest = client(nodeWhereIndexIsAllocated).prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequest.add(new IndexRequest(newIndex).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+            bulkRequest.add(new IndexRequest(randomFrom(newIndices)).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
         assertNoFailures(bulkRequest.get());
 
-        var flushResponse = client(nodeWhereIndexIsAllocated).admin().indices().prepareFlush(newIndex).get();
+        var flushResponse = client(nodeWhereIndexIsAllocated).admin().indices().prepareFlush(newIndices).get();
         assertNoFailures(flushResponse);
 
         executingTaskNodeRepositoryStrategy.unblockGetChildren();
@@ -262,7 +289,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         // and waits for the latest cluster state instead of deleting the newly created files
         safeSleep(5000);
 
-        assertIndexExistsInObjectStore(indexUUID, masterNode);
+        assertIndexExistsInObjectStore(masterNode, indexUUIDs);
         disruption.stopDisrupting();
     }
 
@@ -276,13 +303,13 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         var executingTaskNode = getNodeWhereGCTaskIsAssigned();
         var nodeWhereIndexIsAllocated = executingTaskNode.equals(indexNode2) ? indexNode : indexNode2;
 
-        var newIndex = randomIdentifier();
-        createAndPopulateIndex(newIndex, nodeWhereIndexIsAllocated);
+        var newIndices = randomArray(1, 3, String[]::new, ESTestCase::randomIdentifier);
+        createAndPopulateIndex(nodeWhereIndexIsAllocated, newIndices);
 
-        ensureGreen(newIndex);
+        ensureGreen(newIndices);
 
-        var indexUUID = resolveIndexUUID(newIndex);
-        assertIndexExistsInObjectStore(indexUUID);
+        var indexUUIDs = resolveIndexUUID(newIndices);
+        assertIndexExistsInObjectStore(indexUUIDs);
 
         var executingTaskNodeRepositoryStrategy = new BlockingDeletesRepositoryStategy();
         setNodeRepositoryStrategy(executingTaskNode, executingTaskNodeRepositoryStrategy);
@@ -292,7 +319,8 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         executingTaskNodeRepositoryStrategy.blockDeletes();
         nodeWhereIndexIsAllocatedRepositoryStrategy.blockDeletes();
 
-        client().admin().indices().prepareDelete(newIndex).get();
+        final int numDeleted = between(1, newIndices.length);
+        client().admin().indices().prepareDelete(subArray(newIndices, 0, numDeleted)).get();
 
         // This is a bit implementation specific, but it's the only way to ensure that
         // both nodes are waiting on the deletion.
@@ -308,7 +336,12 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
             executingTaskNodeRepositoryStrategy.unblockDeletes();
         }
 
-        assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
+        assertBusy(() -> {
+            assertIndexDoesNotExistsInObjectStore(subArray(indexUUIDs, 0, numDeleted));
+            if (numDeleted < newIndices.length) {
+                assertIndexExistsInObjectStore(subArray(indexUUIDs, numDeleted));
+            }
+        });
     }
 
     /**
@@ -436,32 +469,34 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         return executingTaskNode;
     }
 
-    private void createAndPopulateIndex(String indexName, String indexNode) {
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.require._name", indexNode)
-                .build()
-        );
-        var numberOfSegments = randomIntBetween(5, 10);
-        for (int i = 0; i < numberOfSegments; i++) {
-            indexDocs(indexName, 1000);
-            flush(indexName);
+    private void createAndPopulateIndex(String indexNode, String... indexNames) {
+        for (var indexName : indexNames) {
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.require._name", indexNode)
+                    .build()
+            );
+            var numberOfSegments = randomIntBetween(5, 10);
+            for (int i = 0; i < numberOfSegments; i++) {
+                indexDocs(indexName, 1000);
+                flush(indexName);
+            }
         }
     }
 
-    private void assertIndexExistsInObjectStore(String indexUUID) throws Exception {
-        assertThat(getIndicesInBlobStore(), contains(indexUUID));
+    private void assertIndexExistsInObjectStore(String... indexUUIDs) throws Exception {
+        assertThat(getIndicesInBlobStore(), containsInAnyOrder(indexUUIDs));
     }
 
-    private void assertIndexExistsInObjectStore(String indexUUID, String viaNode) throws Exception {
-        assertThat(getIndicesInBlobStore(viaNode), contains(indexUUID));
+    private void assertIndexExistsInObjectStore(String viaNode, String... indexUUIDs) throws Exception {
+        assertThat(getIndicesInBlobStore(viaNode), containsInAnyOrder(indexUUIDs));
     }
 
-    private void assertIndexDoesNotExistsInObjectStore(String indexUUID) throws Exception {
-        assertThat(getIndicesInBlobStore(), not(contains(indexUUID)));
+    private void assertIndexDoesNotExistsInObjectStore(String... indexUUIDs) throws Exception {
+        assertThat(getIndicesInBlobStore(), not(hasItems(indexUUIDs)));
     }
 
     private static Set<String> getIndicesInBlobStore() throws IOException {
@@ -473,17 +508,21 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         return objectStoreService.getIndicesBlobContainer(ProjectId.DEFAULT).children(OperationPurpose.INDICES).keySet();
     }
 
-    private String resolveIndexUUID(String indexName) {
-        return resolveIndexUUID(indexName, null);
+    private String[] resolveIndexUUID(String... indexNames) {
+        return resolveIndexUUID(null, indexNames);
     }
 
-    private String resolveIndexUUID(String indexName, String viaNode) {
+    private String[] resolveIndexUUID(String viaNode, String... indexNames) {
         var state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        var indexMetadata = state.metadata().getProject().index(indexName);
-        if (indexMetadata == null) {
-            logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toString(state, true, true));
+        final List<String> indexUUIDs = new ArrayList<>();
+        for (var indexName : indexNames) {
+            var indexMetadata = state.metadata().getProject().index(indexName);
+            if (indexMetadata == null) {
+                logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toString(state, true, true));
+            }
+            indexUUIDs.add(indexMetadata.getIndexUUID());
         }
-        return indexMetadata.getIndexUUID();
+        return indexUUIDs.toArray(String[]::new);
     }
 
     private String startMasterNode() {
@@ -506,6 +545,16 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
             assertFalse(healthResponse.isTimedOut());
             assertThat(healthResponse.getStatus(), is(ClusterHealthStatus.RED));
         });
+    }
+
+    // Create a sub-array from start (inclusive) to end (exclusive)
+    private String[] subArray(String[] array, int start, int end) {
+        return Arrays.copyOfRange(array, start, end);
+    }
+
+    // Create a sub-array from start (inclusive)
+    private String[] subArray(String[] array, int start) {
+        return Arrays.copyOfRange(array, start, array.length);
     }
 
     public static class BlockingDeletesRepositoryStategy extends StatelessMockRepositoryStrategy {

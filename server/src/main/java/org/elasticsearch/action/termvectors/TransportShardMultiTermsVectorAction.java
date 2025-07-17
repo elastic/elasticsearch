@@ -110,14 +110,14 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 .map(TermVectorsRequest::id)
                 .toArray(String[]::new);
             if (realTimeIds.length > 0) {
-                final var ensureDocsSearchableRequest = new TransportEnsureDocsSearchableAction.EnsureDocsSearchableRequest(
+                final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
                     request.index(),
                     shardId.id(),
                     realTimeIds
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
                 client.executeLocally(
-                    TransportEnsureDocsSearchableAction.TYPE,
+                    EnsureDocsSearchableAction.TYPE,
                     ensureDocsSearchableRequest,
                     listener.delegateFailureAndWrap((l, r) -> super.asyncShardOperation(request, shardId, l))
                 );

@@ -109,14 +109,14 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
             if (DiscoveryNode.isStateless(clusterService.getSettings())) {
                 // Ensure that the document is searchable before we execute the term vectors request
-                final var ensureDocsSearchableRequest = new TransportEnsureDocsSearchableAction.EnsureDocsSearchableRequest(
+                final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
                     request.index(),
                     shardId.id(),
                     new String[] { request.id() }
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
                 client.executeLocally(
-                    TransportEnsureDocsSearchableAction.TYPE,
+                    EnsureDocsSearchableAction.TYPE,
                     ensureDocsSearchableRequest,
                     listener.delegateFailureAndWrap((l, r) -> super.asyncShardOperation(request, shardId, l))
                 );

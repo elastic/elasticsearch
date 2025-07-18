@@ -2399,11 +2399,10 @@ public class VerifierTests extends ESTestCase {
             | EVAL language_code = languages
             | %s
             | EVAL x = 1
-            | MV_EXPAND language_name
-            | DISSECT language_name "%%{foo}"
+            | MV_EXPAND language_code
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
     }
 
     public void testRemoteEnrichAfterCoordinatorOnlyPlans() {

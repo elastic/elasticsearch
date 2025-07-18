@@ -97,6 +97,15 @@ toc:
             - file: rest-apis/retrieve-selected-fields.md
             - file: rest-apis/retrieve-stored-fields.md
             - file: rest-apis/retrievers.md
+              children:
+                - file: rest-apis/retrievers/knn-retriever.md
+                - file: rest-apis/retrievers/linear-retriever.md
+                - file: rest-apis/retrievers/pinned-retriever.md
+                - file: rest-apis/retrievers/rescorer-retriever.md
+                - file: rest-apis/retrievers/rrf-retriever.md
+                - file: rest-apis/retrievers/rule-retriever.md
+                - file: rest-apis/retrievers/standard-retriever.md
+                - file: rest-apis/retrievers/text-similarity-reranker-retriever.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
             - file: rest-apis/search-rank-eval.md

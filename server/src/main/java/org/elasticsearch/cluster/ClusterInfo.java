@@ -227,7 +227,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 return builder.endObject(); // NodeAndPath
             }),
             endArray() // end "reserved_sizes"
-            // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools at this stage, to avoid
+            // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools/shardWriteLoads at this stage, to avoid
             // committing to API payloads until the features are settled
         );
     }

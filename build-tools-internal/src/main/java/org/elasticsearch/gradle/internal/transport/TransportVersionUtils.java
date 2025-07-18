@@ -12,10 +12,7 @@ package org.elasticsearch.gradle.internal.transport;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.List;

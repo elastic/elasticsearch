@@ -33,7 +33,7 @@ public abstract class AggregateTransportVersionDeclarationsTask extends DefaultT
     @TaskAction
     public void aggregateTransportVersionDeclarations() {
         final var files = getTransportVersionNameDeclarationsFiles().getFiles();
-        var allTVNames= files.stream().flatMap(file -> {
+        var allTVNames = files.stream().flatMap(file -> {
             try {
                 return Files.lines(Path.of(file.getPath()));
             } catch (IOException e) {

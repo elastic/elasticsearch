@@ -38,7 +38,7 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
         var manifestFile = getManifestFile();
         System.out.println("Potato: manifest file location: " + manifestFile.getAsFile().get().getAbsolutePath());
         try (FileWriter writer = new FileWriter(manifestFile.getAsFile().get())) {
-            for (var file : dir. listFiles()) {
+            for (var file : dir.listFiles()) {
                 System.out.println("Potato GenerateTransportVersionManifestTask: " + file.getAbsolutePath());
                 var fileName = file.getName();
                 if (fileName.endsWith("-LATEST.json") == false) {

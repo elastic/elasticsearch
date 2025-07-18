@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Streams;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionSetData;

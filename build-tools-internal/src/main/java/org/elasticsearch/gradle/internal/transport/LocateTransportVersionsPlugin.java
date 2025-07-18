@@ -9,10 +9,12 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 
 public class LocateTransportVersionsPlugin implements Plugin<Project> {
@@ -20,16 +22,19 @@ public class LocateTransportVersionsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // TODO figure out what the classpath needs to be to be able to scan the server classes
-        // Does this need to be a lib (to limit scanning by making this a jar, to exclude gradle)? Ask Mark
-        // "/Users/john.verwolf/code/elasticsearch/build-tools-internal/build/classes/java/main"
+        var config = project.getConfigurations().create("locateTransportVersionsConfig");
 
         final var checkTransportVersion = project.getTasks().register("locateTransportVersions", LocateTransportVersionsTask.class, t -> {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            FileCollection dependencyJars = project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
             FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
-            t.getClassDirs().set(compiledPluginClasses);
+            FileCollection clasDirs = dependencyJars.plus(compiledPluginClasses)
+                .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME));
+            t.getClassDirs().set(clasDirs);
 
             t.getOutputFile().set(project.getLayout().getBuildDirectory().file(TRANSPORT_VERSION_NAMES_FILE));
         });
+
+        project.getArtifacts().add(config.getName(), checkTransportVersion);
     }
 }

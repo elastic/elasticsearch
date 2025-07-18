@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Streams;
-
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionSetData;
@@ -116,7 +115,9 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             }).toList();
             if (existingIDsForReleaseVersion.isEmpty() == false) {
                 throw new GradleException(
-                    "A transport version could not be created because one already exists for this release:"
+                    "A transport version could not be created because a preexisting one was found for this name & release."
+                        + " This could be due to another pre-existing TV with the same name, or a result of running this"
+                        + " task twice:"
                         + " Release version: "
                         + tvReleaseVersion
                         + " TransportVersion Id: "
@@ -144,6 +145,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         );
     }
 
+    // TODO Do I need to remove the patch when updating the server portion? NO, but probably need some additional checks
     private static int bumpVersionNumber(
         int tvIDToBump,
         ReleaseVersion releaseVersion,
@@ -153,7 +155,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
 
         /* The TV format:
          *
-         * M_NNN_S_PP
+         * MM_NNN_S_PP
          *
          * M - The major version of Elasticsearch
          * NNN - The server version part
@@ -166,7 +168,9 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
                 return releaseVersion.major * 1_000_000; // TODO add check that this doesn't cause overflow out of server versions
             } else {
                 // Bump the server version part if not a major bump.
-                return tvIDToBump + 1000; // TODO add check that this doesn't cause overflow out of server versions
+                // TODO add check that this doesn't cause overflow out of server versions
+                // TODO Do we need to assert on the shape of the number? e.g. no patch version.
+                return tvIDToBump + 1000;
             }
         } else {
             // bump the patch version part
@@ -175,8 +179,9 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
     }
 
     /**
+     * TODO update this
      * Accepts a major.minor version string (e.g. "9.0") and returns the LATEST.json file of the
-     * previous release string (e.g. "8.19-LATEST.json").
+     * previous release string (e.g. "8.19").
      */
     private static ReleaseVersion getPriorReleaseVersion(File tvDataDir, ReleaseVersion releaseVersion) {
         assert tvDataDir != null;

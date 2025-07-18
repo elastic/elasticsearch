@@ -30,6 +30,7 @@ import java.util.Set;
  * TODO:
  *  - make this depend on the LocateTransportVersions task/plugin
  *  - make this both a local (per module/plugin) and global task
+ *  - Also validate that there are no duplicate tvs (ids, names?)
  */
 public abstract class ValidateTransportVersionsTask extends DefaultTask {
 

@@ -6,7 +6,12 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
+// look here
+/*
+This sets up a dummy plugin
+applies the es plugin
+actually runs the build
+ */
 package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.VersionProperties

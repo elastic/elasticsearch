@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.transport.LocateTransportVersionsPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -36,6 +37,16 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
+        // We need to wire this up
+        /*
+        Old way is to set up a config here, then depend on it in the other plugin.
+        The new way is called variant aware artifacts or something
+        Basically attach some attributes to the artifacts
+        Then those attributes are how we are tying this together.
+        Now instead of saying I want this specific config, we now say I want the artifact from this project that has these attributes
+
+         */
+        project.getPluginManager().apply(LocateTransportVersionsPlugin.class);
         boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).getCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds

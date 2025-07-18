@@ -193,6 +193,10 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
                 : project.getTasks().named("jar")
         );
         bundleSpec.from(
+            // TODO look at this
+            /*
+            Take the runtime classpath, and remove the things that are compileonly, and all the libs are transitively compileonly
+             */
             project.getConfigurations()
                 .getByName("runtimeClasspath")
                 .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))

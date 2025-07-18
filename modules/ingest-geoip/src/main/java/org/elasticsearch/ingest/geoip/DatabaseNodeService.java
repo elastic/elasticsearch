@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -312,8 +311,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             IndexRoutingTable databasesIndexRT = state.routingTable(projectId).index(databasesIndex);
             if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
                 logger.trace(
-                    "Not checking databases because geoip databases index does not have all active primary shards for"
-                        + " project [{}]",
+                    "Not checking databases because geoip databases index does not have all active primary shards for" + " project [{}]",
                     projectId
                 );
                 return;
@@ -325,10 +323,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
         // process the geoip task state for the (ordinary) geoip downloader
         {
-            GeoIpTaskState taskState = getGeoIpTaskState(
-                projectMetadata,
-                getTaskId(projectId, projectResolver.supportsMultipleProjects())
-            );
+            GeoIpTaskState taskState = getGeoIpTaskState(projectMetadata, getTaskId(projectId, projectResolver.supportsMultipleProjects()));
             if (taskState == null) {
                 // Note: an empty state will purge stale entries in databases map
                 taskState = GeoIpTaskState.EMPTY;

@@ -57,7 +57,7 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
@@ -231,16 +231,6 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
       int groupId = groups.getInt(groupPosition);
       LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, groupPosition + positionOffset);
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    LastOverTimeIntAggregator.GroupingState inState = ((LastOverTimeIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    LastOverTimeIntAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

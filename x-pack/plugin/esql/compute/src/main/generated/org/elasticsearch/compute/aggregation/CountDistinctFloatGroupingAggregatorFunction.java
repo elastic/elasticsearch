@@ -61,7 +61,7 @@ public final class CountDistinctFloatGroupingAggregatorFunction implements Group
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
     FloatVector valuesVector = valuesBlock.asVector();
@@ -216,16 +216,6 @@ public final class CountDistinctFloatGroupingAggregatorFunction implements Group
       int groupId = groups.getInt(groupPosition);
       CountDistinctFloatAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    HllStates.GroupingState inState = ((CountDistinctFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    CountDistinctFloatAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

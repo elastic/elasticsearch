@@ -58,7 +58,7 @@ public final class MedianAbsoluteDeviationFloatGroupingAggregatorFunction implem
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
     FloatVector valuesVector = valuesBlock.asVector();
@@ -213,16 +213,6 @@ public final class MedianAbsoluteDeviationFloatGroupingAggregatorFunction implem
       int groupId = groups.getInt(groupPosition);
       MedianAbsoluteDeviationFloatAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    QuantileStates.GroupingState inState = ((MedianAbsoluteDeviationFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MedianAbsoluteDeviationFloatAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

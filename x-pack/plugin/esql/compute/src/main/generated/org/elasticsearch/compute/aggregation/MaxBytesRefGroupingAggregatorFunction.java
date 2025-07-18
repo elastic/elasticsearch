@@ -59,7 +59,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();
@@ -226,16 +226,6 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
       int groupId = groups.getInt(groupPosition);
       MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    MaxBytesRefAggregator.GroupingState inState = ((MaxBytesRefGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MaxBytesRefAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

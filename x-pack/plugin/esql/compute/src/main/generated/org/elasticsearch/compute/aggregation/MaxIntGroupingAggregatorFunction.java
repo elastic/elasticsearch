@@ -57,7 +57,7 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
@@ -218,18 +218,6 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
       if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), max.getInt(groupPosition + positionOffset)));
       }
-    }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    IntArrayState inState = ((MaxIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
     }
   }
 

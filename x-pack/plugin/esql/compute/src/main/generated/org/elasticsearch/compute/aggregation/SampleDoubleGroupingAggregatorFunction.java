@@ -60,7 +60,7 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     DoubleVector valuesVector = valuesBlock.asVector();
@@ -215,16 +215,6 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
       int groupId = groups.getInt(groupPosition);
       SampleDoubleAggregator.combineIntermediate(state, groupId, sample, groupPosition + positionOffset);
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    SampleDoubleAggregator.GroupingState inState = ((SampleDoubleGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SampleDoubleAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

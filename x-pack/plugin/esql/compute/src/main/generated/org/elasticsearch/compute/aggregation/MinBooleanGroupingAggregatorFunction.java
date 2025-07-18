@@ -56,7 +56,7 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     BooleanVector valuesVector = valuesBlock.asVector();
@@ -217,18 +217,6 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
       if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, MinBooleanAggregator.combine(state.getOrDefault(groupId), min.getBoolean(groupPosition + positionOffset)));
       }
-    }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    BooleanArrayState inState = ((MinBooleanGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MinBooleanAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
     }
   }
 

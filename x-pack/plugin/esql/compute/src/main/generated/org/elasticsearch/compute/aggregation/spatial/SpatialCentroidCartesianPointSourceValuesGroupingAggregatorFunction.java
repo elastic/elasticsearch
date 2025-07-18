@@ -68,7 +68,7 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();
@@ -249,16 +249,6 @@ public final class SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFu
       int groupId = groups.getInt(groupPosition);
       SpatialCentroidCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialCentroidCartesianPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

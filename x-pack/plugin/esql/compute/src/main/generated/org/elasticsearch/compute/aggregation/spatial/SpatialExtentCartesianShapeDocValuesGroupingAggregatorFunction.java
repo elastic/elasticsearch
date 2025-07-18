@@ -61,7 +61,7 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
@@ -214,16 +214,6 @@ public final class SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunctio
       int groupId = groups.getInt(groupPosition);
       SpatialExtentCartesianShapeDocValuesAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    SpatialExtentGroupingState inState = ((SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialExtentCartesianShapeDocValuesAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

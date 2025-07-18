@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -53,6 +54,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -254,16 +256,7 @@ public class MockNode extends Node {
         final Path configPath,
         final boolean forbidPrivateIndexSettings
     ) {
-        this(
-            InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
-                Collections.emptyMap(),
-                configPath,
-                () -> "mock_ node"
-            ),
-            classpathPlugins,
-            forbidPrivateIndexSettings
-        );
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings);
     }
 
     private MockNode(
@@ -280,6 +273,25 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+    }
+
+    private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
+        TestEntitlementBootstrap.registerNodeBaseDirs(settings, configPath);
+        return InternalSettingsPreparer.prepareEnvironment(
+            Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+            Collections.emptyMap(),
+            configPath,
+            () -> "mock_ node"
+        );
+    }
+
+    @Override
+    public synchronized void close() throws IOException {
+        try {
+            super.close();
+        } finally {
+            TestEntitlementBootstrap.unregisterNodeBaseDirs(getEnvironment().settings(), getEnvironment().configDir());
+        }
     }
 
     /**

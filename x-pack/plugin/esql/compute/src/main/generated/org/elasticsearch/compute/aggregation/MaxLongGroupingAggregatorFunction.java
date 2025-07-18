@@ -58,7 +58,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     LongBlock valuesBlock = page.getBlock(channels.get(0));
     LongVector valuesVector = valuesBlock.asVector();
@@ -219,18 +219,6 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), max.getLong(groupPosition + positionOffset)));
       }
-    }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    LongArrayState inState = ((MaxLongGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
     }
   }
 

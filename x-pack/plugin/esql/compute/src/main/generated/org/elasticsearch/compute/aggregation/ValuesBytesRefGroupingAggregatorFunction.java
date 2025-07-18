@@ -56,7 +56,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();
@@ -219,16 +219,6 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       int groupId = groups.getInt(groupPosition);
       ValuesBytesRefAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    ValuesBytesRefAggregator.GroupingState inState = ((ValuesBytesRefGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    ValuesBytesRefAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

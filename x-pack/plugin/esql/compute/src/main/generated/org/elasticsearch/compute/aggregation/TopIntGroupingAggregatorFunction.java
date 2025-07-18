@@ -61,7 +61,7 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
@@ -215,16 +215,6 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
       int groupId = groups.getInt(groupPosition);
       TopIntAggregator.combineIntermediate(state, groupId, top, groupPosition + positionOffset);
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    TopIntAggregator.GroupingState inState = ((TopIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    TopIntAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

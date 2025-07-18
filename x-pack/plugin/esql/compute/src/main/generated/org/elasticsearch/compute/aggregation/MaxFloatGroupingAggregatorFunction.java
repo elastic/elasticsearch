@@ -58,7 +58,7 @@ public final class MaxFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
     FloatVector valuesVector = valuesBlock.asVector();
@@ -219,18 +219,6 @@ public final class MaxFloatGroupingAggregatorFunction implements GroupingAggrega
       if (seen.getBoolean(groupPosition + positionOffset)) {
         state.set(groupId, MaxFloatAggregator.combine(state.getOrDefault(groupId), max.getFloat(groupPosition + positionOffset)));
       }
-    }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    FloatArrayState inState = ((MaxFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxFloatAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
     }
   }
 

@@ -55,7 +55,7 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     BooleanVector valuesVector = valuesBlock.asVector();
@@ -209,16 +209,6 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
       int groupId = groups.getInt(groupPosition);
       ValuesBooleanAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    ValuesBooleanAggregator.GroupingState inState = ((ValuesBooleanGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    ValuesBooleanAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override

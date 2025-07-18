@@ -54,7 +54,7 @@ public class IndexResolver {
     public static final String UNMAPPED = "unmapped";
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
-        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
             IndicesOptions.WildcardOptions.builder()
                 .matchOpen(true)

@@ -393,6 +393,7 @@ public final class FetchPhase {
                     rootSource = Source.fromBytes(leafRootLoader.source());
                 }
             }
+            throw new FetchPhaseExecutionException(context.shardTarget(), "Aha so this does happen then");
         }
 
         childFieldLoader.advanceTo(nestedInfo.doc());

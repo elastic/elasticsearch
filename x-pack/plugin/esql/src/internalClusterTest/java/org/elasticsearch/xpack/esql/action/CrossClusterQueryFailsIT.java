@@ -7,16 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -25,16 +19,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class CrossClusterQueryFailsIT extends AbstractCrossClusterTestCase {
-
-    private static Exception randomFailure() {
-        return randomFrom(
-            new IllegalStateException("driver was closed already"),
-            new CircuitBreakingException("low memory", CircuitBreaker.Durability.PERMANENT),
-            new IOException("broken disk"),
-            new ResourceNotFoundException("index not found"),
-            new EsRejectedExecutionException("node is shutting down")
-        );
-    }
 
     public void testErrorDuringIndexLookupLocalRemote() throws Exception {
         setupClusters(2);

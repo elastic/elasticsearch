@@ -377,7 +377,7 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;
@@ -388,7 +388,7 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+    public final ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;

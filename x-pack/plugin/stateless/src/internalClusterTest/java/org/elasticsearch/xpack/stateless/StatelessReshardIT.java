@@ -47,11 +47,13 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -71,6 +73,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -92,6 +95,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
+
+    // Given an index with a certain number of shards, it can be resharded only to valid
+    // number of target shards. Here we test some valid and invalid combinations.
     public void testReshardTargetNumShardsIsValid() {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
@@ -391,7 +397,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet()
         );
 
-        // verify that the index metadata still contains only a sinlge shard
+        // verify that the index metadata still contains only a single shard
         GetSettingsResponse postReshardSettingsResponse = client().admin()
             .indices()
             .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
@@ -640,18 +646,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         indexDocs(indexName, 100);
 
@@ -689,18 +684,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         indexDocs(indexName, 100);
 
@@ -749,8 +733,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         MockLog.assertThatLogger(() -> {
             // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
-            // has
-            // advanced
+            // has advanced.
             handoffLatch.countDown();
             reshard.actionGet();
         },
@@ -780,18 +763,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         indexDocs(indexName, 100);
 
@@ -853,8 +825,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         MockLog.assertThatLogger(() -> {
             // When we release the handoff block the recovery will progress. However, it will fail because the target shard primary term
-            // has
-            // advanced
+            // has advanced.
             proceedAfterShardFailure.countDown();
             reshard.actionGet();
         },
@@ -886,18 +857,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         startIndexNode();
 
@@ -931,7 +891,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
     }
 
-    public void testSplitDoesNotTransitionToSplitUntilSearchShardsActive() throws Exception {
+    public void testTargetDoesNotTransitionToSplitUntilSearchShardsActive() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startIndexNode();
         startSearchNode();
@@ -1008,7 +968,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         executed.actionGet();
     }
 
-    public void testSplitWillTransitionToSplitIfSearchShardsActiveTimesOut() throws Exception {
+    public void testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut() throws Exception {
         Settings settings = Settings.builder().put(SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getKey(), "200ms").build();
         String indexNode = startMasterAndIndexNode(settings);
         startIndexNode(settings);
@@ -1146,6 +1106,182 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    // Test that documents are always routed to source shard before target shards are in handoff
+    public void testWriteRequestsRoutedToSourceBeforeHandoff() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        IndexMetadata sourceMetadata = clusterService().state().projectState().metadata().index(indexName);
+
+        // Build target Index metadata with 2 shards
+        IndexMetadata targetMetadata = IndexMetadata.builder(sourceMetadata).reshardAddShards(2).build();
+
+        // Generate a document id that would route to the target shard
+        int numTargetDocs = 0;
+        String targetDocId = null;
+        while (numTargetDocs < 1) {
+            String term = randomAlphaOfLength(10);
+            final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(targetMetadata), term, null);
+            if (shard == 1) {
+                numTargetDocs++;
+                targetDocId = term;
+            }
+        }
+
+        startIndexNode();
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
+        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        handoffAttemptedLatch.await();
+
+        // Now index a document that belongs to the target shard and verify that it goes to the source shard id.
+        IndexMetadata indexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
+        assertThat(shard, equalTo(0));
+
+        // Allow handoff to proceed
+        handoffLatch.countDown();
+        reshard.actionGet();
+        indexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        // Again index a document that belongs to the target shard and verify that it goes to the target shard id.
+        shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
+        assertThat(shard, equalTo(1));
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+    }
+
+    // Test that documents are always routed to source shard before target shards are in handoff
+    // Similar to testWriteRequestsRoutedToSourceBeforeHandoff() except we actually index the document into the
+    // source shard.
+    public void testIndexRequestBeforeHandoff() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        IndexMetadata sourceMetadata = clusterService().state().projectState().metadata().index(indexName);
+
+        // Build target Index metadata with 2 shards
+        IndexMetadata targetMetadata = IndexMetadata.builder(sourceMetadata).reshardAddShards(2).build();
+
+        // Generate a document id that would route to the target shard
+        int numTargetDocs = 0;
+        String targetDocId = null;
+        while (numTargetDocs < 1) {
+            String term = randomAlphaOfLength(10);
+            final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(targetMetadata), term, null);
+            if (shard == 1) {
+                numTargetDocs++;
+                targetDocId = term;
+            }
+        }
+
+        startIndexNode();
+
+        MockTransportService mockTransportService = MockTransportService.getInstance(indexNode);
+        CountDownLatch handoffAttemptedLatch = new CountDownLatch(1);
+        CountDownLatch handoffLatch = new CountDownLatch(1);
+        mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
+            if (TransportReshardSplitAction.SPLIT_HANDOFF_ACTION_NAME.equals(action) && handoffAttemptedLatch.getCount() != 0) {
+                try {
+                    handoffAttemptedLatch.countDown();
+                    handoffLatch.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request1, options);
+        });
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
+        ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
+
+        handoffAttemptedLatch.await();
+        logger.info("Handoff attempted");
+
+        // Now index a document that belongs to the target shard and verify that it goes to the source shard id.
+        IndexMetadata indexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(indexMetadata), targetDocId, null);
+        assertThat(shard, equalTo(0));
+        index(indexName, targetDocId, Map.of("foo", "bar"));
+        logger.info("Target shard document indexed into source");
+
+        // We currently need to flush all indexed data in order for copy logic to see it.
+        // This will be included in later stages of resharding that currently don't exist.
+        var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
+        assertNoFailures(flushResponse);
+        logger.info("Index flushed");
+
+        // Allow handoff to proceed
+        handoffLatch.countDown();
+        reshard.actionGet();
+
+        // verify that the index metadata returned matches the expected multiple of shards
+        GetSettingsResponse postReshardSettingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .get();
+
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
+            equalTo(2)
+        );
+
+        // TODO This should work once we have the logic to copy commits that arrive during handoff, ES-11531 ?
+        // assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 1);
+        // assertSearchHits(prepareSearch(indexName).setQuery(matchQuery("foo", "bar")), targetDocId);
+
+        // TODO Modify this once ES-11531 is merged ?
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) 1));
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 1), equalTo((long) 0));
+
+        // We have to clear the setting to prevent teardown issues with the cluster being red
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
+            .get();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
@@ -1256,5 +1392,19 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         ClusterStateObserver.waitForState(clusterService(), new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
 
         return future;
+    }
+
+    /**
+     * Extract a shardId from a "simple" {@link IndexRouting} using a randomly
+     * chosen method. All of the random methods <strong>should</strong> return the
+     * same results.
+     */
+    private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
+        return switch (between(0, 2)) {
+            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 1 -> indexRouting.updateShard(id, routing);
+            case 2 -> indexRouting.deleteShard(id, routing);
+            default -> throw new AssertionError("invalid option");
+        };
     }
 }

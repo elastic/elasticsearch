@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -214,6 +215,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
         };
         bulkIndex(dataStreamName, nextSourceSupplier, 100);
+
+        if (Build.current().isSnapshot() == false) {
+            return;
+        }
 
         // Since the downsampled field (cpu) is downsampled in one index and not in the other, we want to confirm
         // first that the field is unsupported and has 2 original types - double and aggregate_metric_double

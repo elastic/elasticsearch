@@ -147,6 +147,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -176,6 +177,14 @@ public class InferencePlugin extends Plugin
     public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
         "xpack.inference.skip_validate_and_start",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final TimeValue DEFAULT_INFERENCE_QUERY_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
+    public static final Setting<TimeValue> INFERENCE_QUERY_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.query_timeout",
+        DEFAULT_INFERENCE_QUERY_TIMEOUT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -496,6 +505,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
+        settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
 
         return settings;

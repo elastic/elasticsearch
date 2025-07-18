@@ -1737,7 +1737,8 @@ public class Setting<T> implements ToXContentObject {
      * @param lookup is used to access the constructor and component getters, allowing {@code RecordClass} to be non-public.
      * @param relevantSettings supply configuration for the components, including (recursively) any components in any
      *                         nested records.
-     * @param properties apply to this {@link Setting} as a whole, and by default to any component settings not specified by {@code relevantSettings}.
+     * @param properties apply to this {@link Setting} as a whole,
+     *                  and by default to any component settings not specified by {@code relevantSettings}.
      * @return the {@link Setting}
      * @param <R> the type of {@code recordClass}
      */

@@ -23,7 +23,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
@@ -1623,7 +1622,7 @@ public class SettingTests extends ESTestCase {
         assertNull("Creating an updater does not call set", watcher.get());
         updater.apply(settings456, settings123);
         assertEquals("Updater called when value changed", new TestSetting(456), watcher.get());
-        assertThrows("Throws when there's no default", IllegalStateException.class, ()->updater.apply(Settings.EMPTY, settings456));
+        assertThrows("Throws when there's no default", IllegalStateException.class, () -> updater.apply(Settings.EMPTY, settings456));
 
         watcher.set(null);
         updater.apply(settings123, settings123);
@@ -1636,10 +1635,18 @@ public class SettingTests extends ESTestCase {
         record TestSetting(int i1, int i2) {}
         Setting<Integer> i1Setting = Setting.intSetting("record.setting.i1", -1);
         Setting<Integer> i2Setting = Setting.intSetting("record.setting.i2", -2);
-        Setting<TestSetting> setting = Setting.recordSetting("record.setting", TestSetting.class, MethodHandles.lookup(), List.of(i1Setting, i2Setting));
+        Setting<TestSetting> setting = Setting.recordSetting(
+            "record.setting",
+            TestSetting.class,
+            MethodHandles.lookup(),
+            List.of(i1Setting, i2Setting)
+        );
         Settings settings123 = Settings.builder().put("record.setting.i1", 123).build();
 
-        assertEquals(new TestSetting(123, 456), setting.get(Settings.builder().put("record.setting.i1", 123).put("record.setting.i2", 456).build()));
+        assertEquals(
+            new TestSetting(123, 456),
+            setting.get(Settings.builder().put("record.setting.i1", 123).put("record.setting.i2", 456).build())
+        );
         assertEquals(new TestSetting(-1, 456), setting.get(Settings.builder().put("record.setting.i2", 456).build()));
         assertEquals(new TestSetting(-1, -2), setting.get(Settings.EMPTY));
 
@@ -1660,14 +1667,16 @@ public class SettingTests extends ESTestCase {
 
     public void testAffixRecordSetting() {
         record TestSetting(int intSetting) {}
-        var componentSetting = Setting.affixKeySetting(
-            "things.",
-            "config.int_setting",
-            (n,key)-> Setting.intSetting(key, -1));
+        var componentSetting = Setting.affixKeySetting("things.", "config.int_setting", (n, key) -> Setting.intSetting(key, -1));
         var setting = Setting.affixKeySetting(
             "things.",
             "config",
-            (namespace, key) -> Setting.recordSetting(key, TestSetting.class, MethodHandles.lookup(), List.of(componentSetting.getConcreteSettingForNamespace(namespace)))
+            (namespace, key) -> Setting.recordSetting(
+                key,
+                TestSetting.class,
+                MethodHandles.lookup(),
+                List.of(componentSetting.getConcreteSettingForNamespace(namespace))
+            )
         );
         Settings settings = Settings.builder()
             .put("things.thing1.config.int_setting", 123)
@@ -1676,14 +1685,12 @@ public class SettingTests extends ESTestCase {
         assertEquals(new TestSetting(123), setting.getConcreteSetting("things.thing1.config").get(settings));
         assertEquals(new TestSetting(456), setting.getConcreteSetting("things.thing2.config").get(settings));
 
-        Settings settings1 = Settings.builder()
-            .put("things.thing1.config.int_setting", 123)
-            .build();
+        Settings settings1 = Settings.builder().put("things.thing1.config.int_setting", 123).build();
         assertEquals(new TestSetting(123), setting.getConcreteSetting("things.thing1.config").get(settings));
         assertEquals("Default", new TestSetting(-1), setting.getConcreteSetting("things.thing2.config").get(settings1));
 
         Map<String, TestSetting> watcher = new ConcurrentHashMap<>();
-        var updater = setting.newAffixUpdater(watcher::put, logger, (k, s)->{});
+        var updater = setting.newAffixUpdater(watcher::put, logger, (k, s) -> {});
 
         // Test the obvious state transitions
         updater.apply(settings1, Settings.EMPTY);

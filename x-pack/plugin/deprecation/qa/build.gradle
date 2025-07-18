@@ -19,7 +19,9 @@ dependencies {
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution("to be triaged")
+  // Tried to just include deprecation, data-streams and ml, but apparently some other non
+  // immediately apparent plugin is needed
+  usesDefaultDistribution("the .logs.deprecated index can not be written or read with a minimal plugin set")
 }
 
 restResources {

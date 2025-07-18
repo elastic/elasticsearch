@@ -100,7 +100,7 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
     /**
      * Map of embedding model implementations by type.
      */
-    private final static Map<TestEmbeddingModel, TextEmbeddingModelMock> TEST_EMBEDDING_MODELS = Map.ofEntries(
+    private static final Map<TestEmbeddingModel, TextEmbeddingModelMock> TEST_EMBEDDING_MODELS = Map.ofEntries(
         // Float embedding model implementation
         Map.entry(TestEmbeddingModel.FLOAT_EMBEDDING_MODEL, new TextEmbeddingModelMock() {
             @Override

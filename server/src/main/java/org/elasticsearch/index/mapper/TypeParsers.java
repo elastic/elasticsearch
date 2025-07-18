@@ -24,14 +24,12 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING;
 
 public class TypeParsers {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
-    /**
-     * Parse the {@code meta} key of the mapping.
-     */
-    public static Map<String, String> parseMeta(String name, Object metaObject) {
+    public static Map<String, String> parseMeta(String name, Object metaObject, MappingParserContext parserContext) {
         if (metaObject instanceof Map == false) {
             throw new MapperParsingException(
                 "[meta] must be an object, got " + metaObject.getClass().getSimpleName() + "[" + metaObject + "] for field [" + name + "]"
@@ -52,11 +50,18 @@ public class TypeParsers {
                 );
             }
         }
+        int metaValueLengthLimit = INDEX_MAPPING_META_LENGTH_LIMIT_SETTING.get(parserContext.getIndexSettings().getSettings());
         for (Object value : meta.values()) {
             if (value instanceof String sValue) {
-                if (sValue.codePointCount(0, sValue.length()) > 500) {
+                if (sValue.codePointCount(0, sValue.length()) > metaValueLengthLimit) {
                     throw new MapperParsingException(
-                        "[meta] values can't be longer than 500 chars, but got [" + value + "] for field [" + name + "]"
+                        "[meta] values can't be longer than "
+                            + metaValueLengthLimit
+                            + " chars, but got ["
+                            + value
+                            + "] for field ["
+                            + name
+                            + "]"
                     );
                 }
             } else if (value == null) {

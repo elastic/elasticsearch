@@ -204,6 +204,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
+                IndexSettings.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

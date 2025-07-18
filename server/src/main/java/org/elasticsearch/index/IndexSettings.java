@@ -856,6 +856,14 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<Integer> INDEX_MAPPING_META_LENGTH_LIMIT_SETTING = Setting.intSetting(
+        "index.mapping.meta.length_limit",
+        500, // default value
+        20,  // minimum value
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;

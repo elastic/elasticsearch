@@ -52,6 +52,48 @@ public class TypeParsersTests extends ESTestCase {
         return analyzers;
     }
 
+    private Settings buildSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+    }
+
+    private MappingParserContext createParserContext(Settings settings) {
+        Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
+
+        MapperService mapperService = mock(MapperService.class);
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+
+        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_8_0_0,
+            TransportVersion.current()
+        );
+        return new MappingParserContext(
+            null,
+            type -> typeParser,
+            type -> null,
+            version,
+            () -> transportVersion,
+            null,
+            ScriptCompiler.NONE,
+            mapperService.getIndexAnalyzers(),
+            mapperService.getIndexSettings(),
+            ProvidedIdFieldMapper.NO_FIELD_DATA,
+            query -> {
+                throw new UnsupportedOperationException();
+            }
+        );
+    }
+
     public void testMultiFieldWithinMultiField() throws IOException {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -69,45 +111,10 @@ public class TypeParsersTests extends ESTestCase {
             .endObject()
             .endObject();
 
-        Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
-
-        MapperService mapperService = mock(MapperService.class);
-        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
-        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-
         // For indices created in 8.0 or later, we should throw an error.
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersion.current()
-        );
-        MappingParserContext context = new MappingParserContext(
-            null,
-            type -> typeParser,
-            type -> null,
-            version,
-            () -> transportVersion,
-            null,
-            ScriptCompiler.NONE,
-            mapperService.getIndexAnalyzers(),
-            mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
-            query -> {
-                throw new UnsupportedOperationException();
-            }
-        );
+        MappingParserContext context = createParserContext(buildSettings());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context);
@@ -122,49 +129,86 @@ public class TypeParsersTests extends ESTestCase {
     }
 
     public void testParseMeta() {
+        MappingParserContext parserContext = createParserContext(buildSettings());
+
         {
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", 3));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", 3, parserContext)
+            );
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
             MapperParsingException e = expectThrows(
                 MapperParsingException.class,
-                () -> TypeParsers.parseMeta("foo", Map.of("veryloooooooooooongkey", 3L))
+                () -> TypeParsers.parseMeta("foo", Map.of("veryloooooooooooongkey", 3L), parserContext)
             );
             assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]", e.getMessage());
         }
 
         {
             Map<String, Object> mapping = Map.of("foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L);
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", mapping));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping, parserContext)
+            );
             assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]", e.getMessage());
         }
 
         {
             Map<String, Object> mapping = Map.of("foo", Map.of("bar", "baz"));
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", mapping));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping, parserContext)
+            );
             assertEquals("[meta] values can only be strings, but got Map1[{bar=baz}] for field [foo]", e.getMessage());
         }
 
         {
             Map<String, Object> mapping = Map.of("bar", "baz", "foo", 3);
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", mapping));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping, parserContext)
+            );
             assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
             Map<String, String> meta = new HashMap<>();
             meta.put("foo", null);
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", meta));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", meta, parserContext)
+            );
             assertEquals("[meta] values can't be null (field [foo])", e.getMessage());
         }
 
         {
             String longString = IntStream.range(0, 501).mapToObj(Integer::toString).collect(Collectors.joining());
             Map<String, Object> mapping = Map.of("foo", longString);
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", mapping));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping, parserContext)
+            );
             assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 500 chars"));
+        }
+
+        {
+            Settings otherSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexSettings.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING.getKey(), 300)
+                .build();
+            MappingParserContext otherParserContext = createParserContext(otherSettings);
+            String longString = IntStream.range(0, 301).mapToObj(Integer::toString).collect(Collectors.joining());
+            Map<String, Object> mapping = Map.of("foo", longString);
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> TypeParsers.parseMeta("foo", mapping, otherParserContext)
+            );
+            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 300 chars"));
         }
     }
 }

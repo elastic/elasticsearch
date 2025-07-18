@@ -58,9 +58,12 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
         });
 
         if (project.getRootProject().getName().equals("elasticsearch")) {
-            project.getTasks().withType(Test.class).matching(test -> List.of("test").contains(test.getName())).configureEach(test -> {
-                test.systemProperty("es.entitlement.enableForTests", "true");
-            });
+            project.getTasks()
+                .withType(Test.class)
+                .matching(test -> List.of("test", "internalClusterTest").contains(test.getName()))
+                .configureEach(test -> {
+                    test.systemProperty("es.entitlement.enableForTests", "true");
+                });
         }
     }
 }

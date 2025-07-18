@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -56,7 +57,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         run("TS empty_index | LIMIT 1").close();
     }
 
-    record Doc(String host, String cluster, long timestamp, int requestCount, double cpu) {}
+    record Doc(String host, String cluster, long timestamp, int requestCount, double cpu, ByteSizeValue memory) {}
 
     final List<Doc> docs = new ArrayList<>();
 
@@ -84,7 +85,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() {
-        // this can be expensive, do one
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
         client().admin()
             .indices()
@@ -99,6 +99,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 "type=keyword,time_series_dimension=true",
                 "cpu",
                 "type=double,time_series_metric=gauge",
+                "memory",
+                "type=long,time_series_metric=gauge",
                 "request_count",
                 "type=integer,time_series_metric=counter"
             )
@@ -123,7 +125,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     }
                 });
                 int cpu = randomIntBetween(0, 100);
-                docs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, cpu));
+                ByteSizeValue memory = ByteSizeValue.ofBytes(randomIntBetween(1024, 1024 * 1024));
+                docs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
             }
         }
         Randomness.shuffle(docs);
@@ -138,6 +141,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     doc.cluster,
                     "cpu",
                     doc.cpu,
+                    "memory",
+                    doc.memory.getBytes(),
                     "request_count",
                     doc.requestCount
                 )
@@ -415,6 +420,63 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             run(request).close();
         });
         assertThat(failure.getMessage(), containsString("Unknown index [hosts-old]"));
+    }
+
+    public void testFieldDoesNotExist() {
+        // the old-hosts index doesn't have the cpu field
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        client().admin()
+            .indices()
+            .prepareCreate("old-hosts")
+            .setSettings(settings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cluster",
+                "type=keyword,time_series_dimension=true",
+                "memory",
+                "type=long,time_series_metric=gauge",
+                "request_count",
+                "type=integer,time_series_metric=counter"
+            )
+            .get();
+        Randomness.shuffle(docs);
+        for (Doc doc : docs) {
+            client().prepareIndex("old-hosts")
+                .setSource(
+                    "@timestamp",
+                    doc.timestamp,
+                    "host",
+                    doc.host,
+                    "cluster",
+                    doc.cluster,
+                    "memory",
+                    doc.memory.getBytes(),
+                    "request_count",
+                    doc.requestCount
+                )
+                .get();
+        }
+        client().admin().indices().prepareRefresh("old-hosts").get();
+        try (var resp1 = run("""
+            TS hosts,old-hosts
+            | STATS sum(rate(request_count)), max(last_over_time(cpu)), max(last_over_time(memory)) BY cluster, host
+            | SORT cluster, host
+            | DROP `sum(rate(request_count))`
+            """)) {
+            try (var resp2 = run("""
+                TS hosts
+                | STATS sum(rate(request_count)), max(last_over_time(cpu)), max(last_over_time(memory)) BY cluster, host
+                | SORT cluster, host
+                | DROP `sum(rate(request_count))`
+                """)) {
+                List<List<Object>> values1 = EsqlTestUtils.getValuesList(resp1);
+                List<List<Object>> values2 = EsqlTestUtils.getValuesList(resp2);
+                assertThat(values1, equalTo(values2));
+            }
+        }
     }
 
     public void testProfile() {

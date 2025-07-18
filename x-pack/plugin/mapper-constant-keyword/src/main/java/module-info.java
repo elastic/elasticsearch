@@ -15,4 +15,6 @@ module org.elasticsearch.xpack.constantkeyword {
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.xpack.constantkeyword;
+
+    opens org.elasticsearch.xpack.constantkeyword;
 }

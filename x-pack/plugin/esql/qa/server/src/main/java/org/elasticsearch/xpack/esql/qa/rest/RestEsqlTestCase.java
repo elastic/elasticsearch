@@ -60,11 +60,11 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -1257,9 +1257,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Mode mode,
         boolean checkPartialResults
     ) throws IOException {
+        return runEsql(requestObject, assertWarnings, null, mode, checkPartialResults);
+    }
+
+    public static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        @Nullable ProfileLogger profileLogger,
+        Mode mode,
+        boolean checkPartialResults
+    ) throws IOException {
         var results = mode == ASYNC
-            ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
-            : runEsqlSync(requestObject, assertWarnings);
+            ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings, profileLogger)
+            : runEsqlSync(requestObject, assertWarnings, profileLogger);
         if (checkPartialResults) {
             assertNotPartial(results);
         }
@@ -1271,30 +1281,38 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsql(requestObject, assertWarnings, mode, true);
     }
 
-    /**
-     * A response from an ESQL query.
-     * @param response the HTTP response that contains the JSON response body
-     * @param json the parsed JSON response body
-     * @param asyncInitialResponse for async only. The response that was returned from the initial async request.
-     *                             May be the same as {@code response} if the async request completed immediately.
-     */
-    public record EsqlResponse(Response response, Map<String, Object> json, Response asyncInitialResponse) {
-        public EsqlResponse(Response response, Map<String, Object> json) {
-            this(response, json, null);
-        }
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings,
+                                              @Nullable ProfileLogger profileLogger, Mode mode)
+        throws IOException {
+        return runEsql(requestObject, assertWarnings, profileLogger, mode, true);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        EsqlResponse response = runEsqlSyncNoWarningsChecks(requestObject);
-        assertWarnings(response.response, assertWarnings);
-        return response.json;
+        return runEsqlSync(requestObject, assertWarnings, null);
     }
 
-    public static EsqlResponse runEsqlSyncNoWarningsChecks(RequestObjectBuilder requestObject) throws IOException {
+    public static Map<String, Object> runEsqlSync(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        @Nullable ProfileLogger profileLogger
+    ) throws IOException {
+        Boolean profileEnabled = requestObject.profile;
+        if (profileLogger != null) {
+            requestObject.profile(true);
+        }
         Request request = prepareRequestWithOptions(requestObject, SYNC);
+
         Response response = performRequest(request);
-        Map<String, Object> json = entityToMap(response.getEntity(), requestObject.contentType());
-        return new EsqlResponse(response, json);
+        HttpEntity entity = response.getEntity();
+        Map<String, Object> json = entityToMap(entity, requestObject.contentType());
+
+        if (profileLogger != null) {
+            profileLogger.extractProfile(json, profileEnabled);
+        }
+
+        assertWarnings(response, assertWarnings);
+
+        return json;
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
@@ -1303,21 +1321,30 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public static Map<String, Object> runEsqlAsync(
         RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        @Nullable ProfileLogger profileLogger
+    ) throws IOException {
+        return runEsqlAsync(requestObject, randomBoolean(), assertWarnings, profileLogger);
+    }
+
+    public static Map<String, Object> runEsqlAsync(
+        RequestObjectBuilder requestObject,
         boolean keepOnCompletion,
         AssertWarnings assertWarnings
     ) throws IOException {
-        EsqlResponse response = runEsqlAsyncNoWarningsChecks(requestObject, keepOnCompletion);
-
-        assertWarnings(response.response(), assertWarnings);
-        if (response.asyncInitialResponse() != response.response()) {
-            assertWarnings(response.asyncInitialResponse(), assertWarnings);
-        }
-
-        return response.json;
+        return runEsqlAsync(requestObject, keepOnCompletion, assertWarnings, null);
     }
 
-    public static EsqlResponse runEsqlAsyncNoWarningsChecks(RequestObjectBuilder requestObject, boolean keepOnCompletion)
-        throws IOException {
+    public static Map<String, Object> runEsqlAsync(
+        RequestObjectBuilder requestObject,
+        boolean keepOnCompletion,
+        AssertWarnings assertWarnings,
+        @Nullable ProfileLogger profileLogger
+    ) throws IOException {
+        Boolean profileEnabled = requestObject.profile;
+        if (profileLogger != null) {
+            requestObject.profile(true);
+        }
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1326,7 +1353,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         Response response = performRequest(request);
-        Response initialResponse = response;
         HttpEntity entity = response.getEntity();
 
         Object initialColumns = null;
@@ -1346,8 +1372,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
                 assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
             }
+            if (profileLogger != null) {
+                profileLogger.extractProfile(json, profileEnabled);
+            }
+            assertWarnings(response, assertWarnings);
             json.remove("is_running"); // remove this to not mess up later map assertions
-            return new EsqlResponse(response, Collections.unmodifiableMap(json), initialResponse);
+            return Collections.unmodifiableMap(json);
         } else {
             // async may not return results immediately, so may need an async get
             assertThat(id, is(not(emptyOrNullString())));
@@ -1355,6 +1385,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
+                if (profileLogger != null) {
+                    profileLogger.extractProfile(json, profileEnabled);
+                }
+                assertWarnings(response, assertWarnings);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1391,8 +1425,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValues, result.get("values"));
         }
 
+        if (profileLogger != null) {
+            profileLogger.extractProfile(result, profileEnabled);
+        }
+        assertWarnings(response, assertWarnings);
         assertDeletable(id);
-        return new EsqlResponse(response, removeAsyncProperties(result), initialResponse);
+        return removeAsyncProperties(result);
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
@@ -1624,8 +1662,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         Response response = performRequest(request);
         assertWarnings(response, new AssertWarnings.NoWarnings());
-
         HttpEntity entity = response.getEntity();
+
         // get the content, it could be empty because the request might have not completed
         String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         String id = response.getHeader("X-Elasticsearch-Async-Id");
@@ -1727,7 +1765,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return response;
     }
 
-    public static void assertWarnings(Response response, AssertWarnings assertWarnings) {
+    static void assertNotPartial(Map<String, Object> answer) {
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+    }
+
+    private static void assertWarnings(Response response, AssertWarnings assertWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {

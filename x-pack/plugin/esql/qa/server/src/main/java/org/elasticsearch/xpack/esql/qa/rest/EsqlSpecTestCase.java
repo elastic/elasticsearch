@@ -39,8 +39,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -80,26 +78,11 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
-
-    public class ProfileLogger extends TestWatcher {
-        private Object profile;
-
-        void setProfile(RestEsqlTestCase.EsqlResponse response) {
-            profile = response.json().get("profile");
-        }
-
-        @Override
-        protected void failed(Throwable e, Description description) {
-            LOGGER.warn("Profile: {}", profile);
-        }
-    }
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -321,12 +304,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    static void assertNotPartial(Map<String, Object> answer) {
-        var clusters = answer.get("_clusters");
-        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
-        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
-    }
-
     private Map<?, ?> tooks() throws IOException {
         Request request = new Request("GET", "/_xpack/usage");
         HttpEntity entity = client().performRequest(request).getEntity();
@@ -354,20 +331,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        requestObject.profile(true);
-
-        RestEsqlTestCase.EsqlResponse response = mode == Mode.ASYNC
-            ? RestEsqlTestCase.runEsqlAsyncNoWarningsChecks(requestObject, randomBoolean())
-            : RestEsqlTestCase.runEsqlSyncNoWarningsChecks(requestObject);
-
-        profileLogger.setProfile(response);
-
-        RestEsqlTestCase.assertWarnings(response.response(), assertWarnings);
-        if (response.asyncInitialResponse() != response.response()) {
-            RestEsqlTestCase.assertWarnings(response.response(), assertWarnings);
+        if (mode == Mode.ASYNC) {
+            return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings, profileLogger);
+        } else {
+            return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings, profileLogger);
         }
-
-        return response.json();
     }
 
     protected void assertResults(

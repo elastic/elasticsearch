@@ -1,5 +1,5 @@
 pr: 131551
-summary: Configurable Inference timeout during Query time
-area: Relevance
+summary: Added support to configure query timeout for inference
+area: Inference
 type: enhancement
 issues: []

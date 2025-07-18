@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -122,17 +121,15 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
      * Verify that the resulting histogram is independent of the order of elements and therefore merges performed.
      */
     public void testMergeOrderIndependence() {
-        Random rnd = new Random(42);
-
         List<Double> values = IntStream.range(0, 10_000)
-            .mapToDouble(i -> i < 17 ? 0 : rnd.nextDouble() * Math.pow(10, rnd.nextLong() % 4))
+            .mapToDouble(i -> i < 17 ? 0 : (-1 + 2 * randomDouble()) * Math.pow(10, randomIntBetween(-4, 4)))
             .boxed()
             .collect(Collectors.toCollection(ArrayList::new));
 
         ExponentialHistogram reference = ExponentialHistogramGenerator.createFor(20, values.stream().mapToDouble(Double::doubleValue));
 
         for (int i = 0; i < 100; i++) {
-            Collections.shuffle(values, rnd);
+            Collections.shuffle(values, random());
             ExponentialHistogram shuffled = ExponentialHistogramGenerator.createFor(20, values.stream().mapToDouble(Double::doubleValue));
 
             assertThat("Expected same scale", shuffled.scale(), equalTo(reference.scale()));

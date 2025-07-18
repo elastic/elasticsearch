@@ -37,7 +37,7 @@ public class DownscaleStatsTests extends ESTestCase {
 
     public void testRandom() {
         for (int i = 0; i < 100; i++) {
-            List<Long> values = IntStream.range(0, 1000).mapToObj(j -> random().nextLong(MIN_INDEX, MAX_INDEX + 1)).distinct().toList();
+            List<Long> values = IntStream.range(0, 1000).mapToObj(j -> randomLongBetween(MIN_INDEX, MAX_INDEX)).distinct().toList();
             verifyFor(values);
         }
     }

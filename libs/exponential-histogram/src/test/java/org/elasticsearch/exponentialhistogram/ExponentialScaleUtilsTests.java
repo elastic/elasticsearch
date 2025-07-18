@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.Random;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
@@ -66,13 +65,11 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
     }
 
     public void testRandomValueIndexing() {
-        Random rnd = new Random(42);
-
         for (int i = 0; i < 100_000; i++) {
             // generate values in the range 10^-100 to 10^100
-            double exponent = rnd.nextDouble() * 200 - 100;
+            double exponent = randomDouble() * 200 - 100;
             double testValue = Math.pow(10, exponent);
-            int scale = rnd.nextInt(MIN_SCALE / 2, MAX_SCALE / 2);
+            int scale = randomIntBetween(MIN_SCALE / 2, MAX_SCALE / 2);
             long index = computeIndex(testValue, scale);
 
             double lowerBound = getLowerBucketBoundary(index, scale);
@@ -104,11 +101,10 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
     }
 
     public void testRandomIndicesScaleAdjustement() {
-        Random rnd = new Random(42);
 
         for (int i = 0; i < 100_000; i++) {
-            long index = rnd.nextLong(MAX_INDEX);
-            int currentScale = rnd.nextInt(MIN_SCALE, MAX_SCALE);
+            long index = randomLongBetween(MIN_INDEX, MAX_INDEX);
+            int currentScale = randomIntBetween(MIN_SCALE, MAX_SCALE);
             int maxAdjustment = Math.min(MAX_SCALE - currentScale, getMaximumScaleIncrease(index));
 
             assertThat(
@@ -120,7 +116,6 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
                     assertThat(adjustScale(index, currentScale, maxAdjustment) * 2, greaterThan(MAX_INDEX));
                 } else if (index < 0) {
                     assertThat(adjustScale(index, currentScale, maxAdjustment) * 2, lessThan(MIN_INDEX));
-
                 }
             }
         }
@@ -128,13 +123,12 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
     }
 
     public void testRandomBucketBoundaryComparison() {
-        Random rnd = new Random(42);
 
         for (int i = 0; i < 100_000; i++) {
-            long indexA = rnd.nextLong(MIN_INDEX, MAX_INDEX + 1);
-            long indexB = rnd.nextLong(MIN_INDEX, MAX_INDEX + 1);
-            int scaleA = rnd.nextInt(MIN_SCALE, MAX_SCALE + 1);
-            int scaleB = rnd.nextInt(MIN_SCALE, MAX_SCALE + 1);
+            long indexA = randomLongBetween(MIN_INDEX, MAX_INDEX);
+            long indexB = randomLongBetween(MIN_INDEX, MAX_INDEX);
+            int scaleA = randomIntBetween(MIN_SCALE, MAX_SCALE);
+            int scaleB = randomIntBetween(MIN_SCALE, MAX_SCALE);
 
             double lowerBoundA = getLowerBucketBoundary(indexA, scaleA);
             while (Double.isInfinite(lowerBoundA)) {
@@ -157,20 +151,18 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
     }
 
     public void testUpscalingAccuracy() {
-        Random rnd = new Random(42);
-
         // Use slightly adjusted scales to not run into numeric trouble, because we don't use exact maths here
         int minScale = MIN_SCALE + 7;
         int maxScale = MAX_SCALE - 15;
 
         for (int i = 0; i < 10_000; i++) {
 
-            int startScale = rnd.nextInt(minScale, maxScale);
-            int scaleIncrease = rnd.nextInt(1, maxScale - startScale + 1);
+            int startScale = randomIntBetween(minScale, maxScale - 1);
+            int scaleIncrease = randomIntBetween(1, maxScale - startScale);
 
-            long index = MAX_INDEX >> scaleIncrease >> (int) (rnd.nextDouble() * (MAX_INDEX_BITS - scaleIncrease));
+            long index = MAX_INDEX >> scaleIncrease >> (int) (randomDouble() * (MAX_INDEX_BITS - scaleIncrease));
             index = Math.max(1, index);
-            index = (long) (rnd.nextDouble() * index) * (rnd.nextBoolean() ? 1 : -1);
+            index = (long) ((2 * randomDouble() - 1) * index);
 
             double midPoint = getPointOfLeastRelativeError(index, startScale);
             // limit the numeric range, otherwise we get rounding errors causing the test to fail

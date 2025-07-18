@@ -214,11 +214,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      ValuesBytesRefAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
-    }
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups,values);
   }
 
   @Override

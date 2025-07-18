@@ -637,7 +637,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     addInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
-                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
+                            "Unable to insert inference results into document ["
+                                + indexRequest.indexRequest.id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                             e
                         )
                     );
@@ -749,7 +751,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 item.abort(
                     item.index(),
                     new InferenceException(
-                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        "Unable to insert inference results into document ["
+                            + indexRequest.id()
+                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                         e
                     )
                 );

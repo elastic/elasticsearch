@@ -25,7 +25,7 @@ public class ErrorResponse {
         this.errorStructureFound = true;
     }
 
-    private ErrorResponse(boolean errorStructureFound) {
+    protected ErrorResponse(boolean errorStructureFound) {
         this.errorMessage = "";
         this.errorStructureFound = errorStructureFound;
     }

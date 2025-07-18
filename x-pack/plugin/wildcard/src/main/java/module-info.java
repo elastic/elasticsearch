@@ -16,4 +16,6 @@ module org.elasticsearch.xpack.wildcard {
     requires org.apache.lucene.analysis.common;
 
     exports org.elasticsearch.xpack.wildcard;
+
+    opens org.elasticsearch.xpack.wildcard;
 }

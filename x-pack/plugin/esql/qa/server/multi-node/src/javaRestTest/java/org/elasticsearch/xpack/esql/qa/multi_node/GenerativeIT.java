@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
 import org.junit.ClassRule;
 
@@ -33,6 +36,17 @@ public class GenerativeIT extends GenerativeRestTest {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder()
+            .put(super.restClientSettings())
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "10h")
+            .build();
     }
 
     @Override

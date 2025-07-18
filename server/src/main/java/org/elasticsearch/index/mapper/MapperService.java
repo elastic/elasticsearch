@@ -179,8 +179,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "index.mapping.meta.length_limit",
         500,
         0,
-        Property.IndexScope,
-        Property.Final
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     private final IndexAnalyzers indexAnalyzers;

@@ -218,7 +218,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.client = client;
         this.usageService = usageService;
         forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
-        logger.info("Should force reconnect cluster: {}", forceConnectTimeoutSecs);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(

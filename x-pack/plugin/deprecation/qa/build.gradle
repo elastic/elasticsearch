@@ -21,6 +21,7 @@ dependencies {
 tasks.named('javaRestTest') {
   // Tried to just include deprecation, data-streams and ml, but apparently some other non
   // immediately apparent plugin is needed
+  // Example failing build scan: https://gradle-enterprise.elastic.co/s/rxaz3vi2a3tao
   usesDefaultDistribution("the .logs.deprecated index can not be written or read with a minimal plugin set")
 }
 

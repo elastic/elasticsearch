@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -75,6 +76,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class RestEsqlTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     // Test runner will run multiple suites in parallel, with some of them requiring preserving state between
     // tests (like EsqlSpecTestCase), so test data (like index name) needs not collide and cleanup must be done locally.
@@ -455,7 +459,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
                     )
                 );
-                var result = runEsql(query, assertWarnings, mode);
+                var result = runEsql(query, assertWarnings, profileLogger, mode);
 
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(
@@ -525,7 +529,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         for (String p : predicates) {
             var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), p));
-            var result = runEsql(query, new AssertWarnings.NoWarnings(), mode);
+            var result = runEsql(query, new AssertWarnings.NoWarnings(), profileLogger, mode);
             var values = as(result.get("values"), ArrayList.class);
             assertThat(
                 format(null, "Comparison [{}] should return all rows with single values.", p),
@@ -1240,7 +1244,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
-        return runEsql(requestObject, new AssertWarnings.NoWarnings(), mode);
+        return runEsql(requestObject, new AssertWarnings.NoWarnings(), profileLogger, mode);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {

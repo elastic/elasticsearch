@@ -25,7 +25,8 @@ import java.util.Map;
  *     public ProfileLogger profileLogger = new ProfileLogger();
  *
  *     public void test() {
- *         var response = RestEsqlTestCase.runEsqlSync(..., profileLogger);
+ *         var response = RestEsqlTestCase.runEsql(requestObject, assertWarnings, profileLogger, mode);
+ *         // Or any of the other runEsql methods
  *     }
  * }
  * </pre>

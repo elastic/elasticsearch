@@ -346,7 +346,10 @@ Foldable query using MULTI_MATCH on name but with non-foldable expression:
             | KEEP hire_date, salary, salary_change, salary_change_long, name
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [MULTI_MATCH(CONCAT(\"Bob \", name), name)], found [CONCAT(\"Bob \", name)]" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    # first argument of [MULTI_MATCH(CONCAT("Bob ", name), name)] must be a constant, received [CONCAT("Bob ", name)]
+    # Query must be a valid string in [MULTI_MATCH(CONCAT(\"Bob \", name), name)], found [CONCAT(\"Bob \", name)]
+  - contains: { error.reason: "[MULTI_MATCH(CONCAT(\"Bob \", name), name)]" }
 
 ---
 
@@ -369,7 +372,10 @@ Query using MULTI_MATCH on name but with non constant query:
             | KEEP hire_date, salary, salary_change, salary_change_long, name
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [MULTI_MATCH(name, name)], found [name" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #first argument of [MULTI_MATCH(CONCAT("Bob ", name), name)] must be a constant, received [CONCAT("Bob ", name)]
+    #Query must be a valid string in [MULTI_MATCH(name, name)], found [name
+  - contains: { error.reason: "[MULTI_MATCH(name, name)]" }
 
 ---
 

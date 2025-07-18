@@ -11,6 +11,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
 
 import java.util.List;
 
@@ -35,5 +36,20 @@ public abstract class InferenceFunction<PlanType extends InferenceFunction<PlanT
      */
     public abstract TaskType taskType();
 
+    /**
+     * Returns a new instance of the function with the specified inference resolution error.
+     */
     public abstract PlanType withInferenceResolutionError(String inferenceId, String error);
+
+    /**
+     * Returns the inference function evaluator factory.
+     */
+    public abstract InferenceFunctionEvaluator.Factory inferenceEvaluatorFactory();
+
+    /**
+     * Returns true if the function has a nested inference function.
+     */
+    public boolean hasNestedInferenceFunction() {
+        return anyMatch(e -> e instanceof InferenceFunction && e != this);
+    }
 }

@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingFunctionEvaluator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -127,6 +129,11 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     @Override
     public TaskType taskType() {
         return TaskType.TEXT_EMBEDDING;
+    }
+
+    @Override
+    public InferenceFunctionEvaluator.Factory inferenceEvaluatorFactory() {
+        return inferenceRunner -> new TextEmbeddingFunctionEvaluator(this, inferenceRunner);
     }
 
     @Override

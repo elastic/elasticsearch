@@ -28,7 +28,7 @@ import java.io.IOException;
  */
 public class EnsureDocsSearchableAction {
 
-    private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "/eds";
+    private static final String ACTION_NAME = "internal:index/data/read/eds";
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(ACTION_NAME);
 
     public static final class EnsureDocsSearchableRequest extends SingleShardRequest<EnsureDocsSearchableRequest> {

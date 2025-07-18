@@ -254,7 +254,8 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
             this.storedFieldsSpec = storedFieldsSpec;
             this.dimensions = new boolean[fields.size()];
             for (int i = 0; i < fields.size(); i++) {
-                dimensions[i] = shardContext.fieldType(fields.get(i).name()).isDimension();
+                final var mappedFieldType = shardContext.fieldType(fields.get(i).name());
+                dimensions[i] = mappedFieldType != null && mappedFieldType.isDimension();
             }
         }
 

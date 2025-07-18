@@ -17,8 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * This action is used in serverless to ensure that documents are searchable on the search tier before processing
@@ -66,42 +64,6 @@ public class EnsureDocsSearchableAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(docIds);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            EnsureDocsSearchableAction.EnsureDocsSearchableRequest request = (EnsureDocsSearchableAction.EnsureDocsSearchableRequest) o;
-            System.err.println(
-                "Checking equality of EnsureDocsSearchableRequest: "
-                    + "index="
-                    + index
-                    + ", shardId="
-                    + shardId
-                    + ", docIds="
-                    + Arrays.toString(docIds)
-                    + " vs request: index="
-                    + request.index
-                    + ", shardId="
-                    + request.shardId
-                    + ", docIds="
-                    + Arrays.toString(request.docIds)
-            );
-            System.err.println(
-                "index.equals(request.index)="
-                    + index.equals(request.index)
-                    + ", shardId == request.shardId="
-                    + (shardId == request.shardId)
-                    + ", Arrays.equals(docIds, request.docIds)="
-                    + Arrays.equals(docIds, request.docIds)
-            );
-            return index.equals(request.index) && shardId == request.shardId && Arrays.equals(docIds, request.docIds);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(index, shardId, Arrays.hashCode(docIds));
         }
 
     }

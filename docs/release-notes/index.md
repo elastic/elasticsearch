@@ -20,10 +20,50 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.0.3 [elasticsearch-9.0.3-release-notes]
+## 9.0.4 [elasticsearch-9.0.4-release-notes]
 ```{applies_to}
-stack: coming 9.0.3
+stack: coming 9.0.4
 ```
+
+### Fixes [elasticsearch-9.0.4-fixes]
+
+Aggregations:
+* Aggs: Add cancellation checks to `FilterByFilter` aggregator [#130452](https://github.com/elastic/elasticsearch/pull/130452)
+
+Distributed:
+* Drain responses on completion for `TransportNodesAction` [#130303](https://github.com/elastic/elasticsearch/pull/130303)
+
+ES|QL:
+* Avoid O(N^2) in VALUES with ordinals grouping [#130576](https://github.com/elastic/elasticsearch/pull/130576)
+* Avoid dropping aggregate groupings in local plans [#129370](https://github.com/elastic/elasticsearch/pull/129370) (issues: [#129811](https://github.com/elastic/elasticsearch/issues/129811), [#128054](https://github.com/elastic/elasticsearch/issues/128054))
+* Fix `BytesRef2BlockHash` [#130705](https://github.com/elastic/elasticsearch/pull/130705)
+* Fix wildcard drop after lookup join [#130448](https://github.com/elastic/elasticsearch/pull/130448) (issue: [#129561](https://github.com/elastic/elasticsearch/issues/129561))
+
+Infra/Core:
+* Reverse disordered-version warning message [#129904](https://github.com/elastic/elasticsearch/pull/129904)
+
+Machine Learning:
+* Check for model deployment in inference endpoints before stopping [#129325](https://github.com/elastic/elasticsearch/pull/129325) (issue: [#128549](https://github.com/elastic/elasticsearch/issues/128549))
+* Fix timeout bug in DBQ deletion of unused and orphan ML data [#130083](https://github.com/elastic/elasticsearch/pull/130083)
+
+Mapping:
+* Make flattened synthetic source concatenate object keys on scalar/object mismatch [#129600](https://github.com/elastic/elasticsearch/pull/129600) (issue: [#122936](https://github.com/elastic/elasticsearch/issues/122936))
+
+Relevance:
+* Fix: `GET _synonyms` returns synonyms with empty rules [#131032](https://github.com/elastic/elasticsearch/pull/131032)
+
+Search:
+* Check field data type before casting when applying geo distance sort [#130924](https://github.com/elastic/elasticsearch/pull/130924) (issue: [#129500](https://github.com/elastic/elasticsearch/issues/129500))
+* Fix msearch request parsing when index expression is null [#130776](https://github.com/elastic/elasticsearch/pull/130776) (issue: [#129631](https://github.com/elastic/elasticsearch/issues/129631))
+* Fix text similarity reranker does not propagate min score correctly [#129223](https://github.com/elastic/elasticsearch/pull/129223)
+* Throw a 400 when sorting for all types of range fields [#129725](https://github.com/elastic/elasticsearch/pull/129725)
+* Trim to size lists created in source fetchers [#130521](https://github.com/elastic/elasticsearch/pull/130521)
+
+Vector Search:
+* Fix knn search error when dimensions are not set [#131081](https://github.com/elastic/elasticsearch/pull/131081) (issue: [#129550](https://github.com/elastic/elasticsearch/issues/129550))
+
+
+## 9.0.3 [elasticsearch-9.0.3-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.3-features-enhancements]
 
@@ -94,9 +134,6 @@ Security:
 
 
 ## 9.0.2 [elasticsearch-9.0.2-release-notes]
-```{applies_to}
-stack: coming 9.0.2
-```
 
 ### Features and enhancements [elasticsearch-9.0.2-features-enhancements]
 
@@ -114,6 +151,9 @@ Aggregations:
 Audit:
 * Handle streaming request body in audit log [#127798](https://github.com/elastic/elasticsearch/pull/127798)
 
+Codec:
+* Use new source loader when lower `docId` is accessed [#128320](https://github.com/elastic/elasticsearch/pull/128320)
+
 Data streams:
 * Fix system data streams incorrectly showing up in the list of template validation problems [#128161](https://github.com/elastic/elasticsearch/pull/128161)
 
@@ -121,12 +161,17 @@ Downsampling:
 * Downsampling does not consider passthrough fields as dimensions [#127752](https://github.com/elastic/elasticsearch/pull/127752) (issue: [#125156](https://github.com/elastic/elasticsearch/issues/125156))
 
 ES|QL:
+* Consider inlinestats when having `field_caps` check for field names [#127564](https://github.com/elastic/elasticsearch/pull/127564) (issue: [#127236](https://github.com/elastic/elasticsearch/issues/127236))
 * Don't push down filters on the right hand side of an inlinejoin [#127383](https://github.com/elastic/elasticsearch/pull/127383)
 * ESQL: Avoid unintended attribute removal [#127563](https://github.com/elastic/elasticsearch/pull/127563) (issue: [#127468](https://github.com/elastic/elasticsearch/issues/127468))
 * ESQL: Fix alias removal in regex extraction with JOIN [#127687](https://github.com/elastic/elasticsearch/pull/127687) (issue: [#127467](https://github.com/elastic/elasticsearch/issues/127467))
 * ESQL: Keep `DROP` attributes when resolving field names [#127009](https://github.com/elastic/elasticsearch/pull/127009) (issue: [#126418](https://github.com/elastic/elasticsearch/issues/126418))
 * Ensure ordinal builder emit ordinal blocks [#127949](https://github.com/elastic/elasticsearch/pull/127949)
 * Fix union types in CCS [#128111](https://github.com/elastic/elasticsearch/pull/128111)
+* Fix validation NPE in Enrich and add extra @Nullable annotations [#128260](https://github.com/elastic/elasticsearch/pull/128260) (issues: [#126297](https://github.com/elastic/elasticsearch/issues/126297), [#126253](https://github.com/elastic/elasticsearch/issues/126253))
+
+Geo:
+* Added geometry validation for GEO types to exit early on invalid latitudes [#128259](https://github.com/elastic/elasticsearch/pull/128259) (issue: [#128234](https://github.com/elastic/elasticsearch/issues/128234))
 
 Infra/Core:
 * Add missing `outbound_network` entitlement to x-pack-core [#126992](https://github.com/elastic/elasticsearch/pull/126992) (issue: [#127003](https://github.com/elastic/elasticsearch/issues/127003))
@@ -138,6 +183,8 @@ Infra/Scripting:
 Machine Learning:
 * Append all data to Chat Completion buffer [#127658](https://github.com/elastic/elasticsearch/pull/127658)
 * Fix services API Google Vertex AI Rerank location field requirement [#127856](https://github.com/elastic/elasticsearch/pull/127856)
+* Pass timeout to chat completion [#128338](https://github.com/elastic/elasticsearch/pull/128338)
+* Use internal user for internal inference action [#128327](https://github.com/elastic/elasticsearch/pull/128327)
 
 Relevance:
 * Fix: Add `NamedWriteable` for `RuleQueryRankDoc` [#128153](https://github.com/elastic/elasticsearch/pull/128153) (issue: [#126071](https://github.com/elastic/elasticsearch/issues/126071))

@@ -32,25 +32,21 @@ public class Task implements Traceable {
     public static final String X_OPAQUE_ID_HTTP_HEADER = "X-Opaque-Id";
 
     /**
-     * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
-     * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
-     * has to be declared as a header copied over from http request.
-     * May also be used internally when APM is enabled.
-     */
-    public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
-
-    /**
      * A request header that indicates the origin of the request from Elastic stack. The value will stored in ThreadContext
      * and emitted to ES logs
      */
     public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
-    public static final String TRACE_STATE = "tracestate";
+    public static final String X_ELASTIC_PROJECT_ID_HTTP_HEADER = "X-Elastic-Project-Id";
 
     /**
-     * Used internally to pass the apm trace context between the nodes
+     * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
+     * TRACE_PARENT once parsed in RestController.tryAllHandler is not preserved
+     * has to be declared as a header copied over from http request.
+     * May also be used internally when APM is enabled.
+     * https://www.w3.org/TR/trace-context-1/#traceparent-header
      */
-    public static final String APM_TRACE_CONTEXT = "apm.local.context";
+    public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
 
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
@@ -58,9 +54,24 @@ public class Task implements Traceable {
      */
     public static final String TRACE_ID = "trace.id";
 
+    /**
+     * Optional request header carrying vendor-specific trace information.
+     * https://www.w3.org/TR/trace-context-1/#tracestate-header
+     */
+    public static final String TRACE_STATE = "tracestate";
+
     public static final String TRACE_START_TIME = "trace.starttime";
-    public static final String TRACE_PARENT = "traceparent";
-    public static final String X_ELASTIC_PROJECT_ID_HTTP_HEADER = "X-Elastic-Project-Id";
+
+    /**
+     * Used internally to pass the apm trace context between the nodes
+     */
+    public static final String APM_TRACE_CONTEXT = "apm.local.context";
+
+    public static final String PARENT_TRACE_PARENT_HEADER = "parent_" + Task.TRACE_PARENT_HTTP_HEADER;
+
+    public static final String PARENT_TRACE_STATE = "parent_" + Task.TRACE_STATE;
+
+    public static final String PARENT_APM_TRACE_CONTEXT = "parent_" + Task.APM_TRACE_CONTEXT;
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,

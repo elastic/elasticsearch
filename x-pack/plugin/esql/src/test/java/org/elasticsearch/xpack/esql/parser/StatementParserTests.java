@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -472,10 +473,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                      "foo, test-*, abc, xyz", test123
                 """);
             assertStringAsIndexPattern("foo,test,xyz", command + " foo,   test,xyz");
+            assertStringAsIndexPattern("<logstash-{now/M{yyyy.MM}}>", command + " <logstash-{now/M{yyyy.MM}}>");
             assertStringAsIndexPattern(
                 "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
                 command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
             );
+            assertStringAsIndexPattern("<logstash-{now/d{yyyy.MM.dd|+12:00}}>", command + " \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"");
             assertStringAsIndexPattern(
                 "-<logstash-{now/M{yyyy.MM}}>,-<-logstash-{now/M{yyyy.MM}}>,"
                     + "-<logstash-{now/d{yyyy.MM.dd|+12:00}}>,-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>",
@@ -494,18 +497,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 lineNumber,
                 "mismatched input '\"index|pattern\"' expecting UNQUOTED_SOURCE"
             );
-            assertStringAsIndexPattern("*:index|pattern", command + " \"*:index|pattern\"");
+            // Entire index pattern is quoted. So it's not a parse error but a semantic error where the index name
+            // is invalid.
+            expectError(command + " \"*:index|pattern\"", "Invalid index name [index|pattern], must not contain the following characters");
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");// this is not a valid pattern, * should be inside <>
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/d}>*");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
+            expectError(
+                command + " \"cluster:index|pattern\"",
+                "Invalid index name [index|pattern], must not contain the following characters"
+            );
+            expectError(command + " *:\"index|pattern\"", "expecting UNQUOTED_SOURCE");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
+                expectErrorWithLineNumber(
+                    command + " *,\"-foo\"::data",
+                    "*,-foo::data",
+                    lineNumber,
+                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                );
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::data\"",
                     " cluster:\"foo::data\"",
@@ -585,6 +600,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Map<String, String> commands = new HashMap<>();
         commands.put("FROM {}", "line 1:6: ");
         if (Build.current().isSnapshot()) {
+            commands.put("TS {}", "line 1:4: ");
             commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:22: ");
         }
         String lineNumber;
@@ -625,7 +641,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
 
                 // Cluster name cannot be combined with selector yet.
-                var parseLineNumber = command.contains("FROM") ? 6 : 9;
+                int parseLineNumber = 6;
+                if (command.startsWith("TS")) {
+                    parseLineNumber = 4;
+                }
+
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
 
@@ -633,19 +653,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"foo\"::data",
-                    "line 1:14: ",
+                    command.startsWith("FROM") ? "line 1:14: " : "line 1:12: ",
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"foo\"::failures",
-                    "line 1:14: ",
+                    command.startsWith("FROM") ? "line 1:14: " : "line 1:12: ",
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
 
-                // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
-                // expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
-                // expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
 
                 expectErrorWithLineNumber(
                     command,
@@ -689,7 +708,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"index,index2\"::failures",
-                    "line 1:14: ",
+                    command.startsWith("FROM") ? "line 1:14: " : "line 1:12: ",
                     "mismatched input '\"index,index2\"' expecting UNQUOTED_SOURCE"
                 );
             }
@@ -746,16 +765,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clustersAndIndices(command, "index*", "-index#pattern");
             clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
             clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>");
+            expectInvalidIndexNameErrorWithLineNumber(command, "*, index#pattern", lineNumber, "index#pattern", "must not contain '#'");
+            expectInvalidIndexNameErrorWithLineNumber(
+                command,
+                "index*, index#pattern",
+                indexStarLineNumber,
+                "index#pattern",
+                "must not contain '#'"
+            );
+            expectDateMathErrorWithLineNumber(command, "cluster*:<logstash-{now/D}*>", commands.get(command), dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logst:ash-{now/D}>\"", commands.get(command), dateMathError);
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-                clustersAndIndices(command, "*", "-index#pattern::data");
-                clustersAndIndices(command, "*", "-index#pattern::data");
+                clustersAndIndices(command, "*", "-index::data");
+                clustersAndIndices(command, "*", "-index::failures");
+                clustersAndIndices(command, "*", "-index*pattern::data");
+                clustersAndIndices(command, "*", "-index*pattern::failures");
+
+                // This is by existing design: refer to the comment in IdentifierBuilder#resolveAndValidateIndex() in the last
+                // catch clause. If there's an index with a wildcard before an invalid index, we don't error out.
                 clustersAndIndices(command, "index*", "-index#pattern::data");
                 clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>::data");
                 clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>::data");
+
+                expectError(command + "index1,<logstash-{now+-/d}>", "unit [-] not supported for date math [+-/d]");
+
                 // Throw on invalid date math
                 expectDateMathErrorWithLineNumber(
                     command,
@@ -908,10 +944,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
-    }
-
-    public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
     }
 
     public void testBasicSortCommand() {
@@ -1195,7 +1227,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
         expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "mismatched input '12'");
+        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
 
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
@@ -3140,6 +3172,139 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
+    public void testInvalidFromPatterns() {
+        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
+        var indexIsBlank = "Blank index specified in index pattern";
+        var remoteIsEmpty = "remote part is empty";
+        var invalidDoubleColonUsage = "invalid usage of :: separator";
+
+        expectError(randomFrom(sourceCommands) + " \"\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \" \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \",,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \",,, \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \", , ,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \",,,\",*", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*,,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,,,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,index2,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,<-+^,index2\",*", "must not contain the following characters");
+        expectError(randomFrom(sourceCommands) + " \"\",*", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*: ,*,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*: ,*,\",validIndexName", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"\", \" \", \"  \",validIndexName", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1\", \"index2\", \"  ,index3,index4\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,index2,,index3\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,index2,  ,index3\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*, \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*\", \"\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*\", \" \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*\", \":index1\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"index1,*,:index2\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"*\", \"::data\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"*\", \"::failures\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"*,index1::\"", invalidDoubleColonUsage);
+        expectError(randomFrom(sourceCommands) + " \"*\", index1, index2, \"index3:: \"", invalidDoubleColonUsage);
+        expectError(randomFrom(sourceCommands) + " \"*,index1::*\"", invalidDoubleColonUsage);
+    }
+
+    public void testInvalidPatternsWithIntermittentQuotes() {
+        // There are 3 ways of crafting invalid index patterns that conforms to the grammar defined through ANTLR.
+        // 1. Not quoting the pattern,
+        // 2. Quoting individual patterns ("index1", "index2", ...), and,
+        // 3. Clubbing all the patterns into a single quoted string ("index1,index2,...).
+        //
+        // Note that in these tests, we unquote a pattern and then quote it immediately.
+        // This is because when randomly generating an index pattern, it may look like: "foo"::data.
+        // To convert it into a quoted string like "foo::data", we need to unquote and then re-quote it.
+
+        // Prohibited char in a quoted cross cluster index pattern should result in an error.
+        {
+            var randomIndex = randomIndexPattern();
+            // Select an invalid char to sneak in.
+            // Note: some chars like '|' and '"' are excluded to generate a proper invalid name.
+            Character[] invalidChars = { ' ', '/', '<', '>', '?' };
+            var randomInvalidChar = randomFrom(invalidChars);
+
+            // Construct the new invalid index pattern.
+            var invalidIndexName = "foo" + randomInvalidChar + "bar";
+            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + invalidIndexName);
+            var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
+            expectError(
+                query,
+                "Invalid index name ["
+                    + invalidIndexName
+                    + "], must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']"
+            );
+        }
+
+        // Colon outside a quoted string should result in an ANTLR error: a comma is expected.
+        {
+            var randomIndex = randomIndexPattern();
+
+            // In the form of: "*|cluster alias:random string".
+            var malformedClusterAlias = quote((randomBoolean() ? "*" : randomIdentifier()) + ":" + randomIdentifier());
+
+            // We do not generate a cross cluster pattern or else we'd be getting a different error (which is tested in
+            // the next test).
+            var remoteIndex = quote(unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER))));
+            // Format: FROM <some index>, "<cluster alias: random string>":<remote index>
+            var query = "FROM " + randomIndex + "," + malformedClusterAlias + ":" + remoteIndex;
+            expectError(query, " mismatched input ':'");
+        }
+
+        // If an explicit cluster string is present, then we expect an unquoted string next.
+        {
+            var randomIndex = randomIndexPattern();
+            var remoteClusterAlias = randomBoolean() ? "*" : randomIdentifier();
+            // In the form of: random string:random string.
+            var malformedRemoteIndex = quote(unquoteIndexPattern(randomIndexPattern(CROSS_CLUSTER)));
+            // Format: FROM <some index>, <cluster alias>:"random string:random string"
+            var query = "FROM " + randomIndex + "," + remoteClusterAlias + ":" + malformedRemoteIndex;
+            // Since "random string:random string" is partially quoted, expect a ANTLR's parse error.
+            expectError(query, "expecting UNQUOTED_SOURCE");
+        }
+
+        if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+            // If a stream in on a remote and the pattern is entirely quoted, we should be able to validate it.
+            // Note: invalid selector syntax is covered in a different test.
+            {
+                var fromPattern = randomIndexPattern();
+                var malformedIndexSelectorPattern = quote(
+                    (randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER)))
+                );
+                // Format: FROM <some index>, "<cluster alias>:<some index>::<data|failures>"
+                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
+                expectError(query, "Selectors are not yet supported on remote cluster patterns");
+            }
+
+            // If a stream in on a remote and the cluster alias and index pattern are separately quoted, we should
+            // still be able to validate it.
+            // Note: invalid selector syntax is covered in a different test.
+            {
+                var fromPattern = randomIndexPattern();
+                var malformedIndexSelectorPattern = quote(randomIdentifier())
+                    + ":"
+                    + quote(unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER))));
+                // Format: FROM <some index>, "<cluster alias>":"<some index>::<data|failures>"
+                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
+                // Everything after "<cluster alias>" is extraneous input and hence ANTLR's error.
+                expectError(query, "mismatched input ':'");
+            }
+        }
+    }
+
+    public void testValidJoinPatternWithRemote() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
+        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+        var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier());
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(fromPatterns)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+    }
+
     public void testInvalidJoinPatterns() {
         assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
@@ -3160,18 +3325,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported with LOOKUP JOIN"
             );
         }
+
         {
-            // remote cluster on the left
-            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+            // Generate a syntactically invalid (partial quoted) pattern.
+            var fromPatterns = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
+            var joinPattern = randomIndexPattern();
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with LOOKUP JOIN"
+                // Since the from pattern is partially quoted, we get an error at the end of the partially quoted string.
+                " mismatched input ':'"
             );
         }
 
-        // If one or more patterns participating in LOOKUP JOINs are partially quoted, we expect the partial quoting
-        // error messages to take precedence over any LOOKUP JOIN error messages.
         {
             // Generate a syntactically invalid (partial quoted) pattern.
             var fromPatterns = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
@@ -3181,6 +3346,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
                 "expecting UNQUOTED_SOURCE"
+            );
+        }
+
+        {
+            var fromPatterns = randomIndexPattern();
+            // Generate a syntactically invalid (partial quoted) pattern.
+            var joinPattern = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                // Since the join pattern is partially quoted, we get an error at the end of the partially quoted string.
+                "mismatched input ':'"
             );
         }
 
@@ -3249,6 +3425,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "invalid index pattern ["
                         + unquoteIndexPattern(joinPattern)
                         + "], index pattern selectors are not supported in LOOKUP JOIN"
+                );
+            }
+
+            {
+                // Although we don't support selector strings for remote indices, it's alright.
+                // The parser error message takes precedence.
+                var fromPatterns = randomIndexPatterns();
+                var joinPattern = quote(randomIdentifier()) + "::" + randomFrom("data", "failures");
+                // After the end of the partially quoted string, i.e. the index name, parser now expects "ON..." and not a selector string.
+                expectError(
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "mismatched input ':' expecting 'on'"
+                );
+            }
+
+            {
+                // Although we don't support selector strings for remote indices, it's alright.
+                // The parser error message takes precedence.
+                var fromPatterns = randomIndexPatterns();
+                var joinPattern = randomIdentifier() + "::" + quote(randomFrom("data", "failures"));
+                // After the index name and "::", parser expects an unquoted string, i.e. the selector string should not be
+                // partially quoted.
+                expectError(
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    " mismatched input ':' expecting UNQUOTED_SOURCE"
                 );
             }
         }
@@ -3640,7 +3841,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
         );
         var rerank = as(
-            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams),
+            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams, EsqlTestUtils.TEST_CFG),
             Rerank.class
         );
 
@@ -3663,7 +3864,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var rerank = as(
             parser.createStatement(
                 "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
-                queryParams
+                queryParams,
+                EsqlTestUtils.TEST_CFG
             ),
             Rerank.class
         );
@@ -3711,7 +3913,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams, EsqlTestUtils.TEST_CFG),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3720,7 +3925,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
-        var plan = as(parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams), Completion.class);
+        var plan = as(
+            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams, EsqlTestUtils.TEST_CFG),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
@@ -3760,27 +3968,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return new Alias(EMPTY, name, value);
     }
 
-    public void testValidRrf() {
-        assumeTrue("RRF requires corresponding capability", EsqlCapabilities.Cap.RRF.isEnabled());
+    public void testValidFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
-                | RRF
+                | FUSE
             """);
 
-        var orderBy = as(plan, OrderBy.class);
-        assertThat(orderBy.order().size(), equalTo(3));
-
-        assertThat(orderBy.order().get(0).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
-        assertThat(orderBy.order().get(1).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
-        assertThat(orderBy.order().get(2).child(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
-
-        var dedup = as(orderBy.child(), Dedup.class);
+        var dedup = as(plan, Dedup.class);
         assertThat(dedup.groupings().size(), equalTo(2));
         assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
@@ -4532,6 +4730,76 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from test | enrich a on b)" };
         for (String q : queries) {
             expectError(q, "Invalid query");
+        }
+    }
+
+    public void testBracketsInIndexNames() {
+
+        List<String> patterns = List.of(
+            "(",
+            ")",
+            "()",
+            "(((",
+            ")))",
+            "(test",
+            "test)",
+            "(test)",
+            "te()st",
+            "concat(foo,bar)",
+            "((((()))))",
+            "(((abc)))",
+            "*()*",
+            "*test()*"
+        );
+
+        for (String pattern : patterns) {
+            expectErrorForBracketsWithoutQuotes(pattern);
+            expectSuccessForBracketsWithinQuotes(pattern);
+        }
+
+        expectError("from test)", "line 1:10: extraneous input ')' expecting <EOF>");
+        expectError("from te()st", "line 1:8: token recognition error at: '('");
+        expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
+        expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
+    }
+
+    private void expectErrorForBracketsWithoutQuotes(String pattern) {
+        expectThrows(ParsingException.class, () -> processingCommand("from " + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from *:" + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from remote1:" + pattern + ",remote2:" + pattern));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join " + pattern + " on bar"));
+
+        expectThrows(ParsingException.class, () -> processingCommand("from test | enrich " + pattern));
+    }
+
+    private void expectSuccessForBracketsWithinQuotes(String indexName) {
+        LogicalPlan plan = statement("from \"" + indexName + "\"");
+        UnresolvedRelation from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is(indexName));
+
+        plan = statement("from \"*:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("*:" + indexName));
+
+        plan = statement("from \"remote1:" + indexName + ",remote2:" + indexName + "\"");
+        from = as(plan, UnresolvedRelation.class);
+        assertThat(from.indexPattern().indexPattern(), is("remote1:" + indexName + ",remote2:" + indexName));
+
+        plan = statement("from test | enrich \"" + indexName + "\"");
+        Enrich enrich = as(plan, Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
+        as(enrich.child(), UnresolvedRelation.class);
+
+        if (indexName.contains("*")) {
+            expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar"));
+        } else {
+            plan = statement("from test | lookup join \"" + indexName + "\" on bar");
+            LookupJoin lookup = as(plan, LookupJoin.class);
+            UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
+            assertThat(right.indexPattern().indexPattern(), is(indexName));
         }
     }
 }

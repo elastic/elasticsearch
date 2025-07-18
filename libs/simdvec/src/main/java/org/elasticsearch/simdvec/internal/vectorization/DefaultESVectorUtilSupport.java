@@ -269,4 +269,18 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         return ret;
     }
+
+    @Override
+    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
+        float nSteps = ((1 << bits) - 1);
+        float step = (upperInterval - lowInterval) / nSteps;
+        int sumQuery = 0;
+        for (int h = 0; h < vector.length; h++) {
+            float xi = Math.min(Math.max(vector[h], lowInterval), upperInterval);
+            int assignment = Math.round((xi - lowInterval) / step);
+            sumQuery += assignment;
+            destination[h] = assignment;
+        }
+        return sumQuery;
+    }
 }

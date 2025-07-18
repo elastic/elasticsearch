@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredTaskSchema;
 
 import java.io.IOException;
@@ -40,6 +42,16 @@ record SageMakerElasticTaskSettings(@Nullable Map<String, Object> passthroughSet
 
     @Override
     public SageMakerStoredTaskSchema updatedTaskSettings(Map<String, Object> newSettings) {
+        var validationException = new ValidationException();
+        validationException.addValidationError(
+            InferenceAction.Request.TASK_SETTINGS.getPreferredName()
+                + " is only supported during the inference request and cannot be stored in the inference endpoint."
+        );
+        throw validationException;
+    }
+
+    @Override
+    public SageMakerStoredTaskSchema override(Map<String, Object> newSettings) {
         return new SageMakerElasticTaskSettings(newSettings);
     }
 
@@ -50,7 +62,14 @@ record SageMakerElasticTaskSettings(@Nullable Map<String, Object> passthroughSet
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC_8_19);
     }
 
     @Override

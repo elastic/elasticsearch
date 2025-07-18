@@ -311,7 +311,8 @@ public class InferencePlugin extends Plugin
                     serviceComponents.get(),
                     inferenceServiceSettings,
                     modelRegistry.get(),
-                    authorizationHandler
+                    authorizationHandler,
+                    context
                 ),
                 context -> new SageMakerService(
                     new SageMakerModelBuilder(sageMakerSchemas),
@@ -321,7 +322,8 @@ public class InferencePlugin extends Plugin
                     ),
                     sageMakerSchemas,
                     services.threadPool(),
-                    sageMakerConfigurations::getOrCompute
+                    sageMakerConfigurations::getOrCompute,
+                    context
                 )
             )
         );
@@ -384,24 +386,24 @@ public class InferencePlugin extends Plugin
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
-            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
-            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
-            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new MistralService(httpFactory.get(), serviceComponents.get()),
-            context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
-            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
-            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
-            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
-            context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
+            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
-            context -> new CustomService(httpFactory.get(), serviceComponents.get())
+            context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
     }
 

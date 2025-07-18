@@ -1350,16 +1350,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public String innerGetRaw(final Settings settings) {
-            Settings subSettings = settings.getByPrefix(getKey());
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.startObject();
-                subSettings.toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
-                return Strings.toString(builder);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            throw new UnsupportedOperationException();
         }
 
         private Settings getByPrefix(Settings settings) {

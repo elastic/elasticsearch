@@ -57,7 +57,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.time.Instant;
+import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -140,6 +140,7 @@ public class MetadataIndexTemplateService {
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final InstantSource instantSource;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -193,7 +194,8 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        InstantSource instantSource
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -204,6 +206,7 @@ public class MetadataIndexTemplateService {
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.globalRetentionSettings = globalRetentionSettings;
+        this.instantSource = instantSource;
     }
 
     public void removeTemplates(
@@ -323,15 +326,37 @@ public class MetadataIndexTemplateService {
         }
 
         final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
-        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
-            finalTemplate,
-            template.version(),
-            template.metadata(),
-            template.deprecated()
-        );
-
-        if (finalComponentTemplate.equals(existing)) {
-            return project;
+        final long now = instantSource.instant().toEpochMilli();
+        final ComponentTemplate finalComponentTemplate;
+        if (existing == null) {
+            finalComponentTemplate = new ComponentTemplate(
+                finalTemplate,
+                template.version(),
+                template.metadata(),
+                template.deprecated(),
+                now,
+                now
+            );
+        } else {
+            final ComponentTemplate templateToCompareToExisting = new ComponentTemplate(
+                finalTemplate,
+                template.version(),
+                template.metadata(),
+                template.deprecated(),
+                existing.createdDateMillis().orElse(null),
+                existing.modifiedDateMillis().orElse(null)
+            );
+            if (templateToCompareToExisting.equals(existing)) {
+                return project;
+            }
+            finalComponentTemplate = new ComponentTemplate(
+                finalTemplate,
+                template.version(),
+                template.metadata(),
+                template.deprecated(),
+                existing.createdDateMillis().orElse(null),
+                now
+            );
         }
 
         validateTemplate(finalSettings, wrappedMappings, indicesService);
@@ -715,7 +740,7 @@ public class MetadataIndexTemplateService {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
-        final var now = Instant.now();
+        final var now = instantSource.instant();
 
         final var combinedMappings = collectMappings(indexTemplate, projectMetadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, projectMetadata.componentTemplates());

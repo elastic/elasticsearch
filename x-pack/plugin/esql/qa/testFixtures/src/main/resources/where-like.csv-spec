@@ -534,6 +534,60 @@ emp_no:integer | first_name:keyword
 10055          | Georgy    
 ;
 
+likeListWithUpperAllLower
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("geor*", "wei*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+likeListWithUpperAllUpper
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WEI*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10040          | Weiyi
+10055          | Georgy
+;
+
+likeListWithUpperMixedCase
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("GeOr*", "wEiY*", "bErNi")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+likeListWithUpperMultiplePatternsMixedCase
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("geor*", "WEIYI*", "bErnI*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10040          | Weiyi
+;
+
+likeListWithUpperNoMatch
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("notaname*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
 rlikeListEmptyArgWildcard
 required_capability: rlike_with_list_of_patterns
 FROM employees 

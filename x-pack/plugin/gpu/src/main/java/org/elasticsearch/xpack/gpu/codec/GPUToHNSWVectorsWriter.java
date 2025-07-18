@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.gpu.codec;
 import com.nvidia.cuvs.CagraIndex;
 import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSResources;
+import com.nvidia.cuvs.Dataset;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
@@ -26,6 +27,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -39,6 +41,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -166,9 +171,46 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         return total;
     }
 
+    private static final class DatasetOrVectors {
+        private final Dataset dataset;
+        private final float[][] vectors;
+
+        DatasetOrVectors(float[][] vectors) {
+            this(
+                vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : Dataset.ofArray(vectors),
+                vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? vectors : null
+            );
+            validateState();
+        }
+
+        private DatasetOrVectors(Dataset dataset, float[][] vectors) {
+            this.dataset = dataset;
+            this.vectors = vectors;
+            validateState();
+        }
+
+        private void validateState() {
+            if ((dataset == null && vectors == null) || (dataset != null && vectors != null)) {
+                throw new IllegalStateException("Exactly one of dataset or vectors must be non-null");
+            }
+        }
+
+        int size() {
+            return dataset != null ? dataset.size() : vectors.length;
+        }
+
+        Dataset getDataset() {
+            return dataset;
+        }
+
+        float[][] getVectors() {
+            return vectors;
+        }
+    }
+
     private void writeField(FieldWriter fieldWriter) throws IOException {
         float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        writeFieldInternal(fieldWriter.fieldInfo, vectors);
+        writeFieldInternal(fieldWriter.fieldInfo, new DatasetOrVectors(vectors));
     }
 
     private void writeSortingField(FieldWriter fieldData, Sorter.DocMap sortMap) throws IOException {
@@ -177,12 +219,13 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         throw new UnsupportedOperationException("Writing field with index sorted needs to be implemented.");
     }
 
-    private void writeFieldInternal(FieldInfo fieldInfo, float[][] vectors) throws IOException {
+    private void writeFieldInternal(FieldInfo fieldInfo, DatasetOrVectors datasetOrVectors) throws IOException {
         try {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             HnswGraph mockGraph;
-            if (vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+            if (datasetOrVectors.vectors != null) {
+                float[][] vectors = datasetOrVectors.vectors;
                 if (logger.isDebugEnabled()) {
                     logger.debug(
                         "Skip building carga index; vectors length {} < {} (min for GPU)",
@@ -192,12 +235,12 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
                 }
                 mockGraph = writeGraph(vectors, graphLevelNodeOffsets);
             } else {
-                String tempCagraHNSWFileName = buildGPUIndex(fieldInfo.getVectorSimilarityFunction(), vectors);
+                String tempCagraHNSWFileName = buildGPUIndex(fieldInfo.getVectorSimilarityFunction(), datasetOrVectors.dataset);
                 assert tempCagraHNSWFileName != null : "GPU index should be built for field: " + fieldInfo.name;
                 mockGraph = writeGraph(tempCagraHNSWFileName, graphLevelNodeOffsets);
             }
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
-            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, vectors.length, mockGraph, graphLevelNodeOffsets);
+            writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, datasetOrVectors.size(), mockGraph, graphLevelNodeOffsets);
         } catch (IOException e) {
             throw e;
         } catch (Throwable t) {
@@ -206,7 +249,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     }
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private String buildGPUIndex(VectorSimilarityFunction similarityFunction, float[][] vectors) throws Throwable {
+    private String buildGPUIndex(VectorSimilarityFunction similarityFunction, Dataset dataset) throws Throwable {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
             case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> CagraIndexParams.CuvsDistanceType.InnerProduct;
@@ -221,9 +264,9 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
 
         // build index on GPU
         long startTime = System.nanoTime();
-        var index = CagraIndex.newBuilder(cuVSResources).withDataset(vectors).withIndexParams(params).build();
+        var index = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(params).build();
         if (logger.isDebugEnabled()) {
-            logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, vectors.length);
+            logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());
         }
 
         // TODO: do serialization through MemorySegment instead of a temp file
@@ -419,18 +462,94 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
 
     // TODO check with deleted documents
     @Override
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
         FloatVectorValues vectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-        // TODO: more efficient way to pass merged vector values to gpuIndex construction
-        KnnVectorValues.DocIndexIterator iter = vectorValues.iterator();
-        List<float[]> vectorList = new ArrayList<>();
-        for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
-            vectorList.add(vectorValues.vectorValue(iter.index()));
+        // save merged vector values to a temp file
+        final int numVectors;
+        String tempRawVectorsFileName = null;
+        boolean success = false;
+        try (IndexOutput out = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "vec_", IOContext.DEFAULT)) {
+            tempRawVectorsFileName = out.getName();
+            numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            CodecUtil.writeFooter(out);
+            success = true;
+        } finally {
+            if (success == false && tempRawVectorsFileName != null) {
+                org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
+            }
         }
-        float[][] vectors = vectorList.toArray(new float[0][]);
+        try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
+            // TODO: Improve this (not acceptable): pass tempRawVectorsFileName for the gpuIndex construction through MemorySegment
+            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
+            float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
+            float[] vector;
+            for (int i = 0; i < numVectors; i++) {
+                vector = floatVectorValues.vectorValue(i);
+                System.arraycopy(vector, 0, vectors[i], 0, vector.length);
+            }
+            DatasetOrVectors datasetOrVectors = new DatasetOrVectors(vectors);
+            writeFieldInternal(fieldInfo, datasetOrVectors);
+        } finally {
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
+        }
+    }
 
-        writeFieldInternal(fieldInfo, vectors);
+    private static int writeFloatVectorValues(FieldInfo fieldInfo, IndexOutput out, FloatVectorValues floatVectorValues)
+        throws IOException {
+        int numVectors = 0;
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+            numVectors++;
+            float[] vector = floatVectorValues.vectorValue(iterator.index());
+            out.writeInt(iterator.docID());
+            buffer.asFloatBuffer().put(vector);
+            out.writeBytes(buffer.array(), buffer.array().length);
+        }
+        return numVectors;
+    }
+
+    private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput randomAccessInput, int numVectors) {
+        if (numVectors == 0) {
+            return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
+        }
+        final long length = (long) Float.BYTES * fieldInfo.getVectorDimension() + Integer.BYTES;
+        final float[] vector = new float[fieldInfo.getVectorDimension()];
+        return new FloatVectorValues() {
+            @Override
+            public float[] vectorValue(int ord) throws IOException {
+                randomAccessInput.seek(ord * length + Integer.BYTES);
+                randomAccessInput.readFloats(vector, 0, vector.length);
+                return vector;
+            }
+
+            @Override
+            public FloatVectorValues copy() {
+                return this;
+            }
+
+            @Override
+            public int dimension() {
+                return fieldInfo.getVectorDimension();
+            }
+
+            @Override
+            public int size() {
+                return numVectors;
+            }
+
+            @Override
+            public int ordToDoc(int ord) {
+                try {
+                    randomAccessInput.seek(ord * length);
+                    return randomAccessInput.readInt();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
     }
 
     private void writeMeta(

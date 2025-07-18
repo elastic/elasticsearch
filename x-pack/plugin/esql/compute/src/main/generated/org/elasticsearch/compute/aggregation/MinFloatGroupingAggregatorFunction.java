@@ -223,18 +223,6 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    FloatArrayState inState = ((MinFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
-  }
-
-  @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
     state.toIntermediate(blocks, offset, selected, driverContext);
   }

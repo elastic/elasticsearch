@@ -9,6 +9,11 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.endpoints.Endpoint;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
+import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointProvider;
+
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,6 +26,14 @@ public class RegionFromEndpointGuesserTests extends ESTestCase {
         assertRegionGuess("s3-fips.us-gov-east-1.amazonaws.com", "us-gov-east-1");
         assertRegionGuess("10.0.0.4", null);
         assertRegionGuess("random.endpoint.internal.net", null);
+    }
+
+    public void testHasEntryForEachRegion() {
+        final var defaultS3EndpointProvider = new DefaultS3EndpointProvider();
+        for (var region : Region.regions()) {
+            final Endpoint endpoint = safeGet(defaultS3EndpointProvider.resolveEndpoint(S3EndpointParams.builder().region(region).build()));
+            assertNotNull(region.id(), RegionFromEndpointGuesser.guessRegion(endpoint.url().toString()));
+        }
     }
 
     private static void assertRegionGuess(String endpoint, @Nullable String expectedRegion) {

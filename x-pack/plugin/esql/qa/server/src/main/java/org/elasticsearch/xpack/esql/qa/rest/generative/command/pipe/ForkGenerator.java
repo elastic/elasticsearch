@@ -57,7 +57,9 @@ public class ForkGenerator implements CommandGenerator {
                     final String command = current.commandString();
 
                     // Try appending new command to parent of Fork. If we successfully execute (without exception) AND still retain the same
-                    // schema (all Fork branches must have the same schema), we append the command.
+                    // schema, we append the command. Enforcing the same schema is stricter than the Fork needs (it only needs types to be
+                    // the same on columns which are present), but given we currently generate independent sub-pipelines, this way we can
+                    // generate more valid Fork queries.
                     final EsqlQueryGenerator.QueryExecuted result = previousResult == null
                         ? GenerativeRestTest.execute(command, 0)
                         : GenerativeRestTest.execute(previousResult.query() + command, previousResult.depth());

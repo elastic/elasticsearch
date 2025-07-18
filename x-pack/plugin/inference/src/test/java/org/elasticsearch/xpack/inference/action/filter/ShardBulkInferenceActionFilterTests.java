@@ -709,8 +709,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkItemResponse.Failure doc1Failure = doc1Response.getFailure();
                 assertThat(
                     doc1Failure.getCause().getMessage(),
-                    containsString("Unable to insert inference results into document [doc_1]"
-                        + " due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.")
+                    containsString(
+                        "Unable to insert inference results into document [doc_1]"
+                            + " due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes."
+                    )
                 );
                 assertThat(doc1Failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertThat(doc1Failure.getStatus(), is(RestStatus.TOO_MANY_REQUESTS));

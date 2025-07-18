@@ -50,13 +50,4 @@ abstract class SpatialExtentLongitudeWrappingAggregator {
     ) {
         return state.toBlock(selected, driverContext);
     }
-
-    public static void combineStates(
-        SpatialExtentGroupingStateWrappedLongitudeState current,
-        int groupId,
-        SpatialExtentGroupingStateWrappedLongitudeState inState,
-        int inPosition
-    ) {
-        current.add(groupId, inState, inPosition);
-    }
 }

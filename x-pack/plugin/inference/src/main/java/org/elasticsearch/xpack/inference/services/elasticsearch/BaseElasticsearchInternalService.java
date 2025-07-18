@@ -288,6 +288,10 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
+    protected TimeValue getConfiguredInferenceTimeout() {
+        return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
+    }
+
     boolean isClusterInElasticCloud() {
         // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
         // A value > 0 means scaling should be available for ml nodes

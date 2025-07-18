@@ -12,6 +12,7 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
@@ -60,7 +61,8 @@ public class TextExpansionProcessor extends NlpTask.Processor {
             pyTorchResult,
             replacementVocab,
             config.getResultsField(),
-            chunkResults
+            chunkResults,
+            ((TextExpansionConfig) config).getExpansionType()
         );
     }
 
@@ -69,10 +71,11 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         PyTorchInferenceResult pyTorchResult,
         Map<Integer, String> replacementVocab,
         String resultsField,
-        boolean chunkResults
+        boolean chunkResults,
+        String expansionType
     ) {
-        boolean isSplade = true; // TODO: Determine if the model is SPLADE or not based on the config or model type.
-        if (isSplade) {
+        // SPLADE type expansion
+        if (TextExpansionConfig.EXPANSION_TYPE_SPLADE.equals(expansionType)) {
             // chunkResults is not supported for SPLADE models
             if (chunkResults) {
                 throw new IllegalArgumentException("chunkResults is not supported for SPLADE models");
@@ -91,6 +94,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
             );
         }
 
+        // ELSER type expansion
         if (chunkResults) {
             var chunkedResults = new ArrayList<MlChunkedTextExpansionResults.ChunkedResult>();
 

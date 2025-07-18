@@ -638,7 +638,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         itemIndex,
                         new InferenceException(
                             "Unable to insert inference results into document ["
-                                + indexRequest.indexRequest.id()
+                                + indexRequest.getIndexRequest().id()
                                 + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                             e
                         )

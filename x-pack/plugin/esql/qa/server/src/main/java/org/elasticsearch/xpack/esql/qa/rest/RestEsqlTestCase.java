@@ -1291,8 +1291,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public static EsqlResponse runEsqlSyncNoWarningsChecks(RequestObjectBuilder requestObject) throws IOException {
-        Boolean profileEnabled = requestObject.profile;
-        requestObject.profile(true);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
         Response response = performRequest(request);
         Map<String, Object> json = entityToMap(response.getEntity(), requestObject.contentType());

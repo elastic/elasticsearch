@@ -22,7 +22,7 @@ import java.util.Objects;
  * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  */
-class InterceptedQueryBuilderWrapper implements QueryBuilder {
+public class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     protected final QueryBuilder original;
     protected final QueryBuilder rewritten;

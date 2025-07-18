@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.deprecation;
+package org.elasticsearch.xpack.deprecation.plugin;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;

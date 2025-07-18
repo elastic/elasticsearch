@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.build'
 esplugin {
   name = 'deprecation-plugin'
   description = 'Deprecated query plugin'
-  classname ='org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
+  classname ='org.elasticsearch.xpack.deprecation.plugin.TestDeprecationPlugin'
 }
 
 dependencies {

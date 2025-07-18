@@ -19,6 +19,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder.RetrieverSource;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -106,7 +107,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     private final String query;
     private final int rankConstant;
 
-    public RRFRetrieverBuilder(List<CompoundRetrieverBuilder.RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
+    public RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
         this(childRetrievers, null, null, rankWindowSize, rankConstant, createDefaultWeights(childRetrievers));
     }
 
@@ -118,7 +119,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     public RRFRetrieverBuilder(
-        List<CompoundRetrieverBuilder.RetrieverSource> childRetrievers,
+        List<RetrieverSource> childRetrievers,
         List<String> fields,
         String query,
         int rankWindowSize,
@@ -171,10 +172,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     }
 
     @Override
-    protected RRFRetrieverBuilder clone(
-        List<CompoundRetrieverBuilder.RetrieverSource> newRetrievers,
-        List<QueryBuilder> newPreFilterQueryBuilders
-    ) {
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         RRFRetrieverBuilder clone = new RRFRetrieverBuilder(
             newRetrievers,
             this.fields,
@@ -269,7 +267,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 query,
                 localIndicesMetadata.values(),
                 r -> {
-                    List<CompoundRetrieverBuilder.RetrieverSource> retrievers = new ArrayList<>(r.size());
+                    List<RetrieverSource> retrievers = new ArrayList<>(r.size());
                     float[] weights = new float[r.size()];
                     int i = 0;
                     for (var retriever : r) {
@@ -288,11 +286,11 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
-                List<CompoundRetrieverBuilder.RetrieverSource> sources = new ArrayList<>();
+                List<RetrieverSource> sources = new ArrayList<>();
                 float[] weights = new float[fieldsInnerRetrievers.size()];
                 Arrays.fill(weights, RRFRetrieverComponent.DEFAULT_WEIGHT);
                 for (int i = 0; i < fieldsInnerRetrievers.size(); i++) {
-                    sources.add(CompoundRetrieverBuilder.RetrieverSource.from(fieldsInnerRetrievers.get(i)));
+                    sources.add(RetrieverSource.from(fieldsInnerRetrievers.get(i)));
                     weights[i] = RRFRetrieverComponent.DEFAULT_WEIGHT;
                 }
                 rewritten = new RRFRetrieverBuilder(sources, null, null, rankWindowSize, rankConstant, weights);

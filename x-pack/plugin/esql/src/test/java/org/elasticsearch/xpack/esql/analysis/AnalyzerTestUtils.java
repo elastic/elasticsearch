@@ -76,13 +76,7 @@ public final class AnalyzerTestUtils {
         Configuration config
     ) {
         return new Analyzer(
-            new AnalyzerContext(
-                config,
-                new EsqlFunctionRegistry(),
-                indexResolution,
-                lookupResolution,
-                enrichResolution
-            ),
+            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, lookupResolution, enrichResolution),
             verifier
         );
     }

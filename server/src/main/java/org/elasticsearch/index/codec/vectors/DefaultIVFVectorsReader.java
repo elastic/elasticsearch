@@ -183,7 +183,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         boolean quantized = false;
         float centroidDp;
         final float[] centroid;
-        long slicePos;
+        private long slicePos;
         OptimizedScalarQuantizer.QuantizationResult queryCorrections;
 
         final float[] scratch;
@@ -281,18 +281,19 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
-            int scored = scoreDocs(knnCollector, vectors, docIdsScratch);
+            int scored = scoreDocs(knnCollector, vectors, 0, docIdsScratch);
             if (spilledVectors > 0) {
-                scored += scoreDocs(knnCollector, spilledVectors, spilledDocIdsScratch);
+                scored += scoreDocs(knnCollector, spilledVectors, vectors * quantizedByteLength, spilledDocIdsScratch);
             }
             return scored;
         }
 
-        private int scoreDocs(KnnCollector knnCollector, int count, int[] docIds) throws IOException {
+        private int scoreDocs(KnnCollector knnCollector, int count, long sliceOffset, int[] docIds) throws IOException {
             // block processing
             int scoredDocs = 0;
             int limit = count - BULK_SIZE + 1;
             int i = 0;
+            long slicePos = this.slicePos + (int) sliceOffset;
             for (; i < limit; i += BULK_SIZE) {
                 int docsToScore = BULK_SIZE;
                 for (int j = 0; j < BULK_SIZE; j++) {

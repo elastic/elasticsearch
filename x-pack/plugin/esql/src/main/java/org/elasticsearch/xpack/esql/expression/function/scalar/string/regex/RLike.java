@@ -46,7 +46,7 @@ public class RLike extends RegexMatch<RLikePattern> {
 
         <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
         ```{applies_to}
-        stack: ga 9.1
+        stack: ga 9.2
         serverless: ga
         ```
 

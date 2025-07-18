@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
@@ -78,7 +80,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class);
+        return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, FakeMlPlugin.class);
     }
 
     public void testSemanticCrossClusterSearch() throws Exception {
@@ -193,5 +195,12 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;
+    }
+
+    public static class FakeMlPlugin extends Plugin {
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return new MlInferenceNamedXContentProvider().getNamedWriteables();
+        }
     }
 }

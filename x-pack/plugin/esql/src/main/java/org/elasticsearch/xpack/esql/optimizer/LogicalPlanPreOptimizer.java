@@ -8,19 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
-import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.InferenceFunctionConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.PreOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * The class is responsible for invoking any steps that need to be applied to the logical plan,
@@ -31,10 +25,10 @@ import java.util.Map;
  */
 public class LogicalPlanPreOptimizer {
 
-    private final InferenceFunctionFolding inferenceFunctionFolding;
+    private final List<PreOptimizerRule> rules;
 
     public LogicalPlanPreOptimizer(TransportActionServices services, LogicalPreOptimizerContext preOptimizerContext) {
-        this.inferenceFunctionFolding = new InferenceFunctionFolding(services.inferenceRunner(), preOptimizerContext.foldCtx());
+        rules = List.of(new InferenceFunctionConstantFolding(services.inferenceRunner(), preOptimizerContext.foldCtx()));
     }
 
     /**
@@ -55,54 +49,19 @@ public class LogicalPlanPreOptimizer {
         }));
     }
 
+    /**
+     * Loop over the rules and apply them to the logical plan.
+     *
+     * @param plan     the analyzed logical plan to pre-optimize
+     * @param listener the listener returning the pre-optimized plan when pre-optimization is complete
+     */
     private void doPreOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        inferenceFunctionFolding.foldInferenceFunctions(plan, listener);
-    }
+        SubscribableListener<LogicalPlan> rulesListener = SubscribableListener.newSucceeded(plan);
 
-    private static class InferenceFunctionFolding {
-        private final InferenceRunner inferenceRunner;
-        private final FoldContext foldContext;
-
-        private InferenceFunctionFolding(InferenceRunner inferenceRunner, FoldContext foldContext) {
-            this.inferenceRunner = inferenceRunner;
-            this.foldContext = foldContext;
+        for (PreOptimizerRule rule : rules) {
+            rulesListener = rulesListener.andThen((l, p) -> rule.apply(p, l));
         }
 
-        private void foldInferenceFunctions(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-            // First let's collect all the inference functions
-            List<InferenceFunction<?>> inferenceFunctions = new ArrayList<>();
-            plan.forEachExpressionUp(InferenceFunction.class, inferenceFunctions::add);
-
-            if (inferenceFunctions.isEmpty()) {
-                // No inference functions found. Return the original plan.
-                listener.onResponse(plan);
-                return;
-            }
-
-            // This is a map of inference functions to their results.
-            // We will use this map to replace the inference functions in the plan.
-            Map<InferenceFunction<?>, Expression> inferenceFunctionsToResults = new HashMap<>();
-
-            // Prepare a listener that will be called when all inference functions are done.
-            // This listener will replace the inference functions in the plan with their results.
-            CountDownActionListener completionListener = new CountDownActionListener(
-                inferenceFunctions.size(),
-                listener.map(
-                    ignored -> plan.transformExpressionsUp(InferenceFunction.class, f -> inferenceFunctionsToResults.getOrDefault(f, f))
-                )
-            );
-
-            // Try to compute the result for each inference function.
-            for (InferenceFunction<?> inferenceFunction : inferenceFunctions) {
-                foldInferenceFunction(inferenceFunction, completionListener.map(e -> {
-                    inferenceFunctionsToResults.put(inferenceFunction, e);
-                    return null;
-                }));
-            }
-        }
-
-        private void foldInferenceFunction(InferenceFunction<?> inferenceFunction, ActionListener<Expression> listener) {
-            InferenceFunctionEvaluator.get(inferenceFunction, inferenceRunner).eval(foldContext, listener);
-        }
+        rulesListener.addListener(listener);
     }
 }

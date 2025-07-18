@@ -28,6 +28,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_NOT_DEPRECATED_SETTING;
 
 /**
  * Adds {@link TestDeprecationHeaderRestAction} for testing deprecation requests via HTTP.
@@ -51,11 +54,7 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin, Searc
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
-            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2,
-            TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING
-        );
+        return Arrays.asList(TEST_DEPRECATED_SETTING_TRUE1, TEST_DEPRECATED_SETTING_TRUE2, TEST_NOT_DEPRECATED_SETTING);
     }
 
     @Override

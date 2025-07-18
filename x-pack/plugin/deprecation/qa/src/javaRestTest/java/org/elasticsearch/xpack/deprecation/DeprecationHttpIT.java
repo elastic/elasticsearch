@@ -47,9 +47,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
-import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1;
-import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2;
-import static org.elasticsearch.xpack.deprecation.TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.COMPATIBLE_API_USAGE;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.DEPRECATED_ENDPOINT;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.DEPRECATED_USAGE;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_DEPRECATED_SETTING_TRUE1;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_DEPRECATED_SETTING_TRUE2;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_DEPRECATED_SETTING_TRUE3;
+import static org.elasticsearch.xpack.deprecation.DeprecationSettings.TEST_NOT_DEPRECATED_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -68,7 +72,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .plugin("deprecation-test-plugin")
+        .plugin("deprecation-plugin")
         .setting("cluster.deprecation_indexing.enabled", "true")
         .setting("cluster.deprecation_indexing.flush_interval", "100ms")
         .setting("xpack.security.enabled", "false")
@@ -251,9 +255,9 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
         final List<Matcher<? super String>> headerMatchers = new ArrayList<>(4);
 
-        headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT));
+        headerMatchers.add(equalTo(DEPRECATED_ENDPOINT));
         if (useDeprecatedField) {
-            headerMatchers.add(equalTo(TestDeprecationHeaderRestAction.DEPRECATED_USAGE));
+            headerMatchers.add(equalTo(DEPRECATED_USAGE));
         }
 
         assertThat(deprecatedWarnings, everyItem(matchesRegex(HeaderWarning.WARNING_HEADER_PATTERN)));
@@ -397,12 +401,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     public void testDeprecationCriticalWarnMessagesCanBeIndexed() throws Exception {
         final Request request = new Request("GET", "/_test_cluster/only_deprecated_setting");
-        request.setEntity(
-            buildSettingsRequest(
-                Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE3),
-                "deprecation_critical"
-            )
-        );
+        request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_DEPRECATED_SETTING_TRUE3), "deprecation_critical"));
         performScopedRequest(request);
 
         assertBusy(() -> {
@@ -619,7 +618,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final List<String> deprecatedWarnings = getWarningHeaders(deprecatedApiResponse.getHeaders());
         assertThat(
             extractWarningValuesFromWarningHeaders(deprecatedWarnings),
-            containsInAnyOrder(TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT, TestDeprecationHeaderRestAction.COMPATIBLE_API_USAGE)
+            containsInAnyOrder(DEPRECATED_ENDPOINT, COMPATIBLE_API_USAGE)
         );
 
         assertBusy(() -> {

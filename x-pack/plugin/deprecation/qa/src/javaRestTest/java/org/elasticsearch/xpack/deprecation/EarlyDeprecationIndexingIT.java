@@ -41,7 +41,7 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .plugin("deprecation-test-plugin")
+        .plugin("early-deprecation-plugin")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.deprecation_indexing.enabled", "true")

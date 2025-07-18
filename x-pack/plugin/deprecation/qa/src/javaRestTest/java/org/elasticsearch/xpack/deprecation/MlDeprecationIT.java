@@ -34,7 +34,7 @@ public class MlDeprecationIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .plugin("deprecation-test-plugin")
+        .plugin("deprecation-plugin")
         .setting("cluster.deprecation_indexing.enabled", "true")
         .setting("cluster.deprecation_indexing.flush_interval", "100ms")
         .setting("xpack.security.enabled", "false")

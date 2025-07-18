@@ -486,3 +486,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=msearch/10_basic/Least impact smoke test}
+  issue: https://github.com/elastic/elasticsearch/issues/131561

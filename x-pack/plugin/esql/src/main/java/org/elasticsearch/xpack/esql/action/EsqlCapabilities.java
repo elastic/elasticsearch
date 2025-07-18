@@ -1252,10 +1252,7 @@ public class EsqlCapabilities {
          */
         NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
 
-        /**
-         * Fail if all shards fail
-         */
-        FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot());
+        CATEGORIZE_OPTIONS;
 
         private final boolean enabled;
 

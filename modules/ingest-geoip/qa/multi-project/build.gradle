@@ -40,7 +40,7 @@ tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
 
 restResources {
   restTests {
-    /// includes yaml rest test from ingest_geoip folder
+    // includes yaml rest test from ingest_geoip folder
     includeCore 'ingest_geoip'
   }
 }

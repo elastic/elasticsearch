@@ -18,7 +18,7 @@ ROW message = "foo ( bar"
 ```
 
 ```{applies_to}
-stack: ga 9.1
+stack: ga 9.2
 serverless: ga
 ```
 

@@ -15,6 +15,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.script.field.Field;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -22,6 +23,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -37,17 +39,19 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (fieldType) {
-            case KEYWORD -> keywordMapping(request);
+            case KEYWORD -> keywordMapping(false, request);
             case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(fieldType);
             case SCALED_FLOAT -> scaledFloatMapping();
             case COUNTED_KEYWORD -> countedKeywordMapping();
             case BOOLEAN -> booleanMapping();
             case DATE -> dateMapping();
             case GEO_POINT -> geoPointMapping();
-            case TEXT -> textMapping(request);
+            case TEXT -> textMapping(false, request);
             case IP -> ipMapping();
             case CONSTANT_KEYWORD -> constantKeywordMapping();
-            case WILDCARD -> wildcardMapping();
+            case WILDCARD -> wildcardMapping(false, request);
+            case MATCH_ONLY_TEXT -> matchOnlyTextMapping(false, request);
+            case PATTERNED_TEXT -> patternedTextMapping(false, request);
         });
     }
 
@@ -77,7 +81,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> keywordMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = commonMappingParameters();
 
@@ -96,11 +100,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 }
             }
 
-            if (ESTestCase.randomDouble() <= 0.2) {
+            if (ESTestCase.randomDouble() <= 0.3) {
                 mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("fields", stringSubField(FieldType.KEYWORD, request));
             }
 
             return mapping;
@@ -196,19 +203,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> textMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> textMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
             mapping.put("store", ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
 
-            if (ESTestCase.randomDouble() <= 0.1) {
-                var keywordMultiFieldMapping = keywordMapping(request).get();
-                keywordMultiFieldMapping.put("type", "keyword");
-                keywordMultiFieldMapping.remove("copy_to");
-
-                mapping.put("fields", Map.of("kwd", keywordMultiFieldMapping));
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("fields", stringSubField(FieldType.TEXT, request));
             }
 
             return mapping;
@@ -243,17 +246,69 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> wildcardMapping() {
+    private Supplier<Map<String, Object>> wildcardMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            if (ESTestCase.randomDouble() <= 0.2) {
+            if (ESTestCase.randomDouble() <= 0.3) {
                 mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("fields", stringSubField(FieldType.PATTERNED_TEXT, request));
+            }
+            return mapping;
+        };
+    }
 
+    private Supplier<Map<String, Object>> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
+        /**
+         * text -> keyword, wildcard
+         * match_only_text -> keyword, wildcard
+         * patterned_text -> keyword, wildcard
+         * keyword -> text, match_only_text, patterned_tet, wildcard
+         * wildcard -> keyword, text, match_only_text, patterned_text
+         *
+         */
+        return () -> {
+            var subFields = new HashMap<FieldType, Supplier<Map<String, Object>>>();
+            subFields.put(FieldType.KEYWORD, () -> {
+                var mapping = keywordMapping(true, request).get();
+                mapping.remove("copy_to");
+                return mapping;
+            });
+            subFields.put(FieldType.TEXT, () -> wildcardMapping(true, request).get());
+            subFields.put(FieldType.MATCH_ONLY_TEXT, () -> matchOnlyTextMapping(true, request).get());
+            subFields.put(FieldType.WILDCARD, () -> wildcardMapping(true, request).get());
+            subFields.put(FieldType.PATTERNED_TEXT, () -> matchOnlyTextMapping(true, request).get());
+
+            var options = subFields.entrySet().stream().filter(e -> e.getKey().equals(parent) == false).toList();
+            var child = ESTestCase.randomFrom(options);
+            FieldType childType = child.getKey();
+            var childValue = child.getValue().get();
+            childValue.put("type", childType.toString());
+            return Map.of("subfield_" + childType, childValue);
+        };
+    }
+
+    private Supplier<Map<String, Object>> matchOnlyTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+        return () -> {
+            var mapping = new HashMap<String, Object>();
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("fields", stringSubField(FieldType.MATCH_ONLY_TEXT, request));
+            }
+            return mapping;
+        };
+    }
+
+    private Supplier<Map<String, Object>> patternedTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+        return () -> {
+            var mapping = new HashMap<String, Object>();
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("fields", stringSubField(FieldType.PATTERNED_TEXT, request));
+            }
             return mapping;
         };
     }

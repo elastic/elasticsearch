@@ -23,6 +23,8 @@ import org.elasticsearch.datageneration.fields.leaf.IntegerFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.IpFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.LongFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.MatchOnlyTextFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.PatternedTextFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.ShortFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.TextFieldDataGenerator;
@@ -50,7 +52,9 @@ public enum FieldType {
     TEXT("text"),
     IP("ip"),
     CONSTANT_KEYWORD("constant_keyword"),
-    WILDCARD("wildcard");
+    WILDCARD("wildcard"),
+    MATCH_ONLY_TEXT("match_only_text"),
+    PATTERNED_TEXT("patterned_text");
 
     private final String name;
 
@@ -78,6 +82,8 @@ public enum FieldType {
             case IP -> new IpFieldDataGenerator(dataSource);
             case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
             case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
+            case MATCH_ONLY_TEXT -> new MatchOnlyTextFieldDataGenerator(dataSource);
+            case PATTERNED_TEXT -> new PatternedTextFieldDataGenerator(dataSource);
         };
     }
 
@@ -101,6 +107,8 @@ public enum FieldType {
             case "ip" -> FieldType.IP;
             case "constant_keyword" -> FieldType.CONSTANT_KEYWORD;
             case "wildcard" -> FieldType.WILDCARD;
+            case "match_only_text" -> FieldType.MATCH_ONLY_TEXT;
+            case "patterned_text" -> FieldType.PATTERNED_TEXT;
             default -> null;
         };
     }

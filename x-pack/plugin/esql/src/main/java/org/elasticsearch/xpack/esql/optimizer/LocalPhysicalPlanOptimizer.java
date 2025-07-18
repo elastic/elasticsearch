@@ -60,12 +60,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return context().configuration().applyTopNHack() ? RULES : RULES_NO_HACK;
     }
 
-    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        return rules(optimizeForEsSource, true);
-    }
-
     @SuppressWarnings("unchecked")
-    private static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {

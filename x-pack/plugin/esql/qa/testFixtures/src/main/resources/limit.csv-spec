@@ -1,14 +1,14 @@
 basic
 // tag::basic[]
 FROM employees
-| SORT emp_no + 1 ASC
+| SORT emp_no ASC
 | LIMIT 5
 // end::basic[]
-| KEEP emp_no, first_name
+| KEEP emp_no
 ;
 
 emp_no:integer
-10000
+10001
 10002
 10003
 10004

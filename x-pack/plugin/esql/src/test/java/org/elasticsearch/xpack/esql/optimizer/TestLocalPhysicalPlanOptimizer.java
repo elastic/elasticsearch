@@ -14,18 +14,20 @@ import java.util.List;
 public class TestLocalPhysicalPlanOptimizer extends LocalPhysicalPlanOptimizer {
 
     private final boolean esRules;
+    private final boolean applyTopNHack;
 
     public TestLocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
-        this(context, false);
+        this(context, false, false);
     }
 
-    public TestLocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context, boolean esRules) {
+    public TestLocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context, boolean esRules, boolean applyTopNHack) {
         super(context);
         this.esRules = esRules;
+        this.applyTopNHack = applyTopNHack;
     }
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return rules(esRules);
+        return rules(esRules, applyTopNHack);
     }
 }

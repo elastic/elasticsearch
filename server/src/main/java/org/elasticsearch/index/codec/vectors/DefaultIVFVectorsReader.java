@@ -240,7 +240,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             return vectors;
         }
 
-        private void scoreIndividually(int offset, int[] docIds) throws IOException {
+        private void scoreIndividually(int offset, long slicePos, int[] docIds) throws IOException {
             // score individually, first the quantized byte chunk
             for (int j = 0; j < BULK_SIZE; j++) {
                 int doc = docIds[j + offset];
@@ -309,7 +309,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 quantizeQueryIfNecessary();
                 indexInput.seek(slicePos + i * quantizedByteLength);
                 if (docsToScore < BULK_SIZE / 2) {
-                    scoreIndividually(i, docIds);
+                    scoreIndividually(i, slicePos, docIds);
                 } else {
                     osqVectorsScorer.scoreBulk(
                         quantizedQueryScratch,

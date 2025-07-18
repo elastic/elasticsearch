@@ -649,12 +649,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             );
             long after = testThreadPool.absoluteTimeInMillis();
             Settings rolledOverIndexSettings = rolloverResult.clusterState()
-                .projectState(projectId)
                 .metadata()
+                .getProject(projectId)
                 .index(rolloverResult.rolloverIndexName())
                 .getSettings();
             Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
-            for (String settingName : dataStream.getEffectiveSettings(clusterState.projectState(projectId).metadata()).keySet()) {
+            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata().getProject(projectId)).keySet()) {
                 assertTrue(rolledOverIndexSettingNames.contains(settingName));
             }
             String newIndexName = rolloverResult.rolloverIndexName();

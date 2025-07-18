@@ -22,3 +22,8 @@ dependencies {
 tasks.withType(Test).configureEach {
   it.systemProperty "tests.multi_project.enabled", true
 }
+
+// Exclude multi-project tests from release build
+tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+}

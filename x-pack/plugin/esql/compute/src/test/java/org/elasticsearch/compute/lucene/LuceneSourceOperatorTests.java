@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -405,6 +406,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         private final int index;
         private final ContextIndexSearcher searcher;
 
+        // TODO Reuse this overload in the places that pass 0.
+        public MockShardContext(IndexReader reader) {
+            this(reader, 0);
+        }
+
         public MockShardContext(IndexReader reader, int index) {
             this.index = index;
             try {
@@ -457,6 +463,23 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public MappedFieldType fieldType(String name) {
             throw new UnsupportedOperationException();
+        }
+
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
         }
     }
 }

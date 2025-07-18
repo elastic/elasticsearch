@@ -24,11 +24,17 @@ import java.util.Objects;
  */
 class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
-    protected final QueryBuilder queryBuilder;
+    protected final QueryBuilder original;
+    protected final QueryBuilder rewritten;
 
-    InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
+    InterceptedQueryBuilderWrapper(QueryBuilder rewritten, QueryBuilder original) {
         super();
-        this.queryBuilder = queryBuilder;
+        this.original = original;
+        this.rewritten = rewritten;
+    }
+
+    public QueryBuilder getOriginal() {
+        return original;
     }
 
     @Override
@@ -36,8 +42,8 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
         QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
         try {
             queryRewriteContext.setQueryRewriteInterceptor(null);
-            QueryBuilder rewritten = queryBuilder.rewrite(queryRewriteContext);
-            return rewritten != queryBuilder ? new InterceptedQueryBuilderWrapper(rewritten) : this;
+            QueryBuilder rewritten = this.rewritten.rewrite(queryRewriteContext);
+            return rewritten != this.rewritten ? new InterceptedQueryBuilderWrapper(rewritten, original) : this;
         } finally {
             queryRewriteContext.setQueryRewriteInterceptor(queryRewriteInterceptor);
         }
@@ -45,65 +51,66 @@ class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     @Override
     public String getWriteableName() {
-        return queryBuilder.getWriteableName();
+        return rewritten.getWriteableName();
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return queryBuilder.getMinimalSupportedVersion();
+        return rewritten.getMinimalSupportedVersion();
     }
 
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
-        return queryBuilder.toQuery(context);
+        return rewritten.toQuery(context);
     }
 
     @Override
     public QueryBuilder queryName(String queryName) {
-        queryBuilder.queryName(queryName);
+        rewritten.queryName(queryName);
         return this;
     }
 
     @Override
     public String queryName() {
-        return queryBuilder.queryName();
+        return rewritten.queryName();
     }
 
     @Override
     public float boost() {
-        return queryBuilder.boost();
+        return rewritten.boost();
     }
 
     @Override
     public QueryBuilder boost(float boost) {
-        queryBuilder.boost(boost);
+        rewritten.boost(boost);
         return this;
     }
 
     @Override
     public String getName() {
-        return queryBuilder.getName();
+        return rewritten.getName();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        queryBuilder.writeTo(out);
+        rewritten.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return queryBuilder.toXContent(builder, params);
+        return rewritten.toXContent(builder, params);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o instanceof InterceptedQueryBuilderWrapper == false) return false;
-        return Objects.equals(queryBuilder, ((InterceptedQueryBuilderWrapper) o).queryBuilder);
+        if (o == null || getClass() != o.getClass()) return false;
+        InterceptedQueryBuilderWrapper that = (InterceptedQueryBuilderWrapper) o;
+        return Objects.equals(original, that.original) && Objects.equals(rewritten, that.rewritten);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(queryBuilder);
+        return Objects.hash(original, rewritten);
     }
 }

@@ -82,8 +82,8 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
-        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
+        assertTrue(intercepted.rewritten instanceof NestedQueryBuilder);
+        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.rewritten;
         assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
         QueryBuilder innerQuery = nestedQueryBuilder.query();
         assertTrue(innerQuery instanceof KnnVectorQueryBuilder);

@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -21,6 +23,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -34,7 +37,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -103,7 +108,60 @@ public class SenderServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    private static final class TestSenderService extends SenderService {
+    public void test_nullTimeoutUsesClusterSetting() throws IOException {
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var configuredTimeout = TimeValue.timeValueSeconds(30);
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build(),
+            Set.of(InferencePlugin.INFERENCE_QUERY_TIMEOUT)
+        );
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        var capturedTimeout = new AtomicReference<TimeValue>();
+        var testService = new TestSenderService(factory, createWithEmptySettings(threadPool), clusterService) {
+            // Override doInfer to capture the timeout value and return a mock response
+            @Override
+            protected void doInfer(
+                Model model,
+                InferenceInputs inputs,
+                Map<String, Object> taskSettings,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                capturedTimeout.set(timeout);
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (testService) {
+            var model = mock(Model.class);
+            when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            testService.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("test input"),
+                false,
+                Map.of(),
+                InputType.SEARCH,
+                null,
+                listener
+            );
+
+            listener.actionGet(TIMEOUT);
+            assertEquals(configuredTimeout, capturedTimeout.get());
+        }
+    }
+
+    private static class TestSenderService extends SenderService {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
             super(factory, serviceComponents, clusterService);
         }

@@ -32,6 +32,7 @@ import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -1909,6 +1910,74 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
             assertThat(exception.getMessage(), is("failed"));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void test_nullTimeoutUsesClusterSetting() throws InterruptedException {
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
+
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var configuredTimeout = TimeValue.timeValueSeconds(30);
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build(),
+            Set.of(InferencePlugin.INFERENCE_QUERY_TIMEOUT)
+        );
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            clusterService,
+            Settings.EMPTY
+        );
+        var service = new ElasticsearchInternalService(context);
+
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            null
+        );
+
+        var gotResults = new AtomicBoolean();
+        var resultsListener = ActionListener.<InferenceServiceResults>wrap(serviceResponse -> {
+            assertThat(serviceResponse, instanceOf(TextEmbeddingFloatResults.class));
+            gotResults.set(true);
+        }, ESTestCase::fail);
+
+        var latch = new CountDownLatch(1);
+        var latchedListener = new LatchedActionListener<>(resultsListener, latch);
+
+        service.infer(
+            model,
+            null,
+            null,
+            null,
+            List.of("test input"),
+            false,
+            Map.of(),
+            InputType.SEARCH,
+            null,
+            latchedListener
+        );
+
+        latch.await();
+        assertTrue("Listener not called", gotResults.get());
+
+        ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
+        verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
+        assertEquals(configuredTimeout, requestCaptor.getValue().getInferenceTimeout());
     }
 
     private ElasticsearchInternalService createService(Client client) {

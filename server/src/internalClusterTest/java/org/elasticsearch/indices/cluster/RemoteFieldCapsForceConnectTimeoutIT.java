@@ -30,6 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
+    private static final String REMOTE_CLUSTER_2 = "cluster-b";
 
     public static class ForceConnectTimeoutPlugin extends Plugin implements ClusterPlugin {
         @Override
@@ -45,7 +46,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
 
     @Override
     protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER_1);
+        return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 
     @Override
@@ -65,7 +66,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER_1, true);
+        return Map.of(REMOTE_CLUSTER_1, true, REMOTE_CLUSTER_2, true);
     }
 
     public void testTimeoutSetting() {
@@ -108,8 +109,14 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
 
             var failures = result.getFailures();
             assertThat(failures.size(), Matchers.is(1));
-            var message = result.getFailures().getFirst().getException().toString();
-            assertThat(message, Matchers.containsString("org.elasticsearch.ElasticsearchTimeoutException: timed out after [1s/1000ms]"));
+
+            var failure = failures.getFirst();
+            assertThat(failure.getIndices().length, Matchers.is(1));
+            assertThat(failure.getIndices()[0], Matchers.equalTo("cluster-a:*"));
+            assertThat(
+                failure.getException().toString(),
+                Matchers.containsString("org.elasticsearch.ElasticsearchTimeoutException: timed out after [1s/1000ms]")
+            );
 
             latch.countDown();
             result.decRef();

@@ -973,7 +973,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             .setTags(Collections.singletonList("prepackaged"))
             .setModelSize(1000)
             .setEstimatedOperations(2000)
-            .setInferenceConfig(new TextExpansionConfig(null, null, null))
+            .setInferenceConfig(new TextExpansionConfig(null, null, null, null))
             .build();
         givenTrainedModels(Arrays.asList(trainedModel1, trainedModel2, trainedModel3, trainedModel4));
 

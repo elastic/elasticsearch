@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingF
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizationResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -85,7 +86,7 @@ public class TextEmbeddingProcessorTests extends ESTestCase {
             var input = "";
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TextExpansionProcessorTests.TEST_CASED_VOCAB, tokenization, 0);
-            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true);
+            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true, TextExpansionConfig.EXPANSION_TYPE_ELSER);
             assertThat(inferenceResult, instanceOf(MlChunkedTextExpansionResults.class));
 
             var chunkedResult = (MlChunkedTextExpansionResults) inferenceResult;

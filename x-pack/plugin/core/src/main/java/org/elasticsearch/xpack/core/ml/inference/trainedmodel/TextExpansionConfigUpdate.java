@@ -24,22 +24,24 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig.EXPANSION_TYPE;
 
 public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     public static final String NAME = TextExpansionConfig.NAME;
 
-    public static final TextExpansionConfigUpdate EMPTY_UPDATE = new TextExpansionConfigUpdate(null, null);
+    public static final TextExpansionConfigUpdate EMPTY_UPDATE = new TextExpansionConfigUpdate(null, null, null);
 
     public static TextExpansionConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
+        String expansionTypeField = (String) options.remove(EXPANSION_TYPE.getPreferredName());
         TokenizationUpdate tokenizationUpdate = NlpConfigUpdate.tokenizationFromMap(options);
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
         }
-        return new TextExpansionConfigUpdate(resultsField, tokenizationUpdate);
+        return new TextExpansionConfigUpdate(resultsField, expansionTypeField, tokenizationUpdate);
     }
 
     private static final ObjectParser<TextExpansionConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
@@ -51,6 +53,7 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
             TextExpansionConfigUpdate.Builder::new
         );
         parser.declareString(TextExpansionConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
+        parser.declareString(TextExpansionConfigUpdate.Builder::setResultsField, EXPANSION_TYPE);
         parser.declareNamedObject(
             TextExpansionConfigUpdate.Builder::setTokenizationUpdate,
             (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
@@ -64,27 +67,34 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
     }
 
     private final String resultsField;
+    private final String expansionType;
 
-    public TextExpansionConfigUpdate(String resultsField, TokenizationUpdate tokenizationUpdate) {
+    public TextExpansionConfigUpdate(String resultsField, String expansionType, TokenizationUpdate tokenizationUpdate) {
         super(tokenizationUpdate);
         this.resultsField = resultsField;
+        this.expansionType = expansionType;
     }
 
     public TextExpansionConfigUpdate(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readOptionalString();
+        this.expansionType = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(resultsField);
+        out.writeOptionalString(expansionType);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
+        if (expansionType != null) {
+            builder.field(EXPANSION_TYPE.getPreferredName(), expansionType);
         }
         return builder;
     }
@@ -108,6 +118,8 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
     public String getResultsField() {
         return resultsField;
     }
+
+    public String getExpansionType() { return expansionType; }
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
@@ -139,11 +151,17 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     public static class Builder implements InferenceConfigUpdate.Builder<TextExpansionConfigUpdate.Builder, TextExpansionConfigUpdate> {
         private String resultsField;
+        private String expansionType;
         private TokenizationUpdate tokenizationUpdate;
 
         @Override
         public TextExpansionConfigUpdate.Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
+            return this;
+        }
+
+        public TextExpansionConfigUpdate.Builder setExpansionType(String expansionType) {
+            this.expansionType = expansionType;
             return this;
         }
 
@@ -154,7 +172,7 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
         @Override
         public TextExpansionConfigUpdate build() {
-            return new TextExpansionConfigUpdate(resultsField, tokenizationUpdate);
+            return new TextExpansionConfigUpdate(resultsField, expansionType, tokenizationUpdate);
         }
     }
 

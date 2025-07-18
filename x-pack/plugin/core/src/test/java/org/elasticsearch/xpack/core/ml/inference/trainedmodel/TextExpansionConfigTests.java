@@ -29,7 +29,11 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
         return new TextExpansionConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ? null : tokenization,
-            randomBoolean() ? null : randomAlphaOfLength(5)
+            randomBoolean() ? null : randomAlphaOfLength(5),
+            randomFrom(
+                TextExpansionConfig.EXPANSION_TYPE_ELSER,
+                TextExpansionConfig.EXPANSION_TYPE_SPLADE
+            )
         );
     }
 
@@ -37,7 +41,8 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
         return new TextExpansionConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
-            instance.getResultsField()
+            instance.getResultsField(),
+            instance.getExpansionType()
         );
     }
 

@@ -56,7 +56,8 @@ public class TextExpansionProcessorTests extends ESTestCase {
             new PyTorchInferenceResult(pytorchResult),
             Map.of(),
             "foo",
-            false
+            false,
+            TextExpansionConfig.EXPANSION_TYPE_ELSER
         );
         assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
         var results = (TextExpansionResults) inferenceResult;
@@ -79,7 +80,8 @@ public class TextExpansionProcessorTests extends ESTestCase {
             new PyTorchInferenceResult(pytorchResult),
             Map.of(4, "XXX", 3, "YYY"),
             "foo",
-            false
+            false,
+            TextExpansionConfig.EXPANSION_TYPE_ELSER
         );
         assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
         var results = (TextExpansionResults) inferenceResult;
@@ -107,7 +109,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
         var processor = new TextExpansionProcessor(
             BertTokenizer.builder(vocab, new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)).build()
         );
-        var resultProcessor = processor.getResultProcessor(new TextExpansionConfig(null, null, null));
+        var resultProcessor = processor.getResultProcessor(new TextExpansionConfig(null, null, null, null));
 
         var pytorchResult = new PyTorchInferenceResult(new double[][][] { { { 1.0, 2.0, 3.0, 4.0, 5.0 } } });
         TokenizationResult tokenizationResult = new BertTokenizationResult(vocab, List.of(), 0);
@@ -136,7 +138,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
             var input = "Elasticsearch darts champion little red is fun car";
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
-            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true);
+            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true, TextExpansionConfig.EXPANSION_TYPE_ELSER);
             assertThat(inferenceResult, instanceOf(MlChunkedTextExpansionResults.class));
 
             var chunkedResult = (MlChunkedTextExpansionResults) inferenceResult;
@@ -160,7 +162,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
             var input = "";
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
-            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true);
+            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true, TextExpansionConfig.EXPANSION_TYPE_ELSER);
             assertThat(inferenceResult, instanceOf(MlChunkedTextExpansionResults.class));
 
             var chunkedResult = (MlChunkedTextExpansionResults) inferenceResult;

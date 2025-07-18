@@ -523,7 +523,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         for (int i = 0; i < hits.getHits().length; i++) {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                             rankFeatureDocs[i].score = (numDocs - i) + randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
@@ -580,7 +580,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
             for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
                 assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
-                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
+                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, List.of("aardvark_" + sortedRankWindowDocs.get(i)));
             }
 
             List<Integer> globalTopKResults = randomNonEmptySubsetOf(
@@ -760,7 +760,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                             for (int i = 0; i < hits.getHits().length; i++) {
                                                 SearchHit hit = hits.getHits()[i];
                                                 rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                                rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                                 rankFeatureDocs[i].score = randomFloat();
                                                 rankFeatureDocs[i].rank = i + 1;
                                             }
@@ -887,7 +887,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         for (int i = 0; i < hits.getHits().length; i++) {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                             rankFeatureDocs[i].score = randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
@@ -1151,7 +1151,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                                 for (int i = 0; i < hits.getHits().length; i++) {
                                                     SearchHit hit = hits.getHits()[i];
                                                     rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                    rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                                    rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                                     rankFeatureDocs[i].score = randomFloat();
                                                     rankFeatureDocs[i].rank = i + 1;
                                                 }
@@ -2902,6 +2902,13 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             randomNonNegativeLong(),
             false
         );
+    }
+
+    private List<String> parseFeatureData(SearchHit hit, String fieldName) {
+        Object fieldValue = hit.getFields().get(fieldName).getValue();
+        @SuppressWarnings("unchecked")
+        List<String> fieldValues = fieldValue instanceof List ? (List<String>) fieldValue : List.of(String.valueOf(fieldValue));
+        return fieldValues;
     }
 
     private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {

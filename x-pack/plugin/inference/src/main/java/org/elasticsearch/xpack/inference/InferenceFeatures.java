@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRe
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
 
 /**
  * Provides inference features.
@@ -72,7 +73,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_TEXT_INDEX_OPTIONS,
             COHERE_V2_API,
             SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS,
-            SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX
+            SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX,
+            TEXT_SIMILARITY_RERANKER_SNIPPETS
         );
     }
 }

@@ -1247,21 +1247,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsql(requestObject, new AssertWarnings.NoWarnings(), profileLogger, mode);
     }
 
-    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlSync(requestObject, new AssertWarnings.NoWarnings());
+    public Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {
+        return runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
-    public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
-    }
-
-    public static Map<String, Object> runEsql(
-        RequestObjectBuilder requestObject,
-        AssertWarnings assertWarnings,
-        Mode mode,
-        boolean checkPartialResults
-    ) throws IOException {
-        return runEsql(requestObject, assertWarnings, null, mode, checkPartialResults);
+    public Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject) throws IOException {
+        return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     public static Map<String, Object> runEsql(
@@ -1280,19 +1271,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return results;
     }
 
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
-        throws IOException {
-        return runEsql(requestObject, assertWarnings, mode, true);
-    }
-
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings,
-                                              @Nullable ProfileLogger profileLogger, Mode mode)
-        throws IOException {
+    public static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        @Nullable ProfileLogger profileLogger,
+        Mode mode
+    ) throws IOException {
         return runEsql(requestObject, assertWarnings, profileLogger, mode, true);
-    }
-
-    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        return runEsqlSync(requestObject, assertWarnings, null);
     }
 
     public static Map<String, Object> runEsqlSync(
@@ -1319,24 +1304,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return json;
     }
 
-    public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
-    }
-
     public static Map<String, Object> runEsqlAsync(
         RequestObjectBuilder requestObject,
         AssertWarnings assertWarnings,
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
         return runEsqlAsync(requestObject, randomBoolean(), assertWarnings, profileLogger);
-    }
-
-    public static Map<String, Object> runEsqlAsync(
-        RequestObjectBuilder requestObject,
-        boolean keepOnCompletion,
-        AssertWarnings assertWarnings
-    ) throws IOException {
-        return runEsqlAsync(requestObject, keepOnCompletion, assertWarnings, null);
     }
 
     public static Map<String, Object> runEsqlAsync(

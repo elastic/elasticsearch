@@ -15,8 +15,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,6 +28,9 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class RestEnrichTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     private static final String sourceIndexName = "countries";
     private static final String policyName = "countries";
@@ -330,9 +335,9 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
         }
         requestObject.query(query);
         if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject);
+            return RestEsqlTestCase.runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
         }
     }
 

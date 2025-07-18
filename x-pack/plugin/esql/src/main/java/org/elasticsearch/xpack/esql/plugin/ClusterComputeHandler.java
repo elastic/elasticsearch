@@ -249,12 +249,11 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
+        // FIXME(gal, NOCOMMIT) This isn't working because we don't handle the TOP_N reduction here yet. Should be disabled then.
         final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(
-            // FIXME(gal, NOCOMMIT) just for passing the tests
-            null,
-            null,
-            null,
-            // FIXME(gal, NOCOMMIT) Empty search contexts here is very like to be wrong
+            computeService.createFlags(),
+            configuration,
+            configuration.newFoldContext(),
             plan,
             true
         );
@@ -288,6 +287,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     ),
                     coordinatorPlan,
                     computeListener.acquireCompute(),
+                    false,
                     false
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(

@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.esql.common;
 
-import org.apache.lucene.util.SetOnce;
-
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
-import java.util.function.Supplier;
 
 // FIXME(gal, NOCOMMIT) Document
 public abstract class LazyList<T> extends AbstractList<T> {
@@ -33,34 +30,6 @@ public abstract class LazyList<T> extends AbstractList<T> {
 
     public static <T> LazyList<T> fromList(List<T> list) {
         return new FromList<>(list);
-    }
-
-    private static class FromSuppliers<T> extends LazyList<T> {
-        private final List<Supplier<T>> suppliers;
-        private final List<SetOnce<T>> values;
-
-        FromSuppliers(List<Supplier<T>> list) {
-            this.suppliers = list;
-            this.values = this.suppliers.stream().map(e -> new SetOnce<T>()).toList();
-        }
-
-        @Override
-        public T get(int index) {
-            if (values.get(index).get() == null) {
-                values.get(index).set(suppliers.get(index).get());
-            }
-            return values.get(index).get();
-        }
-
-        @Override
-        public int size() {
-            return suppliers.size();
-        }
-
-        @Override
-        public String toString() {
-            return "LazyList{" + "suppliers=" + suppliers + ", values=" + values + '}';
-        }
     }
 
     // FIXME(gal, NOCOMMIT) Should we add a cache?

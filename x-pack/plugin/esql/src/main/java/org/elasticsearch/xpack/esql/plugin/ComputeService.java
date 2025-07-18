@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -30,7 +31,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -48,7 +48,9 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.common.LazyList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
@@ -57,12 +59,14 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -249,7 +253,9 @@ public class ComputeService {
                     computeContext,
                     mainPlan,
                     localListener.acquireCompute(),
+                    false,
                     false /* isDataNodeReduction, we are not running a data node reduction here */
+                    // FIXME(gal, NOCOMMIT) Fix the above comment
                 );
 
                 for (int i = 0; i < subplans.size(); i++) {
@@ -351,7 +357,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(), false);
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(), false, false);
                 return;
             }
         } else {
@@ -433,6 +439,7 @@ public class ComputeService {
                         ),
                         coordinatorPlan,
                         localListener.acquireCompute(),
+                        false,
                         false
                     );
                     // starts computes on data nodes on the main cluster
@@ -553,9 +560,9 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan plan,
         ActionListener<DriverCompletionInfo> listener,
+        boolean applyNodeLeveLReduction,
         boolean shouldReduceDecRef // FIXME(gal, NOCOMMIT) yuck
     ) {
-        listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         var shardContexts = context.searchContexts().map(MySearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -587,7 +594,7 @@ public class ComputeService {
             var localPlan = PlannerUtils.localPlan(
                 context.flags(),
                 context.searchExecutionContexts(),
-                context.configuration(),
+                applyNodeLeveLReduction ? context.configuration() : context.configuration().withoutTopNHack(),
                 context.foldCtx(),
                 plan
             );
@@ -640,13 +647,13 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            // Releasables.close(context.searchContexts());
+            Releasables.close(context.searchContexts());
             listener.onFailure(e);
         }
     }
 
     static PhysicalPlan reductionPlan(
-        List<MySearchContext> searchContexts,
+        EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
         ExchangeSinkExec plan,
@@ -659,40 +666,89 @@ public class ComputeService {
 
         Tuple<PhysicalPlan, PlannerUtils.PlanReduction> res = PlannerUtils.reductionPlan(plan);
         PhysicalPlan newPlan = switch (res.v2()) {
-            // case PlannerUtils.PlanReduction.TOP_N ->
-            // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node.
-            // FIXME(gal, NOCOMMIT) Explain TopN better
-            // FIXME(gal, NOCOMMIT) Remove duplication with below
-            // getChild(
-            // searchContexts.stream().map(s -> s.searchContext().getSearchExecutionContext()).toList(),
-            // configuration,
-            // foldCtx,
-            // plan
-            // ).orElse(res.v1().replaceChildren(List.of(source)));
-            case PlannerUtils.PlanReduction.TOP_N, PlannerUtils.PlanReduction.REGULAR, PlannerUtils.PlanReduction.AGGREGATE -> res.v1()
-                .replaceChildren(List.of(source));
+            case PlannerUtils.PlanReduction.TOP_N ->
+                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node.
+                // FIXME(gal, NOCOMMIT) Explain TopN better
+                // FIXME(gal, NOCOMMIT) Remove duplication with below
+                getChild(flags, configuration, foldCtx, res.v1()).orElse(res.v1().replaceChildren(List.of(source)));
+            case PlannerUtils.PlanReduction.REGULAR, PlannerUtils.PlanReduction.AGGREGATE -> res.v1().replaceChildren(List.of(source));
             case NO_REDUCTION -> source;
         };
         return plan.replaceChild(newPlan);
     }
 
+    // FIXME(gal, NOCOMMIT) A hack to avoid the ReplaceFieldWithConstantOrNull optimization. Since we don't have search stats yet during the
+    // reduce planning phase.
+    private static class SearchStatsHacks implements SearchStats {
+        @Override
+        public boolean exists(FieldAttribute.FieldName field) {
+            return true;
+        }
+
+        @Override
+        public boolean isIndexed(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasDocValues(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasExactSubfield(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldAttribute.FieldName field, BytesRef value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public byte[] min(FieldAttribute.FieldName field, DataType dataType) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public byte[] max(FieldAttribute.FieldName field, DataType dataType) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     // FIXME(gal, NOCOMMIT) rename
     // FIXME(gal, NOCOMMIT) unyuck (there should be a better way of figuring out if we need to use TOP_N or not)
-    private static Optional<PhysicalPlan> getChild(
-        EsqlFlags flags,
-        List<SearchExecutionContext> searchContexts,
-        Configuration configuration,
-        FoldContext foldCtx,
-        ExchangeSinkExec plan
-    ) {
-        var localPlan = PlannerUtils.localPlan(flags, searchContexts, configuration.withoutTopNHack(), foldCtx, plan);
-        var visitedTopN = new AtomicBoolean(false);
-        var result = ((ExchangeSinkExec) localPlan.transformUp(TopNExec.class, topN -> {
+    private static Optional<PhysicalPlan> getChild(EsqlFlags flags, Configuration configuration, FoldContext foldCtx, PhysicalPlan plan) {
+        var localPlan = PlannerUtils.localPlan(flags, configuration.withoutTopNHack(), foldCtx, plan, new SearchStatsHacks());
+        var localPlanWithHack = PlannerUtils.localPlan(flags, configuration, foldCtx, plan, new SearchStatsHacks());
+        if (localPlan.equals(localPlanWithHack)) {
+            return Optional.empty();
+        }
+        PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
             var child = topN.child();
-            visitedTopN.set(true);
             return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
-        })).child();
-        return visitedTopN.get() ? Optional.of(result) : Optional.empty();
+        });
+        return Optional.of(((UnaryExec) result).child());
     }
 
     String newChildSession(String session) {

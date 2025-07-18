@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -179,7 +180,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         try (
                             var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                            // FIXME(gal, NOCOMMIT) Removed this for the top n late materialization tests to pass.
+                            // final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -189,7 +191,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 dataNodePlan,
                                 originalIndices.indices(),
                                 originalIndices.indicesOptions(),
-                                sameNode == false && queryPragmas.nodeLevelReduction()
+                                queryPragmas.nodeLevelReduction()
                             );
                             transportService.sendChildRequest(
                                 connection,
@@ -314,7 +316,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     null,
                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                 );
-                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener, true);
+                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener, request.runNodeLevelReduction(), true);
             }, batchListener::onFailure));
         }
 
@@ -476,6 +478,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
                     }),
+                    request.runNodeLevelReduction(),
                     false
                 );
                 parentListener.onResponse(null);
@@ -495,7 +498,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         List<MySearchContext> reduceNodeSearchContexts = Collections.synchronizedList(new ArrayList<>(request.shardIds().size()));
         if (request.plan() instanceof ExchangeSinkExec plan) {
             reductionPlan = ComputeService.reductionPlan(
-                reduceNodeSearchContexts,
+                computeService.createFlags(),
                 configuration,
                 configuration.newFoldContext(),
                 plan,
@@ -526,7 +529,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request,
             failFastOnShardFailures,
             reduceNodeSearchContexts,
-            listener
+            ActionListener.releaseAfter(listener, Releasables.wrap(reduceNodeSearchContexts))
         );
     }
 

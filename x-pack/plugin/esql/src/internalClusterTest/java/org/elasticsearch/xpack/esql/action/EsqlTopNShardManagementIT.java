@@ -63,6 +63,11 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
 
     public void testTopNOperatorReleasesContexts() throws Exception {
         try (var initialResponse = sendAsyncQuery()) {
+            assertThat(
+                "Async query has finished, but it should have waited for semaphore release",
+                initialResponse.asyncExecutionId().isPresent(),
+                equalTo(true)
+            );
             var getResultsRequest = new GetAsyncResultRequest(initialResponse.asyncExecutionId().get());
             scriptPermits.release(numberOfDocs());
             getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(10));
@@ -77,7 +82,7 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
         scriptPermits.drainPermits();
         return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
             // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
-            .query("from test | sort foo + 1 | limit 5 | where pause_me + 1 > 42 | stats sum(pause_me)")
+            .query("from test | sort foo + 1 | limit 1 | where pause_me + 1 < 42 | stats sum(pause_me)")
             .pragmas(
                 new QueryPragmas(
                     Settings.builder()
@@ -89,7 +94,6 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
                         .build()
                 )
             )
-            .profile(true)
             .execute()
             .actionGet(1, TimeUnit.MINUTES);
     }

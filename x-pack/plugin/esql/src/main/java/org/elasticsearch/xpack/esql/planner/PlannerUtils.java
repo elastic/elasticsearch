@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -136,7 +137,7 @@ public class PlannerUtils {
         final LocalMapper mapper = new LocalMapper();
         var res = switch (mapper.map(pipelineBreaker)) {
             case AggregateExec aggExec -> Tuple.tuple(aggExec.withMode(AggregatorMode.INTERMEDIATE), PlanReduction.AGGREGATE);
-            // case TopNExec unused -> Tuple.tuple(plan, PlanReduction.TOP_N);
+            case TopNExec unused -> Tuple.tuple(plan, PlanReduction.TOP_N);
             case PhysicalPlan p -> Tuple.tuple(p, PlanReduction.REGULAR);
         };
         return Tuple.tuple(EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), res.v1()), res.v2());

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopNHack;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -33,7 +34,7 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules(true, false);
+    private static final List<Batch<PhysicalPlan>> RULES = rules(true, true);
     private static final List<Batch<PhysicalPlan>> RULES_NO_HACK = rules(true, false);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
@@ -63,6 +64,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return rules(optimizeForEsSource, true);
     }
 
+    @SuppressWarnings("unchecked")
     private static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
@@ -73,9 +75,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
-            // if (applyTopNHack) {
-            // esSourceRules.add(new RemoveProjectAfterTopNHack());
-            // }
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -83,14 +82,17 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>(
-            "Field extraction",
-            Limiter.ONCE,
-            new InsertFieldExtraction(),
-            new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundsExtraction(),
-            new ParallelizeTimeSeriesSource()
-        );
-        return List.of(pushdown, fieldExtraction);
+
+        List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(5);
+        fieldExtractionRules.add(new InsertFieldExtraction());
+        if (applyTopNHack) {
+            fieldExtractionRules.add(new RemoveProjectAfterTopNHack());
+        }
+        fieldExtractionRules.add(new SpatialDocValuesExtraction());
+        fieldExtractionRules.add(new SpatialShapeBoundsExtraction());
+        fieldExtractionRules.add(new ParallelizeTimeSeriesSource());
+
+        var fieldExtractionBatch = new Batch<PhysicalPlan>("Field extraction", Limiter.ONCE, fieldExtractionRules.toArray(Rule[]::new));
+        return List.of(pushdown, fieldExtractionBatch);
     }
 }

@@ -92,19 +92,25 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
-            // TODO align???
-            offsets.add(postingsOutput.getFilePointer());
-            int size = cluster.length;
-            postingsOutput.writeVInt(size);
+            offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+            buffer.asFloatBuffer().put(centroid);
+            // write raw centroid for quantizing the query vectors
+            postingsOutput.writeBytes(buffer.array(), buffer.array().length);
+            // write centroid dot product for quantizing the query vectors
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            int size = cluster.length;
+            // write docIds
+            postingsOutput.writeVInt(size);
             onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[ord]);
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+            // write vectors
             bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
 
@@ -209,20 +215,26 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             );
             DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+            final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 boolean[] isOverspill = isOverspillByCluster[c];
-                offsets.add(postingsOutput.getFilePointer());
-                int size = cluster.length;
-                // TODO align???
-                postingsOutput.writeVInt(size);
+                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+                // write raw centroid for quantizing the query vectors
+                buffer.asFloatBuffer().put(centroid);
+                postingsOutput.writeBytes(buffer.array(), buffer.array().length);
+                // write centroid dot product for quantizing the query vectors
                 postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                // write docIds
+                int size = cluster.length;
+                postingsOutput.writeVInt(size);
                 offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
                 docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
+                // write vectors
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
@@ -298,13 +310,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
             writeQuantizedValue(centroidOutput, quantized, result);
         }
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {
-            float[] centroid = centroidSupplier.centroid(i);
-            buffer.asFloatBuffer().put(centroid);
-            // write the centroids
-            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
-            // write the offset of this posting list
             centroidOutput.writeLong(offsets.get(i));
         }
     }
@@ -413,6 +420,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private final OptimizedScalarQuantizer quantizer;
         private final byte[] quantizedVector;
         private final int[] quantizedVectorScratch;
+        private final float[] floatVectorScratch;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private float[] currentCentroid;
         private IntToIntFunction ordTransformer = null;
@@ -423,6 +431,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.vectorValues = vectorValues;
             this.quantizer = quantizer;
             this.quantizedVector = new byte[BQVectorUtils.discretize(dimension, 64) / 8];
+            this.floatVectorScratch = new float[dimension];
             this.quantizedVectorScratch = new int[dimension];
             this.corrections = null;
         }
@@ -447,7 +456,10 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
             float[] vector = vectorValues.vectorValue(ord);
-            corrections = quantizer.scalarQuantize(vector, quantizedVectorScratch, (byte) 1, currentCentroid);
+            // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
+            // due to overspill, so we copy the vector to a scratch array
+            System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
+            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 1, currentCentroid);
             BQVectorUtils.packAsBinary(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }

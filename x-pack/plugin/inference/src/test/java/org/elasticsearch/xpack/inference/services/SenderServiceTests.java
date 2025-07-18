@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -64,7 +66,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
 
@@ -84,7 +86,7 @@ public class SenderServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
@@ -102,8 +104,8 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     private static final class TestSenderService extends SenderService {
-        TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+        TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+            super(factory, serviceComponents, clusterService);
         }
 
         @Override

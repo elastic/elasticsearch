@@ -41,10 +41,9 @@ public abstract class TextStructureTestCase extends ESTestCase {
         """;
 
     protected static final String NESTED_NDJSON_SAMPLE = """
-    {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
-    {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151445"}
-    """;
-
+        {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
+        {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151445"}
+        """;
 
     protected static final String PIPE_DELIMITED_SAMPLE = """
         2018-01-06 16:56:14.295748|INFO    |VirtualServer |1  |listening on 0.0.0.0:9987, :::9987

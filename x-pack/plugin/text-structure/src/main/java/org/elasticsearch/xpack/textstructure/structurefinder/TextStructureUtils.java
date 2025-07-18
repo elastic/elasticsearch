@@ -339,17 +339,29 @@ public final class TextStructureUtils {
                 List<Map<String, ?>> nestedFieldValues = extractNestedFieldValues(sampleRecords, fieldName);
 
                 Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> nestedResult = guessMappingsAndCalculateFieldStats(
-                    explanation, nestedFieldValues, timeoutChecker, ecsCompatibility, timestampFormatOverride
+                    explanation,
+                    nestedFieldValues,
+                    timeoutChecker,
+                    ecsCompatibility,
+                    timestampFormatOverride
                 );
                 // Create a nested mapping for the parent field and merge the nested field mappings
-                mappings.put(fieldName, createNestedMapping(nestedResult.v1(), determineNestedFieldType(nestedFieldValues)));  // Apply type: nested for the parent field
+                mappings.put(fieldName, createNestedMapping(nestedResult.v1(), determineNestedFieldType(nestedFieldValues)));  // Apply
+                                                                                                                               // type:
+                                                                                                                               // nested for
+                                                                                                                               // the parent
+                                                                                                                               // field
                 fieldStats.putAll(nestedResult.v2());
 
-            }
-            else {
+            } else {
                 // For non-nested fields, process them normally
                 Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
-                    explanation, fieldName, fieldValues, timeoutChecker, ecsCompatibility, timestampFormatOverride
+                    explanation,
+                    fieldName,
+                    fieldValues,
+                    timeoutChecker,
+                    ecsCompatibility,
+                    timestampFormatOverride
                 );
                 if (mappingAndFieldStats != null) {
                     if (mappingAndFieldStats.v1() != null) {
@@ -404,7 +416,6 @@ public final class TextStructureUtils {
     static boolean isNestedField(List<Object> fieldValues) {
         return fieldValues.stream().anyMatch(val -> val instanceof Map || val instanceof List);
     }
-
 
     /**
      * @param nestedFieldValues value of a nested field in the sample records

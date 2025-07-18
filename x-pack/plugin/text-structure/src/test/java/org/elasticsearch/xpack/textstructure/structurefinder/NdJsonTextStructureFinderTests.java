@@ -10,8 +10,6 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 public class NdJsonTextStructureFinderTests extends TextStructureTestCase {
 
@@ -57,7 +55,6 @@ public class NdJsonTextStructureFinderTests extends TextStructureTestCase {
         assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
         assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
-
 
     public void testCreateConfigsGivenNestedJson() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, NESTED_NDJSON_SAMPLE, 0.0));

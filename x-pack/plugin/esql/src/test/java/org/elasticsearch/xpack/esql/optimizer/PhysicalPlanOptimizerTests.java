@@ -64,11 +64,13 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -142,6 +144,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -187,9 +190,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
+import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
@@ -2873,7 +2878,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
+        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan, verifiedPlan.output()));
         assertThat(
             e.getMessage(),
             containsString(
@@ -2888,7 +2893,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats s = sum(salary) by emp_no
             | where emp_no > 10
             """);
-
+        final var planBeforeModification = plan;
         plan = plan.transformUp(
             AggregateExec.class,
             a -> new AggregateExec(
@@ -2902,7 +2907,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         final var finalPlan = plan;
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification.output()));
         assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
     }
 
@@ -2920,7 +2925,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide, plan.output()));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var planWithInvalidJoinRightSide = plan.transformUp(
@@ -2937,7 +2942,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide));
+        e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide, plan.output()));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
@@ -2947,7 +2952,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | stats s = sum(salary) by emp_no
             | where emp_no > 10
             """);
-
+        final var planBeforeModification = plan;
         plan = plan.transformUp(AggregateExec.class, a -> {
             List<Attribute> intermediates = new ArrayList<>(a.intermediateAttributes());
             intermediates.add(intermediates.get(0));
@@ -2962,7 +2967,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             );
         });
         final var finalPlan = plan;
-        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan));
+        var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(finalPlan, planBeforeModification.output()));
         assertThat(
             e.getMessage(),
             containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
@@ -8306,6 +8311,107 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         SingleValueQuery.Builder sv = as(builder, SingleValueQuery.Builder.class);
         assertThat(sv.field(), equalTo(fieldName));
         return sv.next();
+    }
+
+    private PhysicalPlanOptimizer getCustomRulesPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
+        PhysicalOptimizerContext context = new PhysicalOptimizerContext(config);
+        PhysicalPlanOptimizer PhysicalPlanOptimizer = new PhysicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return batches;
+            }
+        };
+        return PhysicalPlanOptimizer;
+    }
+
+    public void testVerifierOnAdditionalAttributeAdded() throws Exception {
+
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that adds another output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    // This rule adds a missing attribute to the plan output
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
+                        return new EvalExec(
+                            plan.source(),
+                            plan,
+                            List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral))
+                        );
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("additionalAttribute"));
+    }
+
+    public void testVerifierOnAttributeDatatypeChanged() throws Exception {
+
+        PhysicalPlan plan = physicalPlan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that changes the datatype of an output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, PhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, PhysicalOptimizerContext context) {
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        LimitExec limit = as(plan, LimitExec.class);
+                        LimitExec newLimit = new LimitExec(
+                            plan.source(),
+                            limit.child(),
+                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            randomEstimatedRowSize()
+                        ) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        PhysicalPlanOptimizer customRulesPhysicalPlanOptimizer = getCustomRulesPhysicalPlanOptimizer(List.of(customRuleBatch));
+        Exception e = expectThrows(VerificationException.class, () -> customRulesPhysicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
     @Override

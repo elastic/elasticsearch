@@ -1668,7 +1668,7 @@ public class BlockHashTests extends BlockHashTestCase {
 
         try (
             var hash = BlockHash.build(
-                List.of(new BlockHash.GroupSpec(0, ElementType.LONG, false, new BlockHash.TopNDef(0, true, false, limit))),
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG, null, new BlockHash.TopNDef(0, true, false, limit))),
                 blockFactory,
                 32 * 1024,
                 forcePackedHash,
@@ -1680,7 +1680,7 @@ public class BlockHashTests extends BlockHashTestCase {
 
         try (
             var hash = BlockHash.build(
-                List.of(new BlockHash.GroupSpec(0, ElementType.LONG, false, new BlockHash.TopNDef(0, true, false, limit))),
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG, null, new BlockHash.TopNDef(0, true, false, limit))),
                 blockFactory,
                 32 * 1024,
                 forcePackedHash,

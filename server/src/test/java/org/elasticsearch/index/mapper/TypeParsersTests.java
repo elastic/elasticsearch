@@ -161,10 +161,10 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            String longString = IntStream.range(0, 51).mapToObj(Integer::toString).collect(Collectors.joining());
+            String longString = IntStream.range(0, 501).mapToObj(Integer::toString).collect(Collectors.joining());
             Map<String, Object> mapping = Map.of("foo", longString);
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", mapping));
-            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
+            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 500 chars"));
         }
     }
 }

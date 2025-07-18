@@ -38,6 +38,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -199,7 +200,7 @@ public class TypeParsersTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexSettings.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING.getKey(), 300)
+                .put(INDEX_MAPPING_META_LENGTH_LIMIT_SETTING.getKey(), 300)
                 .build();
             MappingParserContext otherParserContext = createParserContext(otherSettings);
             String longString = IntStream.range(0, 301).mapToObj(Integer::toString).collect(Collectors.joining());

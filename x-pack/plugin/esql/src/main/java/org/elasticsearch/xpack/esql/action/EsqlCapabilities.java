@@ -1035,12 +1035,7 @@ public class EsqlCapabilities {
          * Forbid usage of brackets in unquoted index and enrich policy names
          * https://github.com/elastic/elasticsearch/issues/130378
          */
-        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
-
-        /**
-         * Fail if all shards fail
-         */
-        FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot());
+        NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES;
 
         private final boolean enabled;
 

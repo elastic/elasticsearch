@@ -180,11 +180,9 @@ public class InferencePlugin extends Plugin
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    public static final TimeValue DEFAULT_INFERENCE_QUERY_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
     public static final Setting<TimeValue> INFERENCE_QUERY_TIMEOUT = Setting.timeSetting(
         "xpack.inference.query_timeout",
-        DEFAULT_INFERENCE_QUERY_TIMEOUT,
+        TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10)),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

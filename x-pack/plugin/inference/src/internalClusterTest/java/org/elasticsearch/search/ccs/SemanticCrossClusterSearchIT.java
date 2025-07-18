@@ -7,16 +7,17 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -26,7 +27,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase {
@@ -74,7 +78,22 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), LocalStateInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class);
+    }
+
+    public void testSemanticCrossClusterSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
+        searchRequest.source(new SearchSourceBuilder().query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo")).size(10));
+        // searchRequest.setCcsMinimizeRoundtrips(false);
+
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            assertEquals(10, response.getHits().getHits().length);
+        });
     }
 
     private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) throws IOException {
@@ -90,7 +109,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                     .indices()
                     .prepareCreate(localIndex)
                     .setSettings(localSettings)
-                    .setMapping(INFERENCE_FIELD, "type=semantic_text", "f", "type=text,inference_id=" + inferenceId)
+                    .setMapping(INFERENCE_FIELD, "type=semantic_text,inference_id=" + inferenceId)
             );
             indexDocs(client(LOCAL_CLUSTER), localIndex);
         }
@@ -104,7 +123,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                     .indices()
                     .prepareCreate(remoteIndex)
                     .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
-                    .setMapping(INFERENCE_FIELD, "type=semantic_text", "f", "type=text,inference_id=" + inferenceId)
+                    .setMapping(INFERENCE_FIELD, "type=semantic_text,inference_id=" + inferenceId)
             );
             assertFalse(
                 client(REMOTE_CLUSTER).admin()

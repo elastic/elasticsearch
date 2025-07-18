@@ -59,7 +59,7 @@ public class LlamaChatCompletionResponseHandler extends OpenAiUnifiedChatComplet
         assert request.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         if (request.isStreaming()) {
-            var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
+            var errorMessage = constructErrorMessage(message, request, errorResponse, responseStatusCode);
             var restStatus = toRestStatus(responseStatusCode);
             return errorResponse instanceof LlamaErrorResponse
                 ? new UnifiedChatCompletionException(restStatus, errorMessage, LLAMA_ERROR, restStatus.name().toLowerCase(Locale.ROOT))

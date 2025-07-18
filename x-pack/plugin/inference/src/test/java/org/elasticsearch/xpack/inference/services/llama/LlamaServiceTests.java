@@ -187,7 +187,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new LlamaService(senderFactory, createWithEmptySettings(threadPool));
+        return new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
@@ -393,7 +393,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel("model", getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -433,7 +433,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = LlamaChatCompletionModelTests.createChatCompletionModel("model", getUrl(webServer), "secret");
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
@@ -524,7 +524,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
 
     private void testStreamError(String expectedResponse) throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = LlamaChatCompletionModelTests.createChatCompletionModel("model", getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -610,7 +610,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new LlamaService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new LlamaService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -655,7 +655,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     public void testChunkedInfer(LlamaEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -791,7 +791,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
 
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = LlamaChatCompletionModelTests.createCompletionModel("model", getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -812,7 +812,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     }
 
     private LlamaService createService() {
-        return new LlamaService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new LlamaService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private Map<String, Object> getRequestConfigMap(

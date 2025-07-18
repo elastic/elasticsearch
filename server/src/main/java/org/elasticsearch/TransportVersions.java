@@ -342,6 +342,7 @@ public class TransportVersions {
     public static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = def(9_121_0_00);
     public static final TransportVersion ESQL_CATEGORIZE_OPTIONS = def(9_122_0_00);
     public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED = def(9_123_0_00);
+    public static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = def(9_124_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

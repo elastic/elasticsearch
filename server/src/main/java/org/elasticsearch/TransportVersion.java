@@ -14,16 +14,28 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
@@ -57,7 +69,68 @@ import java.util.stream.Stream;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(int id) implements VersionId<TransportVersion> {
+public class TransportVersion implements VersionId<TransportVersion> {
+
+    private final String name;
+    private final int id;
+    private final TransportVersion patchVersion;
+
+    public TransportVersion(int id) {
+        this(null, id, null);
+    }
+
+    public TransportVersion(String name, int id, TransportVersion patchVersion) {
+        this.name = name;
+        this.id = id;
+        this.patchVersion = patchVersion;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public int id() {
+        return id;
+    }
+
+    public TransportVersion patchVersion() {
+        return patchVersion;
+    }
+
+    private static final ParseField NAME = new ParseField("name");
+    private static final ParseField IDS = new ParseField("ids");
+
+    private static final ConstructingObjectParser<TransportVersion, Integer> PARSER = new ConstructingObjectParser<>(
+        TransportVersion.class.getCanonicalName(),
+        false,
+        (args, latestTransportId) -> {
+            String name = (String) args[0];
+            @SuppressWarnings("unchecked")
+            List<Integer> ids = (List<Integer>) args[1];
+            ids.sort(Integer::compareTo);
+            TransportVersion transportVersion = null;
+            for (int idIndex = 0; idIndex < ids.size(); ++idIndex) {
+                if (ids.get(idIndex) > latestTransportId) {
+                    break;
+                }
+                transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
+            }
+            return transportVersion;
+        }
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        PARSER.declareIntArray(ConstructingObjectParser.constructorArg(), IDS);
+    }
+
+    public static TransportVersion fromXContent(InputStream inputStream, Integer latest) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream)) {
+            return PARSER.apply(parser, latest);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -70,12 +143,20 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * The new instance is not registered in {@code TransportVersion.getAllVersions}.
      */
     public static TransportVersion fromId(int id) {
-        TransportVersion known = VersionsHolder.ALL_VERSIONS_MAP.get(id);
+        TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_ID.get(id);
         if (known != null) {
             return known;
         }
         // this is a version we don't otherwise know about - just create a placeholder
-        return new TransportVersion(id);
+        return new TransportVersion(null, id, null);
+    }
+
+    public static TransportVersion fromName(String name) {
+        TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
+        if (known == null) {
+            throw new IllegalStateException("unknown transport version [" + name + "]");
+        }
+        return known;
     }
 
     public static void writeVersion(TransportVersion version, StreamOutput out) throws IOException {
@@ -123,7 +204,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
      */
     public boolean isKnown() {
-        return VersionsHolder.ALL_VERSIONS_MAP.containsKey(id);
+        return VersionsHolder.ALL_VERSIONS_BY_ID.containsKey(id);
     }
 
     /**
@@ -135,7 +216,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             return this;
         }
         TransportVersion bestSoFar = TransportVersions.ZERO;
-        for (final var knownVersion : VersionsHolder.ALL_VERSIONS_MAP.values()) {
+        for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
             if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
                 bestSoFar = knownVersion;
             }
@@ -171,38 +252,122 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
     }
 
+    public boolean supports(TransportVersion version) {
+        if (onOrAfter(version)) {
+            return true;
+        }
+        TransportVersion patchVersion = this.patchVersion;
+        while (patchVersion != null) {
+            if (isPatchFrom(version)) {
+                return true;
+            }
+            patchVersion = patchVersion.patchVersion;
+        }
+        return false;
+    }
+
     /**
      * Returns a string representing the Elasticsearch release version of this transport version,
      * if applicable for this deployment, otherwise the raw version number.
      */
     public String toReleaseVersion() {
-        return TransportVersions.VERSION_LOOKUP.apply(id);
+        return VersionsHolder.VERSION_LOOKUP_BY_RELEASE.apply(id);
     }
 
     @Override
     public String toString() {
-        return Integer.toString(id);
+        return "TransportVersion{" + "name='" + name + '\'' + ", id=" + id + ", patchVersion=" + patchVersion + '}';
     }
 
     private static class VersionsHolder {
+
         private static final List<TransportVersion> ALL_VERSIONS;
-        private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
+        private static final Map<Integer, TransportVersion> ALL_VERSIONS_BY_ID;
+        private static final Map<String, TransportVersion> ALL_VERSIONS_BY_NAME;
+        private static final IntFunction<String> VERSION_LOOKUP_BY_RELEASE;
         private static final TransportVersion CURRENT;
 
         static {
+            // collect all the transport versions from server and es modules/plugins (defined in server)
+            List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
+            Map<String, TransportVersion> allVersionsByName = loadTransportVersionsByName();
+            addTransportVersions(allVersionsByName.values(), allVersions).sort(TransportVersion::compareTo);
+
+            // set version lookup by release before adding serverless versions
+            VERSION_LOOKUP_BY_RELEASE = ReleaseVersions.generateVersionsLookup(
+                TransportVersions.class,
+                allVersions.get(allVersions.size() - 1).id()
+            );
+
+            // collect all the transport versions from serverless
             Collection<TransportVersion> extendedVersions = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
                 .map(VersionExtension::getTransportVersions)
                 .orElse(Collections.emptyList());
-
-            if (extendedVersions.isEmpty()) {
-                ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
-            } else {
-                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
+            addTransportVersions(extendedVersions, allVersions).sort(TransportVersion::compareTo);
+            for (TransportVersion version : extendedVersions) {
+                if (version.name() != null) {
+                    allVersionsByName.put(version.name(), version);
+                }
             }
 
-            ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
-
+            // set the transport version lookups
+            ALL_VERSIONS = Collections.unmodifiableList(allVersions);
+            ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
+            ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
             CURRENT = ALL_VERSIONS.getLast();
+        }
+
+        private static Map<String, TransportVersion> loadTransportVersionsByName() {
+            Map<String, TransportVersion> transportVersions = new HashMap<>();
+
+            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + "-LATEST.json";
+            int latestId;
+            try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
+                TransportVersion latest = fromXContent(inputStream, Integer.MAX_VALUE);
+                if (latest == null) {
+                    throw new IllegalStateException(
+                        "invalid latest transport version for release version [" + Version.CURRENT.major + "." + Version.CURRENT.minor + "]"
+                    );
+                }
+                latestId = latest.id();
+            } catch (IOException ioe) {
+                throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
+            }
+
+            String manifestLocation = "/transport/generated/generated-transport-versions-files-manifest.txt";
+            List<String> versionFileNames;
+            try (InputStream transportVersionsManifest = TransportVersion.class.getResourceAsStream(manifestLocation)) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionsManifest, StandardCharsets.UTF_8));
+                versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
+            } catch (IOException ioe) {
+                throw new UncheckedIOException("transport version manifest file not found at [" + manifestLocation + "]", ioe);
+            }
+
+            for (String name : versionFileNames) {
+                String versionLocation = "/transport/generated/" + name;
+                try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
+                    TransportVersion transportVersion = TransportVersion.fromXContent(inputStream, latestId);
+                    if (transportVersion != null) {
+                        transportVersions.put(transportVersion.name(), transportVersion);
+                    }
+                } catch (IOException ioe) {
+                    throw new UncheckedIOException("transport version set file not found at [ " + versionLocation + "]", ioe);
+                }
+            }
+
+            return transportVersions;
+        }
+
+        private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {
+            for (TransportVersion transportVersion : addFrom) {
+                addTo.add(transportVersion);
+                TransportVersion patchVersion = transportVersion.patchVersion();
+                while (patchVersion != null) {
+                    addTo.add(patchVersion);
+                    patchVersion = patchVersion.patchVersion();
+                }
+            }
+            return addTo;
         }
     }
 }

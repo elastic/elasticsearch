@@ -546,7 +546,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace,
             estimatedHeapUsages,
-            Map.copyOf(nodeThreadPoolUsageStatsPerNode),
+            nodeThreadPoolUsageStatsPerNode,
             indicesStatsSummary.shardWriteLoads()
         );
     }

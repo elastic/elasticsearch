@@ -167,7 +167,7 @@ public class SampleOperator implements Operator {
         return new Status(collectNanos, emitNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
-    private record Status(long collectNanos, long emitNanos, int pagesProcessed, int rowsReceived, int rowsEmitted)
+    public record Status(long collectNanos, long emitNanos, int pagesProcessed, int rowsReceived, int rowsEmitted)
         implements
             Operator.Status {
 

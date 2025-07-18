@@ -132,10 +132,7 @@ public class TypeParsersTests extends ESTestCase {
         MappingParserContext parserContext = createParserContext(buildSettings());
 
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> TypeParsers.parseMeta("foo", 3, parserContext)
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", 3, parserContext));
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
@@ -177,10 +174,7 @@ public class TypeParsersTests extends ESTestCase {
         {
             Map<String, String> meta = new HashMap<>();
             meta.put("foo", null);
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> TypeParsers.parseMeta("foo", meta, parserContext)
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", meta, parserContext));
             assertEquals("[meta] values can't be null (field [foo])", e.getMessage());
         }
 

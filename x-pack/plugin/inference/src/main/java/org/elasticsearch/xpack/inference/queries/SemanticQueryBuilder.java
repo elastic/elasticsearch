@@ -220,8 +220,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             throw new IllegalStateException(
                 "Rewriting on the coordinator node requires a query rewrite context with non-null resolved indices"
             );
-        } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
-            throw new IllegalArgumentException(NAME + " query does not support cross-cluster search");
         }
 
         String inferenceId = getInferenceIdForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);

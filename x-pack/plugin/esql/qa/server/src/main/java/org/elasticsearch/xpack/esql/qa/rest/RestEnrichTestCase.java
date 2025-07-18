@@ -16,6 +16,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -34,11 +35,6 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
 
     private static final String sourceIndexName = "countries";
     private static final String policyName = "countries";
-
-    public enum Mode {
-        SYNC,
-        ASYNC
-    }
 
     protected final Mode mode;
 
@@ -334,11 +330,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
             requestObject.filter(filter);
         }
         requestObject.query(query);
-        if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
-        }
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), profileLogger, mode);
     }
 
     @Override

@@ -29,6 +29,9 @@ import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_META_LENGTH_LI
 public class TypeParsers {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
+    /**
+     * Parse the {@code meta} key of the mapping.
+     */
     public static Map<String, String> parseMeta(String name, Object metaObject, MappingParserContext parserContext) {
         if (metaObject instanceof Map == false) {
             throw new MapperParsingException(

@@ -66,6 +66,8 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
 
     /**
      * Removes all positive and negative buckets from this histogram and sets the scale to the given value.
+     *
+     * @param scale the scale to set for this histogram
      */
     public void resetBuckets(int scale) {
         if (scale > MAX_SCALE || scale < MIN_SCALE) {
@@ -83,7 +85,10 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
 
     /**
      * Replaces the zero bucket of this histogram with the given one.
-     * Callers must ensure that the given {@link ZeroBucket} does not overlap with any of the positive or negative buckets of this histogram.
+     * Callers must ensure that the given {@link ZeroBucket} does not
+     * overlap with any of the positive or negative buckets of this histogram.
+     *
+     * @param zeroBucket the zero bucket to set
      */
     public void setZeroBucket(ZeroBucket zeroBucket) {
         this.zeroBucket = zeroBucket;
@@ -97,7 +102,7 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
      *     <li>All buckets from the negative range must be provided before the first one from the positive range.</li>
      *     <li>For both the negative and positive ranges, buckets must be provided in ascending index order.</li>
      *     <li>It is not allowed to provide the same bucket more than once.</li>
-     *     <li>It is not allowed to add empty buckets (count <= 0).</li>
+     *     <li>It is not allowed to add empty buckets ({@code count <= 0}).</li>
      * </ul>
      *
      * If any of these rules are violated, this call will fail with an exception.

@@ -16,3 +16,8 @@ dependencies {
   testImplementation('ch.obermuhlner:big-math:2.3.2')
   testImplementation('org.apache.commons:commons-math3:3.6.1')
 }
+
+tasks.named('forbiddenApisMain').configure {
+  // this lib does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}

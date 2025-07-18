@@ -87,7 +87,7 @@ public class ExponentialHistogramMergeBench {
 
     private static int getBucketCount(ExponentialHistogram histo) {
         int cnt = 0;
-        for (BucketIterator it : List.of(histo.negativeBuckets(), histo.positiveBuckets())) {
+        for (BucketIterator it : List.of(histo.negativeBuckets().iterator(), histo.positiveBuckets().iterator())) {
             while (it.hasNext()) {
                 cnt++;
                 it.advance();

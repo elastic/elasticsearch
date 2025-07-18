@@ -38,7 +38,7 @@ public interface BucketIterator {
      * The index of the bucket at the current iterator position. Does not advance the iterator.
      * Must not be called if {@link #hasNext()} returns {@code false}.
      *
-     * @return the index of the bucket, guaranteed to be in the range [{@link #MIN_INDEX}, {@link #MAX_INDEX}]
+     * @return the index of the bucket, guaranteed to be in the range [{@link ExponentialHistogram#MIN_INDEX}, {@link ExponentialHistogram#MAX_INDEX}]
      */
     long peekIndex();
 

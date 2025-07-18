@@ -61,7 +61,7 @@ public class ExponentialHistogramGenerationBench {
 
         Supplier<Double> nextRandom = () -> distribution.equals("GAUSSIAN") ? random.nextGaussian() : random.nextDouble();
 
-        // TODO: why is this here for T-DIGEST?
+        // Make sure that we start with a non-empty histogram, as this distorts initial additions
         for (int i = 0; i < 10000; ++i) {
             histoGenerator.add(nextRandom.get());
         }

@@ -32,6 +32,12 @@ class DownscaleStats {
         Arrays.fill(collapsedBucketCount, 0);
     }
 
+    /**
+     * Adds a pair of neighboring bucket indices to track for potential merging.
+     *
+     * @param previousBucketIndex the index of the previous bucket
+     * @param currentBucketIndex the index of the current bucket
+     */
     void add(long previousBucketIndex, long currentBucketIndex) {
         if (currentBucketIndex <= previousBucketIndex) {
             throw new IllegalArgumentException("currentBucketIndex must be greater than previousBucketIndex");

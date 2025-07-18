@@ -83,7 +83,7 @@ public class KnnIndexTester {
                 suffix.add(Integer.toString(args.quantizeBits()));
             }
         }
-        return INDEX_DIR + "/" + args.docVectors().getFileName() + "-" + String.join("-", suffix) + ".index";
+        return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
     static Codec createCodec(CmdLineArgs args) {
@@ -137,7 +137,7 @@ public class KnnIndexTester {
             System.out.println(
                 Strings.toString(
                     new CmdLineArgs.Builder().setDimensions(64)
-                        .setDocVectors("/doc/vectors/path")
+                        .setDocVectors(List.of("/doc/vectors/path"))
                         .setQueryVectors("/query/vectors/path")
                         .build(),
                     true,
@@ -179,7 +179,7 @@ public class KnnIndexTester {
                 : new int[] { 0 };
             String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(
-                cmdLineArgs.docVectors().getFileName().toString(),
+                cmdLineArgs.docVectors().get(0).getFileName().toString(),
                 indexType,
                 cmdLineArgs.numDocs(),
                 cmdLineArgs.filterSelectivity()
@@ -187,7 +187,7 @@ public class KnnIndexTester {
             Results[] results = new Results[nProbes.length];
             for (int i = 0; i < nProbes.length; i++) {
                 results[i] = new Results(
-                    cmdLineArgs.docVectors().getFileName().toString(),
+                    cmdLineArgs.docVectors().get(0).getFileName().toString(),
                     indexType,
                     cmdLineArgs.numDocs(),
                     cmdLineArgs.filterSelectivity()

@@ -1319,10 +1319,6 @@ public class Setting<T> implements ToXContentObject {
             Property... properties
         ) {
             super(new GroupKey(keyWithDot(key)), (s) -> "", (s) -> null, properties);
-            if (isDynamic()) {
-                // TODO
-                throw new IllegalArgumentException("Dynamic record settings not supported");
-            }
             this.key = key;
             this.recordClass = recordClass;
             this.validator = r -> {}; // TODO: validator
@@ -1391,7 +1387,30 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public AbstractScopedSettings.SettingUpdater<R> newUpdater(Consumer<R> consumer, Logger logger, Consumer<R> validator) {
-            throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
+            return new AbstractScopedSettings.SettingUpdater<R>() {
+                @Override
+                public boolean hasChanged(Settings current, Settings previous) {
+                    return false == get(current).equals(get(previous));
+                }
+
+                @Override
+                public R getValue(Settings current, Settings previous) {
+                    // TODO: What am I supposed to do with previous? Javadocs don't say
+                    R result = get(current);
+                    validator.accept(result);
+                    return result;
+                }
+
+                @Override
+                public void apply(R value, Settings current, Settings previous) {
+                    consumer.accept(value);
+                }
+
+                @Override
+                public String toString() {
+                    return "Updater for record: " + recordClass.getName();
+                }
+            };
         }
 
         @SuppressForbidden(reason = "To support arbitrary record types, we must invoke the constructor with invokeWithArguments")

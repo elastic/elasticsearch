@@ -1610,7 +1610,50 @@ public class SettingTests extends ESTestCase {
     public void testRecordSetting() {
         record TestSetting(int intSetting) {}
         Setting<TestSetting> setting = Setting.recordSetting("record.setting", TestSetting.class, MethodHandles.lookup(), List.of());
-        assertEquals(new TestSetting(123), setting.get(Settings.builder().put("record.setting.int_setting", 123).build()));
+        Settings settings123 = Settings.builder().put("record.setting.int_setting", 123).build();
+        Settings settings456 = Settings.builder().put("record.setting.int_setting", 456).build();
+
+        assertEquals(new TestSetting(123), setting.get(settings123));
         assertThrows(IllegalStateException.class, () -> setting.get(Settings.EMPTY));
+
+        var watcher = new AtomicReference<TestSetting>(null);
+        var updater = setting.newUpdater(watcher::set, logger);
+        assertNull("Creating an updater does not call set", watcher.get());
+        updater.apply(settings456, settings123);
+        assertEquals("Updater called when value changed", new TestSetting(456), watcher.get());
+        assertThrows("Throws when there's no default", IllegalStateException.class, ()->updater.apply(Settings.EMPTY, settings456));
+
+        watcher.set(null);
+        updater.apply(settings123, settings123);
+        assertNull("Updater NOT called when value unchanged", watcher.get());
+        updater.apply(settings456, settings456);
+        assertNull("Updater again not called when value unchanged", watcher.get());
     }
+
+    public void testRecordWithDefaults() {
+        record TestSetting(int i1, int i2) {}
+        Setting<Integer> i1Setting = Setting.intSetting("record.setting.i1", -1);
+        Setting<Integer> i2Setting = Setting.intSetting("record.setting.i2", -2);
+        Setting<TestSetting> setting = Setting.recordSetting("record.setting", TestSetting.class, MethodHandles.lookup(), List.of(i1Setting, i2Setting));
+        Settings settings123 = Settings.builder().put("record.setting.i1", 123).build();
+
+        assertEquals(new TestSetting(123, 456), setting.get(Settings.builder().put("record.setting.i1", 123).put("record.setting.i2", 456).build()));
+        assertEquals(new TestSetting(-1, 456), setting.get(Settings.builder().put("record.setting.i2", 456).build()));
+        assertEquals(new TestSetting(-1, -2), setting.get(Settings.EMPTY));
+
+        var watcher = new AtomicReference<TestSetting>(null);
+        var updater = setting.newUpdater(watcher::set, logger);
+        updater.apply(settings123, Settings.EMPTY);
+        assertEquals(new TestSetting(123, -2), watcher.get());
+        updater.apply(Settings.EMPTY, settings123);
+        assertEquals(new TestSetting(-1, -2), watcher.get());
+
+        Settings explicitDefaults = Settings.builder().put("record.setting.i1", -1).put("record.setting.i2", -2).build();
+        watcher.set(null);
+        updater.apply(Settings.EMPTY, explicitDefaults);
+        assertNull("Updater NOT called when value deleted from the default", watcher.get());
+        updater.apply(explicitDefaults, Settings.EMPTY);
+        assertNull("Updater NOT called when value 'changed' to the default from nothing", watcher.get());
+    }
+
 }

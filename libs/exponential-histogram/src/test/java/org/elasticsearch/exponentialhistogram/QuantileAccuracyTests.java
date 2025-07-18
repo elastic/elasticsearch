@@ -22,45 +22,54 @@ import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.Random;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notANumber;
 
 public class QuantileAccuracyTests extends ESTestCase {
 
     public static final double[] QUANTILES_TO_TEST = { 0, 0.0000001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999999, 1.0 };
 
+    private static int randomBucketCount() {
+        // exponentially distribute the bucket count to test more for smaller sizes
+        return (int) Math.round(5 + Math.pow(1995, randomDouble()));
+    }
+
     public void testUniformDistribution() {
-        testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(42), 0, 100), 50000, 500);
+        testDistributionQuantileAccuracy(new UniformRealDistribution(new Well19937c(randomInt()), 0, 100));
     }
 
     public void testNormalDistribution() {
-        testDistributionQuantileAccuracy(new NormalDistribution(new Well19937c(42), 100, 15), 50000, 500);
+        testDistributionQuantileAccuracy(new NormalDistribution(new Well19937c(randomInt()), 100, 15));
     }
 
     public void testExponentialDistribution() {
-        testDistributionQuantileAccuracy(new ExponentialDistribution(new Well19937c(42), 10), 50000, 500);
+        testDistributionQuantileAccuracy(new ExponentialDistribution(new Well19937c(randomInt()), 10));
     }
 
     public void testLogNormalDistribution() {
-        testDistributionQuantileAccuracy(new LogNormalDistribution(new Well19937c(42), 0, 1), 50000, 500);
+        testDistributionQuantileAccuracy(new LogNormalDistribution(new Well19937c(randomInt()), 0, 1));
     }
 
     public void testGammaDistribution() {
-        testDistributionQuantileAccuracy(new GammaDistribution(new Well19937c(42), 2, 5), 50000, 500);
+        testDistributionQuantileAccuracy(new GammaDistribution(new Well19937c(randomInt()), 2, 5));
     }
 
     public void testBetaDistribution() {
-        testDistributionQuantileAccuracy(new BetaDistribution(new Well19937c(42), 2, 5), 50000, 500);
+        testDistributionQuantileAccuracy(new BetaDistribution(new Well19937c(randomInt()), 2, 5));
     }
 
     public void testWeibullDistribution() {
-        testDistributionQuantileAccuracy(new WeibullDistribution(new Well19937c(42), 2, 5), 50000, 500);
+        testDistributionQuantileAccuracy(new WeibullDistribution(new Well19937c(randomInt()), 2, 5));
     }
 
     public void testBasicSmall() {
@@ -70,7 +79,7 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testPercentileOverlapsZeroBucket() {
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-2,-1, 0, 0, 0, 1, 1);
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-2, -1, 0, 0, 0, 1, 1);
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 8.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 7.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 9.0 / 16.0), equalTo(0.0));
@@ -138,28 +147,20 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testBucketCountImpact() {
-        RealDistribution distribution = new LogNormalDistribution(new Well19937c(42), 0, 1);
-        int sampleSize = 50000;
+        RealDistribution distribution = new LogNormalDistribution(new Well19937c(randomInt()), 0, 1);
+        int sampleSize = between(100, 50_000);
         double[] values = generateSamples(distribution, sampleSize);
-
-        // Test with different bucket counts
-        int[] bucketCounts = { 10, 50, 100, 200, 500 };
-        for (int bucketCount : bucketCounts) {
-            double maxError = testQuantileAccuracy(values, bucketCount);
-            logger.info("Bucket count: " + bucketCount + ", Max relative error: " + maxError);
-        }
 
         // Verify that more buckets generally means better accuracy
         double errorWithFewBuckets = testQuantileAccuracy(values, 20);
         double errorWithManyBuckets = testQuantileAccuracy(values, 200);
-        assertThat("More buckets should improve accuracy", errorWithManyBuckets, lessThan(errorWithFewBuckets));
+        assertThat("More buckets should improve accuracy", errorWithManyBuckets, lessThanOrEqualTo(errorWithFewBuckets));
     }
 
     public void testMixedSignValues() {
-        Random random = new Random(42);
-        double[] values = new double[10000];
+        double[] values = new double[between(100, 10_000)];
         for (int i = 0; i < values.length; i++) {
-            values[i] = (random.nextDouble() * 200) - 100; // Range from -100 to 100
+            values[i] = (randomDouble() * 200) - 100; // Range from -100 to 100
         }
 
         testQuantileAccuracy(values, 100);
@@ -167,15 +168,14 @@ public class QuantileAccuracyTests extends ESTestCase {
 
     public void testSkewedData() {
         // Create a highly skewed dataset
-        Random random = new Random(42);
         double[] values = new double[10000];
         for (int i = 0; i < values.length; i++) {
-            if (random.nextDouble() < 0.9) {
+            if (randomDouble() < 0.9) {
                 // 90% of values are small
-                values[i] = random.nextDouble() * 10;
+                values[i] = randomDouble() * 10;
             } else {
                 // 10% are very large
-                values[i] = random.nextDouble() * 10000 + 100;
+                values[i] = randomDouble() * 10000 + 100;
             }
         }
 
@@ -183,22 +183,22 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testDataWithZeros() {
-        Random random = new Random(42);
         double[] values = new double[10000];
         for (int i = 0; i < values.length; i++) {
-            if (random.nextDouble() < 0.2) {
+            if (randomDouble() < 0.2) {
                 // 20% zeros
                 values[i] = 0;
             } else {
-                values[i] = random.nextDouble() * 100;
+                values[i] = randomDouble() * 100;
             }
         }
 
         testQuantileAccuracy(values, 100);
     }
 
-    private void testDistributionQuantileAccuracy(RealDistribution distribution, int sampleSize, int bucketCount) {
-        double[] values = generateSamples(distribution, sampleSize);
+    private void testDistributionQuantileAccuracy(RealDistribution distribution) {
+        double[] values = generateSamples(distribution, between(100, 50_000));
+        int bucketCount = randomBucketCount();
         testQuantileAccuracy(values, bucketCount);
     }
 
@@ -213,6 +213,7 @@ public class QuantileAccuracyTests extends ESTestCase {
     private double testQuantileAccuracy(double[] values, int bucketCount) {
         // Create histogram
         ExponentialHistogram histogram = ExponentialHistogramGenerator.createFor(bucketCount, Arrays.stream(values));
+        Arrays.sort(values);
 
         // Calculate exact percentiles
         Percentile exactPercentile = new Percentile();
@@ -229,31 +230,28 @@ public class QuantileAccuracyTests extends ESTestCase {
             } else if (q == 1) {
                 exactValue = Arrays.stream(values).max().getAsDouble();
             } else {
+                double lower = values[Math.clamp((int) (Math.floor((values.length + 1) * q) - 1), 0, values.length - 1)];
+                double upper = values[Math.clamp((int) (Math.ceil((values.length + 1) * q) - 1), 0, values.length - 1)];
+                if (lower < 0 && upper > 0) {
+                    // the percentile lies directly between a sign change and we interpolate linearly in-between
+                    // in this case the relative error bound does not hold
+                    continue;
+                }
                 exactValue = exactPercentile.evaluate(q * 100);
             }
+
             double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
 
-            // Skip comparison if exact value is zero to avoid division by zero
-            if (Math.abs(exactValue) < 1e-10) {
+            // Skip comparison if exact value is close to zero to avoid false-positives due to numerical imprecision
+            if (Math.abs(exactValue) < 1e-100) {
                 continue;
             }
 
             double relativeError = Math.abs(histoValue - exactValue) / Math.abs(exactValue);
             maxError = Math.max(maxError, relativeError);
 
-            logger.info(
-                String.format(
-                    "Quantile %.2f: Exact=%.6f, Histogram=%.6f, Relative Error=%.8f, Allowed Relative Error=%.8f",
-                    q,
-                    exactValue,
-                    histoValue,
-                    relativeError,
-                    allowedError
-                )
-            );
-
             assertThat(
-                String.format("Quantile %.2f should be accurate within %.6f%% relative error", q, allowedError * 100),
+                String.format(Locale.ENGLISH, "Quantile %.2f should be accurate within %.6f%% relative error", q, allowedError * 100),
                 histoValue,
                 closeTo(exactValue, Math.abs(exactValue * allowedError))
             );
@@ -268,48 +266,32 @@ public class QuantileAccuracyTests extends ESTestCase {
      * This is an implementation of the error bound computation proven by Theorem 3 in the <a href="https://arxiv.org/pdf/2004.08604">UDDSketch paper</a>
      */
     private static double getMaximumRelativeError(double[] values, int bucketCount) {
-        double smallestAbsNegative = Double.MAX_VALUE;
-        double largestAbsNegative = 0;
-        double smallestPositive = Double.MAX_VALUE;
-        double largestPositive = 0;
-
+        HashSet<Long> usedPositiveIndices = new HashSet<>();
+        HashSet<Long> usedNegativeIndices = new HashSet<>();
+        int bestPossibleScale = MAX_SCALE;
         for (double value : values) {
             if (value < 0) {
-                smallestAbsNegative = Math.min(-value, smallestAbsNegative);
-                largestAbsNegative = Math.max(-value, largestAbsNegative);
+                usedPositiveIndices.add(computeIndex(value, bestPossibleScale));
             } else if (value > 0) {
-                smallestPositive = Math.min(value, smallestPositive);
-                largestPositive = Math.max(value, largestPositive);
+                usedNegativeIndices.add(computeIndex(value, bestPossibleScale));
+            }
+            while ((usedNegativeIndices.size() + usedPositiveIndices.size()) > bucketCount) {
+                usedNegativeIndices = rightShiftAll(usedNegativeIndices);
+                usedPositiveIndices = rightShiftAll(usedPositiveIndices);
+                bestPossibleScale--;
             }
         }
+        // for the best possible scale, compute the worst-case error
+        double base = Math.pow(2.0, Math.scalb(1.0, -bestPossibleScale));
+        return 2 * base / (1 + base) - 1;
+    }
 
-        // Our algorithm is designed to optimally distribute the bucket budget across the positive and negative range
-        // therefore we simply try all variations here and assume the smallest possible error
-
-        if (largestAbsNegative == 0) {
-            // only positive values
-            double gammaSquare = Math.pow(largestPositive / smallestPositive, 2.0 / (bucketCount));
-            return (gammaSquare - 1) / (gammaSquare + 1);
-        } else if (smallestAbsNegative == 0) {
-            // only negative values
-            double gammaSquare = Math.pow(largestAbsNegative / smallestAbsNegative, 2.0 / (bucketCount));
-            return (gammaSquare - 1) / (gammaSquare + 1);
-        } else {
-            double smallestError = Double.MAX_VALUE;
-            for (int positiveBuckets = 1; positiveBuckets < bucketCount - 1; positiveBuckets++) {
-                int negativeBuckets = bucketCount - positiveBuckets;
-
-                double gammaSquareNeg = Math.pow(largestAbsNegative / smallestAbsNegative, 2.0 / (negativeBuckets));
-                double errorNeg = (gammaSquareNeg - 1) / (gammaSquareNeg + 1);
-
-                double gammaSquarePos = Math.pow(largestAbsNegative / smallestAbsNegative, 2.0 / (positiveBuckets));
-                double errorPos = (gammaSquarePos - 1) / (gammaSquarePos + 1);
-
-                double error = Math.max(errorNeg, errorPos);
-                smallestError = Math.min(smallestError, error);
-            }
-            return smallestError;
+    private static HashSet<Long> rightShiftAll(HashSet<Long> indices) {
+        HashSet<Long> result = new HashSet<>();
+        for (long index : indices) {
+            result.add(index >> 1);
         }
+        return result;
     }
 
 }

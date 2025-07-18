@@ -9,6 +9,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.OptionalLong;
+
 /**
  * Provides quantile estimation for {@link ExponentialHistogram} instances.
  */
@@ -58,8 +60,7 @@ public class ExponentialHistogramQuantile {
      * @param valueAtPreviousRank the value at the rank before the desired rank, NaN if not applicable.
      * @param valueAtRank         the value at the desired rank
      */
-    private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank
-    ) {
+    private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank) {
         ValueAndPreviousValue negateAndSwap() {
             return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
         }
@@ -69,10 +70,10 @@ public class ExponentialHistogramQuantile {
         long negativeValuesCount = histo.negativeBuckets().valueCount();
         long zeroCount = histo.zeroBucket().count();
         if (rank < negativeValuesCount) {
-            if (negativeValuesCount == 1) {
-                return new ValueAndPreviousValue(Double.NaN, -getFirstBucketMidpoint(histo.negativeBuckets()));
+            if (rank == 0) {
+                return new ValueAndPreviousValue(Double.NaN, -getLastBucketMidpoint(histo.negativeBuckets()));
             } else {
-                return getBucketMidpointForRank(histo.negativeBuckets().iterator(), negativeValuesCount - rank - 1).negateAndSwap();
+                return getBucketMidpointForRank(histo.negativeBuckets().iterator(), negativeValuesCount - rank).negateAndSwap();
             }
         } else if (rank < (negativeValuesCount + zeroCount)) {
             if (rank == negativeValuesCount) {
@@ -82,11 +83,14 @@ public class ExponentialHistogramQuantile {
                 return new ValueAndPreviousValue(0.0, 0.0);
             }
         } else {
-            ValueAndPreviousValue result = getBucketMidpointForRank(histo.positiveBuckets().iterator(), rank - negativeValuesCount - zeroCount);
-            if ( (rank-1) < negativeValuesCount) {
+            ValueAndPreviousValue result = getBucketMidpointForRank(
+                histo.positiveBuckets().iterator(),
+                rank - negativeValuesCount - zeroCount
+            );
+            if ((rank - 1) < negativeValuesCount) {
                 // previous value falls into the negative bucket range or is -1
                 return new ValueAndPreviousValue(-getFirstBucketMidpoint(histo.negativeBuckets()), result.valueAtRank);
-            } else if ( (rank-1) < (negativeValuesCount + zeroCount) ) {
+            } else if ((rank - 1) < (negativeValuesCount + zeroCount)) {
                 // previous value falls into the zero bucket
                 return new ValueAndPreviousValue(0.0, result.valueAtRank);
             } else {
@@ -104,6 +108,15 @@ public class ExponentialHistogramQuantile {
         }
     }
 
+    private static double getLastBucketMidpoint(ExponentialHistogram.Buckets buckets) {
+        OptionalLong highestIndex = buckets.maxBucketIndex();
+        if (highestIndex.isPresent()) {
+            return ExponentialScaleUtils.getPointOfLeastRelativeError(highestIndex.getAsLong(), buckets.iterator().scale());
+        } else {
+            return Double.NaN;
+        }
+    }
+
     private static ValueAndPreviousValue getBucketMidpointForRank(BucketIterator buckets, long rank) {
         long prevIndex = Long.MIN_VALUE;
         long seenCount = 0;
@@ -113,7 +126,7 @@ public class ExponentialHistogramQuantile {
                 double center = ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
                 double prevCenter;
                 if (rank > 0) {
-                    if (buckets.peekCount() > 1) {
+                    if ((rank - 1) >= (seenCount - buckets.peekCount())) {
                         // element at previous rank is in same bucket
                         prevCenter = center;
                     } else {

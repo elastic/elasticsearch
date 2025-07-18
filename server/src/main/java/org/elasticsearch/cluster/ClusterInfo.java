@@ -144,6 +144,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
             out.writeMap(this.nodeUsageStatsForThreadPools, StreamOutput::writeWriteable);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardWriteLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
+        }
     }
 
     /**

@@ -81,8 +81,9 @@ public abstract class IndexRouting {
         this.indexName = metadata.getIndex().getName();
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
-        this.indexReshardingMetadata = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID) ?
-            metadata.getReshardingMetadata() : null;
+        this.indexReshardingMetadata = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+            ? metadata.getReshardingMetadata()
+            : null;
     }
 
     /**

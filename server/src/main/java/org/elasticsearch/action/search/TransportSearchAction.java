@@ -732,7 +732,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 OriginalIndices indices = entry.getValue();
                 SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
                     parentTaskId,
-                    searchRequest,
+                    searchRequest,  // TODO: Need to prep the request here by stripping inference results?
                     indices.indices(),
                     clusterAlias,
                     timeProvider.absoluteStartMillis(),
@@ -859,7 +859,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                             indices,
                             indicesOptions,
-                            query,
+                            query,  // TODO: Need to prep the query here by stripping inference results?
                             routing,
                             preference,
                             allowPartialResults,

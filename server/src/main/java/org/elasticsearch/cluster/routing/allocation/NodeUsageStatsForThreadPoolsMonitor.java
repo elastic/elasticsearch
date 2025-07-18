@@ -75,6 +75,8 @@ public class NodeUsageStatsForThreadPoolsMonitor {
         String explanation = "";
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
+        // TODO (ES-11992): implement
+
         if (reroute) {
             logger.debug("rerouting shards: [{}]", explanation);
             rerouteService.reroute("disk threshold monitor", Priority.NORMAL, ActionListener.wrap(ignored -> {

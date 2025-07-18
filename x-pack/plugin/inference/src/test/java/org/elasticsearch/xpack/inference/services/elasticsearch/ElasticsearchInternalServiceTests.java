@@ -1934,12 +1934,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
-            client,
-            threadPool,
-            clusterService,
-            Settings.EMPTY
-        );
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, clusterService, Settings.EMPTY);
         var service = new ElasticsearchInternalService(context);
 
         var model = new MultilingualE5SmallModel(
@@ -1959,18 +1954,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(resultsListener, latch);
 
-        service.infer(
-            model,
-            null,
-            null,
-            null,
-            List.of("test input"),
-            false,
-            Map.of(),
-            InputType.SEARCH,
-            null,
-            latchedListener
-        );
+        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener);
 
         latch.await();
         assertTrue("Listener not called", gotResults.get());

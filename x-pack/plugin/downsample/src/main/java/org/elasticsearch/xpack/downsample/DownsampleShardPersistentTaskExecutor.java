@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -116,7 +118,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public void validate(DownsampleShardTaskParams params, ClusterState clusterState) {
+    public void validate(DownsampleShardTaskParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
         // This is just a pre-check, but doesn't prevent from avoiding from aborting the task when source index disappeared
         // after initial creation of the persistent task.
         var indexShardRouting = findShardRoutingTable(params.shardId(), clusterState);
@@ -126,10 +128,11 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         final DownsampleShardTaskParams params,
         final Collection<DiscoveryNode> candidateNodes,
-        final ClusterState clusterState
+        final ClusterState clusterState,
+        @Nullable final ProjectId projectId
     ) {
         // NOTE: downsampling works by running a task per each shard of the source index.
         // Here we make sure we assign the task to the actual node holding the shard identified by
@@ -161,11 +164,10 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
     /**
      * Only shards that can be searched can be used as the source of a downsampling task.
-     * In stateless deployment, this means that shards that CANNOT be promoted to primary can be used.
      * For simplicity, in non-stateless deployments we use the primary shard.
      */
     private boolean isEligible(ShardRouting shardRouting) {
-        return shardRouting.started() && (isStateless ? shardRouting.isPromotableToPrimary() == false : shardRouting.primary());
+        return shardRouting.started() && (isStateless ? shardRouting.isSearchable() : shardRouting.primary());
     }
 
     private boolean isCandidateNode(Collection<DiscoveryNode> candidateNodes, String nodeId) {

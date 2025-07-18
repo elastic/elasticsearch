@@ -43,12 +43,9 @@ $if(BytesRef)$
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
-$if(BytesRef)$
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-$else$
-
-$endif$
 /**
  * Aggregates field values for $type$.
  * This class is generated. Edit @{code X-ValuesAggregator.java.st} instead
@@ -90,8 +87,8 @@ $endif$
         return state.toBlock(driverContext.blockFactory());
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext);
     }
 
 $if(BytesRef)$
@@ -113,25 +110,7 @@ $if(BytesRef)$
 $endif$
 
     public static void combine(GroupingState state, int groupId, $type$ v) {
-$if(long)$
-        state.values.add(groupId, v);
-$elseif(double)$
-        state.values.add(groupId, Double.doubleToLongBits(v));
-$elseif(BytesRef)$
-        state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
-$elseif(int)$
-        /*
-         * Encode the groupId and value into a single long -
-         * the top 32 bits for the group, the bottom 32 for the value.
-         */
-        state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
-$elseif(float)$
-        /*
-         * Encode the groupId and value into a single long -
-         * the top 32 bits for the group, the bottom 32 for the value.
-         */
-        state.values.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
-$endif$
+        state.addValue(groupId, v);
     }
 
     public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
@@ -142,37 +121,10 @@ $endif$
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
 $if(BytesRef)$
-            combine(state, groupId, values.getBytesRef(i, scratch));
+            state.addValue(groupId, values.getBytesRef(i, scratch));
 $else$
-            combine(state, groupId, values.get$Type$(i));
+            state.addValue(groupId, values.get$Type$(i));
 $endif$
-        }
-    }
-
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-$if(BytesRef)$
-        BytesRef scratch = new BytesRef();
-$endif$
-        for (int id = 0; id < state.values.size(); id++) {
-$if(long||BytesRef)$
-            if (state.values.getKey1(id) == statePosition) {
-                long value = state.values.getKey2(id);
-$elseif(double)$
-            if (state.values.getKey1(id) == statePosition) {
-                double value = Double.longBitsToDouble(state.values.getKey2(id));
-$elseif(int)$
-            long both = state.values.get(id);
-            int group = (int) (both >>> Integer.SIZE);
-            if (group == statePosition) {
-                int value = (int) both;
-$elseif(float)$
-            long both = state.values.get(id);
-            int group = (int) (both >>> Float.SIZE);
-            if (group == statePosition) {
-                float value = Float.intBitsToFloat((int) both);
-$endif$
-                combine(current, currentGroupId, $if(BytesRef)$state.bytes.get(value, scratch)$else$value$endif$);
-            }
         }
     }
 
@@ -248,6 +200,20 @@ $endif$
     }
 
     /**
+     * Values are collected in a hash. Iterating over them in order (row by row) to build the output,
+     * or merging with other state, can be expensive. To optimize this, we build a sorted structure once,
+     * and then use it to iterate over the values in order.
+     *
+     * @param ids positions of the {@link GroupingState#values} to read.
+     */
+    private record Sorted(Releasable releasable, int[] counts, int[] ids) implements Releasable {
+        @Override
+        public void close() {
+            releasable.close();
+        }
+    }
+
+    /**
      * State for a grouped {@code VALUES} aggregation. This implementation
      * emphasizes collect-time performance over the performance of rendering
      * results. That's good, but it's a pretty intensive emphasis, requiring
@@ -255,26 +221,29 @@ $endif$
      * collector operation. But at least it's fairly simple.
      */
     public static class GroupingState implements GroupingAggregatorState {
+        private int maxGroupId = -1;
+        private final BlockFactory blockFactory;
 $if(long||double)$
         private final LongLongHash values;
 
 $elseif(BytesRef)$
-        final LongLongHash values;
+        private final LongLongHash values;
         BytesRefHash bytes;
 
 $elseif(int||float)$
         private final LongHash values;
 
 $endif$
-        private GroupingState(BigArrays bigArrays) {
+        private GroupingState(DriverContext driverContext) {
+            this.blockFactory = driverContext.blockFactory();
 $if(long||double)$
-            values = new LongLongHash(1, bigArrays);
+            values = new LongLongHash(1, driverContext.bigArrays());
 $elseif(BytesRef)$
             LongLongHash _values = null;
             BytesRefHash _bytes = null;
             try {
-                _values = new LongLongHash(1, bigArrays);
-                _bytes = new BytesRefHash(1, bigArrays);
+                _values = new LongLongHash(1, driverContext.bigArrays());
+                _bytes = new BytesRefHash(1, driverContext.bigArrays());
 
                 values = _values;
                 bytes = _bytes;
@@ -285,13 +254,43 @@ $elseif(BytesRef)$
                 Releasables.closeExpectNoException(_values, _bytes);
             }
 $elseif(int||float)$
-            values = new LongHash(1, bigArrays);
+            values = new LongHash(1, driverContext.bigArrays());
 $endif$
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+        }
+
+$if(BytesRef)$
+        void addValueOrdinal(int groupId, long valueOrdinal) {
+            values.add(groupId, valueOrdinal);
+            maxGroupId = Math.max(maxGroupId, groupId);
+        }
+
+$endif$
+        void addValue(int groupId, $type$ v) {
+$if(long)$
+            values.add(groupId, v);
+$elseif(double)$
+            values.add(groupId, Double.doubleToLongBits(v));
+$elseif(BytesRef)$
+            values.add(groupId, BlockHash.hashOrdToGroup(bytes.add(v)));
+$elseif(int)$
+            /*
+             * Encode the groupId and value into a single long -
+             * the top 32 bits for the group, the bottom 32 for the value.
+             */
+            values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
+$elseif(float)$
+            /*
+             * Encode the groupId and value into a single long -
+             * the top 32 bits for the group, the bottom 32 for the value.
+             */
+            values.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
+$endif$
+            maxGroupId = Math.max(maxGroupId, groupId);
         }
 
         /**
@@ -303,8 +302,23 @@ $endif$
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
 
+            try (var sorted = buildSorted(selected)) {
+$if(BytesRef)$
+                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                    return buildOrdinalOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
+                } else {
+                    return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
+                }
+$else$
+                return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
+$endif$
+            }
+        }
+
+        private Sorted buildSorted(IntVector selected) {
             long selectedCountsSize = 0;
             long idsSize = 0;
+            Sorted sorted = null;
             try {
                 /*
                  * Get a count of all groups less than the maximum selected group. Count
@@ -379,27 +393,23 @@ $endif$
                 idsSize = adjust;
                 int[] ids = new int[total];
                 for (int id = 0; id < values.size(); id++) {
-$if(long||BytesRef||double)$
+        $if(long||BytesRef||double)$
                     int group = (int) values.getKey1(id);
-$elseif(float||int)$
+        $elseif(float||int)$
                     long both = values.get(id);
                     int group = (int) (both >>> Float.SIZE);
-$endif$
+        $endif$
                     if (group < selectedCounts.length && selectedCounts[group] >= 0) {
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-$if(BytesRef)$
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
-                    return buildOrdinalOutputBlock(blockFactory, selected, selectedCounts, ids);
-                } else {
-                    return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
-                }
-$else$
-                return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
-$endif$
+                final long totalMemoryUsed = selectedCountsSize + idsSize;
+                sorted = new Sorted(() -> blockFactory.adjustBreaker(-totalMemoryUsed), selectedCounts, ids);
+                return sorted;
             } finally {
-                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                if (sorted == null) {
+                    blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                }
             }
         }
 
@@ -418,11 +428,11 @@ $endif$
                     int count = end - start;
                     switch (count) {
                         case 0 -> builder.appendNull();
-                        case 1 -> append(builder, ids[start]$if(BytesRef)$, scratch$endif$);
+                        case 1 -> builder.append$Type$(getValue(ids[start]$if(BytesRef)$, scratch$endif$));
                         default -> {
                             builder.beginPositionEntry();
                             for (int i = start; i < end; i++) {
-                                append(builder, ids[i]$if(BytesRef)$, scratch$endif$);
+                                builder.append$Type$(getValue(ids[i]$if(BytesRef)$, scratch$endif$));
                             }
                             builder.endPositionEntry();
                         }
@@ -470,29 +480,24 @@ $if(BytesRef)$
                 }
             }
         }
+$endif$
 
-        private void append($Type$Block.Builder builder, int id, BytesRef scratch) {
-            BytesRef value = bytes.get(values.getKey2(id), scratch);
-            builder.appendBytesRef(value);
-        }
-
-$else$
-        private void append($Type$Block.Builder builder, int id) {
-$if(long)$
-            long value = values.getKey2(id);
+        $type$ getValue(int valueId$if(BytesRef)$, BytesRef scratch$endif$) {
+$if(BytesRef)$
+            return bytes.get(values.getKey2(valueId), scratch);
+$elseif(long)$
+            return values.getKey2(valueId);
 $elseif(double)$
-            double value = Double.longBitsToDouble(values.getKey2(id));
+            return Double.longBitsToDouble(values.getKey2(valueId));
 $elseif(float)$
-            long both = values.get(id);
-            float value = Float.intBitsToFloat((int) both);
+            long both = values.get(valueId);
+            return Float.intBitsToFloat((int) both);
 $elseif(int)$
-            long both = values.get(id);
-            int value = (int) both;
+            long both = values.get(valueId);
+            return (int) both;
 $endif$
-            builder.append$Type$(value);
         }
 
-$endif$
         @Override
         public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block
@@ -503,7 +508,7 @@ $endif$
 $if(BytesRef)$
             Releasables.closeExpectNoException(values, bytes);
 $else$
-            values.close();
+            Releasables.closeExpectNoException(values);
 $endif$
         }
     }

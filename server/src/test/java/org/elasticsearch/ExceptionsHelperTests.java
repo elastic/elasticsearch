@@ -27,8 +27,10 @@ import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.ExceptionsHelper.maybeError;
+import static org.elasticsearch.ExceptionsHelper.unwrapCausesAndSuppressed;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -493,5 +495,15 @@ public class ExceptionsHelperTests extends ESTestCase {
         StringBuilder s = new StringBuilder();
         ExceptionsHelper.compressPackages(s, className);
         return s.toString();
+    }
+
+    public void testUnwrapCausesAndSuppressedNullHandling() {
+        final AtomicBoolean predicateCalled = new AtomicBoolean();
+        assertEquals(Optional.empty(), unwrapCausesAndSuppressed(null, value -> {
+            assertNull(value);
+            assertTrue(predicateCalled.compareAndSet(false, true)); // called no more than once
+            return randomBoolean();
+        }));
+        assertTrue(predicateCalled.get()); // called at least once
     }
 }

@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -269,8 +270,10 @@ public class Netty4Transport extends TcpTransport {
 
         Channel channel = connectFuture.channel();
         if (channel == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
-            throw new IOException(connectFuture.cause());
+            final var cause = connectFuture.cause();
+            logger.warn(Strings.format("failed to initiate channel to [%s]", node), cause);
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
+            throw new IOException(cause);
         }
 
         Netty4TcpChannel nettyChannel = new Netty4TcpChannel(

@@ -1,0 +1,5 @@
+pr: 131551
+summary: Configurable Inference timeout during Query time
+area: Relevance
+type: enhancement
+issues: []

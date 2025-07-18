@@ -1716,3 +1716,101 @@ ROW somefield = 0, type = "Production"
 type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
 ;
+
+###############################################
+# LOOKUP JOIN and ENRICH
+###############################################
+
+enrichAfterLookupJoin
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+
+lookupJoinAfterEnrich
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| ENRICH languages_policy ON language_code
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+message:keyword       | language_code:keyword | language_name:keyword | type:keyword
+Connected to 10.1.0.1 | 1                     | English               | Success
+;
+
+
+lookupJoinAfterRemoteEnrich
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| ENRICH _remote:languages_policy ON language_code
+| LOOKUP JOIN message_types_lookup ON message
+;
+
+message:keyword       | language_code:keyword | language_name:keyword | type:keyword
+Connected to 10.1.0.1 | 1                     | English               | Success
+;
+
+
+lookupJoinAfterLimitAndRemoteEnrich
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LIMIT 1
+| ENRICH _remote:languages_policy ON language_code
+| EVAL enrich_language_name = language_name, language_code = language_code::integer
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP message, enrich_language_name, language_name, country.keyword
+| SORT language_name, country.keyword
+;
+
+message:keyword       | enrich_language_name:keyword | language_name:keyword | country.keyword:keyword
+Connected to 10.1.0.1 | English                      | English               | Canada
+Connected to 10.1.0.1 | English                      | English               | United States of America
+Connected to 10.1.0.1 | English                      | English               | null
+Connected to 10.1.0.1 | English                      | null                  | United Kingdom
+;
+
+
+lookupJoinAfterTopNAndRemoteEnrich
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| SORT message
+| LIMIT 1
+| ENRICH _remote:languages_policy ON language_code
+| EVAL enrich_language_name = language_name, language_code = language_code::integer
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP message, enrich_language_name, language_name, country.keyword
+| SORT language_name, country.keyword
+;
+
+message:keyword       | enrich_language_name:keyword | language_name:keyword | country.keyword:keyword
+Connected to 10.1.0.1 | English                      | English               | Canada
+Connected to 10.1.0.1 | English                      | English               | United States of America
+Connected to 10.1.0.1 | English                      | English               | null
+Connected to 10.1.0.1 | English                      | null                  | United Kingdom
+;

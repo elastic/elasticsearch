@@ -159,6 +159,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ExtractSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
@@ -491,7 +492,8 @@ public class EsqlFunctionRegistry {
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
                 def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string"),
-                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine") } };
+                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
+                def(ExtractSnippets.class, ExtractSnippets::new, "extract_snippets") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ExtractSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
@@ -223,6 +224,7 @@ public class ExpressionWritables {
         entries.add(WildcardLike.ENTRY);
         entries.add(WildcardLikeList.ENTRY);
         entries.add(Delay.ENTRY);
+        entries.add(ExtractSnippets.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());
         return entries;

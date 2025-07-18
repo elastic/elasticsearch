@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.Settings;

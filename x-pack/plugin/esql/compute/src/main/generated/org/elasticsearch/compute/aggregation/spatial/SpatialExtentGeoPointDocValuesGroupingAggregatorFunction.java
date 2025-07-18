@@ -65,7 +65,7 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     LongBlock valuesBlock = page.getBlock(channels.get(0));
     LongVector valuesVector = valuesBlock.asVector();
@@ -148,6 +148,54 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector top = ((IntBlock) topUncast).asVector();
+    Block bottomUncast = page.getBlock(channels.get(1));
+    if (bottomUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector bottom = ((IntBlock) bottomUncast).asVector();
+    Block negLeftUncast = page.getBlock(channels.get(2));
+    if (negLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+    Block negRightUncast = page.getBlock(channels.get(3));
+    if (negRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negRight = ((IntBlock) negRightUncast).asVector();
+    Block posLeftUncast = page.getBlock(channels.get(4));
+    if (posLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+    Block posRightUncast = page.getBlock(channels.get(5));
+    if (posRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posRight = ((IntBlock) posRightUncast).asVector();
+    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialExtentGeoPointDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(groupPosition + positionOffset), bottom.getInt(groupPosition + positionOffset), negLeft.getInt(groupPosition + positionOffset), negRight.getInt(groupPosition + positionOffset), posLeft.getInt(groupPosition + positionOffset), posRight.getInt(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
@@ -180,6 +228,54 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block topUncast = page.getBlock(channels.get(0));
+    if (topUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector top = ((IntBlock) topUncast).asVector();
+    Block bottomUncast = page.getBlock(channels.get(1));
+    if (bottomUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector bottom = ((IntBlock) bottomUncast).asVector();
+    Block negLeftUncast = page.getBlock(channels.get(2));
+    if (negLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+    Block negRightUncast = page.getBlock(channels.get(3));
+    if (negRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector negRight = ((IntBlock) negRightUncast).asVector();
+    Block posLeftUncast = page.getBlock(channels.get(4));
+    if (posLeftUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+    Block posRightUncast = page.getBlock(channels.get(5));
+    if (posRightUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector posRight = ((IntBlock) posRightUncast).asVector();
+    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialExtentGeoPointDocValuesAggregator.combineIntermediate(state, groupId, top.getInt(groupPosition + positionOffset), bottom.getInt(groupPosition + positionOffset), negLeft.getInt(groupPosition + positionOffset), negRight.getInt(groupPosition + positionOffset), posLeft.getInt(groupPosition + positionOffset), posRight.getInt(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (values.isNull(groupPosition + positionOffset)) {
@@ -199,11 +295,6 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
       int groupId = groups.getInt(groupPosition);
       SpatialExtentGeoPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -248,13 +339,8 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    SpatialExtentGroupingStateWrappedLongitudeState inState = ((SpatialExtentGeoPointDocValuesGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialExtentGeoPointDocValuesAggregator.combineStates(state, groupId, inState, position);
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

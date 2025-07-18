@@ -35,6 +35,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -1674,7 +1675,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims >= BBQ_MIN_DIMS;
             }
         },
-        BBQ_IVF("bbq_ivf", true) {
+        BBQ_DISK("bbq_disk", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
@@ -2294,7 +2295,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int defaultNProbe;
 
         BBQIVFIndexOptions(int clusterSize, int defaultNProbe, RescoreVector rescoreVector) {
-            super(VectorIndexType.BBQ_IVF, rescoreVector);
+            super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultNProbe = defaultNProbe;
         }
@@ -2529,6 +2530,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
+            }
+            if (dims == null) {
+                return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             return switch (getElementType()) {

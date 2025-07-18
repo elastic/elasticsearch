@@ -858,8 +858,8 @@ public final class IndexSettings {
 
     public static final Setting<Integer> INDEX_MAPPING_META_LENGTH_LIMIT_SETTING = Setting.intSetting(
         "index.mapping.meta.length_limit",
-        500, // default value
-        20,  // minimum value
+        500,
+        0,
         Property.IndexScope,
         Property.Final
     );

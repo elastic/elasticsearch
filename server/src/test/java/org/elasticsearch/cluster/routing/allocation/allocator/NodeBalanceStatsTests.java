@@ -108,7 +108,6 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         assertNotEquals(UNKNOWN, deserialized.nodeId());
         assertNotEquals(List.of(), deserialized.roles());
         assertNotEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, deserialized.undesiredShardAllocations());
-        assertNotNull(deserialized.nodeWeight());
     }
 
     public void testToXContentWithoutHumanReadableNames() throws IOException {

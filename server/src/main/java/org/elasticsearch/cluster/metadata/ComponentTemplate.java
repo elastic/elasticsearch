@@ -24,8 +24,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A component template is a re-usable {@link Template} as well as metadata about the template. Each
@@ -34,16 +39,34 @@ import java.util.Objects;
  * "foo" field. These component templates make up the individual pieces composing an index template.
  */
 public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToXContentObject {
+
+    // always output millis even if instantSource returns millis == 0
+    private static final DateTimeFormatter ISO8601_WITH_MILLIS_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3)
+        .toFormatter(Locale.ROOT);
+
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
+    private static final ParseField CREATED_DATE = new ParseField("created_date");
+    private static final ParseField MODIFIED_DATE = new ParseField("modified_date");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "component_template",
         false,
-        a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2], (Boolean) a[3])
+        a -> {
+            final String createdDate = (String) a[4];
+            final String modifiedDate = (String) a[5];
+            return new ComponentTemplate(
+                (Template) a[0],
+                (Long) a[1],
+                (Map<String, Object>) a[2],
+                (Boolean) a[3],
+                createdDate == null ? null : Instant.parse(createdDate).toEpochMilli(),
+                modifiedDate == null ? null : Instant.parse(modifiedDate).toEpochMilli()
+            );
+        }
     );
 
     static {
@@ -51,6 +74,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CREATED_DATE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE);
     }
 
     private final Template template;
@@ -60,6 +85,10 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private final Map<String, Object> metadata;
     @Nullable
     private final Boolean deprecated;
+    @Nullable
+    private final Long createdDateMillis;
+    @Nullable
+    private final Long modifiedDateMillis;
 
     static Diff<ComponentTemplate> readComponentTemplateDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComponentTemplate::new, in);
@@ -70,19 +99,23 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata) {
-        this(template, version, metadata, null);
+        this(template, version, metadata, null, null, null);
     }
 
     public ComponentTemplate(
         Template template,
         @Nullable Long version,
         @Nullable Map<String, Object> metadata,
-        @Nullable Boolean deprecated
+        @Nullable Boolean deprecated,
+        @Nullable Long createdDateMillis,
+        @Nullable Long modifiedDateMillis
     ) {
         this.template = template;
         this.version = version;
         this.metadata = metadata;
         this.deprecated = deprecated;
+        this.createdDateMillis = createdDateMillis;
+        this.modifiedDateMillis = modifiedDateMillis;
     }
 
     public ComponentTemplate(StreamInput in) throws IOException {
@@ -97,6 +130,13 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             this.deprecated = in.readOptionalBoolean();
         } else {
             deprecated = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.COMPONENT_TEMPLATE_TRACKING_INFO)) {
+            this.createdDateMillis = in.readOptionalLong();
+            this.modifiedDateMillis = in.readOptionalLong();
+        } else {
+            this.createdDateMillis = null;
+            this.modifiedDateMillis = null;
         }
     }
 
@@ -122,6 +162,14 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return Boolean.TRUE.equals(deprecated);
     }
 
+    public Optional<Long> createdDateMillis() {
+        return Optional.ofNullable(createdDateMillis);
+    }
+
+    public Optional<Long> modifiedDateMillis() {
+        return Optional.ofNullable(modifiedDateMillis);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         this.template.writeTo(out);
@@ -135,11 +183,15 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(this.deprecated);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.COMPONENT_TEMPLATE_TRACKING_INFO)) {
+            out.writeOptionalLong(this.createdDateMillis);
+            out.writeOptionalLong(this.modifiedDateMillis);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(template, version, metadata, deprecated);
+        return Objects.hash(template, version, metadata, deprecated, createdDateMillis, modifiedDateMillis);
     }
 
     @Override
@@ -154,7 +206,9 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
             && Objects.equals(metadata, other.metadata)
-            && Objects.equals(deprecated, other.deprecated);
+            && Objects.equals(deprecated, other.deprecated)
+            && Objects.equals(createdDateMillis, other.createdDateMillis)
+            && Objects.equals(modifiedDateMillis, other.modifiedDateMillis);
     }
 
     @Override
@@ -184,7 +238,17 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         if (this.deprecated != null) {
             builder.field(DEPRECATED.getPreferredName(), this.deprecated);
         }
+        if (this.createdDateMillis != null) {
+            builder.field(CREATED_DATE.getPreferredName(), formatDate(this.createdDateMillis));
+        }
+        if (this.modifiedDateMillis != null) {
+            builder.field(MODIFIED_DATE.getPreferredName(), formatDate(this.modifiedDateMillis));
+        }
         builder.endObject();
         return builder;
+    }
+
+    private static String formatDate(long epochMillis) {
+        return ISO8601_WITH_MILLIS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
     }
 }

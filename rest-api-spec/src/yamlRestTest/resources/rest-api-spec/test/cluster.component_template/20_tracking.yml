@@ -1,0 +1,72 @@
+setup:
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: PUT
+          path: /_component_template/{id}
+          capabilities: [ component_template_tracking_info ]
+      reason: "Templates have tracking info: modified_date and created_date"
+
+---
+"Test PUT setting created_date":
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+          created_date: "2025-07-04T12:50:48.415Z"
+  - match: { status: 400 }
+  - match: { error.reason: "Validation Failed: 1: Provided a pipeline property which is managed by the system: created_date.;" }
+
+---
+"Test PUT setting modified_date":
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+          modified_date: "2025-07-04T12:50:48.415Z"
+  - match: { status: 400 }
+  - match: { error.reason: "Validation Failed: 1: Provided a pipeline property which is managed by the system: modified_date.;" }
+
+---
+"Test update preserves created_date but updates modified_date":
+  - do:
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.get_component_template:
+        name: test_tracking
+  - set: { component_templates.0.component_template.created_date: first_created }
+  - set: { component_templates.0.component_template.modified_date: first_modified }
+  - match: { $first_created: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { $first_modified: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+
+  - do:
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 2
+
+  - do:
+      cluster.get_component_template:
+        name: test_tracking
+  - set: { component_templates.0.component_template.created_date: second_created }
+  - set: { component_templates.0.component_template.modified_date: second_modified }
+  - match: { $second_created: $first_created }
+  - gt: { $second_modified: $first_modified }
+

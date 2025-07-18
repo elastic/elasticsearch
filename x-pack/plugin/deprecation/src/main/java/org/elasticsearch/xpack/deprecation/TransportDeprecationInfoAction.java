@@ -309,7 +309,9 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         .build(),
                     componentTemplate.version(),
                     componentTemplate.metadata(),
-                    componentTemplate.deprecated()
+                    componentTemplate.deprecated(),
+                    componentTemplate.createdDateMillis().orElse(null),
+                    componentTemplate.modifiedDateMillis().orElse(null)
                 )
             );
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));

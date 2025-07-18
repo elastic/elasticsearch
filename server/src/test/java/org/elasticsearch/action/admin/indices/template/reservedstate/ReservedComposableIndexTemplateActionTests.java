@@ -54,6 +54,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -105,7 +106,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             mock(NamedXContentRegistry.class),
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionSettings
+            globalRetentionSettings,
+            Instant::now
         );
     }
 
@@ -896,7 +898,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             mock(NamedXContentRegistry.class),
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionSettings
+            globalRetentionSettings,
+            Instant::now
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))

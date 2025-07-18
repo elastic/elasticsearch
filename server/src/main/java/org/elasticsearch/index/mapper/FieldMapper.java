@@ -1298,7 +1298,7 @@ public abstract class FieldMapper extends Mapper {
                 "meta",
                 true,
                 Map::of,
-                (n, c, o) -> TypeParsers.parseMeta(n, o),
+                (n, c, o) -> TypeParsers.parseMeta(n, o, c),
                 m -> m.fieldType().meta(),
                 XContentBuilder::stringStringMap,
                 Objects::toString

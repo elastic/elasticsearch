@@ -87,7 +87,7 @@ public class Mapper {
         PhysicalPlan mappedChild = map(unary.child());
 
         //
-        // TODO - this is hard to follow and needs reworking
+        // TODO - this is hard to follow, causes bugs and needs reworking
         // https://github.com/elastic/elasticsearch/issues/115897
         //
         if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
@@ -102,6 +102,8 @@ public class Mapper {
             // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
             Holder<Boolean> hasFragment = new Holder<>(false);
 
+            // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
+            // include the plan up until this ENRICH in the fragment.
             var childTransformed = mappedChild.transformUp(f -> {
                 // Once we reached FragmentExec, we stuff our Enrich under it
                 if (f instanceof FragmentExec) {

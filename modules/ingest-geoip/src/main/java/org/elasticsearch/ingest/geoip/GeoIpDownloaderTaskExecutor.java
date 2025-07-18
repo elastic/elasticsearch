@@ -500,11 +500,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                         /*
                          * If the value is null here, it indicates that this method has been called recursively with the same pipeline name.
                          * This will cause a runtime error when the pipeline is executed, but we're avoiding changing existing behavior at
-                         * server startup time. Instead, we just log the problem and bail out as quickly as possible. It is possible that
-                         * this could lead to a geo database not being downloaded for the pipeline, but it doesn't really matter since the
-                         * pipeline was going to fail anyway.
+                         * server startup time. Instead, we just bail out as quickly as possible. It is possible that this could lead to a
+                         * geo database not being downloaded for the pipeline, but it doesn't really matter since the pipeline was going to
+                         * fail anyway.
                          */
-                        logger.warn("Detected that pipeline [{}] is called recursively.", pipelineName);
                         pipelineHasGeoProcessorById.put(pipelineName, false);
                     }
                 } else {

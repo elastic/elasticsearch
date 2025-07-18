@@ -677,7 +677,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /*
      *Limit[1000[INTEGER],false]
-     * \_Filter[RLikeList(first_name{f}#4, "("VALÜ*", "VALÜAA*")", true)]
+     * \_Filter[RLikeList(first_name{f}#4, "("VALÜ*", "TEST*")", true)]
      *  \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      */
     public void testReplaceUpperStringCasinqWithInsensitiveRLikeList() {

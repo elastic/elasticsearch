@@ -153,7 +153,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
 
     public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new Ai21Service(senderFactory, createWithEmptySettings(threadPool));
+        return new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private static Map<String, Object> createServiceSettingsMap() {
@@ -271,7 +271,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -311,7 +311,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel(getUrl(webServer), "secret", "model");
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
@@ -392,7 +392,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
 
     private void testStreamError(String expectedResponse) throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -469,7 +469,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new Ai21Service(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new Ai21Service(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
@@ -530,7 +530,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
 
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = Ai21ChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -551,7 +551,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
     }
 
     private Ai21Service createService() {
-        return new Ai21Service(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new Ai21Service(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {

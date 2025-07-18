@@ -32,7 +32,7 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         assert request.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        var errorMessage = constructErrorMessage(message, request, result, errorResponse, responseStatusCode);
+        var errorMessage = constructErrorMessage(message, request, errorResponse, responseStatusCode);
         var restStatus = toRestStatus(responseStatusCode);
         return new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }

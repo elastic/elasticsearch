@@ -117,4 +117,9 @@ public class ReferenceAttribute extends TypedAttribute {
     protected String label() {
         return "r";
     }
+
+    @Override
+    public boolean isDimension() {
+        return false;
+    }
 }

@@ -198,12 +198,12 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
         }
 
         @Override
-        public BlockLoader.Block constantNulls() {
+        public BlockLoader.Block constantNulls(int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
 
         @Override
-        public BlockLoader.Block constantBytes(BytesRef value) {
+        public BlockLoader.Block constantBytes(BytesRef value, int count) {
             throw new UnsupportedOperationException("must not be used by column readers");
         }
 
@@ -254,7 +254,8 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
             this.storedFieldsSpec = storedFieldsSpec;
             this.dimensions = new boolean[fields.size()];
             for (int i = 0; i < fields.size(); i++) {
-                dimensions[i] = shardContext.fieldType(fields.get(i).name()).isDimension();
+                final var mappedFieldType = shardContext.fieldType(fields.get(i).name());
+                dimensions[i] = mappedFieldType != null && mappedFieldType.isDimension();
             }
         }
 

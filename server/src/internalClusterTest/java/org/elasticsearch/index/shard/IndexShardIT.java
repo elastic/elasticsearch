@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -104,6 +105,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
@@ -348,6 +350,62 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
                 assertThat(writeThreadPoolStats.averageThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
             }
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
+            );
+        }
+    }
+
+    public void testShardWriteLoadsArePresent() {
+        // Create some indices and some write-load
+        final int numIndices = randomIntBetween(1, 5);
+        final String indexPrefix = randomIdentifier();
+        IntStream.range(0, numIndices).forEach(i -> {
+            final String indexName = indexPrefix + "_" + i;
+            createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3)).build());
+            IntStream.range(0, randomIntBetween(1, 500))
+                .forEach(j -> prepareIndex(indexName).setSource("foo", randomIdentifier(), "bar", randomIdentifier()).get());
+        });
+
+        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+
+        // Not collecting stats yet because allocation write load stats collection is disabled by default.
+        {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
+            assertNotNull(shardWriteLoads);
+            assertTrue(shardWriteLoads.isEmpty());
+        }
+
+        // Enable collection for node write loads.
+        updateClusterSettings(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                )
+                .build()
+        );
+
+        try {
+            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
+
+            // Verify that each shard has write-load reported.
+            final ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.projectState(ProjectId.DEFAULT).metadata().getTotalNumberOfShards(), shardWriteLoads.size());
+            double maximumLoadRecorded = 0;
+            for (IndexMetadata indexMetadata : state.projectState(ProjectId.DEFAULT).metadata()) {
+                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                    final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                    assertTrue(shardWriteLoads.containsKey(shardId));
+                    maximumLoadRecorded = Math.max(shardWriteLoads.get(shardId), maximumLoadRecorded);
+                }
+            }
+            // And that at least one is greater than zero
+            assertThat(maximumLoadRecorded, greaterThan(0.0));
         } finally {
             updateClusterSettings(
                 Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()

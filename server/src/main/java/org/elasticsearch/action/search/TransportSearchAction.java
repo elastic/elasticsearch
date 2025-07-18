@@ -589,7 +589,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    static void adjustSearchType(SearchRequest searchRequest, boolean oneOrZeroShards) {
+    static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {
         // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
         if (searchRequest.hasKnnSearch()) {
             searchRequest.searchType(DFS_QUERY_THEN_FETCH);
@@ -604,7 +604,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         // optimize search type for cases where there is only one shard group to search on
-        if (oneOrZeroShards) {
+        if (singleShard) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
@@ -1305,7 +1305,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster());
 
-        adjustSearchType(searchRequest, shardIterators.size() <= 1);
+        adjustSearchType(searchRequest, shardIterators.size() == 1);
 
         final DiscoveryNodes nodes = projectState.cluster().nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(

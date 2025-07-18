@@ -267,10 +267,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int centroidOrdinal = centroidQueue.pop();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(
-                centroidQueryScorer.postingListOffset(centroidOrdinal),
-                centroidQueryScorer.centroid(centroidOrdinal)
-            );
+            expectedDocs += scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
             actualDocs += scorer.visit(knnCollector);
         }
         if (acceptDocs != null) {
@@ -279,10 +276,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 int centroidOrdinal = centroidQueue.pop();
-                scorer.resetPostingsScorer(
-                    centroidQueryScorer.postingListOffset(centroidOrdinal),
-                    centroidQueryScorer.centroid(centroidOrdinal)
-                );
+                scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
                 actualDocs += scorer.visit(knnCollector);
             }
         }
@@ -349,8 +343,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     interface CentroidQueryScorer {
         int size();
 
-        float[] centroid(int centroidOrdinal) throws IOException;
-
         long postingListOffset(int centroidOrdinal) throws IOException;
 
         void bulkScore(NeighborQueue queue) throws IOException;
@@ -360,7 +352,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // TODO maybe we can not specifically pass the centroid...
 
         /** returns the number of documents in the posting list */
-        int resetPostingsScorer(long offset, float[] centroid) throws IOException;
+        int resetPostingsScorer(long offset) throws IOException;
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

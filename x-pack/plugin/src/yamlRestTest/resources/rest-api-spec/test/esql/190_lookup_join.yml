@@ -1,12 +1,12 @@
 ---
 setup:
   - requires:
-      test_runner_features: [capabilities, contains, allowed_warnings]
+      test_runner_features: [ capabilities, contains, allowed_warnings ]
       capabilities:
         - method: POST
           path: /_query
-          parameters: []
-          capabilities: [join_lookup_v12]
+          parameters: [ ]
+          capabilities: [ join_lookup_v12 ]
       reason: "uses LOOKUP JOIN"
   - do:
       indices.create:
@@ -108,7 +108,7 @@ setup:
           - { "index": { } }
           - { "key": 2, "color": "blue" }
           - { "index": { } }
-          - { "key": [0, 1, 2], "color": null }
+          - { "key": [ 0, 1, 2 ], "color": null }
   - do:
       bulk:
         index: "test-lookup-mv"
@@ -119,7 +119,7 @@ setup:
           - { "index": { } }
           - { "key": 2, "color": "yellow" }
           - { "index": { } }
-          - { "key": [0, 1, 2], "color": "green" }
+          - { "key": [ 0, 1, 2 ], "color": "green" }
   - do:
       bulk:
         index: "test-lookup-no-key"
@@ -137,12 +137,12 @@ basic:
         body:
           query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-1 ON key | LIMIT 3'
 
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
+  - match: { columns.0.name: "key" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "color" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: [ 1, "cyan" ] }
+  - match: { values.1: [ 2, "yellow" ] }
 
 ---
 fails with non-lookup index v2:
@@ -150,8 +150,8 @@ fails with non-lookup index v2:
       capabilities:
         - method: POST
           path: /_query
-          parameters: []
-          capabilities: [enable_lookup_join_on_remote]
+          parameters: [ ]
+          capabilities: [ enable_lookup_join_on_remote ]
       reason: "checks updated error messages"
   - do:
       esql.query:
@@ -195,12 +195,12 @@ mv-on-lookup:
         - "Line 1:24: evaluation of [LOOKUP JOIN test-lookup-mv ON key] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:24: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
 
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [1, "cyan"]}
-  - match: {values.1: [2, "yellow"]}
+  - match: { columns.0.name: "key" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "color" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: [ 1, "cyan" ] }
+  - match: { values.1: [ 2, "yellow" ] }
 
 ---
 mv-on-query:
@@ -212,21 +212,35 @@ mv-on-query:
         - "Line 1:27: evaluation of [LOOKUP JOIN test-lookup-1 ON key] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:27: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
 
-  - match: {columns.0.name: "key"}
-  - match: {columns.0.type: "long"}
-  - match: {columns.1.name: "color"}
-  - match: {columns.1.type: "keyword"}
-  - match: {values.0: [[0, 1, 2], null]}
-  - match: {values.1: [1, "cyan"]}
-  - match: {values.2: [2, "yellow"]}
+  - match: { columns.0.name: "key" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "color" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: [ [ 0, 1, 2 ], null ] }
+  - match: { values.1: [ 1, "cyan" ] }
+  - match: { values.2: [ 2, "yellow" ] }
 
 ---
 lookup-no-key:
   - do:
       esql.query:
-          body:
-            query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key, color'
+        body:
+          query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key, color'
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "Unknown column [key] in right side of join" }
+    
+---
+basic join on two columns:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT key | LOOKUP JOIN test-lookup-1 ON key, color | LIMIT 3'
+
+  - match: { columns.0.name: "key" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "color" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: [ 1, "cyan" ] }
+  - match: { values.1: [ 2, "yellow" ] }

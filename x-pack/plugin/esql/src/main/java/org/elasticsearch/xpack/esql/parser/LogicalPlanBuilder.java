@@ -634,11 +634,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        var matchFieldsCount = joinFields.size();
-        if (matchFieldsCount > 1) {
-            throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
-        }
-
         return p -> {
             boolean hasRemotes = p.anyMatch(node -> {
                 if (node instanceof UnresolvedRelation r) {

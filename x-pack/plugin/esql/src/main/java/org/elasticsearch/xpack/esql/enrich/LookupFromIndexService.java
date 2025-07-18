@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -84,7 +85,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.inputPage,
             null,
             request.extractFields,
-            request.matchField,
+            request.matchFields,
             request.source
         );
     }
@@ -98,10 +99,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Nullable DataType inputDataType,
         Warnings warnings
     ) {
-        return termQueryList(context.getFieldType(request.matchField), context, aliasFilter, inputBlock, inputDataType).onlySingleValues(
-            warnings,
-            "LOOKUP JOIN encountered multi-value"
-        );
+        // TODO: THIS NEEDS IMPLEMENTATION FOR MULTI-FIELD MATCHING
+        return termQueryList(
+            context.getFieldType(request.matchFields.get(0).fieldName().string()),
+            context,
+            aliasFilter,
+            inputBlock,
+            inputDataType
+        ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
     }
 
     @Override
@@ -115,25 +120,24 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     public static class Request extends AbstractLookupService.Request {
-        private final String matchField;
+        private final List<LookupFromIndexOperator.MatchConfig> matchFields;
 
         Request(
             String sessionId,
             String index,
             String indexPattern,
-            DataType inputDataType,
-            String matchField,
+            List<LookupFromIndexOperator.MatchConfig> matchFields,
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, indexPattern, inputDataType, inputPage, extractFields, source);
-            this.matchField = matchField;
+            super(sessionId, index, indexPattern, null, inputPage, extractFields, source);
+            this.matchFields = matchFields;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
-        private final String matchField;
+        private final List<LookupFromIndexOperator.MatchConfig> matchFields;
 
         TransportRequest(
             String sessionId,
@@ -143,11 +147,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
-            String matchField,
+            List<LookupFromIndexOperator.MatchConfig> matchFields,
             Source source
         ) {
             super(sessionId, shardId, indexPattern, inputDataType, inputPage, toRelease, extractFields, source);
-            this.matchField = matchField;
+            this.matchFields = matchFields;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -181,6 +185,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
+            List<LookupFromIndexOperator.MatchConfig> matchFields = null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+                matchFields = in.readCollectionAsList(LookupFromIndexOperator.MatchConfig::new);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -189,7 +197,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 inputPage,
                 inputPage,
                 extractFields,
-                matchField,
+                matchFields,
                 source
             );
             result.setParentTask(parentTaskId);
@@ -213,18 +221,21 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            out.writeString(matchField);
+            out.writeString(matchFields.get(0).fieldName().string());
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+                out.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
+            }
         }
 
         @Override
         protected String extraDescription() {
-            return " ,match_field=" + matchField;
+            return " ,match_fields=" + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "));
         }
     }
 

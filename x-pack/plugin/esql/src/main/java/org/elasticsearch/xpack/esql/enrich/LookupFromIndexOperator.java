@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -37,47 +39,64 @@ import java.util.function.Function;
 
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
+    public record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) implements Writeable {
+        public MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
+            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
+            // indices, so the call to exactAttribute looks redundant now.
+            this(match.exactAttribute().fieldName(), input.channel(), input.type());
+        }
+
+        public MatchConfig(StreamInput in) throws IOException {
+            this(new FieldAttribute.FieldName(in.readString()), in.readInt(), DataType.readFrom(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName.string());
+            out.writeInt(channel);
+            type.writeTo(out);
+        }
+
+    }
+
     public record Factory(
+        List<MatchConfig> matchFields,
         String sessionId,
         CancellableTask parentTask,
         int maxOutstandingRequests,
-        int inputChannel,
         Function<DriverContext, LookupFromIndexService> lookupService,
-        DataType inputDataType,
         String lookupIndexPattern,
         String lookupIndex,
-        FieldAttribute.FieldName matchField,
         List<NamedExpression> loadFields,
         Source source
     ) implements OperatorFactory {
         @Override
         public String describe() {
-            return "LookupOperator[index="
-                + lookupIndex
-                + " input_type="
-                + inputDataType
-                + " match_field="
-                + matchField.string()
-                + " load_fields="
-                + loadFields
-                + " inputChannel="
-                + inputChannel
-                + "]";
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+            for (MatchConfig matchField : matchFields) {
+                stringBuilder.append(" input_type=")
+                    .append(matchField.type)
+                    .append(" match_field=")
+                    .append(matchField.fieldName.string())
+                    .append(" inputChannel=")
+                    .append(matchField.channel);
+            }
+            stringBuilder.append("]");
+            return stringBuilder.toString();
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
             return new LookupFromIndexOperator(
+                matchFields,
                 sessionId,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,
-                inputChannel,
                 lookupService.apply(driverContext),
-                inputDataType,
                 lookupIndexPattern,
                 lookupIndex,
-                matchField.string(),
                 loadFields,
                 source
             );
@@ -87,14 +106,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final LookupFromIndexService lookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
-    private final int inputChannel;
-    private final DataType inputDataType;
     private final String lookupIndexPattern;
     private final String lookupIndex;
-    private final String matchField;
     private final List<NamedExpression> loadFields;
     private final Source source;
     private long totalTerms = 0L;
+    private List<MatchConfig> matchFields;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -105,43 +122,47 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private OngoingJoin ongoing = null;
 
     public LookupFromIndexOperator(
+        List<MatchConfig> matchFields,
         String sessionId,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
-        int inputChannel,
         LookupFromIndexService lookupService,
-        DataType inputDataType,
         String lookupIndexPattern,
         String lookupIndex,
-        String matchField,
         List<NamedExpression> loadFields,
         Source source
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
+        this.matchFields = matchFields;
         this.sessionId = sessionId;
         this.parentTask = parentTask;
-        this.inputChannel = inputChannel;
         this.lookupService = lookupService;
-        this.inputDataType = inputDataType;
         this.lookupIndexPattern = lookupIndexPattern;
         this.lookupIndex = lookupIndex;
-        this.matchField = matchField;
         this.loadFields = loadFields;
         this.source = source;
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        final Block inputBlock = inputPage.getBlock(inputChannel);
-        totalTerms += inputBlock.getTotalValueCount();
+        // what is happening here?
+        // should I be getting multiple bloks, and send them using the LookupFromIndexService.Request
+        // is the totalTerms supposed to be the total number of terms in all blocks?
+        Block[] inputBlockArray = new Block[matchFields.size()];
+        for (int i = 0; i < matchFields.size(); i++) {
+            MatchConfig matchField = matchFields.get(i);
+            int inputChannel = matchField.channel;
+            final Block inputBlock = inputPage.getBlock(inputChannel);
+            totalTerms += inputBlock.getTotalValueCount();
+            inputBlockArray[i] = inputBlock;
+        }
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            inputDataType,
-            matchField,
-            new Page(inputBlock),
+            matchFields,
+            new Page(inputBlockArray),
             loadFields,
             source
         );
@@ -190,17 +211,18 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     public String toString() {
-        return "LookupOperator[index="
-            + lookupIndex
-            + " input_type="
-            + inputDataType
-            + " match_field="
-            + matchField
-            + " load_fields="
-            + loadFields
-            + " inputChannel="
-            + inputChannel
-            + "]";
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
+        for (MatchConfig matchField : matchFields) {
+            stringBuilder.append(" input_type=")
+                .append(matchField.type)
+                .append(" match_field=")
+                .append(matchField.fieldName.string())
+                .append(" inputChannel=")
+                .append(matchField.channel);
+        }
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 
     @Override

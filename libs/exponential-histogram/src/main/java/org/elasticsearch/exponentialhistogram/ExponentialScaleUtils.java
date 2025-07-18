@@ -130,7 +130,8 @@ public class ExponentialScaleUtils {
      * @param scaleA         the scale of the first bucket
      * @param idxB           the index of the second bucket
      * @param scaleB         the scale of the second bucket
-     * @return a negative integer, zero, or a positive integer as the first bucket's lower boundary is less than, equal to, or greater than the second bucket's lower boundary
+     * @return a negative integer, zero, or a positive integer as the first bucket's lower boundary is
+     *         less than, equal to, or greater than the second bucket's lower boundary
      */
     public static int compareExponentiallyScaledValues(long idxA, int scaleA, long idxB, int scaleB) {
         if (scaleA > scaleB) {

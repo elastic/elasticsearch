@@ -12,7 +12,8 @@ package org.elasticsearch.exponentialhistogram;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
 
 /**
- * Allows accumulating multiple {@link ExponentialHistogram} into a single one while keeping the bucket count in the result below a given limit.
+ * Allows accumulating multiple {@link ExponentialHistogram} into a single one
+ * while keeping the bucket count in the result below a given limit.
  */
 public class ExponentialHistogramMerger {
 

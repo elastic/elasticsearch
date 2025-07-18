@@ -107,7 +107,8 @@ public record ZeroBucket(long index, int scale, long count) {
      * Compares the zero threshold of this bucket with another one.
      *
      * @param other The other zero bucket to compare against.
-     * @return A negative integer, zero, or a positive integer if this bucket's threshold is less than, equal to, or greater than the other's.
+     * @return A negative integer, zero, or a positive integer if this bucket's threshold is less than,
+     *         equal to, or greater than the other's.
      */
     public int compareZeroThreshold(ZeroBucket other) {
         return compareExponentiallyScaledValues(index, scale, other.index, other.scale);

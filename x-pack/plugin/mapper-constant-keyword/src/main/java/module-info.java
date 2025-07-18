@@ -17,4 +17,6 @@ module org.elasticsearch.xpack.constantkeyword {
     exports org.elasticsearch.xpack.constantkeyword;
 
     opens org.elasticsearch.xpack.constantkeyword;
+
+    provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.constantkeyword.ConstantKeywordPainlessExtension;
 }

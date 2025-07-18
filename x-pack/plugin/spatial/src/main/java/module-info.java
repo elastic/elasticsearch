@@ -19,12 +19,10 @@ module org.elasticsearch.xpack.spatial {
     requires org.apache.lucene.spatial3d;
 
     exports org.elasticsearch.xpack.spatial;
-    exports org.elasticsearch.xpack.spatial.action;
     exports org.elasticsearch.xpack.spatial.common;
     exports org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-    opens org.elasticsearch.xpack.spatial;
-    opens org.elasticsearch.xpack.spatial.index.fielddata;
-    opens org.elasticsearch.xpack.spatial.index.fielddata.plain;
-    opens org.elasticsearch.xpack.spatial.index.mapper;
+    opens org.elasticsearch.xpack.spatial to org.elasticsearch.painless.spi;
+
+    provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.spatial.SpatialPainlessExtension;
 }

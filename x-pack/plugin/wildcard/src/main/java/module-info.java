@@ -18,4 +18,6 @@ module org.elasticsearch.xpack.wildcard {
     exports org.elasticsearch.xpack.wildcard;
 
     opens org.elasticsearch.xpack.wildcard;
+
+    provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.wildcard.WildcardPainlessExtension;
 }

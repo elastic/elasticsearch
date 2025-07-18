@@ -57,10 +57,20 @@ public class HierarchicalKMeans {
             return new KMeansIntermediate();
         }
 
-        // if we have a small number of vectors pick one and output that as the centroid
+        // if we have a small number of vectors calculate the centroid directly
         if (vectors.size() <= targetSize) {
             float[] centroid = new float[dimension];
-            System.arraycopy(vectors.vectorValue(0), 0, centroid, 0, dimension);
+            // sum the vectors
+            for (int i = 0; i < vectors.size(); i++) {
+                float[] vector = vectors.vectorValue(i);
+                for (int j = 0; j < dimension; j++) {
+                    centroid[j] += vector[j];
+                }
+            }
+            // average the vectors
+            for (int j = 0; j < dimension; j++) {
+                centroid[j] /= vectors.size();
+            }
             return new KMeansIntermediate(new float[][] { centroid }, new int[vectors.size()]);
         }
 

@@ -570,7 +570,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100);
+        initManyBigFieldsIndex(100, "keyword");
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -580,7 +580,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500);
+        initManyBigFieldsIndex(500, "keyword");
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -592,6 +592,58 @@ public class HeapAttackIT extends ESRestTestCase {
         StringBuilder query = startQuery();
         query.append("FROM manybigfields | SORT f000 | LIMIT " + docs + "\"}");
         return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    public void testAggManyBigTextFields() throws IOException {
+        int docs = 100;
+        int fields = 100;
+        initManyBigFieldsIndex(docs, "text");
+        Map<?, ?> response = aggManyBigFields(fields);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
+        assertMap(
+            response,
+            matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * fields * docs)))
+        );
+    }
+
+    /**
+     * Aggregates documents containing many fields which are {@code 1kb} each.
+     */
+    private Map<String, Object> aggManyBigFields(int fields) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM manybigfields | STATS sum = SUM(");
+        query.append("LENGTH(f").append(String.format(Locale.ROOT, "%03d", 0)).append(")");
+        for (int f = 1; f < fields; f++) {
+            query.append(" + LENGTH(f").append(String.format(Locale.ROOT, "%03d", f)).append(")");
+        }
+        query.append(")\"}");
+        return responseAsMap(query(query.toString(), "columns,values"));
+    }
+
+    /**
+     * Aggregates on the {@code LENGTH} of a giant text field. Without
+     * splitting pages on load (#131053) this throws a {@link CircuitBreakingException}
+     * when it tries to load a giant field. With that change it finishes
+     * after loading many single-row pages.
+     */
+    public void testAggGiantTextField() throws IOException {
+        int docs = 100;
+        initGiantTextField(docs);
+        Map<?, ?> response = aggGiantTextField();
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
+        assertMap(
+            response,
+            matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * 1024 * 5 * docs)))
+        );
+    }
+
+    /**
+     * Aggregates documents containing a text field that is {@code 1mb} each.
+     */
+    private Map<String, Object> aggGiantTextField() throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM bigtext | STATS sum = SUM(LENGTH(f))\"}");
+        return responseAsMap(query(query.toString(), "columns,values"));
     }
 
     public void testAggMvLongs() throws IOException {
@@ -788,7 +840,7 @@ public class HeapAttackIT extends ESRestTestCase {
             """);
     }
 
-    private void initManyBigFieldsIndex(int docs) throws IOException {
+    private void initManyBigFieldsIndex(int docs, String type) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
         int fields = 1000;
@@ -799,7 +851,7 @@ public class HeapAttackIT extends ESRestTestCase {
         config.startObject("settings").field("index.mapping.total_fields.limit", 10000).endObject();
         config.startObject("mappings").startObject("properties");
         for (int f = 0; f < fields; f++) {
-            config.startObject("f" + String.format(Locale.ROOT, "%03d", f)).field("type", "keyword").endObject();
+            config.startObject("f" + String.format(Locale.ROOT, "%03d", f)).field("type", type).endObject();
         }
         config.endObject().endObject();
         request.setJsonEntity(Strings.toString(config.endObject()));
@@ -829,6 +881,37 @@ public class HeapAttackIT extends ESRestTestCase {
             }
         }
         initIndex("manybigfields", bulk.toString());
+    }
+
+    private void initGiantTextField(int docs) throws IOException {
+        logger.info("loading many documents with one big text field");
+        int docsPerBulk = 3;
+        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
+
+        Request request = new Request("PUT", "/bigtext");
+        XContentBuilder config = JsonXContent.contentBuilder().startObject();
+        config.startObject("mappings").startObject("properties");
+        config.startObject("f").field("type", "text").endObject();
+        config.endObject().endObject();
+        request.setJsonEntity(Strings.toString(config.endObject()));
+        Response response = client().performRequest(request);
+        assertThat(
+            EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
+            equalTo("{\"acknowledged\":true,\"shards_acknowledged\":true,\"index\":\"bigtext\"}")
+        );
+
+        StringBuilder bulk = new StringBuilder();
+        for (int d = 0; d < docs; d++) {
+            bulk.append("{\"create\":{}}\n");
+            bulk.append("{\"f\":\"");
+            bulk.append(Integer.toString(d % 10).repeat(fieldSize));
+            bulk.append("\"}\n");
+            if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
+                bulk("bigtext", bulk.toString());
+                bulk.setLength(0);
+            }
+        }
+        initIndex("bigtext", bulk.toString());
     }
 
     private void initMvLongsIndex(int docs, int fields, int fieldValues) throws IOException {

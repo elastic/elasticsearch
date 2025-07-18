@@ -17,13 +17,17 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
@@ -141,6 +145,57 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                 final Document doc = new Document();
                 doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
                 w.addDocument(doc);
+            }
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                final AtomicBoolean failed = new AtomicBoolean();
+                Thread[] threads = new Thread[numThreads];
+                for (int threadID = 0; threadID < numThreads; threadID++) {
+                    threads[threadID] = new Thread(() -> {
+                        try {
+                            long totSearch = 0;
+                            for (; totSearch < numSearches && failed.get() == false; totSearch++) {
+                                float[] vector = randomVector(dimensions);
+                                LeafReader leafReader = getOnlyLeafReader(reader);
+                                leafReader.searchNearestVectors("f", vector, 10, leafReader.getLiveDocs(), Integer.MAX_VALUE);
+                            }
+                            assertTrue(totSearch > 0);
+                        } catch (Exception exc) {
+                            failed.set(true);
+                            throw new RuntimeException(exc);
+                        }
+                    });
+                    threads[threadID].setDaemon(true);
+                }
+
+                for (Thread t : threads) {
+                    t.start();
+                }
+
+                for (Thread t : threads) {
+                    t.join();
+                }
+            }
+        }
+    }
+
+    public void testSortedKnnSearch() throws Exception {
+        final String sortField = "sort";
+        final int numThreads = random().nextInt(2, 5);
+        final int numSearches = atLeast(100);
+        final int numDocs = atLeast(1000);
+        final int dimensions = random().nextInt(12, 500);
+        IndexWriterConfig config = newIndexWriterConfig();
+        config.setIndexSort(new Sort(new SortField(sortField, SortField.Type.INT)));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int docCount = 0; docCount < numDocs; docCount++) {
+                final Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                doc.add(new NumericDocValuesField(sortField, random().nextInt()));
+                w.addDocument(doc);
+                if (random().nextBoolean()) {
+                    w.commit();
+                }
             }
             w.forceMerge(1);
             try (IndexReader reader = DirectoryReader.open(w)) {

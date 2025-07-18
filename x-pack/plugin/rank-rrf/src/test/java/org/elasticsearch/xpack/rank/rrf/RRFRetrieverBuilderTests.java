@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
@@ -81,6 +82,65 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                     )
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
+        }
+    }
+
+    public void testRRFRetrieverParsingSyntax() throws IOException {
+        String legacyJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "standard": { "query": { "match_all": {} } } },
+                    { "standard": { "query": { "match_all": {} } } }
+                  ]
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, legacyJson)) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+            assertArrayEquals(new float[] { 1.0f, 1.0f }, rrf.weights(), 0.001f);
+        }
+
+        String weightedJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 2.5 },
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 0.5 }
+                  ]
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, weightedJson)) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+            assertArrayEquals(new float[] { 2.5f, 0.5f }, rrf.weights(), 0.001f);
+        }
+
+        String mixedJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "standard": { "query": { "match_all": {} } } },
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 0.6 }
+                  ]
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mixedJson)) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+            assertArrayEquals(new float[] { 1.0f, 0.6f }, rrf.weights(), 0.001f);
         }
     }
 

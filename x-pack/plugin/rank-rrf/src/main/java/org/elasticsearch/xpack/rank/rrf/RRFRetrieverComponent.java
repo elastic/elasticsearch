@@ -35,7 +35,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
         this.retriever = retrieverBuilder;
         this.weight = weight == null ? DEFAULT_WEIGHT : weight;
         if (this.weight < 0) {
-            throw new IllegalArgumentException("[weight] must be non-negative");
+            throw new IllegalArgumentException("[weight] must be non-negative, found [" + this.weight + "]");
         }
     }
 
@@ -102,6 +102,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
                 weight = parser.floatValue();
             } else {
                 innerRetriever = parser.namedObject(RetrieverBuilder.class, name, context);
+                context.trackRetrieverUsage(innerRetriever.getName());
                 parser.nextToken();
                 break;
             }

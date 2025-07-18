@@ -138,6 +138,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         return rankConstant;
     }
 
+    public float[] weights() {
+        return weights;
+    }
+
     @Override
     public String getName() {
         return NAME;

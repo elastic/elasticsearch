@@ -398,13 +398,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
             }
         } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                // throw back the first exception
-                listener.onFailure(failures.get(0).getException());
-            } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-            }
+            listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
         }
     }
 

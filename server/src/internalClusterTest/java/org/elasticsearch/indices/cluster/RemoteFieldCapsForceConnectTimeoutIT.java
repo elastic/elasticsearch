@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
@@ -73,7 +74,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
             MockTransportService mts = (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, nodeName);
 
             mts.addConnectBehavior(
-                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, randomFrom(cluster(REMOTE_CLUSTER_1).getNodeNames())),
+                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, cluster(REMOTE_CLUSTER_1).getNodeNames()[0]),
                 ((transport, discoveryNode, profile, listener) -> {
                     try {
                         latch.await();
@@ -104,6 +105,11 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
             fieldCapsRequest.indices("*", "*:*");
             fieldCapsRequest.fields("foo", "bar", "baz");
             var result = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest));
+
+            var failures = result.getFailures();
+            assertThat(failures.size(), Matchers.is(1));
+            var message = result.getFailures().getFirst().getException().toString();
+            assertThat(message, Matchers.containsString("org.elasticsearch.ElasticsearchTimeoutException: timed out after [1s/1000ms]"));
 
             latch.countDown();
             result.decRef();

@@ -2368,39 +2368,41 @@ public class VerifierTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        query("""
-            FROM test
-            | EVAL language_code = languages
-            | ENRICH _remote:languages ON language_code
-            | LOOKUP JOIN languages_lookup ON language_code
-            """, analyzer);
+        String lookupCommand = randomBoolean() ? "LOOKUP JOIN test_lookup ON languages" : "LOOKUP JOIN languages_lookup ON language_code";
 
-        String err = error("""
+        query(Strings.format("""
             FROM test
             | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
-            """, analyzer);
+            | %s
+            """, lookupCommand), analyzer);
+
+        String err = error(Strings.format("""
+            FROM test
+            | EVAL language_code = languages
+            | %s
+            | ENRICH _remote:languages ON language_code
+            """, lookupCommand), analyzer);
         assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
 
-        err = error("""
+        err = error(Strings.format("""
             FROM test
             | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
+            | %s
             | ENRICH _remote:languages ON language_code
-            | LOOKUP JOIN languages_lookup ON language_code
-            """, analyzer);
+            | %s
+            """, lookupCommand, lookupCommand), analyzer);
         assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
 
-        err = error("""
+        err = error(Strings.format("""
             FROM test
             | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
+            | %s
             | EVAL x = 1
             | MV_EXPAND language_name
-            | DISSECT language_name "%{foo}"
+            | DISSECT language_name "%%{foo}"
             | ENRICH _remote:languages ON language_code
-            """, analyzer);
+            """, lookupCommand), analyzer);
         assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
     }
 

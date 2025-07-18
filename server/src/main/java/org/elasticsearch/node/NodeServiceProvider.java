@@ -80,17 +80,13 @@ class NodeServiceProvider {
             EstimatedHeapUsageCollector.class,
             () -> EstimatedHeapUsageCollector.EMPTY
         );
-        final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = pluginsService.loadSingletonServiceProvider(
-            NodeUsageStatsForThreadPoolsCollector.class,
-            () -> NodeUsageStatsForThreadPoolsCollector.EMPTY
-        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             clusterService,
             threadPool,
             client,
             estimatedHeapUsageCollector,
-            nodeUsageStatsForThreadPoolsCollector
+            new NodeUsageStatsForThreadPoolsCollector()
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)

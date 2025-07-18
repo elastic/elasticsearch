@@ -298,7 +298,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
     private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
         // First look for remote ENRICH, and then look at its children. Going over the whole plan once is trickier as remote ENRICHs can be
         // in separate FORK branches which are valid by themselves.
-        plan.forEachUp(Enrich.class, enrich -> { checkForPlansForbiddenBeforeRemoteEnrich(enrich, failures); });
+        plan.forEachUp(Enrich.class, enrich -> checkForPlansForbiddenBeforeRemoteEnrich(enrich, failures));
     }
 
     /**

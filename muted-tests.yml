@@ -469,12 +469,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testFromEvalStats
   issue: https://github.com/elastic/elasticsearch/issues/131503
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/131508
 - class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
   method: test {p0=downsample-with-security/10_basic/Downsample index}
   issue: https://github.com/elastic/elasticsearch/issues/131513
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
+  issue: https://github.com/elastic/elasticsearch/issues/131248
 
 # Examples:
 #

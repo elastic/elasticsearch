@@ -36,7 +36,10 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
 
     public void testQueryNameReturnsWrappedQueryBuilder() {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
-        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(matchAllQueryBuilder, matchAllQueryBuilder);
+        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(
+            matchAllQueryBuilder,
+            matchAllQueryBuilder
+        );
         String queryName = randomAlphaOfLengthBetween(5, 10);
         QueryBuilder namedQuery = interceptedQueryBuilderWrapper.queryName(queryName);
         assertTrue(namedQuery instanceof InterceptedQueryBuilderWrapper);
@@ -45,7 +48,10 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
 
     public void testQueryBoostReturnsWrappedQueryBuilder() {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
-        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(matchAllQueryBuilder, matchAllQueryBuilder);
+        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(
+            matchAllQueryBuilder,
+            matchAllQueryBuilder
+        );
         float boost = randomFloat();
         QueryBuilder boostedQuery = interceptedQueryBuilderWrapper.boost(boost);
         assertTrue(boostedQuery instanceof InterceptedQueryBuilderWrapper);

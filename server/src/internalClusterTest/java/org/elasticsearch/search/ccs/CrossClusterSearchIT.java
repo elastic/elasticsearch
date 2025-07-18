@@ -170,13 +170,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        //searchRequest.setCcsMinimizeRoundtrips(false);
+        // searchRequest.setCcsMinimizeRoundtrips(false);
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "bar")).size(10));
 
-        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
-            assertNotNull(response);
-        });
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> { assertNotNull(response); });
     }
 
     // CCS with a search where the timestamp of the query cannot match so should be SUCCESSFUL with all shards skipped

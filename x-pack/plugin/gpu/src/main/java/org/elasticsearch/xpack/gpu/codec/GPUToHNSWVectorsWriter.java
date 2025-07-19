@@ -42,8 +42,13 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -460,19 +465,36 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         };
     }
 
-    // TODO check with deleted documents
     @Override
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        int dims = fieldInfo.getVectorDimension();
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
-        FloatVectorValues vectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-        // save merged vector values to a temp file
+        FloatVectorValues mergeFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+
+        if (mergeFloatVectorValues.size() < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
+            // TODO: check how deleted documents affect size value
+            KnnVectorValues.DocIndexIterator iter = mergeFloatVectorValues.iterator();
+            float[] vector = new float[dims];
+            List<float[]> vectorsList = new ArrayList<>();
+            for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
+                System.arraycopy(mergeFloatVectorValues.vectorValue(iter.index()), 0, vector, 0, dims);
+                vectorsList.add(vector);
+            }
+            float[][] vectors = vectorsList.toArray(new float[0][]);
+            DatasetOrVectors datasetOrVectors = new DatasetOrVectors(vectors);
+            writeFieldInternal(fieldInfo, datasetOrVectors);
+            return;
+        }
+
+
         final int numVectors;
         String tempRawVectorsFileName = null;
         boolean success = false;
+        // save merged vectors to a temporary file
         try (IndexOutput out = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "vec_", IOContext.DEFAULT)) {
             tempRawVectorsFileName = out.getName();
-            numVectors = writeFloatVectorValues(fieldInfo, out, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+            numVectors = writeFloatVectorValues(fieldInfo, out, mergeFloatVectorValues);
             CodecUtil.writeFooter(out);
             success = true;
         } finally {
@@ -480,16 +502,19 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
                 org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
             }
         }
-        try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
-            // TODO: Improve this (not acceptable): pass tempRawVectorsFileName for the gpuIndex construction through MemorySegment
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
-            float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
-            float[] vector;
-            for (int i = 0; i < numVectors; i++) {
-                vector = floatVectorValues.vectorValue(i);
-                System.arraycopy(vector, 0, vectors[i], 0, vector.length);
-            }
-            DatasetOrVectors datasetOrVectors = new DatasetOrVectors(vectors);
+        // Use MemorySegment to map the temp file and pass it as a dataset for building the GPU index
+        try {
+            final Path path = ((org.apache.lucene.store.FSDirectory) mergeState.segmentInfo.dir).getDirectory().resolve(tempRawVectorsFileName);
+            Arena arena = Arena.ofShared();
+            FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.READ);
+            final MemorySegment memorySegment = fileChannel.map(
+                FileChannel.MapMode.READ_ONLY,
+                0,
+                fileChannel.size() - CodecUtil.footerLength(),
+                arena
+            );
+            Dataset dataset = new DatasetImpl(arena, memorySegment, numVectors, fieldInfo.getVectorDimension());
+            DatasetOrVectors datasetOrVectors = new DatasetOrVectors(dataset, null);
             writeFieldInternal(fieldInfo, datasetOrVectors);
         } finally {
             org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
@@ -509,47 +534,6 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             out.writeBytes(buffer.array(), buffer.array().length);
         }
         return numVectors;
-    }
-
-    private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput randomAccessInput, int numVectors) {
-        if (numVectors == 0) {
-            return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
-        }
-        final long length = (long) Float.BYTES * fieldInfo.getVectorDimension() + Integer.BYTES;
-        final float[] vector = new float[fieldInfo.getVectorDimension()];
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) throws IOException {
-                randomAccessInput.seek(ord * length + Integer.BYTES);
-                randomAccessInput.readFloats(vector, 0, vector.length);
-                return vector;
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return numVectors;
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                try {
-                    randomAccessInput.seek(ord * length);
-                    return randomAccessInput.readInt();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
     }
 
     private void writeMeta(

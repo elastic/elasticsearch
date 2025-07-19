@@ -112,7 +112,7 @@ public interface XContentParser extends Closeable {
 
     XContentString optimizedText() throws IOException;
 
-    boolean optimizedText(OutputStream out) throws IOException;
+    boolean optimizedTextToStream(OutputStream out) throws IOException;
 
     XContentString optimizedTextOrNull() throws IOException;
 

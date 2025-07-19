@@ -101,7 +101,7 @@ public class ESONSource {
 
             switch (token) {
                 case VALUE_STRING -> {
-                    if (parser.optimizedText(bytes) == false) {
+                    if (parser.optimizedTextToStream(bytes) == false) {
                         bytes.seek(position);
                         writeString(bytes, parser.text());
                     }

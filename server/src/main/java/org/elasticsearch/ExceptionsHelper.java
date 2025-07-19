@@ -399,6 +399,10 @@ public final class ExceptionsHelper {
             return Optional.of((T) cause);
         }
 
+        if (cause == null) {
+            return Optional.empty();
+        }
+
         final Queue<Throwable> queue = new LinkedList<>();
         queue.add(cause);
         final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());

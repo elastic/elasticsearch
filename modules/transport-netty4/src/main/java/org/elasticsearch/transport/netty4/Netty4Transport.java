@@ -28,7 +28,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -269,8 +271,26 @@ public class Netty4Transport extends TcpTransport {
 
         Channel channel = connectFuture.channel();
         if (channel == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
-            throw new IOException(connectFuture.cause());
+            Netty4Utils.addListener(connectFuture, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.warn("failed to initiate channel to [{}] but connect future completed normally", node);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(Strings.format("failed to initiate channel to [%s]", node), e);
+                }
+            });
+
+            if (connectFuture.isDone() == false) {
+                logger.warn("failed to initiate channel to [{}] without immediately completing connect future", node);
+            } // else already logged & handled by listener added above
+
+            throw new IOException(
+                "failed to initiate channel to [" + node + "]",
+                connectFuture.cause() // may be null if future incomplete, but that's ok
+            );
         }
 
         Netty4TcpChannel nettyChannel = new Netty4TcpChannel(

@@ -137,13 +137,13 @@ public final class EnrichCache {
     }
 
     public EnrichStatsAction.Response.CacheStats getStats(String localNodeId) {
-        Cache.CacheStats cacheStats = cache.stats();
+        Cache.Stats stats = cache.stats();
         return new EnrichStatsAction.Response.CacheStats(
             localNodeId,
             cache.count(),
-            cacheStats.getHits(),
-            cacheStats.getMisses(),
-            cacheStats.getEvictions(),
+            stats.getHits(),
+            stats.getMisses(),
+            stats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.get()),
             TimeValue.nsecToMSec(missesTimeInNanos.get()),
             sizeInBytes.get()

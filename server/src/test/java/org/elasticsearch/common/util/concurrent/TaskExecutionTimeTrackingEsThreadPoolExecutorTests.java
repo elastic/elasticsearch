@@ -93,14 +93,81 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
-    public void testMaxQueueLatency() throws Exception {
+    /**
+     * Verifies that we can peek at the task in front of the task queue to fetch the duration that the oldest task has been queued.
+     * Tests {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueue}.
+     */
+    public void testFrontOfQueueLatency() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final var threadPoolName = randomIdentifier();
         final var barrier = new CyclicBarrier(2);
+        // Replace all tasks submitted to the thread pool with a configurable task that supports configuring queue latency durations and
+        // waiting for task execution to begin via the supplied barrier.
         var adjustableTimedRunnable = new AdjustableQueueTimeWithExecutionBarrierTimedRunnable(
             barrier,
-            TimeUnit.NANOSECONDS.toNanos(1000000)
+            TimeUnit.NANOSECONDS.toNanos(1000000) // Until changed, queue latencies will always be 1 millisecond.
+        );
+        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            (runnable) -> adjustableTimedRunnable,
+            EsExecutors.daemonThreadFactory("queue-latency-test"),
+            new EsAbortPolicy(),
+            context,
+            randomBoolean()
+                ? EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackMaxQueueLatency()
+                    .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    .build()
+                : EsExecutors.TaskTrackingConfig.builder()
+                    .trackMaxQueueLatency()
+                    .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    .build()
+        );
+        try {
+            executor.prestartAllCoreThreads();
+            logger.info("--> executor: {}", executor);
+
+            // Check that the peeking at a non-existence queue returns zero.
+            assertEquals("Zero should be returned when there is no queue", 0, executor.peekMaxQueueLatencyInQueue());
+
+            // Submit two tasks, into the thread pool with a single worker thread. The second one will be queued (because the pool only has
+            // one thread) and can be peeked at.
+            executor.execute(() -> {});
+            executor.execute(() -> {});
+            var frontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
+            assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L));
+            safeAwait(barrier); // release the first task to finish
+            assertBusy(() -> { assertEquals("Queue should be emptied", 0, executor.peekMaxQueueLatencyInQueue()); });
+            safeAwait(barrier); // release the second task to finish.
+        } finally {
+            // Clean up.
+            if (barrier.getNumberWaiting() > 0) {
+                // Release any potentially running task. This could be racy (a task may start executing and hit the barrier afterward) and
+                // is best-effort.
+                safeAwait(barrier);
+            }
+            executor.shutdown();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Verifies that tracking of the max queue latency (captured on task dequeue) is maintained.
+     * Tests {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()}.
+     */
+    public void testMaxDequeuedQueueLatency() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        final var barrier = new CyclicBarrier(2);
+        // Replace all tasks submitted to the thread pool with a configurable task that supports configuring queue latency durations and
+        // waiting for task execution to begin via the supplied barrier.
+        var adjustableTimedRunnable = new AdjustableQueueTimeWithExecutionBarrierTimedRunnable(
+            barrier,
+            TimeUnit.NANOSECONDS.toNanos(1000000) // Until changed, queue latencies will always be 1 millisecond.
         );
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
@@ -146,6 +213,11 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
         } finally {
             // Clean up.
+            if (barrier.getNumberWaiting() > 0) {
+                // Release any potentially running task. This could be racy (a task may start executing and hit the barrier afterward) and
+                // is best-effort.
+                safeAwait(barrier);
+            }
             executor.shutdown();
             executor.awaitTermination(10, TimeUnit.SECONDS);
         }

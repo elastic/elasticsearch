@@ -1,0 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+// Necessary to use tests in Serverless
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+dependencies {
+  javaRestTestImplementation project(path: ':x-pack:plugin:deprecation:qa:common')
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+
+  clusterPlugins project(':x-pack:plugin:deprecation:qa::early-deprecation-plugin')
+  clusterPlugins project(':x-pack:plugin:deprecation:qa::deprecation-plugin')
+}
+
+tasks.named('javaRestTest') {
+  // Tried to just include deprecation, data-streams and ml, but apparently some other non
+  // immediately apparent plugin is needed
+  // Example failing build scan: https://gradle-enterprise.elastic.co/s/rxaz3vi2a3tao
+  usesDefaultDistribution("the .logs.deprecated index can not be written or read with a minimal plugin set")
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index'
+  }
+}
+
+// Test clusters run with security disabled
+tasks.named("javaRestTest") {
+  buildParams.withFipsEnabledOnly(it)
+}
+

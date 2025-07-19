@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,7 +20,6 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -178,8 +178,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * ILM routing allocations. It also returns a summary of the affected abstractions encapsulated in {@link MigratedEntities}
      */
     public static Tuple<ClusterState, MigratedEntities> migrateToDataTiersRouting(
-        ClusterState currentState,
-        ProjectResolver projectResolver,
+        ProjectState currentState,
         @Nullable String nodeAttrName,
         @Nullable String indexTemplateToDelete,
         NamedXContentRegistry xContentRegistry,
@@ -187,7 +186,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         XPackLicenseState licenseState,
         boolean dryRun
     ) {
-        ProjectMetadata currentProjectMetadata = projectResolver.getProjectMetadata(currentState);
+        ProjectMetadata currentProjectMetadata = currentState.metadata();
         if (dryRun == false) {
             IndexLifecycleMetadata currentMetadata = currentProjectMetadata.custom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata != null && currentILMMode(currentProjectMetadata) != STOPPED) {
@@ -197,7 +196,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             }
         }
 
-        Metadata.Builder mb = Metadata.builder(currentState.metadata());
+        Metadata.Builder mb = Metadata.builder(currentState.cluster().metadata());
         ProjectMetadata.Builder newProjectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
 
         // remove ENFORCE_DEFAULT_TIER_PREFERENCE from the persistent settings
@@ -245,7 +244,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             attribute
         );
         return Tuple.tuple(
-            ClusterState.builder(currentState).metadata(mb).putProjectMetadata(newProjectMetadataBuilder).build(),
+            ClusterState.builder(currentState.cluster()).metadata(mb).putProjectMetadata(newProjectMetadataBuilder).build(),
             new MigratedEntities(removedIndexTemplateName, migratedIndices, migratedPolicies, migratedTemplates)
         );
     }

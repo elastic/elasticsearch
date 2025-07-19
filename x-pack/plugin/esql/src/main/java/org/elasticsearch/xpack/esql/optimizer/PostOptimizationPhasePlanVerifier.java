@@ -52,6 +52,13 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
     abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 
     private static void verifyOutputNotChanged(QueryPlan<?> optimizedPlan, List<Attribute> expectedOutputAttributes, Failures failures) {
+        // disable this check if there are other failures already
+        // it is possible that some of the attributes are not resolved yet and that is reflected in the failures
+        // we cannot get the datatype on an unresolved attribute
+        // if we try it, it causes an exception and the exception hides the more detailed error message
+        if (failures.hasFailures()) {
+            return;
+        }
         if (dataTypeEquals(expectedOutputAttributes, optimizedPlan.output()) == false) {
             // If the output level is empty we add a column called ProjectAwayColumns.ALL_FIELDS_PROJECTED
             // We will ignore such cases for output verification

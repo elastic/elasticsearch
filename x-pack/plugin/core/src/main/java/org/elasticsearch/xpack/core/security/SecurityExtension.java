@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccou
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectTargetResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -130,6 +131,14 @@ public interface SecurityExtension {
     }
 
     default CustomApiKeyAuthenticator getCustomApiKeyAuthenticator(SecurityComponents components) {
+        return null;
+    }
+
+    default CrossProjectTargetResolver getCrossProjectTargetResolver(SecurityComponents components) {
+        return null;
+    }
+
+    default CrossProjectRemoteServerTransportInterceptor getCustomRemoteServerTransportInterceptor(SecurityComponents components) {
         return null;
     }
 

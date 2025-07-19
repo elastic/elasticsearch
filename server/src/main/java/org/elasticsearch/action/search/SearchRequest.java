@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.CrossProjectAwareRequest;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -53,7 +54,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
+public class SearchRequest extends LegacyActionRequest
+    implements
+        CrossProjectAwareRequest,
+        IndicesRequest.Replaceable,
+        Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -69,6 +74,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+
+    @Nullable
+    private String queryRouting = null;
+
+    @Nullable
+    private List<QualifiedExpression> qualifiedExpressions;
 
     @Nullable
     private String routing;
@@ -397,6 +408,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     public SearchRequest indices(String... indices) {
         validateIndices(indices);
         this.indices = indices;
+        return this;
+    }
+
+    public SearchRequest queryRouting(String queryRouting) {
+        this.queryRouting = queryRouting;
         return this;
     }
 
@@ -852,5 +868,25 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             + ", source="
             + source
             + '}';
+    }
+
+    @Override
+    public boolean crossProjectModeEnabled() {
+        return qualifiedExpressions != null;
+    }
+
+    @Override
+    public void qualified(List<QualifiedExpression> qualifiedExpressions) {
+        this.qualifiedExpressions = qualifiedExpressions;
+        indices(
+            qualifiedExpressions.stream()
+                .flatMap(indexExpression -> indexExpression.qualified().stream().map(ExpressionWithProject::expression))
+                .toArray(String[]::new)
+        );
+    }
+
+    @Override
+    public String queryRouting() {
+        return queryRouting;
     }
 }

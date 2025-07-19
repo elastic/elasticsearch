@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
@@ -84,6 +85,65 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         }
     }
 
+    public void testRRFRetrieverParsingSyntax() throws IOException {
+        String legacyJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "standard": { "query": { "match_all": {} } } },
+                    { "standard": { "query": { "match_all": {} } } }
+                  ]
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, legacyJson)) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+            assertArrayEquals(new float[] { 1.0f, 1.0f }, rrf.weights(), 0.001f);
+        }
+
+        String weightedJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 2.5 },
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 0.5 }
+                  ]
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, weightedJson)) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+            assertArrayEquals(new float[] { 2.5f, 0.5f }, rrf.weights(), 0.001f);
+        }
+
+        String mixedJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "standard": { "query": { "match_all": {} } } },
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 0.6 }
+                  ]
+                }
+              }
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mixedJson)) {
+            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+            assertArrayEquals(new float[] { 1.0f, 0.6f }, rrf.weights(), 0.001f);
+        }
+    }
+
     public void testMultiFieldsParamsRewrite() {
         final String indexName = "test-index";
         final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
@@ -103,7 +163,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -119,7 +180,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -135,7 +197,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_*", "*_field_1"),
             "bar",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -151,7 +214,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("*"),
             "baz",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -182,7 +246,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            null
         );
 
         IllegalArgumentException iae = expectThrows(

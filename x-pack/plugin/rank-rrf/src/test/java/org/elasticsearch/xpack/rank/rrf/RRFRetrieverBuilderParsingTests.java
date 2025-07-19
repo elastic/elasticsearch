@@ -60,8 +60,12 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             innerRetrievers.add(CompoundRetrieverBuilder.RetrieverSource.from(TestRetrieverBuilder.createRandomTestRetrieverBuilder()));
             --retrieverCount;
         }
+        float[] weights = new float[innerRetrievers.size()];
+        for (int i = 0; i < innerRetrievers.size(); i++) {
+            weights[i] = randomFloat();
+        }
 
-        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant);
+        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, weights);
     }
 
     @Override
@@ -89,7 +93,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,
                 TestRetrieverBuilder.TEST_SPEC.getName(),
-                (p, c) -> TestRetrieverBuilder.TEST_SPEC.getParser().fromXContent(p, (RetrieverParserContext) c),
+                (p, c) -> TestRetrieverBuilder.fromXContent(p, (RetrieverParserContext) c),
                 TestRetrieverBuilder.TEST_SPEC.getName().getForRestApiVersion()
             )
         );
@@ -111,16 +115,25 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
                   "retrievers": [
                     {
                       "test": {
-                        "value": "foo"
+                        "value": "foobar"
                       }
                     },
                     {
-                      "test": {
-                        "value": "bar"
+                      "retriever": {
+                        "test": {
+                          "value": "foo"
+                        }
                       }
+                    },
+                    {
+                      "retriever": {
+                        "test": {
+                            "value": "bar"
+                        }
+                      },
+                      "weight": 1.3
                     }
                   ],
-                  "fields": ["field1", "field2"],
                   "query": "baz",
                   "rank_window_size": 100,
                   "rank_constant": 10,

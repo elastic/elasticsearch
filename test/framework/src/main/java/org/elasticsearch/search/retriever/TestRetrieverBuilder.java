@@ -50,6 +50,7 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
 
     public static final ConstructingObjectParser<TestRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
+        true, // ignore unknown fields
         args -> new TestRetrieverBuilder((String) args[0])
     );
 

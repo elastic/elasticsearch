@@ -85,7 +85,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         );
         return new AsyncResultsService<>(
             store,
-            false,
+            true,
             asyncTaskClass,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
             transportService.getTaskManager(),

@@ -392,6 +392,7 @@ public class ESONSource {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            // TODO: Maybe need explicit null type to ensure not lost
             for (Entry<String, Type> entry : map.entrySet()) {
                 builder.field(entry.getKey());
                 switch (entry.getValue()) {
@@ -399,6 +400,7 @@ public class ESONSource {
                     case ESONArray a -> a.toXContent(builder, params);
                     case FixedValue v -> v.writeToXContent(builder, objectValues.get());
                     case VariableValue v -> v.writeToXContent(builder, objectValues.get());
+                    case Mutation m -> builder.value(m.object());
                     default -> throw new IllegalArgumentException("Unknown type: " + entry.getValue());
                 }
             }

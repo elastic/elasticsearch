@@ -172,11 +172,67 @@ public class OSQScorerBenchmark {
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void scoreThreeUpperBitsFromMemorySegmentOnlyVector(Blackhole bh) throws IOException {
+        for (int j = 0; j < numQueries; j++) {
+            in.seek(0);
+            for (int i = 0; i < numVectors; i++) {
+                float qDist = scorer.quantizeScoreThreeUpperBit(binaryQueries[j]);
+                in.readFloats(corrections, 0, corrections.length);
+                int addition = Short.toUnsignedInt(in.readShort());
+                float score = scorer.score(
+                    result.lowerInterval(),
+                    result.upperInterval(),
+                    result.quantizedComponentSum(),
+                    result.additionalCorrection(),
+                    VectorSimilarityFunction.EUCLIDEAN,
+                    centroidDp,
+                    corrections[0],
+                    corrections[1],
+                    addition,
+                    corrections[2],
+                    qDist
+                );
+                bh.consume(score);
+            }
+        }
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void scoreFromMemorySegmentOnlyVectorBulk(Blackhole bh) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i += 16) {
                 scorer.quantizeScoreBulk(binaryQueries[j], ES91OSQVectorsScorer.BULK_SIZE, scratchScores);
+                for (int k = 0; k < ES91OSQVectorsScorer.BULK_SIZE; k++) {
+                    in.readFloats(corrections, 0, corrections.length);
+                    int addition = Short.toUnsignedInt(in.readShort());
+                    float score = scorer.score(
+                        result.lowerInterval(),
+                        result.upperInterval(),
+                        result.quantizedComponentSum(),
+                        result.additionalCorrection(),
+                        VectorSimilarityFunction.EUCLIDEAN,
+                        centroidDp,
+                        corrections[0],
+                        corrections[1],
+                        addition,
+                        corrections[2],
+                        scratchScores[k]
+                    );
+                    bh.consume(score);
+                }
+            }
+        }
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void scoreThreeUpperBitsFromMemorySegmentOnlyVectorBulk(Blackhole bh) throws IOException {
+        for (int j = 0; j < numQueries; j++) {
+            in.seek(0);
+            for (int i = 0; i < numVectors; i += 16) {
+                scorer.quantizeScoreThreeUpperBitBulk(binaryQueries[j], ES91OSQVectorsScorer.BULK_SIZE, scratchScores);
                 for (int k = 0; k < ES91OSQVectorsScorer.BULK_SIZE; k++) {
                     in.readFloats(corrections, 0, corrections.length);
                     int addition = Short.toUnsignedInt(in.readShort());

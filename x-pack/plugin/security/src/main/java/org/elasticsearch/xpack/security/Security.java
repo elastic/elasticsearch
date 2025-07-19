@@ -2402,32 +2402,62 @@ public class Security extends Plugin
     public Map<String, String> getAuthContextForSlowLog() {
         if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
             Authentication authentication = this.securityContext.get().getAuthentication();
-            Subject authenticatingSubject = authentication.getAuthenticatingSubject();
-            Subject effetctiveSubject = authentication.getEffectiveSubject();
             Map<String, String> authContext = new HashMap<>();
-            if (authenticatingSubject.getUser() != null) {
-                authContext.put("user.name", authenticatingSubject.getUser().principal());
-                authContext.put("user.realm", authenticatingSubject.getRealm().getName());
-                if (authenticatingSubject.getUser().fullName() != null) {
-                    authContext.put("user.full_name", authenticatingSubject.getUser().fullName());
-                }
-            }
-            // Only include effective user if different from authenticating user (run-as)
-            if (effetctiveSubject.getUser() != null && effetctiveSubject.equals(authenticatingSubject) == false) {
-                authContext.put("user.effective.name", effetctiveSubject.getUser().principal());
-                authContext.put("user.effective.realm", effetctiveSubject.getRealm().getName());
-                if (effetctiveSubject.getUser().fullName() != null) {
-                    authContext.put("user.effective.full_name", effetctiveSubject.getUser().fullName());
-                }
-            }
-            authContext.put("auth.type", authentication.getAuthenticationType().name());
-            if (authentication.isApiKey()) {
-                authContext.put("apikey.id", authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY).toString());
-                authContext.put("apikey.name", authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY).toString());
+
+            if (authentication.isCrossClusterAccess()) {
+                Authentication originalAuthentication = Authentication.getAuthenticationFromCrossClusterAccessMetadata(authentication);
+                // For RCS 2.0, we log the user from the querying cluster
+                populateAuthContextMap(originalAuthentication, authContext);
+            } else {
+                populateAuthContextMap(authentication, authContext);
             }
             return authContext;
         }
         return Map.of();
+    }
+
+    /**
+     * Helper method to populate authentication context fields for slow logs.
+     * This logic is common for both direct authentications and the nested
+     * original authentication in cross-cluster access scenarios.
+     *
+     * @param auth The Authentication object to extract details from.
+     * @param authContext The map to populate with authentication details.
+     */
+    private void populateAuthContextMap(Authentication auth, Map<String, String> authContext) {
+        Subject authenticatingSubject = auth.getAuthenticatingSubject();
+        Subject effectiveSubject = auth.getEffectiveSubject();
+
+        // The primary user.name and user.realm fields should reflect the AUTHENTICATING user
+        if (authenticatingSubject.getUser() != null) {
+            authContext.put("user.name", authenticatingSubject.getUser().principal());
+            authContext.put("user.realm", authenticatingSubject.getRealm().getName());
+            if (authenticatingSubject.getUser().fullName() != null) {
+                authContext.put("user.full_name", authenticatingSubject.getUser().fullName());
+            }
+        }
+
+        // Only include effective user if different from authenticating user (run-as)
+        if (auth.isRunAs()) {
+            if (effectiveSubject.getUser() != null) {
+                authContext.put("user.effective.name", effectiveSubject.getUser().principal());
+                authContext.put("user.effective.realm", effectiveSubject.getRealm().getName());
+                if (effectiveSubject.getUser().fullName() != null) {
+                    authContext.put("user.effective.full_name", effectiveSubject.getUser().fullName());
+                }
+            }
+        }
+
+        authContext.put("auth.type", auth.getAuthenticationType().name());
+
+        if (auth.isApiKey()) {
+            authContext.put("apikey.id", Objects.toString(authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY)));
+
+            Object apiKeyName = authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName != null) {
+                authContext.put("apikey.name", apiKeyName.toString());
+            }
+        }
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

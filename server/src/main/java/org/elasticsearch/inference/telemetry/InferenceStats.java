@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.inference.telemetry;
+package org.elasticsearch.inference.telemetry;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
@@ -14,17 +16,17 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration) {
+public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration, LongHistogram deploymentDuration) {
 
     public InferenceStats {
         Objects.requireNonNull(requestCount);
         Objects.requireNonNull(inferenceDuration);
+        Objects.requireNonNull(deploymentDuration);
     }
 
     public static InferenceStats create(MeterRegistry meterRegistry) {
@@ -37,6 +39,11 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
             meterRegistry.registerLongHistogram(
                 "es.inference.requests.time",
                 "Inference API request counts for a particular service, task type, model ID",
+                "ms"
+            ),
+            meterRegistry.registerLongHistogram(
+                "es.inference.trained_model.deployment.time",
+                "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             )
         );
@@ -54,8 +61,8 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         return modelAttributesMap;
     }
 
-    public static Map<String, Object> routingAttributes(BaseInferenceActionRequest request, String nodeIdHandlingRequest) {
-        return Map.of("rerouted", request.hasBeenRerouted(), "node_id", nodeIdHandlingRequest);
+    public static Map<String, Object> routingAttributes(boolean hasBeenRerouted, String nodeIdHandlingRequest) {
+        return Map.of("rerouted", hasBeenRerouted, "node_id", nodeIdHandlingRequest);
     }
 
     public static Map<String, Object> modelAttributes(UnparsedModel model) {
@@ -72,5 +79,12 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         }
 
         return Map.of("error.type", throwable.getClass().getSimpleName());
+    }
+
+    public static Map<String, Object> modelAndResponseAttributes(Model model, @Nullable Throwable throwable) {
+        var metricAttributes = new HashMap<String, Object>();
+        metricAttributes.putAll(modelAttributes(model));
+        metricAttributes.putAll(responseAttributes(throwable));
+        return metricAttributes;
     }
 }

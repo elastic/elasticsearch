@@ -11,7 +11,7 @@ package org.elasticsearch.ingest;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
@@ -36,7 +36,7 @@ public class ESONSource {
 
     public static class Builder {
 
-        private final RecyclerBytesStreamOutput bytes;
+        private final BytesStreamOutput bytes;
         private final boolean ordered;
 
         public Builder(boolean ordered) {
@@ -44,7 +44,8 @@ public class ESONSource {
         }
 
         public Builder(Recycler<BytesRef> refRecycler, boolean ordered) {
-            this.bytes = new RecyclerBytesStreamOutput(refRecycler);
+            // this.bytes = new RecyclerBytesStreamOutput(refRecycler);
+            this.bytes = new BytesStreamOutput(128);
             this.ordered = ordered;
         }
 
@@ -67,7 +68,7 @@ public class ESONSource {
             return rootObject;
         }
 
-        private static ESONObject parseObject(XContentParser parser, RecyclerBytesStreamOutput bytes, Supplier<Values> valuesSupplier)
+        private static ESONObject parseObject(XContentParser parser, BytesStreamOutput bytes, Supplier<Values> valuesSupplier)
             throws IOException {
             Map<String, Type> map = new HashMap<>();
             String currentFieldName;
@@ -79,7 +80,7 @@ public class ESONSource {
             return new ESONObject(map, valuesSupplier);
         }
 
-        private static ESONArray parseArray(XContentParser parser, RecyclerBytesStreamOutput bytes, Supplier<Values> valuesSupplier)
+        private static ESONArray parseArray(XContentParser parser, BytesStreamOutput bytes, Supplier<Values> valuesSupplier)
             throws IOException {
             List<Type> elements = new ArrayList<>();
             XContentParser.Token token;
@@ -92,7 +93,7 @@ public class ESONSource {
 
         private static Type parseValue(
             XContentParser parser,
-            RecyclerBytesStreamOutput bytes,
+            BytesStreamOutput bytes,
             Supplier<Values> valuesSupplier,
             XContentParser.Token token
         ) throws IOException {
@@ -131,7 +132,7 @@ public class ESONSource {
             }
         }
 
-        private static ValueType handleNumber(XContentParser parser, RecyclerBytesStreamOutput bytes) throws IOException {
+        private static ValueType handleNumber(XContentParser parser, BytesStreamOutput bytes) throws IOException {
             switch (parser.numberType()) {
                 case INT -> {
                     int value = parser.intValue();
@@ -181,11 +182,11 @@ public class ESONSource {
             }
         }
 
-        private static void writeByteArray(RecyclerBytesStreamOutput bytes, byte[] value, int offset, int length) {
+        private static void writeByteArray(BytesStreamOutput bytes, byte[] value, int offset, int length) {
             bytes.writeBytes(value, offset, length);
         }
 
-        private static void writeString(RecyclerBytesStreamOutput bytes, String value) throws IOException {
+        private static void writeString(BytesStreamOutput bytes, String value) throws IOException {
             byte[] utf8Bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             writeByteArray(bytes, utf8Bytes, 0, utf8Bytes.length);
         }
@@ -391,6 +392,7 @@ public class ESONSource {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            // TODO: Maybe need explicit null type to ensure not lost
             for (Entry<String, Type> entry : map.entrySet()) {
                 builder.field(entry.getKey());
                 switch (entry.getValue()) {
@@ -398,6 +400,7 @@ public class ESONSource {
                     case ESONArray a -> a.toXContent(builder, params);
                     case FixedValue v -> v.writeToXContent(builder, objectValues.get());
                     case VariableValue v -> v.writeToXContent(builder, objectValues.get());
+                    case Mutation m -> builder.value(m.object());
                     default -> throw new IllegalArgumentException("Unknown type: " + entry.getValue());
                 }
             }
@@ -556,7 +559,14 @@ public class ESONSource {
         }
 
         public void writeToXContent(XContentBuilder builder, Values values) throws IOException {
-            builder.value(getValue(values));
+            switch (valueType) {
+                case INT -> builder.value(values.readInt(position));
+                case LONG -> builder.value(values.readLong(position));
+                case FLOAT -> builder.value(values.readFloat(position));
+                case DOUBLE -> builder.value(values.readDouble(position));
+                case BOOLEAN -> builder.value(values.readBoolean(position));
+                default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
+            }
         }
     }
 

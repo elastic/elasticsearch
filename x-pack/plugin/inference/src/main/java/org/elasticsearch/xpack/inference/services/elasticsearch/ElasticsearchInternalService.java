@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -686,7 +687,15 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
+        var rerankChunker = new RerankRequestChunker(query, inputs);
+        var chunkedInputs = rerankChunker.getChunkedInputs();
+        var request = buildInferenceRequest(
+            model.mlNodeDeploymentId(),
+            new TextSimilarityConfigUpdate(query),
+            chunkedInputs,
+            inputType,
+            timeout
+        );
 
         var returnDocs = Boolean.TRUE;
         if (returnDocuments != null) {
@@ -696,13 +705,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
         }
 
-        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
+        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? chunkedInputs::get : i -> null;
 
-        ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
-            (l, inferenceResult) -> l.onResponse(
-                textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier, topN)
-            )
-        );
+        ActionListener<InferModelAction.Response> mlResultsListener = rerankChunker.parseChunkedRerankResultsListener(listener)
+            .delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(
+                    textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier, topN)
+                )
+            );
 
         var maybeDeployListener = mlResultsListener.delegateResponse(
             (l, exception) -> maybeStartDeployment(model, exception, request, mlResultsListener)

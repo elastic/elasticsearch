@@ -15,6 +15,7 @@ import org.elasticsearch.core.RestApiVersion;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +111,8 @@ public interface XContentParser extends Closeable {
     String textOrNull() throws IOException;
 
     XContentString optimizedText() throws IOException;
+
+    boolean optimizedText(OutputStream out) throws IOException;
 
     XContentString optimizedTextOrNull() throws IOException;
 

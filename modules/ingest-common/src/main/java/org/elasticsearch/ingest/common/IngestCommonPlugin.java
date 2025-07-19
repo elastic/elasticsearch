@@ -74,7 +74,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
             entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
             entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
-            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory())
+            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+            entry(XmlProcessor.TYPE, new XmlProcessor.Factory())
         );
     }
 

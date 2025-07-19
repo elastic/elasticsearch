@@ -93,6 +93,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
+    private final AtomicBoolean phaseFailureEncountered = new AtomicBoolean();
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -621,6 +622,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param cause the cause of the phase failure
      */
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
+        if (phaseFailureEncountered.compareAndSet(false, true) == false) {
+            // we already encountered a phase failure, so we ignore this one
+            return;
+        }
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures()));
     }
 

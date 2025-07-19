@@ -50,6 +50,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561

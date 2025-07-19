@@ -1,0 +1,15 @@
+// TBUCKET-specific tests
+
+docsGettingStartedBucketStatsByMedian#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::gs-bucket-stats-by-median[]
+FROM sample_data
+| KEEP @timestamp, event_duration
+| STATS median_duration = MEDIAN(event_duration) BY bucket = TBUCKET(@timestamp, "1 hour")
+// end::gs-bucket-stats-by-median[]
+| SORT bucket
+;
+
+median_duration:double | bucket:date
+3107561.0              |2023-10-23T12:00:00.000Z
+1756467.0              |2023-10-23T13:00:00.000Z
+;

@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
                     // 'WindowsFS.checkDeleteAccess(...)').
     }
 )
-public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
+public class ReloadingDatabasesWhilePerformingGeoLookupsTests extends ESTestCase {
 
     /**
      * This tests essentially verifies that a Maxmind database reader doesn't fail with:

@@ -396,6 +396,7 @@ public class ESONSource {
             for (Entry<String, Type> entry : map.entrySet()) {
                 builder.field(entry.getKey());
                 switch (entry.getValue()) {
+                    case null -> builder.nullValue();
                     case ESONObject o -> o.toXContent(builder, params);
                     case ESONArray a -> a.toXContent(builder, params);
                     case FixedValue v -> v.writeToXContent(builder, objectValues.get());

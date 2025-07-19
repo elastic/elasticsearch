@@ -8,15 +8,19 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import java.util.List;
 
 /**
  * Interface signaling to the local logical plan optimizer that the declaring expression
  * has to be replaced by a different form.
  * Implement this on {@code Function}s when:
  * <ul>
- *     <li>The expression can be rewritten to another expression on data node, with the statistics available in SearchStats.
- *     Like {@code DateTrunc} and {@code Bucket} could be rewritten to {@code RoundTo} with the min/max values on the date field.
+ *     <li>The expression can be rewritten to another expression on data node, with the statistics available in SearchStats and predicates
+ *     in the query. Like {@code DateTrunc} and {@code Bucket} could be rewritten to {@code RoundTo} with the min/max values on the date
+ *     field.
  *     </li>
  * </ul>
  */
@@ -24,5 +28,5 @@ public interface LocalSurrogateExpression {
     /**
      * Returns the expression to be replaced by or {@code null} if this cannot be replaced.
      */
-    Expression surrogate(SearchStats searchStats);
+    Expression surrogate(SearchStats searchStats, List<EsqlBinaryComparison> binaryComparisons);
 }

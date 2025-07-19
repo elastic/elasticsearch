@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -498,7 +499,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     @Override
-    public Expression surrogate(SearchStats searchStats) {
+    public Expression surrogate(SearchStats searchStats, List<EsqlBinaryComparison> binaryComparisons) {
         // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
         assert searchStats != null : "SearchStats cannot be null";
         return maybeSubstituteWithRoundTo(
@@ -506,6 +507,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             field(),
             buckets(),
             searchStats,
+            binaryComparisons,
             (interval, minValue, maxValue) -> getDateRounding(FoldContext.small(), minValue, maxValue)
         );
     }

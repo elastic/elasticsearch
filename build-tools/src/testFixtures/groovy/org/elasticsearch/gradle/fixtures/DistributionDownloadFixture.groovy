@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.fixtures
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.ElasticsearchDistribution
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
@@ -20,33 +21,50 @@ class DistributionDownloadFixture {
     public static final String INIT_SCRIPT = "repositories-init.gradle"
 
     static BuildResult withMockedDistributionDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
-        return withMockedDistributionDownload(VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
-                gradleRunner, buildRunClosure)
+        return withMockedDistributionDownload(
+            VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
+            gradleRunner, buildRunClosure
+        )
     }
 
     static BuildResult withChangedClasspathMockedDistributionDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
-        return doRunWithMockedDistributionDownload(VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
-                gradleRunner, buildRunClosure, true, false)
+        return doRunWithMockedDistributionDownload(
+            VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
+            Architecture.current(), gradleRunner, buildRunClosure, true, false
+        )
     }
+
     static BuildResult withChangedConfigMockedDistributionDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
-        return doRunWithMockedDistributionDownload(VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
-                gradleRunner, buildRunClosure, false, true)
+        return doRunWithMockedDistributionDownload(
+            VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
+            Architecture.current(), gradleRunner, buildRunClosure, false, true
+        )
+    }
+
+    static BuildResult withMockedDistributionDownload(String version,
+                                                      ElasticsearchDistribution.Platform platform,
+                                                      Architecture architecture,
+                                                      GradleRunner gradleRunner,
+                                                      Closure<BuildResult> buildRunClosure) {
+        return doRunWithMockedDistributionDownload(version, platform, architecture, gradleRunner, buildRunClosure, false, false)
     }
 
     static BuildResult withMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
                                                       GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
-        return doRunWithMockedDistributionDownload(version, platform, gradleRunner, buildRunClosure, false, false)
+        return withMockedDistributionDownload(version, platform, Architecture.current(), gradleRunner, buildRunClosure)
     }
 
     static BuildResult withChangedClasspathMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
-                                                      GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
-        return doRunWithMockedDistributionDownload(version, platform, gradleRunner, buildRunClosure, true, false)
+                                                                      GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
+        return doRunWithMockedDistributionDownload(version, platform, Architecture.current(), gradleRunner, buildRunClosure, true, false)
     }
 
-    private static BuildResult doRunWithMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
+    private static BuildResult doRunWithMockedDistributionDownload(String version,
+                                                                   ElasticsearchDistribution.Platform platform,
+                                                                   Architecture architecture,
                                                                    GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure,
                                                                    boolean withAddedJar, boolean withAddedConfig) {
-        String urlPath = urlPath(version, platform);
+        String urlPath = urlPath(version, platform, architecture);
         return WiremockFixture.withWireMock(urlPath, filebytes(urlPath, withAddedJar, withAddedConfig)) { server ->
             File initFile = new File(gradleRunner.getProjectDir(), INIT_SCRIPT)
             initFile.text = """allprojects { p ->
@@ -62,10 +80,14 @@ class DistributionDownloadFixture {
         }
     }
 
-    private static String urlPath(String version,ElasticsearchDistribution.Platform platform) {
-        String fileType = ((platform == ElasticsearchDistribution.Platform.LINUX ||
-                platform == ElasticsearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
-        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-${Architecture.current().classifier}.$fileType"
+    private static String urlPath(String version, ElasticsearchDistribution.Platform platform, Architecture architecture) {
+        String fileType = ((platform == ElasticsearchDistribution.Platform.LINUX || platform ==
+            ElasticsearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
+        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-${mapArchitectureToBwcClassifier(version, architecture)}.$fileType"
+    }
+
+    private static String mapArchitectureToBwcClassifier(String version, Architecture architecture) {
+        return Version.fromString(version).onOrAfter("9.2.0") ? architecture.classifier : architecture.bwcClassifier
     }
 
     private static byte[] filebytes(String urlPath, boolean withAddedJar, boolean withAddedConfig) throws IOException {

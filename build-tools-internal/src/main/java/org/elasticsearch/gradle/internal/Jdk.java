@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.Architecture;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
@@ -39,7 +40,7 @@ public class Jdk implements Buildable, Iterable<File> {
     private final Property<String> vendor;
     private final Property<String> version;
     private final Property<String> platform;
-    private final Property<String> architecture;
+    private final Property<Architecture> architecture;
     private final Property<String> distributionVersion;
     private final String configurationName;
     private String baseVersion;
@@ -54,7 +55,7 @@ public class Jdk implements Buildable, Iterable<File> {
         this.vendor = objectFactory.property(String.class);
         this.version = objectFactory.property(String.class);
         this.platform = objectFactory.property(String.class);
-        this.architecture = objectFactory.property(String.class);
+        this.architecture = objectFactory.property(Architecture.class);
         this.distributionVersion = objectFactory.property(String.class);
     }
 
@@ -98,16 +99,11 @@ public class Jdk implements Buildable, Iterable<File> {
         this.platform.set(platform);
     }
 
-    public String getArchitecture() {
+    public Architecture getArchitecture() {
         return architecture.get();
     }
 
-    public void setArchitecture(final String architecture) {
-        if (ALLOWED_ARCHITECTURES.contains(architecture) == false) {
-            throw new IllegalArgumentException(
-                "unknown architecture [" + architecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
-            );
-        }
+    public void setArchitecture(final Architecture architecture) {
         this.architecture.set(architecture);
     }
 

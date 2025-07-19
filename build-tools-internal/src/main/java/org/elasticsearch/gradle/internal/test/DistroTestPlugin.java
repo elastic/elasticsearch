@@ -256,7 +256,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             + (type == ARCHIVE ? platform + "-" : "")
             + type.getName()
             + (bundledJdk ? "" : "-no-jdk")
-            + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
+            + "-"
+            + architecture.toString().toLowerCase();
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {

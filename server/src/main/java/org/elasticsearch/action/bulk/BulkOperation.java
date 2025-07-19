@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -104,6 +105,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
+    private final StreamsPermissionsUtils streamsPermissionsUtils;
 
     BulkOperation(
         Task task,
@@ -139,7 +141,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            clusterHasFailureStoreFeature
+            clusterHasFailureStoreFeature,
+            StreamsPermissionsUtils.getInstance()
         );
     }
 
@@ -160,7 +163,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        StreamsPermissionsUtils streamsPermissionsUtils
     ) {
         super(listener);
         this.task = task;
@@ -182,6 +186,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
+        this.streamsPermissionsUtils = streamsPermissionsUtils;
     }
 
     @Override
@@ -274,6 +279,30 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private Map<ShardId, List<BulkItemRequest>> groupBulkRequestsByShards(ClusterState clusterState) {
+        // ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
+        //
+        // Set<StreamType> enabledStreamTypes = Arrays.stream(StreamType.values())
+        // .filter(t -> streamsPermissionsUtils.streamTypeIsEnabled(t, projectMetadata))
+        // .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
+        //
+        // for (StreamType streamType : enabledStreamTypes) {
+        // for (int i = 0; i < bulkRequest.requests.size(); i++) {
+        // DocWriteRequest<?> req = bulkRequest.requests.get(i);
+        // String prefix = streamType.getStreamName() + ".";
+        // if (req != null && req.index().startsWith(prefix)) {
+        // IllegalArgumentException exception = new IllegalArgumentException(
+        // "Writes to child stream ["
+        // + req.index()
+        // + "] are not allowed, use the parent stream instead: ["
+        // + streamType.getStreamName()
+        // + "]"
+        // );
+        // IndexDocFailureStoreStatus failureStoreStatus = processFailure(new BulkItemRequest(i, req), projectMetadata, exception);
+        // addFailureAndDiscardRequest(req, i, req.index(), exception, failureStoreStatus);
+        // }
+        // }
+        // }
+
         return groupRequestsByShards(
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),

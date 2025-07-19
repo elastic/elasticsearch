@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource;
 import org.elasticsearch.test.ESTestCase;
 
@@ -74,6 +75,6 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
     }
 
     private static RerouteProcessor create(Map<String, Object> config) throws Exception {
-        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config), null);
+        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config), ProjectId.DEFAULT);
     }
 }

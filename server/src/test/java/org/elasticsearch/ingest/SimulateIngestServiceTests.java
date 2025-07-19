@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -34,6 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -123,6 +125,10 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        StreamsPermissionsUtils streamsPermissionsUtils = mock(StreamsPermissionsUtils.class);
+        when(streamsPermissionsUtils.streamTypeIsEnabled(any(), any())).thenReturn(false);
+
         var ingestPlugin = new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
@@ -145,7 +151,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            streamsPermissionsUtils
         );
     }
 }

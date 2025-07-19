@@ -77,6 +77,7 @@ import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
@@ -716,7 +717,8 @@ class NodeConstruction {
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             failureStoreMetrics,
             projectResolver,
-            featureService
+            featureService,
+            StreamsPermissionsUtils.getInstance()
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);

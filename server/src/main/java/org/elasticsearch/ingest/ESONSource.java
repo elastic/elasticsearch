@@ -559,7 +559,14 @@ public class ESONSource {
         }
 
         public void writeToXContent(XContentBuilder builder, Values values) throws IOException {
-            builder.value(getValue(values));
+            switch (valueType) {
+                case INT -> builder.value(values.readInt(position));
+                case LONG -> builder.value(values.readLong(position));
+                case FLOAT -> builder.value(values.readFloat(position));
+                case DOUBLE -> builder.value(values.readDouble(position));
+                case BOOLEAN -> builder.value(values.readBoolean(position));
+                default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
+            }
         }
     }
 

@@ -830,7 +830,9 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 .<Void>newForked(l -> ensureOtherUploadsComplete(uploadId, uploadIndex, currentUploads, l))
 
-                // Step 4: Read the current register value.
+                // Step 4: Read the current register value. Calling getRegister is safe here because all earlier uploads are complete at
+                // this point, our upload is not completing yet, and later uploads can only be completing if they have already aborted ours,
+                // so either this read is linearizable or its result does not matter.
 
                 .<OptionalBytesReference>andThen(l -> getRegister(purpose, rawKey, l))
 

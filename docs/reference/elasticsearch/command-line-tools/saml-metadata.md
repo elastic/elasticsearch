@@ -112,6 +112,6 @@ bin/elasticsearch-saml-metadata --realm saml2 \
     --locale en-GB \
     --contacts \
     --organisation-name "Mega Corp. Finance Team" \
-    --organisation-url "http://mega.example.com/finance/"
+    --organisation-url "<EXAMPLE_URL>/finance/"
 ```
 

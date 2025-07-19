@@ -12,10 +12,13 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -26,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -40,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ActionListener.assertOnce;
@@ -177,6 +182,33 @@ public class SageMakerServiceTests extends ESTestCase {
         );
         verify(client, only()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void test_nullTimeoutUsesClusterSetting() {
+        var model = mockModel();
+        when(schemas.schemaFor(model)).thenReturn(mock());
+
+        var configuredTimeout = TimeValue.timeValueSeconds(30);
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build(),
+            Set.of(InferencePlugin.INFERENCE_QUERY_TIMEOUT)
+        );
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        var service = new SageMakerService(modelBuilder, client, schemas, mock(ThreadPool.class), Map::of, clusterService);
+
+        var capturedTimeout = new AtomicReference<TimeValue>();
+        doAnswer(ans -> {
+            capturedTimeout.set(ans.getArgument(2));
+            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(3)).onResponse(InvokeEndpointResponse.builder().build());
+            return null;
+        }).when(client).invoke(any(), any(), any(), any());
+
+        service.infer(model, QUERY, null, null, INPUT, false, null, INPUT_TYPE, null, assertNoFailureListener(ignored -> {}));
+
+        assertEquals(configuredTimeout, capturedTimeout.get());
     }
 
     private SageMakerModel mockModel() {

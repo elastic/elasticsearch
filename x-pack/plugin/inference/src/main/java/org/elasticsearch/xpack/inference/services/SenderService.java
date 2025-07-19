@@ -24,6 +24,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -73,6 +74,9 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (timeout == null) {
+            timeout = clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
+        }
         init();
         var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
         var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);

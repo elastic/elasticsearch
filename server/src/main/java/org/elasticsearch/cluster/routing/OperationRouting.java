@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,11 +41,9 @@ public class OperationRouting {
     );
 
     private boolean useAdaptiveReplicaSelection;
-    private final boolean isStateless;
 
     @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
-        this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
@@ -76,19 +73,6 @@ public class OperationRouting {
         IndexShardRoutingTable indexShard = projectState.routingTable().shardRoutingTable(index, shardId);
         DiscoveryNodes nodes = projectState.cluster().nodes();
         return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null, null);
-    }
-
-    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
-        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
-        // implemented for search shards.
-        if (isStateless && shards != null) {
-            return new ShardIterator(
-                shards.shardId(),
-                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
-            );
-        } else {
-            return shards;
-        }
     }
 
     public List<ShardIterator> searchShards(

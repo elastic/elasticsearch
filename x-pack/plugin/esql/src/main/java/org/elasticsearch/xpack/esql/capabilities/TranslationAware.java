@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -137,11 +138,19 @@ public interface TranslationAware {
             return finish;
         }
 
+        /**
+         * <strong>Essentially</strong> the {@link TranslationAware#translatable}
+         * implementation for the {@link Not} expression. When you wrap an expression
+         * in {@link Not} the result is <strong>mostly</strong> pushable in the same
+         * way as the original expression. But there are some expressions that aren't
+         * need rechecks or can't be pushed at all. This handles that.
+         */
         public Translatable negate() {
-            if (this == YES_BUT_RECHECK_NEGATED) {
-                return RECHECK;
-            }
-            return this;
+            return switch (this) {
+                case YES_BUT_RECHECK_NEGATED -> Translatable.RECHECK;
+                case RECHECK -> Translatable.NO;
+                default -> this;
+            };
         }
 
         /**

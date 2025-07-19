@@ -363,7 +363,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts.estimatedRowSize())
+            context.pageSize(ts.estimatedRowSize()),
+            context.queryPragmas().maxTopNAggsLimit()
         );
     }
 

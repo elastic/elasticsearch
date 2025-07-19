@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -117,6 +116,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -350,7 +350,13 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
         var source = plan(aggregate.child(), context);
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+        var physicalOperation = physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+
+        if (aggregate instanceof TopNAggregateExec topNAggregate && topNAggregate.getMode().isOutputPartial() == false) {
+            return planTopN(topNAggregate.order(), topNAggregate.limit(), topNAggregate.estimatedRowSize(), physicalOperation, context);
+        }
+
+        return physicalOperation;
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -475,9 +481,18 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
-        final Integer rowSize = topNExec.estimatedRowSize();
-        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
+        return planTopN(topNExec.order(), topNExec.limit(), topNExec.estimatedRowSize(), source, context);
+    }
+
+    private PhysicalOperation planTopN(
+        List<Order> order,
+        Expression limit,
+        Integer estimatedRowSize,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
+        assert estimatedRowSize != null && estimatedRowSize > 0 : "estimated row size [" + estimatedRowSize + "] wasn't set";
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
@@ -496,9 +511,9 @@ public class LocalExecutionPlanner {
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
         }
-        List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
+        List<TopNOperator.SortOrder> orders = order.stream().map(orderEntry -> {
             int sortByChannel;
-            if (order.child() instanceof Attribute a) {
+            if (orderEntry.child() instanceof Attribute a) {
                 sortByChannel = source.layout.get(a.id()).channel();
             } else {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
@@ -506,20 +521,21 @@ public class LocalExecutionPlanner {
 
             return new TopNOperator.SortOrder(
                 sortByChannel,
-                order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST)
+                orderEntry.direction().equals(Order.OrderDirection.ASC),
+                orderEntry.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
 
-        int limit;
-        if (topNExec.limit() instanceof Literal literal) {
-            Object val = literal.value() instanceof BytesRef br ? BytesRefs.toString(br) : literal.value();
-            limit = stringToInt(val.toString());
+        int intLimit;
+        if (limit instanceof Literal literal) {
+            String val = BytesRefs.toString(literal.value());
+            intLimit = stringToInt(val);
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
+
         return source.with(
-            new TopNOperatorFactory(limit, asList(elementTypes), asList(encoders), orders, context.pageSize(rowSize)),
+            new TopNOperatorFactory(intLimit, asList(elementTypes), asList(encoders), orders, context.pageSize(estimatedRowSize)),
             source.layout
         );
     }

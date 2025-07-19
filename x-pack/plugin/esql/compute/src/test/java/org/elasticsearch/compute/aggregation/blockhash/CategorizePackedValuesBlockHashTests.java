@@ -151,7 +151,8 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     AggregatorMode.INITIAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
-                    analysisRegistry
+                    analysisRegistry,
+                    100
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
@@ -167,7 +168,8 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     AggregatorMode.INITIAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
-                    analysisRegistry
+                    analysisRegistry,
+                    100
                 ).get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
@@ -185,7 +187,8 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     AggregatorMode.FINAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))),
                     16 * 1024,
-                    analysisRegistry
+                    analysisRegistry,
+                    100
                 ).get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add)

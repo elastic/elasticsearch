@@ -197,7 +197,7 @@ public class AggregatorBenchmark {
         };
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, filter).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groups.size()))),
-            () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false),
+            () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false, TOP_N_LIMIT),
             driverContext
         );
     }

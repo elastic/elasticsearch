@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 /**
  * A {@code StableBridgeAPI} is the stable bridge to an Elasticsearch API, and can produce instances
  * from the actual API that they mirror. As part of the LogstashBridge project, these classes are relied
- * upon by the "Elastic Integration Filter Plugin" for Logstash and their external shapes mut not change
+ * upon by the "Elastic Integration Filter Plugin" for Logstash and their external shapes must not change
  * without coordination with the maintainers of that project.
  *
  * @param <T> the actual type of the Elasticsearch API being mirrored

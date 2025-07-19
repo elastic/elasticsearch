@@ -8,8 +8,10 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
@@ -21,6 +23,45 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public interface ProcessorBridge extends StableBridgeAPI<Processor> {
+
+    final class Constants {
+        private Constants() {}
+
+        public static final String APPEND_PROCESSOR_TYPE = org.elasticsearch.ingest.common.AppendProcessor.TYPE;
+        public static final String BYTES_PROCESSOR_TYPE = org.elasticsearch.ingest.common.BytesProcessor.TYPE;
+        public static final String COMMUNITY_ID_PROCESSOR_TYPE = org.elasticsearch.ingest.common.CommunityIdProcessor.TYPE;
+        public static final String CONVERT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.ConvertProcessor.TYPE;
+        public static final String CSV_PROCESSOR_TYPE = org.elasticsearch.ingest.common.CsvProcessor.TYPE;
+        public static final String DATE_INDEX_NAME_PROCESSOR_TYPE = org.elasticsearch.ingest.common.DateIndexNameProcessor.TYPE;
+        public static final String DATE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.DateProcessor.TYPE;
+        public static final String DISSECT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.DissectProcessor.TYPE;
+        public static final String DROP_PROCESSOR_TYPE = org.elasticsearch.ingest.DropProcessor.TYPE;
+        public static final String FAIL_PROCESSOR_TYPE = org.elasticsearch.ingest.common.FailProcessor.TYPE;
+        public static final String FINGERPRINT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.FingerprintProcessor.TYPE;
+        public static final String FOR_EACH_PROCESSOR_TYPE = org.elasticsearch.ingest.common.ForEachProcessor.TYPE;
+        public static final String GROK_PROCESSOR_TYPE = org.elasticsearch.ingest.common.GrokProcessor.TYPE;
+        public static final String GSUB_PROCESSOR_TYPE = org.elasticsearch.ingest.common.GsubProcessor.TYPE;
+        public static final String HTML_STRIP_PROCESSOR_TYPE = org.elasticsearch.ingest.common.HtmlStripProcessor.TYPE;
+        public static final String JOIN_PROCESSOR_TYPE = org.elasticsearch.ingest.common.JoinProcessor.TYPE;
+        public static final String JSON_PROCESSOR_TYPE = org.elasticsearch.ingest.common.JsonProcessor.TYPE;
+        public static final String KEY_VALUE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.KeyValueProcessor.TYPE;
+        public static final String LOWERCASE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.LowercaseProcessor.TYPE;
+        public static final String NETWORK_DIRECTION_PROCESSOR_TYPE = org.elasticsearch.ingest.common.NetworkDirectionProcessor.TYPE;
+        public static final String REGISTERED_DOMAIN_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RegisteredDomainProcessor.TYPE;
+        public static final String REMOVE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RemoveProcessor.TYPE;
+        public static final String RENAME_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RenameProcessor.TYPE;
+        public static final String REROUTE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.RerouteProcessor.TYPE;
+        public static final String SCRIPT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.ScriptProcessor.TYPE;
+        public static final String SET_PROCESSOR_TYPE = org.elasticsearch.ingest.common.SetProcessor.TYPE;
+        public static final String SORT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.SortProcessor.TYPE;
+        public static final String SPLIT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.SplitProcessor.TYPE;
+        public static final String TRIM_PROCESSOR_TYPE = org.elasticsearch.ingest.common.TrimProcessor.TYPE;
+        public static final String URL_DECODE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.URLDecodeProcessor.TYPE;
+        public static final String UPPERCASE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.UppercaseProcessor.TYPE;
+        public static final String URI_PARTS_PROCESSOR_TYPE = org.elasticsearch.ingest.common.UriPartsProcessor.TYPE;
+
+    }
+
     String getType();
 
     String getTag();
@@ -29,9 +70,12 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
 
     boolean isAsync();
 
-    void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler) throws Exception;
+    void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler);
 
     static ProcessorBridge wrap(final Processor delegate) {
+        if (delegate instanceof InverseWrapped inverseWrapped) {
+            return inverseWrapped.delegate;
+        }
         return new Wrapped(delegate);
     }
 
@@ -61,12 +105,49 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
         }
 
         @Override
-        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler)
-            throws Exception {
+        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
             delegate.execute(
                 StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
                 (id, e) -> handler.accept(IngestDocumentBridge.wrap(id), e)
             );
+        }
+    }
+
+    @Override
+    default Processor unwrap() {
+        return new InverseWrapped(this);
+    }
+
+    class InverseWrapped implements Processor {
+        private final ProcessorBridge delegate;
+
+        public InverseWrapped(final ProcessorBridge delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getType() {
+            return delegate.getType();
+        }
+
+        @Override
+        public String getTag() {
+            return delegate.getTag();
+        }
+
+        @Override
+        public String getDescription() {
+            return delegate.getDescription();
+        }
+
+        @Override
+        public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+            this.delegate.execute(IngestDocumentBridge.wrap(ingestDocument), (idb, e) -> handler.accept(idb.unwrap(), e));
+        }
+
+        @Override
+        public boolean isAsync() {
+            return delegate.isAsync();
         }
     }
 
@@ -141,7 +222,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 final Map<String, Object> config
             ) throws Exception {
                 return ProcessorBridge.wrap(
-                    this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config, null)
+                    this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config, ProjectId.DEFAULT)
                 );
             }
 

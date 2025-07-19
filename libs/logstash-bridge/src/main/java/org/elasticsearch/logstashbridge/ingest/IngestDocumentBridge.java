@@ -20,6 +20,12 @@ import java.util.function.BiConsumer;
 
 public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> {
 
+    public static final class Constants {
+        public static final String METADATA_VERSION_FIELD_NAME = IngestDocument.Metadata.VERSION.getFieldName();
+
+        private Constants() {}
+    }
+
     public static IngestDocumentBridge wrap(final IngestDocument ingestDocument) {
         if (ingestDocument == null) {
             return null;
@@ -60,7 +66,7 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
     }
 
     public Map<String, Object> getIngestMetadata() {
-        return Map.copyOf(delegate.getIngestMetadata());
+        return delegate.getIngestMetadata();
     }
 
     public <T> T getFieldValue(final String fieldName, final Class<T> type) {
@@ -83,7 +89,6 @@ public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> 
         delegate.removeField(path);
     }
 
-    // public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
     public void executePipeline(final PipelineBridge pipelineBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
         this.delegate.executePipeline(pipelineBridge.unwrap(), (unwrapped, e) -> handler.accept(IngestDocumentBridge.wrap(unwrapped), e));
     }

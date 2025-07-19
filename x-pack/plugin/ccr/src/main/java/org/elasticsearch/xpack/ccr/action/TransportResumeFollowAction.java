@@ -478,6 +478,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
         IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
+        IndexSettings.MAX_SOURCE_SIZE_BYTES_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
         IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,

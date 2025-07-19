@@ -222,9 +222,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         var response = clusterAdmin().nodesCapabilities(
             new NodesCapabilitiesRequest().method(RestRequest.Method.POST).path("/_query").capabilities(METRICS_COMMAND.capabilityName())
         ).actionGet();
-        if (response.isSupported().orElse(Boolean.FALSE) == false) {
-            return;
-        }
+        assumeTrue("TS command must be available for this test", response.isSupported().orElse(Boolean.FALSE));
 
         // Since the downsampled field (cpu) is downsampled in one index and not in the other, we want to confirm
         // first that the field is unsupported and has 2 original types - double and aggregate_metric_double

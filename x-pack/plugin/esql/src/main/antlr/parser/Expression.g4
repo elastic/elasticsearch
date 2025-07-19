@@ -61,7 +61,12 @@ mapExpression
     ;
 
 entryExpression
-    : key=string COLON value=constant
+    : key=string COLON value=mapValue
+    ;
+
+mapValue
+    : constant
+    | mapExpression
     ;
 
 constant

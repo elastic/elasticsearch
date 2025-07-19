@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MvExpandOperator;
@@ -90,7 +91,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -103,6 +104,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -113,7 +115,6 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
@@ -301,8 +302,8 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
-        } else if (node instanceof RrfScoreEvalExec rrf) {
-            return planRrfScoreEvalExec(rrf, context);
+        } else if (node instanceof FuseScoreEvalExec linear) {
+            return planFuseScoreEvalExec(linear, context);
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
@@ -321,17 +322,18 @@ public class LocalExecutionPlanner {
         return source.with(new CompletionOperator.Factory(inferenceRunner, inferenceId, promptEvaluatorFactory), outputLayout);
     }
 
-    private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(rrf.child(), context);
+    private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fuse.child(), context);
 
         int scorePosition = -1;
-        int forkPosition = -1;
+        int discriminatorPosition = -1;
         int pos = 0;
-        for (Attribute attr : rrf.child().output()) {
-            if (attr.name().equals(Fork.FORK_FIELD)) {
-                forkPosition = pos;
+
+        for (Attribute attr : fuse.child().output()) {
+            if (attr.name().equals(fuse.discriminator().name())) {
+                discriminatorPosition = pos;
             }
-            if (attr.name().equals(MetadataAttribute.SCORE)) {
+            if (attr.name().equals(fuse.score().name())) {
                 scorePosition = pos;
             }
 
@@ -339,13 +341,24 @@ public class LocalExecutionPlanner {
         }
 
         if (scorePosition == -1) {
-            throw new IllegalStateException("can't find _score attribute position");
+            throw new IllegalStateException("can't find score attribute position");
         }
-        if (forkPosition == -1) {
-            throw new IllegalStateException("can'find _fork attribute position");
+        if (discriminatorPosition == -1) {
+            throw new IllegalStateException("can'find discriminator attribute position");
         }
 
-        return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
+        var config = fuse.config();
+        if (config.fuseType() == Fuse.FuseType.LINEAR) {
+            return source.with(
+                new LinearScoreEvalOperator.Factory(scorePosition, discriminatorPosition, config.weights(), config.normalizer()),
+                source.layout
+            );
+        }
+
+        return source.with(
+            new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config.rankConstant(), config.weights()),
+            source.layout
+        );
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {

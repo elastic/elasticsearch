@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
@@ -506,6 +507,19 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
             assertThat(totalTimeSeries, equalTo(dataProfiles.size() / 3));
+            {
+                List<DriverProfile> finalProfiles = profile.drivers().stream().filter(d -> d.description().equals("final")).toList();
+                assertThat(finalProfiles, hasSize(1));
+                DriverProfile finalProfile = finalProfiles.getFirst();
+                assertThat(finalProfile.operators(), hasSize(7));
+                assertThat(finalProfile.operators().get(0).operator(), startsWith("ExchangeSourceOperator"));
+                assertThat(finalProfile.operators().get(1).operator(), startsWith("TimeSeriesAggregationOperator"));
+                assertThat(finalProfile.operators().get(2).operator(), startsWith("ProjectOperator"));
+                assertThat(finalProfile.operators().get(3).operator(), startsWith("HashAggregationOperator"));
+                assertThat(finalProfile.operators().get(4).operator(), startsWith("ProjectOperator"));
+                assertThat(finalProfile.operators().get(5).operator(), startsWith("TopNOperator"));
+                assertThat(finalProfile.operators().get(6).operator(), startsWith("OutputOperator"));
+            }
         }
     }
 }

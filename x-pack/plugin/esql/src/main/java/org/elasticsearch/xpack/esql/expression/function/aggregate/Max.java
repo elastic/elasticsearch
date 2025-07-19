@@ -58,7 +58,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "version" },
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -86,7 +86,6 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "ip",
                 "keyword",
                 "text",
-                "long",
                 "version" }
         ) Expression field
     ) {

@@ -27,17 +27,18 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -77,13 +78,14 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
@@ -94,11 +96,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final String instructions;
     protected final Mode mode;
     protected static Boolean supportsTook;
-
-    public enum Mode {
-        SYNC,
-        ASYNC
-    }
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s %7$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -275,7 +272,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
-        Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
+        Map<String, Object> answer = RestEsqlTestCase.runEsql(
+            builder.query(query),
+            testCase.assertWarnings(deduplicateExactWarnings()),
+            profileLogger,
+            mode
+        );
 
         assertNotPartial(answer);
 
@@ -302,14 +304,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    static Map<String, Object> assertNotPartial(Map<String, Object> answer) {
-        var clusters = answer.get("_clusters");
-        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
-        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
-
-        return answer;
-    }
-
     private Map<?, ?> tooks() throws IOException {
         Request request = new Request("GET", "/_xpack/usage");
         HttpEntity entity = client().performRequest(request).getEntity();
@@ -334,14 +328,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      */
     protected boolean deduplicateExactWarnings() {
         return false;
-    }
-
-    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
-        if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings);
-        }
     }
 
     protected void assertResults(

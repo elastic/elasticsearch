@@ -11,9 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,6 +27,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
 public abstract class SemanticMatchTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     public void testWithMultipleInferenceIds() throws IOException {
         assumeTrue("semantic text capability not available", EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.isEnabled());
 
@@ -161,6 +167,6 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 }

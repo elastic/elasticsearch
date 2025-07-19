@@ -12,10 +12,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +33,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
@@ -165,13 +170,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsql(
+            Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
+                profileLogger,
                 RestEsqlTestCase.Mode.SYNC
             );
-            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
-            List<List<Object>> values = (List<List<Object>>) a.get("values");
+            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(json);
+            List<List<Object>> values = (List<List<Object>>) json.get("values");
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);
         } catch (Exception e) {
             return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, e);

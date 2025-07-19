@@ -16,9 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +38,9 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 public class TSDBRestEsqlIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @Override
     protected String getTestRestCluster() {
@@ -64,7 +70,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
         builder.pragmas(Settings.builder().put("time_series", true).build());
-        Map<String, Object> result = runEsqlSync(builder);
+        Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
         @SuppressWarnings("unchecked")
         List<Map<?, ?>> columns = (List<Map<?, ?>>) result.get("columns");
         assertEquals(2, columns.size());

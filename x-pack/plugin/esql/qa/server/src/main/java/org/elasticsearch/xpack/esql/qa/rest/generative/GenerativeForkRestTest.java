@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 
 import java.io.IOException;
 import java.util.List;

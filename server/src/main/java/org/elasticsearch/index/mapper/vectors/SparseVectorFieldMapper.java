@@ -578,7 +578,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         final Boolean prune;
         final TokenPruningConfig pruningConfig;
 
-        SparseVectorIndexOptions(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {
+        public SparseVectorIndexOptions(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {
             if (pruningConfig != null && (prune == null || prune == false)) {
                 throw new IllegalArgumentException(
                     "["

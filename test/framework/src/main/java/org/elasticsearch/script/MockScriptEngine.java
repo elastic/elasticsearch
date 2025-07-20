@@ -169,10 +169,7 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(AggregationScript.class)) {
             return context.factoryClazz.cast(new MockAggregationScript(script));
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
-            IngestConditionalScript.Factory factory = (parameters, ctxMap) -> new IngestConditionalScript(
-                parameters,
-                ctxMap
-            ) {
+            IngestConditionalScript.Factory factory = (parameters, ctxMap) -> new IngestConditionalScript(parameters, ctxMap) {
                 @Override
                 public boolean execute() {
                     return (boolean) script.apply(ctxMap);

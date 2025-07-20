@@ -793,15 +793,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     assertEquals(sparseVectorFieldMapper.fieldType().isStored(), semanticTextFieldType.useLegacyFormat() == false);
                     IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
 
-                    if (expectedIndexOptions != null
-                        && SparseVectorFieldMapper.SparseVectorIndexOptions.isDefaultOptions(
-                            sparseVectorFieldMapper.fieldType().getIndexOptions(),
-                            indexVersion
-                        ) == false) {
-                        assertEquals(expectedIndexOptions.indexOptions(), sparseVectorFieldMapper.fieldType().getIndexOptions());
-                    } else {
-                        assertNull(sparseVectorFieldMapper.fieldType().getIndexOptions());
-                    }
+                    SparseVectorFieldMapper.SparseVectorIndexOptions applied = sparseVectorFieldMapper.fieldType().getIndexOptions();
+                    SparseVectorFieldMapper.SparseVectorIndexOptions expected = (expectedIndexOptions != null)
+                        ? (SparseVectorFieldMapper.SparseVectorIndexOptions)expectedIndexOptions.indexOptions()
+                        : SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion);
+                    assertEquals(expected, applied);
                 }
                 case TEXT_EMBEDDING -> {
                     assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));
@@ -1277,10 +1273,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
     }
 
-    private static SemanticTextIndexOptions defaultSparseVectorIndexOptions() {
+    private static SemanticTextIndexOptions defaultSparseVectorIndexOptions(IndexVersion indexVersion) {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(null, null)
+            SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
         );
     }
 
@@ -1407,6 +1403,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
         assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
 
+        IndexVersion sparseVectorIndexVersion = randomBoolean()
+            ? IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
+            ) : IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+                IndexVersion.current()
+            );
         mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "semantic_text");
             b.field("inference_id", "another_inference_id");
@@ -1418,7 +1424,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersionUtils.getPreviousVersion(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT),
             IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT
         );
-        assertSemanticTextField(mapperService, "field", true, null, defaultSparseVectorIndexOptions());
+        assertSemanticTextField(mapperService, "field", true, null, defaultSparseVectorIndexOptions(sparseVectorIndexVersion));
     }
 
     public void testSpecifiedDenseVectorIndexOptions() throws IOException {

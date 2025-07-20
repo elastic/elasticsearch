@@ -952,7 +952,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source());
+        // TODO: avoid materializing the source atm when not using extract from source. Extract from source can be changed to use structured
+        // source.
+        if (indexRouting instanceof IndexRouting.ExtractFromSource) {
+            return indexRouting.indexShard(id, routing, contentType, source());
+        } else {
+            return indexRouting.indexShard(id, routing, contentType, null);
+        }
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

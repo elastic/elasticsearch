@@ -1874,7 +1874,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final var projectRepo = new ProjectRepo(entry.projectId(), entry.repository());
             if (repositoriesSeen.add(projectRepo)
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
-                && snapshotsInProgress.forRepo(projectRepo).stream().noneMatch(SnapshotsService::isWritingToRepository)) {
+                && snapshotsInProgress.forRepo(projectRepo)
+                    .stream()
+                    .noneMatch(SnapshotsService::isWritingToRepositoryOrQueueWithGeneration)) {
                 changed = true;
                 final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
                 readyDeletions.add(newEntry);
@@ -2293,6 +2295,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 // Snapshot ids that will have to be physically deleted from the repository
                 final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);
+
+                final List<Runnable> completeAbortedQueuedWithGenerationRunnables = new ArrayList<>();
                 final SnapshotsInProgress updatedSnapshots = snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(
                     projectId,
                     repositoryName,
@@ -2300,7 +2304,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         if (existing.state() == SnapshotsInProgress.State.STARTED
                             && snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
                             // snapshot is started - mark every non completed shard as aborted
-                            final SnapshotsInProgress.Entry abortedEntry = existing.abort();
+                            final SnapshotsInProgress.Entry abortedEntry = existing.abort(
+                                ((shardId, shardSnapshotStatus) -> completeAbortedQueuedWithGenerationRunnables.add(
+                                    () -> innerUpdateSnapshotState(
+                                        existing.snapshot(),
+                                        shardId,
+                                        null,
+                                        shardSnapshotStatus,
+                                        ActionListener.noop()
+                                    )
+                                ))
+                            );
                             if (abortedEntry == null) {
                                 // No work has been done for this snapshot yet so we remove it from the cluster state directly
                                 final Snapshot existingNotYetStartedSnapshot = existing.snapshot();
@@ -2318,6 +2332,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         return existing;
                     }).filter(Objects::nonNull).toList()
                 );
+                for (var runnable : completeAbortedQueuedWithGenerationRunnables) {
+                    runnable.run();
+                }
                 if (snapshotIdsRequiringCleanup.isEmpty()) {
                     // We only saw snapshots that could be removed from the cluster state right away, no need to update the deletions
                     return updateWithSnapshots(currentState, updatedSnapshots, null);
@@ -2350,7 +2367,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         List.copyOf(snapshotIdsRequiringCleanup),
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),
-                        updatedSnapshots.forRepo(projectId, repositoryName).stream().noneMatch(SnapshotsService::isWritingToRepository)
+                        updatedSnapshots.forRepo(projectId, repositoryName)
+                            .stream()
+                            .noneMatch(SnapshotsService::isWritingToRepositoryOrQueueWithGeneration)
                             && deletionsInProgress.hasExecutingDeletion(projectId, repositoryName) == false
                                 ? SnapshotDeletionsInProgress.State.STARTED
                                 : SnapshotDeletionsInProgress.State.WAITING
@@ -2432,13 +2451,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param entry snapshot entry
      * @return true if entry is currently writing to the repository
      */
-    private static boolean isWritingToRepository(SnapshotsInProgress.Entry entry) {
+    private static boolean isWritingToRepositoryOrQueueWithGeneration(SnapshotsInProgress.Entry entry) {
         if (entry.state().completed()) {
             // Entry is writing to the repo because it's finalizing on master
             return true;
         }
         for (ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
-            if (value.isActive()) {
+            if (value.isActiveOrQueuedWithGeneration()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }

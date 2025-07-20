@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
@@ -1229,7 +1230,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort() {
+        public Entry abort(BiConsumer<ShardId, ShardSnapshotStatus> abortedQueuedWithGenerationShardConsumer) {
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
@@ -1238,12 +1239,23 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
+                    final var isQueuedWithGeneration = status.isQueuedWithGeneration();
                     status = new ShardSnapshotStatus(
                         nodeId,
-                        nodeId == null ? ShardState.FAILED : ShardState.ABORTED, // TODO: Aborted if assigned queued?
+                        // QUEUED with generation transitioned to ABORTED (incomplete) and is completed by a separate cluster state update
+                        (nodeId == null && isQueuedWithGeneration == false) ? ShardState.FAILED : ShardState.ABORTED,
                         status.generation(),
                         "aborted by snapshot deletion"
                     );
+                    if (isQueuedWithGeneration) {
+                        // Accumulate the updates needed to complete the aborted QUEUED with generation shard snapshots
+                        assert isClone() == false
+                            : "The state queued with generation should not be possible for a clone entry [" + this + "]";
+                        abortedQueuedWithGenerationShardConsumer.accept(
+                            shardEntry.getKey(),
+                            new ShardSnapshotStatus(null, ShardState.FAILED, status.generation, "aborted by snapshot deletion")
+                        );
+                    }
                 }
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.getKey(), status);

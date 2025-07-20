@@ -795,7 +795,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
                     SparseVectorFieldMapper.SparseVectorIndexOptions applied = sparseVectorFieldMapper.fieldType().getIndexOptions();
                     SparseVectorFieldMapper.SparseVectorIndexOptions expected = (expectedIndexOptions != null)
-                        ? (SparseVectorFieldMapper.SparseVectorIndexOptions)expectedIndexOptions.indexOptions()
+                        ? (SparseVectorFieldMapper.SparseVectorIndexOptions) expectedIndexOptions.indexOptions()
                         : SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion);
                     assertEquals(expected, applied);
                 }
@@ -1408,7 +1408,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 random(),
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
-            ) : IndexVersionUtils.randomVersionBetween(
+            )
+            : IndexVersionUtils.randomVersionBetween(
                 random(),
                 IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
                 IndexVersion.current()

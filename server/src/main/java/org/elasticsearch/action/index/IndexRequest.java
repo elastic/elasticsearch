@@ -436,6 +436,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.useStructuredSource = true;
     }
 
+    public boolean isStructuredSource() {
+        return useStructuredSource;
+    }
+
     public Map<String, Object> sourceAsMap() {
         if (useStructuredSource) {
             assert structuredSource != null;

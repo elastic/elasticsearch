@@ -1236,10 +1236,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             boolean allQueued = true;
             for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
                 ShardSnapshotStatus status = shardEntry.getValue();
-                allQueued &= status.state() == ShardState.QUEUED;
+                final var isQueuedWithGeneration = status.isQueuedWithGeneration();
+                allQueued &= (status.state() == ShardState.QUEUED && isQueuedWithGeneration == false);
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    final var isQueuedWithGeneration = status.isQueuedWithGeneration();
                     status = new ShardSnapshotStatus(
                         nodeId,
                         // QUEUED with generation transitioned to ABORTED (incomplete) and is completed by a separate cluster state update

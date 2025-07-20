@@ -40,12 +40,15 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -100,7 +103,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
-    private ESONSource structuredSource;
+    private ESONSource.ESONObject structuredSource;
+    private boolean useStructuredSource = false;
 
     private OpType opType = OpType.INDEX;
 
@@ -414,20 +418,31 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
+        if (useStructuredSource && source == null) {
+            try {
+                XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+                structuredSource.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                source = BytesReference.bytes(builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
         return source;
     }
 
-    public void setStructuredSource(ESONSource esonSource) {
+    public void setStructuredSource(ESONSource.ESONObject esonSource) {
+        this.source = null;
         this.structuredSource = esonSource;
-        source = null;
+        this.useStructuredSource = true;
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false, contentType).v2();
-    }
-
-    public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
-        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
+        if (useStructuredSource) {
+            assert structuredSource != null;
+            return structuredSource;
+        } else {
+            return XContentHelper.convertToMap(source, false, contentType).v2();
+        }
     }
 
     /**
@@ -546,6 +561,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest source(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
+        if (useStructuredSource) {
+            ESONSource.Builder builder = new ESONSource.Builder(false);
+            try {
+                XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType);
+                structuredSource = builder.parse(parser);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
         return this;
     }
 
@@ -776,7 +800,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeBytesReference(source);
+        out.writeBytesReference(source());
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());
@@ -924,7 +948,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        return indexRouting.indexShard(id, routing, contentType, source());
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

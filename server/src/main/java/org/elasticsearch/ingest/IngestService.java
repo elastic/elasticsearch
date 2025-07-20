@@ -899,8 +899,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // start the stopwatch and acquire a ref to indicate that we're working on this document
                         final long startTimeInNanos = System.nanoTime();
                         totalMetrics.preIngest();
+                        long bytesIngestedStart = indexRequest.ramBytesUsed();
                         if (firstPipeline != null) {
-                            firstPipeline.getMetrics().preIngestBytes(indexRequest.ramBytesUsed());
+                            firstPipeline.getMetrics().preIngestBytes(bytesIngestedStart);
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
@@ -918,7 +919,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                             onDropped.accept(slot);
                                         } else {
                                             assert firstPipeline != null;
-                                            firstPipeline.getMetrics().postIngestBytes(indexRequest.ramBytesUsed());
+                                            firstPipeline.getMetrics().postIngestBytes(bytesIngestedStart + 1);
                                         }
                                     } else {
                                         totalMetrics.ingestFailed();

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -187,7 +188,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD));
+        return resolveField().and(resolveQuery()).and(Options.resolve(options(), source(), THIRD, ALLOWED_OPTIONS));
     }
 
     private TypeResolution resolveField() {
@@ -200,18 +201,13 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         );
     }
 
-    @Override
-    protected Map<String, Object> resolvedOptions() throws InvalidArgumentException {
-        return matchPhraseQueryOptions();
-    }
-
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of();
         }
 
         Map<String, Object> matchPhraseOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchPhraseOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
+        Options.populateMap((MapExpression) options(), matchPhraseOptions, source(), SECOND, ALLOWED_OPTIONS);
         return matchPhraseOptions;
     }
 

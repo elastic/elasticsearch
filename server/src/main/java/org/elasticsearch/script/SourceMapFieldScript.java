@@ -18,18 +18,27 @@ import java.util.Map;
  * These scripts provide {@code ctx} for backwards compatibility and expose {@link Metadata}.
  */
 public abstract class SourceMapFieldScript {
-    protected final CtxMapWrapper ctxMapWrapper;
+    protected final Map<String, Object> ctxMap;
 
-    public SourceMapFieldScript(CtxMapWrapper ctxMapWrapper) {
-        this.ctxMapWrapper = ctxMapWrapper;
+    public SourceMapFieldScript(Map<String, Object> ctxMap) {
+        this.ctxMap = ctxMap;
     }
 
-    /** Provides backwards compatibility access to ctx */
+    /**
+     * Provides backwards compatibility access to ctx
+     * @return the context map containing the source data
+     */
     public Map<String, Object> getCtx() {
-        return ctxMapWrapper.getCtxMap();
+        return ctxMap;
     }
 
+    /**
+     * Expose the {@link SourceMapField field} API
+     *
+     * @param path the path to the field in the source map
+     * @return a new {@link SourceMapField} instance for the specified path
+     */
     public SourceMapField field(String path) {
-        return new SourceMapField(path, ctxMapWrapper::getCtxMap);
+        return new SourceMapField(path, () -> ctxMap);
     }
 }

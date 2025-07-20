@@ -401,7 +401,18 @@ public class ESONSource {
                     case ESONArray a -> a.toXContent(builder, params);
                     case FixedValue v -> v.writeToXContent(builder, objectValues.get());
                     case VariableValue v -> v.writeToXContent(builder, objectValues.get());
-                    case Mutation m -> builder.value(m.object());
+                    case Mutation m -> {
+                        Object object = m.object();
+                        if (object instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            final Map<String, ?> valueMap = (Map<String, ?>) object;
+                            builder.map(valueMap, false);
+                        } else {
+                            // TODO: Will check self references on array which is unnecessary
+                            builder.value(object);
+                        }
+
+                    }
                     default -> throw new IllegalArgumentException("Unknown type: " + entry.getValue());
                 }
             }

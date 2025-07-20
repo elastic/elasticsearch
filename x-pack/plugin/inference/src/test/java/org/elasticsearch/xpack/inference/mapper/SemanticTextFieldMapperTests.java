@@ -793,11 +793,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     assertEquals(sparseVectorFieldMapper.fieldType().isStored(), semanticTextFieldType.useLegacyFormat() == false);
                     IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
 
-                    if (expectedIndexOptions != null &&
-                        SparseVectorFieldMapper.SparseVectorIndexOptions.isDefaultOptions(
-                            sparseVectorFieldMapper.fieldType().getIndexOptions(), indexVersion
-                        ) == false
-                    ) {
+                    if (expectedIndexOptions != null
+                        && SparseVectorFieldMapper.SparseVectorIndexOptions.isDefaultOptions(
+                            sparseVectorFieldMapper.fieldType().getIndexOptions(),
+                            indexVersion
+                        ) == false) {
                         assertEquals(expectedIndexOptions.indexOptions(), sparseVectorFieldMapper.fieldType().getIndexOptions());
                     } else {
                         assertNull(sparseVectorFieldMapper.fieldType().getIndexOptions());
@@ -1096,7 +1096,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
-        final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);;
+        final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
+        ;
         String fieldName = "field";
 
         SemanticTextField randomSemanticText = randomSemanticText(
@@ -1407,12 +1408,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertSemanticTextField(mapperService, "field", true, null, defaultDenseVectorSemanticIndexOptions());
 
         mapperService = createMapperService(fieldMapping(b -> {
-                b.field("type", "semantic_text");
-                b.field("inference_id", "another_inference_id");
-                b.startObject("model_settings");
-                b.field("task_type", "sparse_embedding");
-                b.endObject();
-            }),
+            b.field("type", "semantic_text");
+            b.field("inference_id", "another_inference_id");
+            b.startObject("model_settings");
+            b.field("task_type", "sparse_embedding");
+            b.endObject();
+        }),
             useLegacyFormat,
             IndexVersionUtils.getPreviousVersion(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT),
             IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT

@@ -84,15 +84,7 @@ public final class DocumentParser {
         final XContentType xContentType = source.getXContentType();
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
-        try (
-            XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(
-                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                    source.source(),
-                    xContentType
-                )
-            )
-        ) {
+        try (XContentParser parser = meteringParserDecorator.decorate(getParser(source, source.getStructuredSource(), xContentType))) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -125,6 +117,22 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
+    }
+
+    private XContentParser getParser(SourceToParse source, @Nullable Map<String, Object> structuredSource, XContentType xContentType)
+        throws IOException {
+        if (structuredSource == null) {
+            return XContentHelper.createParser(
+                parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                source.source(),
+                xContentType
+            );
+        } else {
+            return XContentHelper.mapToXContentParser(
+                parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                structuredSource
+            );
+        }
     }
 
     private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {

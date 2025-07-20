@@ -33,6 +33,8 @@ public class SourceToParse {
     private final boolean includeSourceOnError;
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
+    @Nullable
+    private Map<String, Object> structuredSource;
 
     public SourceToParse(
         @Nullable String id,
@@ -41,7 +43,8 @@ public class SourceToParse {
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
         boolean includeSourceOnError,
-        XContentMeteringParserDecorator meteringParserDecorator
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable Map<String, Object> structuredSource
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -52,14 +55,15 @@ public class SourceToParse {
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
+        this.structuredSource = structuredSource;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public SourceToParse(
@@ -69,11 +73,16 @@ public class SourceToParse {
         String routing,
         Map<String, String> dynamicTemplates
     ) {
-        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP, null);
     }
 
     public BytesReference source() {
         return this.source;
+    }
+
+    @Nullable
+    public Map<String, Object> getStructuredSource() {
+        return structuredSource;
     }
 
     /**

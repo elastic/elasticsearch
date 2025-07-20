@@ -2851,6 +2851,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             ClusterState updatedState = res.v1();
 
+            // TODO: deduplicate the code for starting queued-with-gen shards across repos
             final var snapshotsInProgress = SnapshotsInProgress.get(updatedState);
             final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
                 shardSnapshotPerNodeLimit,
@@ -2865,33 +2866,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     if (repo.equals(repoForDeletedEntry)) {
                         continue;
                     }
-                    final List<SnapshotsInProgress.Entry> oldEntries = snapshotsInProgress.forRepo(repo);
-                    if (oldEntries.isEmpty()) {
-                        continue;
-                    }
-                    final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
-                    for (SnapshotsInProgress.Entry entry : oldEntries) {
-                        if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
-                            final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                            maybeStartQueuedWithGenerationShardSnapshots(
-                                updatedState,
-                                entry,
-                                snapshotsInProgress::isNodeIdForRemoval,
-                                shardsBuilder,
-                                perNodeShardSnapshotCounter,
-                                () -> {},
-                                () -> {}
-                            );
-                            final var newEntry = entry.withShardStates(shardsBuilder.build());
-                            newEntries.add(newEntry);
-                        } else {
-                            newEntries.add(entry);
-                        }
-                    }
-                    updatedSnapshotsInProgress = updatedSnapshotsInProgress.createCopyWithUpdatedEntriesForRepo(
-                        repo.projectId(),
-                        repo.name(),
-                        newEntries
+                    updatedSnapshotsInProgress = maybeStartQueuedWithGenerationShardSnapshotsForRepo(
+                        repo,
+                        updatedState,
+                        updatedSnapshotsInProgress,
+                        perNodeShardSnapshotCounter,
+                        ignore -> {},
+                        () -> {},
+                        () -> {}
                     );
                 }
                 if (updatedSnapshotsInProgress != snapshotsInProgress) {
@@ -3117,6 +3099,44 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         public String toString() {
             return "RemoveSnapshotDeletionAndContinueTask[" + deleteEntry + "]";
         }
+    }
+
+    private static SnapshotsInProgress maybeStartQueuedWithGenerationShardSnapshotsForRepo(
+        ProjectRepo projectRepo,
+        ClusterState clusterState,
+        SnapshotsInProgress snapshotsInProgress,
+        PerNodeShardSnapshotCounter perNodeShardSnapshotCounter,
+        Consumer<SnapshotsInProgress.Entry> newEntryConsumer,
+        Runnable changedCallback,
+        Runnable startedCallback
+    ) {
+        final List<SnapshotsInProgress.Entry> oldEntries = snapshotsInProgress.forRepo(projectRepo);
+        if (oldEntries.isEmpty()) {
+            return snapshotsInProgress;
+        }
+        final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
+        for (SnapshotsInProgress.Entry entry : oldEntries) {
+            if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
+                final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
+                maybeStartQueuedWithGenerationShardSnapshots(
+                    clusterState,
+                    entry,
+                    snapshotsInProgress::isNodeIdForRemoval,
+                    shardsBuilder,
+                    perNodeShardSnapshotCounter,
+                    changedCallback,
+                    startedCallback
+                );
+                final var newEntry = entry.withShardStates(shardsBuilder.build());
+                newEntries.add(newEntry);
+                if (newEntry != entry) {
+                    newEntryConsumer.accept(newEntry);
+                }
+            } else {
+                newEntries.add(entry);
+            }
+        }
+        return snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
     }
 
     private static void maybeStartQueuedWithGenerationShardSnapshots(
@@ -3537,37 +3557,24 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 updated = updated.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
             }
 
+            // TODO: deduplicate the code for starting queued-with-gen shards across repos
             for (var notUpdatedRepo : Sets.difference(existing.repos(), updatesByRepo.keySet())) {
                 if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode() == false) {
                     break;
                 }
-                final List<SnapshotsInProgress.Entry> oldEntries = existing.forRepo(notUpdatedRepo);
-                if (oldEntries.isEmpty()) {
-                    continue;
-                }
-                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
-                for (SnapshotsInProgress.Entry entry : oldEntries) {
-                    if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
-                        final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                        maybeStartQueuedWithGenerationShardSnapshots(
-                            initialState,
-                            entry,
-                            nodeIdRemovalPredicate,
-                            shardsBuilder,
-                            perNodeShardSnapshotCounter,
-                            () -> changedCount++,
-                            () -> startedCount++
-                        );
-                        final var newEntry = entry.withShardStates(shardsBuilder.build());
-                        newEntries.add(newEntry);
-                        if (newEntry != entry && newEntry.state().completed()) {
+                updated = maybeStartQueuedWithGenerationShardSnapshotsForRepo(
+                    notUpdatedRepo,
+                    initialState,
+                    updated,
+                    perNodeShardSnapshotCounter,
+                    newEntry -> {
+                        if (newEntry.state().completed()) {
                             newlyCompletedEntries.add(newEntry);
                         }
-                    } else {
-                        newEntries.add(entry);
-                    }
-                }
-                updated = updated.createCopyWithUpdatedEntriesForRepo(notUpdatedRepo.projectId(), notUpdatedRepo.name(), newEntries);
+                    },
+                    () -> changedCount++,
+                    () -> startedCount++
+                );
             }
 
             if (changedCount > 0) {

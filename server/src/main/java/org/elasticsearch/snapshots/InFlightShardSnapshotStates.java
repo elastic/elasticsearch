@@ -68,7 +68,7 @@ public final class InFlightShardSnapshotStates {
         String indexName
     ) {
         // Both active or assigned queued means the shard is meant to be the one with actions if node capacity allows it
-        if (shardState.isActiveOrAssignedQueued()) {
+        if (shardState.isActiveOrQueuedWithGeneration()) {
             busyIds.computeIfAbsent(indexName, k -> new HashSet<>()).add(shardId);
             assert assertGenerationConsistency(generations, indexName, shardId, shardState.generation());
         } else if (shardState.state() == SnapshotsInProgress.ShardState.SUCCESS) {

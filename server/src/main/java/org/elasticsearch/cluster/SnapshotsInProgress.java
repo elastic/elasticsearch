@@ -508,7 +508,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         int shardId,
         ShardSnapshotStatus shardSnapshotStatus
     ) {
-        if (shardSnapshotStatus.isActiveOrAssignedQueued()) {
+        if (shardSnapshotStatus.isActiveOrQueuedWithGeneration()) {
             Tuple<String, Integer> plainShardId = Tuple.tuple(indexName, shardId);
             assert assignedShards.add(plainShardId) : plainShardId + " is assigned twice in " + entries;
             assert queuedShards.contains(plainShardId) == false : plainShardId + " is queued then assigned in " + entries;
@@ -757,16 +757,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public static ShardSnapshotStatus assignedQueued(String nodeId, ShardGeneration generation) {
-            return new ShardSnapshotStatus(nodeId, ShardState.QUEUED, generation, null, null);
+        public static ShardSnapshotStatus queuedWithGeneration(ShardGeneration generation) {
+            return new ShardSnapshotStatus(null, ShardState.QUEUED, generation, null, null);
         }
 
-        public boolean isAssignedQueued() {
-            return state == ShardState.QUEUED && nodeId != null && generation != null;
+        public boolean isQueuedWithGeneration() {
+            return state == ShardState.QUEUED && generation != null && nodeId == null;
         }
 
         public boolean isUnassignedQueued() {
-            return this == UNASSIGNED_QUEUED || (state == ShardState.QUEUED && nodeId == null && generation == null);
+            return this == UNASSIGNED_QUEUED || (state == ShardState.QUEUED && generation == null && nodeId == null);
         }
 
         public ShardSnapshotStatus(
@@ -789,7 +789,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert state.failed() == false || reason != null;
             assert (state != ShardState.INIT && state != ShardState.WAITING && state != ShardState.PAUSED_FOR_NODE_REMOVAL)
                 || nodeId != null : "Null node id for state [" + state + "]";
-            assert state != ShardState.QUEUED || (isUnassignedQueued() || isAssignedQueued())
+            assert state != ShardState.QUEUED || (isUnassignedQueued() || isQueuedWithGeneration())
                 : "Found unexpected shard state=["
                     + state
                     + "], nodeId=["
@@ -852,8 +852,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             };
         }
 
-        public boolean isActiveOrAssignedQueued() {
-            return isActive() || isAssignedQueued();
+        public boolean isActiveOrQueuedWithGeneration() {
+            return isActive() || isQueuedWithGeneration();
         }
 
         @Override

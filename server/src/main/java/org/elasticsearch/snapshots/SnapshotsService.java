@@ -1013,7 +1013,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository()))
                         : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
-                } else if (value.isActiveOrAssignedQueued()) {
+                } else if (value.isActiveOrQueuedWithGeneration()) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
                         : "Found shard snapshot actively executing in ["
                             + entry
@@ -2842,7 +2842,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
                 final ProjectRepo repoForDeletedEntry = new ProjectRepo(deleteEntry.projectId(), deleteEntry.repository());
                 SnapshotsInProgress updatedSnapshotsInProgress = snapshotsInProgress;
-                final Map<ProjectRepo, InFlightShardSnapshotStates> repoToInFlightShardSnapshotStates = new HashMap<>();
                 for (var repo : snapshotsInProgress.repos()) {
                     if (repo.equals(repoForDeletedEntry)) {
                         continue;
@@ -2855,16 +2854,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     for (SnapshotsInProgress.Entry entry : oldEntries) {
                         if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
                             final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                            maybeStartAssignedQueuedShardSnapshot(
+                            maybeStartQueuedWithGenerationShardSnapshots(
                                 updatedState,
                                 entry,
                                 snapshotsInProgress::isNodeIdForRemoval,
                                 shardsBuilder,
                                 perNodeShardSnapshotCounter,
-                                () -> repoToInFlightShardSnapshotStates.computeIfAbsent(
-                                    repo,
-                                    r -> InFlightShardSnapshotStates.forEntries(snapshotsInProgress.forRepo(r))
-                                ),
                                 () -> {},
                                 () -> {}
                             );
@@ -3063,7 +3058,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                         : "Missing assignment for [" + sid + "]";
                                     updatedAssignmentsBuilder.put(sid, ShardSnapshotStatus.MISSING);
                                 } else {
-                                    if (updated.isActiveOrAssignedQueued()) {
+                                    if (updated.isActiveOrQueuedWithGeneration()) {
                                         markShardReassigned(shardId, reassignedShardIds);
                                     }
                                     updatedAssignmentsBuilder.put(sid, updated);
@@ -3105,21 +3100,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private static void maybeStartAssignedQueuedShardSnapshot(
+    private static void maybeStartQueuedWithGenerationShardSnapshots(
         ClusterState clusterState,
         SnapshotsInProgress.Entry entry,
         Predicate<String> nodeIdRemovalPredicate,
         ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder,
         PerNodeShardSnapshotCounter perNodeShardSnapshotCounter,
-        Supplier<InFlightShardSnapshotStates> inflightShardStatesFunc,
         Runnable changedCallback,
         Runnable startedCallback
     ) {
-        // TODO check snapshot completed and skip
         if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
             for (var shardId : shardsBuilder.keys()) {
                 final var existingShardSnapshotStatus = shardsBuilder.get(shardId);
-                if (existingShardSnapshotStatus.isAssignedQueued() == false) {
+                if (existingShardSnapshotStatus.isQueuedWithGeneration() == false) {
                     continue;
                 }
                 final IndexRoutingTable indexRouting = clusterState.routingTable(entry.projectId()).index(shardId.getIndex());
@@ -3304,7 +3297,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(primary.currentNodeId())) {
                 shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
             } else {
-                shardSnapshotStatus = ShardSnapshotStatus.assignedQueued(primary.currentNodeId(), shardRepoGeneration);
+                shardSnapshotStatus = ShardSnapshotStatus.queuedWithGeneration(shardRepoGeneration);
             }
         }
         return shardSnapshotStatus;
@@ -3466,8 +3459,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         private final PerNodeShardSnapshotCounter perNodeShardSnapshotCounter;
 
-        private final Map<ProjectRepo, InFlightShardSnapshotStates> perRepoInFlightShardStates = new HashMap<>();
-
         /**
          * Sets up {@link #updatesByRepo} to organize the {@link ShardSnapshotUpdate} tasks by repository name.
          */
@@ -3497,13 +3488,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 SnapshotsInProgress.get(initialState),
                 initialState.nodes(),
                 isStateless
-            );
-        }
-
-        InFlightShardSnapshotStates getInFlightShardStates(ProjectRepo projectRepo) {
-            return perRepoInFlightShardStates.computeIfAbsent(
-                projectRepo,
-                repo -> InFlightShardSnapshotStates.forEntries(SnapshotsInProgress.get(initialState).forRepo(repo))
             );
         }
 
@@ -3546,7 +3530,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 for (SnapshotsInProgress.Entry entry : oldEntries) {
                     if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
                         final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                        maybeStartShardSnapshotHorizontally(entry, shardsBuilder);
+                        maybeStartQueuedWithGenerationShardSnapshots(
+                            initialState,
+                            entry,
+                            nodeIdRemovalPredicate,
+                            shardsBuilder,
+                            perNodeShardSnapshotCounter,
+                            () -> changedCount++,
+                            () -> startedCount++
+                        );
                         final var newEntry = entry.withShardStates(shardsBuilder.build());
                         newEntries.add(newEntry);
                         if (newEntry != entry && newEntry.state().completed()) {
@@ -3568,22 +3560,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 return supportsNodeRemovalTracking(initialState) ? updated.withUpdatedNodeIdsForRemoval(initialState) : updated;
             }
             return existing;
-        }
-
-        private void maybeStartShardSnapshotHorizontally(
-            SnapshotsInProgress.Entry entry,
-            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder
-        ) {
-            maybeStartAssignedQueuedShardSnapshot(
-                initialState,
-                entry,
-                nodeIdRemovalPredicate,
-                shardsBuilder,
-                perNodeShardSnapshotCounter,
-                () -> getInFlightShardStates(new ProjectRepo(entry.projectId(), entry.repository())),
-                () -> changedCount++,
-                () -> startedCount++
-            );
         }
 
         /**
@@ -3690,7 +3666,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             + " as well as "
                             + shardsBuilder;
 
-                    maybeStartShardSnapshotHorizontally(entry, shardsBuilder);
+                    maybeStartQueuedWithGenerationShardSnapshots(
+                        initialState,
+                        entry,
+                        nodeIdRemovalPredicate,
+                        shardsBuilder,
+                        perNodeShardSnapshotCounter,
+                        () -> changedCount++,
+                        () -> startedCount++
+                    );
                     return entry.withShardStates(shardsBuilder.build());
                 } else if (clonesBuilder != null) {
                     return entry.withClones(clonesBuilder.build());
@@ -3896,7 +3880,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (shardSnapshotStatus.isActive()) {
                     startShardOperation(shardsBuilder(), routingShardId, shardSnapshotStatus);
                 } else {
-                    if (shardSnapshotStatus.isAssignedQueued()) {
+                    if (shardSnapshotStatus.isQueuedWithGeneration()) {
                         updatesIterator.remove();
                     }
                     // update to queued snapshot did not result in an actual update execution so we just record it but keep applying

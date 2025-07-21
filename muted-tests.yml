@@ -493,6 +493,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
   method: testReader
   issue: https://github.com/elastic/elasticsearch/issues/131573
+- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
+  method: testTimeoutSetting
+  issue: https://github.com/elastic/elasticsearch/issues/131656
 
 # Examples:
 #

@@ -1813,7 +1813,7 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testIgnoreBlockedIndices() {
+    public void testIgnoreIndicesWithIndexRefreshBlock() {
         int numIndices = randomIntBetween(1, 10);
         String[] concreteIndices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {

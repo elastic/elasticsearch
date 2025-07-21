@@ -9,12 +9,18 @@
 
 package org.elasticsearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchShardsGroup;
+import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -101,6 +108,29 @@ public class SearchWithIndexBlocksIT extends ESIntegTestCase {
                 assertHitCount(Objects.requireNonNull(response.getResponses()[1].getResponse()), 0);
             }
         );
+    }
+
+    @Repeat(iterations = 100)
+    public void testSearchShardsOnIndicesWithIndexRefreshBlocks() {
+        List<String> indices = createIndices();
+        indexDocuments(indices);
+        List<String> unblockedIndices = addIndexRefreshBlockToSomeIndices(indices);
+
+        var resp = client().execute(
+            TransportSearchShardsAction.TYPE,
+            new SearchShardsRequest(
+                indices.toArray(new String[0]),
+                IndicesOptions.DEFAULT,
+                new MatchAllQueryBuilder(),
+                null,
+                null,
+                true,
+                null
+            )
+        ).actionGet();
+        for (SearchShardsGroup group : resp.getGroups()) {
+            assertTrue(unblockedIndices.contains(group.shardId().getIndex().getName()));
+        }
     }
 
     private List<String> createIndices() {

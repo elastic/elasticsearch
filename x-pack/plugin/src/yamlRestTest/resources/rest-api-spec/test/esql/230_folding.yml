@@ -454,6 +454,7 @@ Foldable query using KNN on image_vector:
             FROM employees
             | WHERE KNN(image_vector, [0.4, 0.5, 0.9], 1 + 1)
             | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | SORT name
             | LIMIT 2
   - match: { columns.0.name: "hire_date" }
   - match: { columns.1.name: "salary" }

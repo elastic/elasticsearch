@@ -23,9 +23,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
-import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES;
-import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES_8_19;
-import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES_9_1;
 
 public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToIteratorOperator.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -33,6 +30,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql-split-on-big-values");
 
     private final Map<String, Integer> readersBuilt;
     private final long valuesLoaded;
@@ -57,7 +55,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         int pagesEmitted;
         long rowsReceived;
         long rowsEmitted;
-        if (supportsSplitOnBigValues(in.getTransportVersion())) {
+        if (in.getTransportVersion().supports(ESQL_SPLIT_ON_BIG_VALUES)) {
             AbstractPageMappingToIteratorOperator.Status status = new AbstractPageMappingToIteratorOperator.Status(in);
             processNanos = status.processNanos();
             pagesReceived = status.pagesReceived();
@@ -87,7 +85,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (supportsSplitOnBigValues(out.getTransportVersion())) {
+        if (out.getTransportVersion().supports(ESQL_SPLIT_ON_BIG_VALUES)) {
             super.writeTo(out);
         } else {
             /*
@@ -100,12 +98,6 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(valuesLoaded);
         }
-    }
-
-    private static boolean supportsSplitOnBigValues(TransportVersion version) {
-        return version.onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)
-            || version.isPatchFrom(ESQL_SPLIT_ON_BIG_VALUES_9_1)
-            || version.isPatchFrom(ESQL_SPLIT_ON_BIG_VALUES_8_19);
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {

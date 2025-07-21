@@ -220,4 +220,12 @@ public class TransportVersionTests extends ESTestCase {
             previous = next;
         }
     }
+
+    public void testNamedVersions() {
+        assertEquals(
+            new TransportVersion("ml-inference-azure-ai-studio-rerank-added", 9123000, null),
+            TransportVersion.fromName("ml-inference-azure-ai-studio-rerank-added")
+        );
+        assertEquals(new TransportVersion("esql-topn-timings", 9128000, null), TransportVersion.fromName("esql-topn-timings"));
+    }
 }

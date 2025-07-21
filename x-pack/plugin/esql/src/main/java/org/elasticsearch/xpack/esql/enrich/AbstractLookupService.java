@@ -309,7 +309,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
             final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
-            // JULIAN: SHOULD WE DO THE NEXT CODE FOR EACH BLOCK IN THE PAGE?
             Block inputBlock = request.inputPage.getBlock(0);
             if (mergePages  // TODO fix this optimization for Lookup.
                 && inputBlock instanceof BytesRefBlock bytesRefBlock

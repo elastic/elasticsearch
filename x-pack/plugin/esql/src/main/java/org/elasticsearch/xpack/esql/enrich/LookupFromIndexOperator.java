@@ -110,7 +110,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final String lookupIndex;
     private final List<NamedExpression> loadFields;
     private final Source source;
-    private long totalTerms = 0L;
+    private long totalRows = 0L;
     private List<MatchConfig> matchFields;
     /**
      * Total number of pages emitted by this {@link Operator}.
@@ -146,14 +146,15 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        // JULIAN: should I be getting multiple blocks, and send them using the LookupFromIndexService.Request
-        // is the totalTerms supposed to be the total number of terms in all blocks combined?
         Block[] inputBlockArray = new Block[matchFields.size()];
         for (int i = 0; i < matchFields.size(); i++) {
             MatchConfig matchField = matchFields.get(i);
             int inputChannel = matchField.channel;
             final Block inputBlock = inputPage.getBlock(inputChannel);
-            totalTerms += inputBlock.getTotalValueCount();
+            if (i == 0) {
+                // we only add to the totalRows once, so we can use the first block
+                totalRows += inputBlock.getTotalValueCount();
+            }
             inputBlockArray[i] = inputBlock;
         }
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
@@ -246,7 +247,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalTerms, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalRows, emittedPages);
     }
 
     public static class Status extends AsyncOperator.Status {

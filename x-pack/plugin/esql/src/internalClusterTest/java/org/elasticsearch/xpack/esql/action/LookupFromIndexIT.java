@@ -224,16 +224,16 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 TEST_REQUEST_TIMEOUT
             );
             final String finalNodeWithShard = nodeWithShard;
+            List<LookupFromIndexOperator.MatchConfig> matchFields = new ArrayList<>();
+            matchFields.add(new LookupFromIndexOperator.MatchConfig(new FieldAttribute.FieldName("key"), 1, keyType));
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
+                matchFields,
                 "test",
                 parentTask,
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
-                1,
                 ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
-                keyType,
                 "lookup",
                 "lookup",
-                new FieldAttribute.FieldName("key"),
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY
             );

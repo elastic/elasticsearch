@@ -13,8 +13,13 @@ import org.apache.lucene.search.Query;
 
 import java.util.List;
 
+/**
+ * A {@link LookupEnrichQueryGenerator} that combines multiple {@link QueryList}s into a single query.
+ * Each query in the resulting query will be a conjunction of all queries from the input lists at the same position.
+ * In the future we can extend this to support more complex expressions, such as disjunctions or negations.
+ */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
-    List<QueryList> queryLists;
+    private final List<QueryList> queryLists;
 
     public ExpressionQueryList(List<QueryList> queryLists) {
         if (queryLists.size() < 2) {
@@ -25,13 +30,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
 
     @Override
     public Query getQuery(int position) {
-        // JULIAN: Do we have a guarantee that the positions will match across all QueryLists?
-        // for now we only support AND of the queries in the lists
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryList queryList : queryLists) {
             Query q = queryList.getQuery(position);
-            builder.add(q, BooleanClause.Occur.MUST);
-
+            builder.add(q, BooleanClause.Occur.FILTER);
         }
         return builder.build();
     }
@@ -49,6 +51,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 );
             }
         }
-        return queryLists.get(0).getPositionCount();
+        return positionCount;
     }
 }

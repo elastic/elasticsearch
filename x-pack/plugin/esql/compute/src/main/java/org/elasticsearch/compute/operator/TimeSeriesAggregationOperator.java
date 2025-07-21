@@ -40,6 +40,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             // TODO: use TimeSeriesBlockHash when possible
             return new TimeSeriesAggregationOperator(
                 timeBucket,
+                groups,
                 aggregators,
                 () -> BlockHash.build(
                     groups,
@@ -65,11 +66,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
+        List<BlockHash.GroupSpec> groups,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(aggregators, blockHash, driverContext);
+        super(groups, aggregators, blockHash, driverContext);
         this.timeBucket = timeBucket;
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -28,10 +29,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -55,6 +59,23 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     AbstractPhysicalOperationProviders(FoldContext foldContext, AnalysisRegistry analysisRegistry) {
         this.foldContext = foldContext;
         this.analysisRegistry = analysisRegistry;
+    }
+
+    private static Bucket findBucket(AggregateExec aggregateExec, NameId bucketId) {
+        Holder<Bucket> foundBucket = new Holder<>();
+        aggregateExec.forEachExpressionDown(NamedExpression.class, ne -> {
+            if (ne.id().equals(bucketId)) {
+                if (ne.children().size() > 0 && ne.children().get(0) instanceof Bucket bucket) {
+                    foundBucket.set(bucket);
+                    // TODO: Hack used when BUCKET is wrapped with ROUND. How to generalize it?
+                } else if (ne.children().size() > 0
+                    && ne.children().get(0) instanceof Round round
+                    && round.field() instanceof Bucket bucket) {
+                        foundBucket.set(bucket);
+                    }
+            }
+        });
+        return foundBucket.get();
     }
 
     @Override
@@ -97,6 +118,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
             for (Expression group : aggregateExec.groupings()) {
                 Attribute groupAttribute = Expressions.attribute(group);
+                Bucket bucket = findBucket(aggregateExec, groupAttribute.id());
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
                 Attribute sourceGroupAttribute = (aggregatorMode.isInputPartial() == false
                     && group instanceof Alias as
@@ -140,7 +162,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, bucket));
             }
 
             if (aggregatorMode.isOutputPartial()) {
@@ -350,17 +372,20 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, @Nullable Bucket bucket) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return new BlockHash.GroupSpec(
-                channel,
-                elementType(),
-                Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
-                null
-            );
+
+            Expression unwrappedExpression = Alias.unwrap(expression);
+            if (unwrappedExpression instanceof Categorize categorize) {
+                return new BlockHash.GroupSpec(channel, elementType(), categorize.categorizeDef());
+            } else if (bucket != null && bucket.emitEmptyBuckets() != null) {
+                return new BlockHash.GroupSpec(channel, elementType(), null, null, bucket.createEmptyBucketGenerator());
+            } else {
+                return new BlockHash.GroupSpec(channel, elementType());
+            }
         }
 
         ElementType elementType() {

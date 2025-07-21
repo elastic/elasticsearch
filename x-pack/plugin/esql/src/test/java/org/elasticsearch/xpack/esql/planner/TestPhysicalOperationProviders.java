@@ -358,12 +358,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final Attribute attribute;
 
         TestHashAggregationOperator(
+            List<BlockHash.GroupSpec> groups,
             List<GroupingAggregator.Factory> aggregators,
             Supplier<BlockHash> blockHash,
             Attribute attribute,
             DriverContext driverContext
         ) {
-            super(aggregators, blockHash, driverContext);
+            super(groups, aggregators, blockHash, driverContext);
             this.attribute = attribute;
         }
 

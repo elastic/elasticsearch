@@ -14,3 +14,6 @@
 `to`
 :   End of the range. Can be a number, a date or a date expressed as a string.
 
+`emitEmptyBuckets`
+:   Whether or not empty buckets should be emitted.
+

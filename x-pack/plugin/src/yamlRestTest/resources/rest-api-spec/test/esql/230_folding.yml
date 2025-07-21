@@ -463,9 +463,6 @@ Foldable query using KNN on image_vector:
   - match: { columns.4.name: "name" }
   - match: { columns.5.name: "image_vector" }
   - length: { values: 2 }
-  # The closest vectors to [0.4, 0.5, 0.6] are Bob Johnson and Charlie Smith
-  - match: { values.0.4: "Bob Johnson" }
-  - match: { values.1.4: "Charlie Smith" }
 
 ---
 

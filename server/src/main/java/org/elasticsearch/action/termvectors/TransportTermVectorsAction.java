@@ -88,6 +88,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
                 request.request().preference()
             );
         if (iterator == null) {
+            // We return an empty iterator to avoid hitting an indexing node in serverless (e.g., if there are no search nodes available).
             return new ShardIterator(null, List.of());
         }
         return ShardIterator.allSearchableShards(iterator);

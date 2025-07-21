@@ -52,15 +52,15 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     public static final String NAME = "text_similarity_reranker";
 
     /**
-     * The default token size limit of the Elastic reranker.
+     * The default token size limit of the Elastic reranker is 512.
      */
     private static final int RERANK_TOKEN_SIZE_LIMIT = 512;
 
     /**
-     * A safe default token size limit for other reranker models.
+     * 4096 is a safe default token size limit for other reranker models.
      * Reranker models with smaller token limits will be truncated.
      */
-    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4096;
+    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4_096;
 
     public static final LicensedFeature.Momentary TEXT_SIMILARITY_RERANKER_FEATURE = LicensedFeature.momentary(
         null,

@@ -34,6 +34,10 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
 
     private final SnippetRankInput snippetRankInput;
 
+    // Rough approximation of token size vs. characters in highlight fragments.
+    // TODO highlighter should be able to set fragment size by token not length
+    private static final int TOKEN_SIZE_LIMIT_MULTIPLIER = 5;
+
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable SnippetRankInput snippetRankInput) {
         super(field);
         this.snippetRankInput = snippetRankInput;
@@ -81,8 +85,9 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                     : DEFAULT_NUM_SNIPPETS;
                 highlightBuilder.numOfFragments(numSnippets);
                 // Rely on the model to determine the fragment size
-                // TODO highlighter should be able to set fragment size by token not length
-                highlightBuilder.fragmentSize(snippetRankInput.tokenSizeLimit());
+                int tokenSizeLimit = snippetRankInput.tokenSizeLimit();
+                int fragmentSize = tokenSizeLimit * TOKEN_SIZE_LIMIT_MULTIPLIER;
+                highlightBuilder.fragmentSize(fragmentSize);
                 SearchHighlightContext searchHighlightContext = highlightBuilder.build(context.getSearchExecutionContext());
                 context.highlight(searchHighlightContext);
             } catch (IOException e) {

@@ -113,20 +113,24 @@ $endif$
         state.addValue(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
 $if(BytesRef)$
-        BytesRef scratch = new BytesRef();
-$endif$
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntVector groups, $Type$Block values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
+    }
+
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntBlock groups, $Type$Block values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
+    }
+
+$else$
+    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-$if(BytesRef)$
-            state.addValue(groupId, values.getBytesRef(i, scratch));
-$else$
             state.addValue(groupId, values.get$Type$(i));
-$endif$
         }
     }
+$endif$
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory(), selected);
@@ -304,7 +308,7 @@ $endif$
 
             try (var sorted = buildSorted(selected)) {
 $if(BytesRef)$
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                if (OrdinalBytesRefBlock.isDense(values.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
                 } else {
                     return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);

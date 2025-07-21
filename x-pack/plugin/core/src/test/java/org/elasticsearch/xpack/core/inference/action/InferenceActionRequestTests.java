@@ -342,7 +342,10 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException queryError = queryRequest.validate();
         assertNotNull(queryError);
-        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [query] cannot be specified for task type [sparse_embedding];"));
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [query] cannot be specified for task type [sparse_embedding];")
+        );
     }
 
     public void testValidation_Completion_WithInputType() {

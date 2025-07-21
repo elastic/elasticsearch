@@ -274,7 +274,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             if (taskType.equals(TaskType.TEXT_EMBEDDING) || taskType.equals(TaskType.SPARSE_EMBEDDING)) {
-                if(query != null) {
+                if (query != null) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [query] cannot be specified for task type [%s]", taskType));
                     return e;

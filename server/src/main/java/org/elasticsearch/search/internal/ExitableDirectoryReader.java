@@ -586,8 +586,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (scorer == null) {
                 return null;
             }
+            DocIdSetIterator scorerIterator = scorer.iterator();
             return new VectorScorer() {
-                private final DocIdSetIterator iterator = new ExitableDocSetIterator(scorer.iterator(), queryCancellation);
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
 
                 @Override
                 public float score() throws IOException {
@@ -637,8 +638,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (scorer == null) {
                 return null;
             }
+            DocIdSetIterator scorerIterator = scorer.iterator();
             return new VectorScorer() {
-                private final DocIdSetIterator iterator = new ExitableDocSetIterator(scorer.iterator(), queryCancellation);
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
 
                 @Override
                 public float score() throws IOException {
@@ -660,6 +662,15 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public FloatVectorValues copy() throws IOException {
             return in.copy();
+        }
+    }
+
+    /** Wraps the iterator in an exitable iterator, specializing for KnnVectorValues.DocIndexIterator. */
+    static DocIdSetIterator exitableIterator(DocIdSetIterator iterator, QueryCancellation queryCancellation) {
+        if (iterator instanceof KnnVectorValues.DocIndexIterator docIndexIterator) {
+            return createExitableIterator(docIndexIterator, queryCancellation);
+        } else {
+            return new ExitableDocSetIterator(iterator, queryCancellation);
         }
     }
 

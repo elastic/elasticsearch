@@ -93,7 +93,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.fromName("ml-inference-azure-ai-studio-rerank");
+        return TransportVersion.fromName("ml-inference-azure-ai-studio-rerank-added");
     }
 
     @Override

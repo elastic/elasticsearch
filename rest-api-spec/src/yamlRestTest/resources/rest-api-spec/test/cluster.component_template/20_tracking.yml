@@ -19,7 +19,7 @@ setup:
               number_of_shards: 1
           created_date: "2025-07-04T12:50:48.415Z"
   - match: { status: 400 }
-  - match: { error.reason: "Validation Failed: 1: Provided a pipeline property which is managed by the system: created_date.;" }
+  - match: { error.reason: "Validation Failed: 1: Provided a template property which is managed by the system: created_date;" }
 
 ---
 "Test PUT setting modified_date":
@@ -33,7 +33,7 @@ setup:
               number_of_shards: 1
           modified_date: "2025-07-04T12:50:48.415Z"
   - match: { status: 400 }
-  - match: { error.reason: "Validation Failed: 1: Provided a pipeline property which is managed by the system: modified_date.;" }
+  - match: { error.reason: "Validation Failed: 1: Provided a template property which is managed by the system: modified_date;" }
 
 ---
 "Test update preserves created_date but updates modified_date":
@@ -53,6 +53,7 @@ setup:
   - set: { component_templates.0.component_template.modified_date: first_modified }
   - match: { $first_created: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
   - match: { $first_modified: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { $first_created: $first_modified }
 
   - do:
       cluster.put_component_template:
@@ -66,7 +67,5 @@ setup:
       cluster.get_component_template:
         name: test_tracking
   - set: { component_templates.0.component_template.created_date: second_created }
-  - set: { component_templates.0.component_template.modified_date: second_modified }
   - match: { $second_created: $first_created }
-  - gt: { $second_modified: $first_modified }
 

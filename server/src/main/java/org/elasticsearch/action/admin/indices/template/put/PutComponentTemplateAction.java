@@ -81,13 +81,13 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             }
             if (componentTemplate.createdDateMillis().isPresent()) {
                 validationException = addValidationError(
-                    "Provided a pipeline property which is managed by the system: created_date.",
+                    "Provided a template property which is managed by the system: created_date",
                     validationException
                 );
             }
             if (componentTemplate.modifiedDateMillis().isPresent()) {
                 validationException = addValidationError(
-                    "Provided a pipeline property which is managed by the system: modified_date.",
+                    "Provided a template property which is managed by the system: modified_date",
                     validationException
                 );
             }

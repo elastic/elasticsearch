@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -71,6 +73,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
+
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
 
     private final BiFunction<
         Supplier<Boolean>,
@@ -153,17 +157,22 @@ public final class SearchPhaseController {
             return topDocs;
         }
         final TopDocs mergedTopDocs;
-        if (topDocs instanceof TopFieldGroups firstTopDocs) {
-            final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
-            TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
-            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
-            final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
-        } else {
-            final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+        try {
+            if (topDocs instanceof TopFieldGroups firstTopDocs) {
+                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
+                mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
+            } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
+                TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            } else {
+                final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
+                mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            }
+        } catch (IllegalArgumentException e) {
+            logger.debug("Failed to merge top docs: ", e);
+            throw e;
         }
         return mergedTopDocs;
     }

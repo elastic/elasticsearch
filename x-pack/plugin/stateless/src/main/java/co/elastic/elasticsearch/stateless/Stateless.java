@@ -1313,7 +1313,8 @@ public class Stateless extends Plugin
                 sharedBlobCacheWarmingService.get(),
                 hollowShardsService.get(),
                 splitTargetService.get(),
-                splitSourceService.get()
+                splitSourceService.get(),
+                projectResolver.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

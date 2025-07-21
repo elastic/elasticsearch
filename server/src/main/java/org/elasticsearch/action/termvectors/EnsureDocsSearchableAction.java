@@ -30,6 +30,7 @@ public class EnsureDocsSearchableAction {
 
     private static final String ACTION_NAME = "internal:index/data/read/eds";
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(ACTION_NAME);
+    public static final String ENSURE_DOCS_SEARCHABLE_ORIGIN = "ensure_docs_searchable";
 
     public static final class EnsureDocsSearchableRequest extends SingleShardRequest<EnsureDocsSearchableRequest> {
 

@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -256,12 +257,12 @@ public class TransportVersion implements VersionId<TransportVersion> {
         if (onOrAfter(version)) {
             return true;
         }
-        TransportVersion patchVersion = this.nextPatchVersion;
-        while (patchVersion != null) {
+        TransportVersion nextPatchVersion = version.nextPatchVersion;
+        while (nextPatchVersion != null) {
             if (isPatchFrom(version)) {
                 return true;
             }
-            patchVersion = patchVersion.nextPatchVersion;
+            nextPatchVersion = nextPatchVersion.nextPatchVersion;
         }
         return false;
     }
@@ -275,8 +276,20 @@ public class TransportVersion implements VersionId<TransportVersion> {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        TransportVersion that = (TransportVersion) o;
+        return id == that.id;
+    }
+
+    @Override
+    public int hashCode() {
+        return id;
+    }
+
+    @Override
     public String toString() {
-        return "TransportVersion{" + "name='" + name + '\'' + ", id=" + id + ", patchVersion=" + nextPatchVersion + '}';
+        return "" + id;
     }
 
     private static class VersionsHolder {

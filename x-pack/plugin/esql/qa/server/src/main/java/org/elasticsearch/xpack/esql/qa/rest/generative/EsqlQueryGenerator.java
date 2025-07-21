@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MvExpandGene
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.TopNStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.FromGenerator;
 
@@ -65,6 +66,7 @@ public class EsqlQueryGenerator {
         RenameGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
+        TopNStatsGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
 

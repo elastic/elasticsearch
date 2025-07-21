@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -18,22 +19,27 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
@@ -44,6 +50,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
@@ -98,6 +105,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             // grouping
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
+            AttributeMap<BlockHash.TopNDef> attributesToTopNDef = buildAttributesToTopNDefMap(aggregateExec);
             for (Expression group : aggregateExec.groupings()) {
                 Attribute groupAttribute = Expressions.attribute(group);
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
@@ -143,7 +151,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
+                BlockHash.TopNDef topNDef = attributesToTopNDef.get(sourceGroupAttribute);
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, topNDef));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -180,7 +189,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec.estimatedRowSize()),
-                    analysisRegistry
+                    analysisRegistry,
+                    context.queryPragmas().maxTopNAggsLimit()
                 );
             }
         }
@@ -188,6 +198,46 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             return source.with(operatorFactory, layout.build());
         }
         throw new EsqlIllegalArgumentException("no operator factory");
+    }
+
+    private AttributeMap<BlockHash.TopNDef> buildAttributesToTopNDefMap(AggregateExec aggregateExec) {
+        if (aggregateExec instanceof TopNAggregateExec == false) {
+            return AttributeMap.emptyAttributeMap();
+        }
+
+        TopNAggregateExec topNAggregateExec = (TopNAggregateExec) aggregateExec;
+        List<Order> order = topNAggregateExec.order();
+        Expression limit = topNAggregateExec.limit();
+
+        if (order.isEmpty() || limit == null || order.size() != aggregateExec.groupings().size()) {
+            return AttributeMap.emptyAttributeMap();
+        }
+
+        AttributeMap.Builder<BlockHash.TopNDef> builder = AttributeMap.builder(order.size());
+
+        for (int i = 0; i < order.size(); i++) {
+            Order orderEntry = order.get(i);
+
+            if ((orderEntry.child() instanceof Attribute) == false) {
+                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
+            }
+            if ((limit instanceof Literal) == false) {
+                throw new EsqlIllegalArgumentException("limit only supported with literal values");
+            }
+
+            Attribute attribute = (Attribute) orderEntry.child();
+            int intLimit = stringToInt(BytesRefs.toString(((Literal) limit).value()));
+
+            BlockHash.TopNDef topNDef = new BlockHash.TopNDef(
+                i,
+                orderEntry.direction().equals(Order.OrderDirection.ASC),
+                orderEntry.nullsPosition().equals(Order.NullsPosition.FIRST),
+                intLimit
+            );
+            builder.put(attribute, topNDef);
+        }
+
+        return builder.build();
     }
 
     /***
@@ -247,7 +297,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
-
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
@@ -338,16 +387,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, @Nullable BlockHash.TopNDef topNDef) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
+
             return new BlockHash.GroupSpec(
                 channel,
                 elementType(),
                 Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
-                null
+                topNDef
             );
         }
 

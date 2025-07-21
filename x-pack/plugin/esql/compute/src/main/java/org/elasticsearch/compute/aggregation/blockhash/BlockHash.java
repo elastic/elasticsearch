@@ -159,12 +159,20 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      *                                 null handling and remove this flag, but we need to disable these in
      *                                 production until we can. And this lets us continue to compile and
      *                                 test them.
+     * @param maxTopNLimit the maximum limit for TopN groups to use a TopNBlockHash.
+     *                     This usually comes from {@code QueryPragma.maxTopNAggsLimit()}.
      */
-    public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
+    public static BlockHash build(
+        List<GroupSpec> groups,
+        BlockFactory blockFactory,
+        int emitBatchSize,
+        boolean allowBrokenOptimizations,
+        int maxTopNLimit
+    ) {
         if (groups.size() == 1) {
             GroupSpec group = groups.get(0);
-            if (group.topNDef() != null && group.elementType() == ElementType.LONG) {
-                TopNDef topNDef = group.topNDef();
+            TopNDef topNDef = group.topNDef();
+            if (topNDef != null && maxTopNLimit > 0 && group.elementType() == ElementType.LONG && topNDef.limit() < maxTopNLimit) {
                 return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
             }
             return newForElementType(group.channel(), group.elementType(), blockFactory);

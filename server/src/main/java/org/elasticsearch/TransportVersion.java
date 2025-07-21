@@ -73,7 +73,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
 
     private final String name;
     private final int id;
-    private final TransportVersion patchVersion;
+    private final TransportVersion nextPatchVersion;
 
     public TransportVersion(int id) {
         this(null, id, null);
@@ -82,7 +82,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
     public TransportVersion(String name, int id, TransportVersion patchVersion) {
         this.name = name;
         this.id = id;
-        this.patchVersion = patchVersion;
+        this.nextPatchVersion = patchVersion;
     }
 
     public String name() {
@@ -93,8 +93,8 @@ public class TransportVersion implements VersionId<TransportVersion> {
         return id;
     }
 
-    public TransportVersion patchVersion() {
-        return patchVersion;
+    public TransportVersion nextPatchVersion() {
+        return nextPatchVersion;
     }
 
     private static final ParseField NAME = new ParseField("name");
@@ -256,12 +256,12 @@ public class TransportVersion implements VersionId<TransportVersion> {
         if (onOrAfter(version)) {
             return true;
         }
-        TransportVersion patchVersion = this.patchVersion;
+        TransportVersion patchVersion = this.nextPatchVersion;
         while (patchVersion != null) {
             if (isPatchFrom(version)) {
                 return true;
             }
-            patchVersion = patchVersion.patchVersion;
+            patchVersion = patchVersion.nextPatchVersion;
         }
         return false;
     }
@@ -276,7 +276,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
 
     @Override
     public String toString() {
-        return "TransportVersion{" + "name='" + name + '\'' + ", id=" + id + ", patchVersion=" + patchVersion + '}';
+        return "TransportVersion{" + "name='" + name + '\'' + ", id=" + id + ", patchVersion=" + nextPatchVersion + '}';
     }
 
     private static class VersionsHolder {
@@ -361,10 +361,10 @@ public class TransportVersion implements VersionId<TransportVersion> {
         private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {
             for (TransportVersion transportVersion : addFrom) {
                 addTo.add(transportVersion);
-                TransportVersion patchVersion = transportVersion.patchVersion();
+                TransportVersion patchVersion = transportVersion.nextPatchVersion();
                 while (patchVersion != null) {
                     addTo.add(patchVersion);
-                    patchVersion = patchVersion.patchVersion();
+                    patchVersion = patchVersion.nextPatchVersion();
                 }
             }
             return addTo;

@@ -204,9 +204,9 @@ public class GroupingAggregatorImplementer {
         for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
             builder.addMethod(addRawInputLoop(groupIdClass, blockType(aggParam.type())));
             builder.addMethod(addRawInputLoop(groupIdClass, vectorType(aggParam.type())));
+            builder.addMethod(addIntermediateInput(groupIdClass));
         }
         builder.addMethod(selectedMayContainUnseenGroups());
-        builder.addMethod(addIntermediateInput());
         builder.addMethod(evaluateIntermediate());
         builder.addMethod(evaluateFinal());
         builder.addMethod(toStringMethod());
@@ -583,11 +583,12 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec addIntermediateInput() {
+    private MethodSpec addIntermediateInput(TypeName groupsType) {
+        boolean groupsIsBlock = groupsType.toString().endsWith("Block");
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "positionOffset");
-        builder.addParameter(INT_VECTOR, "groups");
+        builder.addParameter(groupsType, "groups");
         builder.addParameter(PAGE, "page");
 
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
@@ -625,14 +626,23 @@ public class GroupingAggregatorImplementer {
                 .collect(Collectors.joining(", "));
             builder.addStatement("$T.combineIntermediate(state, positionOffset, groups, " + states + ")", declarationType);
         } else {
-            if (intermediateState.stream()
-                .map(AggregatorImplementer.IntermediateStateDesc::elementType)
-                .anyMatch(n -> n.equals("BYTES_REF"))) {
+            if (intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
                 builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
             }
             builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
             {
-                builder.addStatement("int groupId = groups.getInt(groupPosition)");
+                if (groupsIsBlock) {
+                    builder.beginControlFlow("if (groups.isNull(groupPosition))");
+                    builder.addStatement("continue");
+                    builder.endControlFlow();
+                    builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
+                    builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
+                    builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
+                    builder.addStatement("int groupId = groups.getInt(g)");
+                } else {
+                    builder.addStatement("int groupId = groups.getInt(groupPosition)");
+                }
+
                 if (aggState.declaredType().isPrimitive()) {
                     if (warnExceptions.isEmpty()) {
                         assert intermediateState.size() == 2;
@@ -674,6 +684,7 @@ public class GroupingAggregatorImplementer {
                             ).flatMap(Function.identity()).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
                         )
                     );
+
                     builder.addStatement(
                         "$T.combineIntermediate(state, groupId, "
                             + intermediateState.stream().map(desc -> desc.access("groupPosition + positionOffset")).collect(joining(", "))
@@ -681,6 +692,9 @@ public class GroupingAggregatorImplementer {
                             + ")",
                         declarationType
                     );
+                }
+                if (groupsIsBlock) {
+                    builder.endControlFlow();
                 }
                 builder.endControlFlow();
             }

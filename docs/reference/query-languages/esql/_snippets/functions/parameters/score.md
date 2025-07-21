@@ -3,5 +3,5 @@
 **Parameters**
 
 `query`
-:   (combinations of) full text function(s).
+:   Boolean expression that contains full text function(s) to be scored.
 

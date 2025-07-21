@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -148,7 +149,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, indexPattern, null, inputPage, extractFields, source);
+            super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
         }
     }
@@ -205,6 +206,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<LookupFromIndexOperator.MatchConfig> matchFields = null;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 matchFields = in.readCollectionAsList(LookupFromIndexOperator.MatchConfig::new);
+            } else {
+                // For older versions, we only support a single match field.
+                matchFields = new ArrayList<>(1);
+                matchFields.add(new LookupFromIndexOperator.MatchConfig(new FieldAttribute.FieldName(matchField), 0, inputDataType));
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -233,7 +238,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
             }
-
             out.writeString(inputDataType.typeName());
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);

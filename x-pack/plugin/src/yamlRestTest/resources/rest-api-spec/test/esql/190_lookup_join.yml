@@ -279,6 +279,13 @@ lookup-no-key:
 
 ---
 basic join on two columns:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lookup_join_on_multiple_indices ]
+      reason: "uses LOOKUP JOIN on two columns"
   - do:
       esql.query:
         body:

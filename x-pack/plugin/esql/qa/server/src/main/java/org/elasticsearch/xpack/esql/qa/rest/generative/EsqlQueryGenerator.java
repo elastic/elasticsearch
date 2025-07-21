@@ -76,6 +76,46 @@ public class EsqlQueryGenerator {
         return randomFrom(PIPE_COMMANDS);
     }
 
+    public interface Executor {
+        void run(CommandGenerator generator, CommandGenerator.CommandDescription current);
+
+        List<CommandGenerator.CommandDescription> previousCommands();
+
+        boolean continueExecuting();
+
+        List<EsqlQueryGenerator.Column> currentSchema();
+
+    }
+
+    public static void generatePipeline(
+        final int depth,
+        CommandGenerator commandGenerator,
+        final CommandGenerator.QuerySchema schema,
+        Executor executor
+    ) {
+        CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema);
+        executor.run(commandGenerator, desc);
+        if (executor.continueExecuting() == false) {
+            return;
+        }
+
+        for (int j = 0; j < depth; j++) {
+            if (executor.currentSchema().isEmpty()) {
+                break;
+            }
+            commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema);
+            if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
+                continue;
+            }
+
+            executor.run(commandGenerator, desc);
+            if (executor.continueExecuting() == false) {
+                break;
+            }
+        }
+    }
+
     public static String booleanExpression(List<Column> previousOutput) {
         // TODO LIKE, RLIKE, functions etc.
         return switch (randomIntBetween(0, 3)) {

@@ -25,7 +25,7 @@ COMPLETION [column =] prompt WITH inference_id
     This can be a string literal or a reference to a column containing text.
 
 `inference_id`
-:   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api) to use for the task.
+:   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
 **Description**
@@ -51,7 +51,7 @@ task type `completion`.
 
 **Examples**
 
-Using default column name (results stored in `completion` column):
+Use the default column name (results stored in `completion` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -63,7 +63,7 @@ ROW question = "What is Elasticsearch?"
 |------------------------|-------------------------------------------|
 | What is Elasticsearch? | A distributed search and analytics engine |
 
-Specifying the output column (results stored in `answer` column):
+Specify the output column (results stored in `answer` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -75,7 +75,7 @@ ROW question = "What is Elasticsearch?"
 | --- | --- |
 | What is Elasticsearch? | A distributed search and analytics engine |
 
-Summarizing the top 10 highest-rated movies using a prompt:
+Summarize the top 10 highest-rated movies using a prompt:
 
 ```esql
 FROM movies

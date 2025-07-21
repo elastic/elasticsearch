@@ -185,12 +185,12 @@ public class ESVectorUtil {
     /**
      * Calculate the grid points for optimized-scalar quantization
      * @param target The vector being quantized, assumed to be centered
-     * @param quantize The quantize vector
+     * @param quantize The quantize vector which should have at least the target vector length
      * @param points the quantization points
      * @param pts The array to store the grid points, must be of length 5
      */
     public static void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
-        assert target.length == quantize.length;
+        assert target.length <= quantize.length;
         assert pts.length == 5;
         IMPL.calculateOSQGridPoints(target, quantize, points, pts);
     }

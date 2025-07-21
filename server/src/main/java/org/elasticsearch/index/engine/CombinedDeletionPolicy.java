@@ -180,7 +180,6 @@ public class CombinedDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
         assert commit.isDeleted() == false : "Index commit [" + commitDescription(commit) + "] is deleted twice";
         logger.debug("Delete index commit [{}]", commitDescription(commit));
         commit.delete();
-        // assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
     }
 
     private void updateRetentionPolicy() throws IOException {

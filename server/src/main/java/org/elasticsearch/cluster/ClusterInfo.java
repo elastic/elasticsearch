@@ -352,7 +352,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             && shardDataSetSizes.equals(that.shardDataSetSizes)
             && dataPath.equals(that.dataPath)
             && reservedSpace.equals(that.reservedSpace)
-            && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools);
+            && estimatedHeapUsages.equals(that.estimatedHeapUsages)
+            && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools)
+            && shardWriteLoads.equals(that.shardWriteLoads);
     }
 
     @Override
@@ -364,7 +366,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             shardDataSetSizes,
             dataPath,
             reservedSpace,
-            nodeUsageStatsForThreadPools
+            estimatedHeapUsages,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads
         );
     }
 

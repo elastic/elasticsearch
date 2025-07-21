@@ -5,7 +5,8 @@ serverless: preview
 stack: preview 9.1.0
 ```
 
-The `COMPLETION` processing command generates text completions using a specified LLM (Large Language Model).
+The `COMPLETION` processing command provides a general-purpose interface for
+text generation using a Large Language Model (LLM) in ES|QL.
 
 **Syntax**
 
@@ -30,7 +31,19 @@ COMPLETION [column =] prompt WITH inference_id
 
 **Description**
 
-The `COMPLETION` command uses a machine learning model to generate text completions based on the provided prompt.
+The `COMPLETION` processing command provides a general-purpose interface for
+text generation using a Large Language Model (LLM) in ES|QL.
+
+`COMPLETION`supports a wide range of text generation tasks. Depending on your
+prompt and the model you use, you can perform arbitrary text generation,
+including:
+
+- Question answering
+- Summarization
+- Translation
+- Content rewriting
+- Creative generation
+- ...
 
 The command works with any LLM deployed to
 the [Elasticsearch inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
@@ -38,7 +51,19 @@ and can be chained with other ES|QL commands for further processing.
 
 **Examples**
 
-Basic completion with an inline prompt:
+Using default column name (results stored in `completion` column):
+
+```esql
+ROW question = "What is Elasticsearch?"
+| COMPLETION question WITH test_completion_model
+| KEEP question, completion
+```
+
+| question:keyword       | completion:keyword                        |
+|------------------------|-------------------------------------------|
+| What is Elasticsearch? | A distributed search and analytics engine |
+
+Specifying the output column (results stored in `answer` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
@@ -49,7 +74,6 @@ ROW question = "What is Elasticsearch?"
 | question:keyword | answer:keyword |
 | --- | --- |
 | What is Elasticsearch? | A distributed search and analytics engine |
-
 
 Summarizing the top 10 highest-rated movies using a prompt:
 
@@ -80,4 +104,3 @@ FROM movies
 | Parasite | Class conflict between two families. | 8.6 |
 | Interstellar | A team explores space to save humanity. | 8.6 |
 | The Prestige | Rival magicians engage in dangerous competition. | 8.5 |
-

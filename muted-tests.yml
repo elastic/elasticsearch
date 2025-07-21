@@ -481,6 +481,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/131481
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test010Install
+  issue: https://github.com/elastic/elasticsearch/issues/131376
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/40_indices_boost/Indices boost with alias}
+  issue: https://github.com/elastic/elasticsearch/issues/131598
 
 # Examples:
 #

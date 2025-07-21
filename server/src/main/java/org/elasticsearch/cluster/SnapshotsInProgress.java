@@ -509,7 +509,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         int shardId,
         ShardSnapshotStatus shardSnapshotStatus
     ) {
-        if (shardSnapshotStatus.isActiveOrQueuedWithGeneration()) {
+        if (shardSnapshotStatus.isActiveOrAssignedQueued()) {
             Tuple<String, Integer> plainShardId = Tuple.tuple(indexName, shardId);
             assert assignedShards.add(plainShardId) : plainShardId + " is assigned twice in " + entries;
             assert queuedShards.contains(plainShardId) == false : plainShardId + " is queued then assigned in " + entries;
@@ -758,12 +758,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
-        public static ShardSnapshotStatus queuedWithGeneration(ShardGeneration generation) {
-            return new ShardSnapshotStatus(null, ShardState.QUEUED, generation, null, null);
+        public static ShardSnapshotStatus assignedQueued(String nodeId, ShardGeneration generation) {
+            return new ShardSnapshotStatus(nodeId, ShardState.QUEUED, generation, null, null);
         }
 
-        public boolean isQueuedWithGeneration() {
-            return state == ShardState.QUEUED && generation != null && nodeId == null;
+        public boolean isAssignedQueued() {
+            // generation can still be null if previous shard snapshots all failed
+            return state == ShardState.QUEUED && nodeId != null;
         }
 
         public boolean isUnassignedQueued() {
@@ -790,7 +791,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert state.failed() == false || reason != null;
             assert (state != ShardState.INIT && state != ShardState.WAITING && state != ShardState.PAUSED_FOR_NODE_REMOVAL)
                 || nodeId != null : "Null node id for state [" + state + "]";
-            assert state != ShardState.QUEUED || (isUnassignedQueued() || isQueuedWithGeneration())
+            assert state != ShardState.QUEUED || (isUnassignedQueued() || isAssignedQueued())
                 : "Found unexpected shard state=["
                     + state
                     + "], nodeId=["
@@ -853,8 +854,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             };
         }
 
-        public boolean isActiveOrQueuedWithGeneration() {
-            return isActive() || isQueuedWithGeneration();
+        public boolean isActiveOrAssignedQueued() {
+            return isActive() || isAssignedQueued();
         }
 
         @Override
@@ -1230,30 +1231,38 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort(BiConsumer<ShardId, ShardSnapshotStatus> abortedQueuedWithGenerationShardConsumer) {
+        public Entry abort(BiConsumer<ShardId, ShardSnapshotStatus> abortedAssignedQueuedShardConsumer) {
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
             for (Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : shards.entrySet()) {
                 ShardSnapshotStatus status = shardEntry.getValue();
-                final var isQueuedWithGeneration = status.isQueuedWithGeneration();
-                allQueued &= (status.state() == ShardState.QUEUED && isQueuedWithGeneration == false);
+                final var isAssignedQueued = status.isAssignedQueued();
+                allQueued &= (status.state() == ShardState.QUEUED && isAssignedQueued == false);
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    status = new ShardSnapshotStatus(
-                        nodeId,
-                        // QUEUED with generation transitioned to ABORTED (incomplete) and is completed by a separate cluster state update
-                        (nodeId == null && isQueuedWithGeneration == false) ? ShardState.FAILED : ShardState.ABORTED,
-                        status.generation(),
-                        "aborted by snapshot deletion"
-                    );
-                    if (isQueuedWithGeneration) {
-                        // Accumulate the updates needed to complete the aborted QUEUED with generation shard snapshots
+                    if (isAssignedQueued == false) {
+                        status = new ShardSnapshotStatus(
+                            nodeId,
+                            nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
+                            status.generation(),
+                            "aborted by snapshot deletion"
+                        );
+                    } else {
                         assert isClone() == false
                             : "The state queued with generation should not be possible for a clone entry [" + this + "]";
-                        abortedQueuedWithGenerationShardConsumer.accept(
+                        final String reason = "assigned-queued aborted by snapshot deletion";
+                        status = new ShardSnapshotStatus(
+                            nodeId,
+                            // Assigned QUEUED transitions to ABORTED (incomplete) and is completed by a separate cluster state update
+                            ShardState.ABORTED,
+                            status.generation(),
+                            reason
+                        );
+                        // Accumulate the updates needed to complete the aborted QUEUED with generation shard snapshots
+                        abortedAssignedQueuedShardConsumer.accept(
                             shardEntry.getKey(),
-                            new ShardSnapshotStatus(null, ShardState.FAILED, status.generation, "aborted by snapshot deletion")
+                            new ShardSnapshotStatus(null, ShardState.FAILED, status.generation, reason)
                         );
                     }
                 }

@@ -1013,7 +1013,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository()))
                         : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
-                } else if (value.isActiveOrQueuedWithGeneration()) {
+                } else if (value.isActiveOrAssignedQueued()) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
                         : "Found shard snapshot actively executing in ["
                             + entry
@@ -2296,7 +2296,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 // Snapshot ids that will have to be physically deleted from the repository
                 final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);
 
-                final List<Runnable> completeAbortedQueuedWithGenerationRunnables = new ArrayList<>();
+                final List<Runnable> completeAbortedAssignedQueuedRunnables = new ArrayList<>();
                 final SnapshotsInProgress updatedSnapshots = snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(
                     projectId,
                     repositoryName,
@@ -2305,7 +2305,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             && snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
                             // snapshot is started - mark every non completed shard as aborted
                             final SnapshotsInProgress.Entry abortedEntry = existing.abort(
-                                ((shardId, shardSnapshotStatus) -> completeAbortedQueuedWithGenerationRunnables.add(
+                                ((shardId, shardSnapshotStatus) -> completeAbortedAssignedQueuedRunnables.add(
                                     () -> innerUpdateSnapshotState(
                                         existing.snapshot(),
                                         shardId,
@@ -2332,7 +2332,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         return existing;
                     }).filter(Objects::nonNull).toList()
                 );
-                for (var runnable : completeAbortedQueuedWithGenerationRunnables) {
+                for (var runnable : completeAbortedAssignedQueuedRunnables) {
                     runnable.run();
                 }
                 if (snapshotIdsRequiringCleanup.isEmpty()) {
@@ -2457,7 +2457,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return true;
         }
         for (ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
-            if (value.isActiveOrQueuedWithGeneration()) {
+            if (value.isActiveOrAssignedQueued()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }
@@ -3059,7 +3059,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                         : "Missing assignment for [" + sid + "]";
                                     updatedAssignmentsBuilder.put(sid, ShardSnapshotStatus.MISSING);
                                 } else {
-                                    if (updated.isActiveOrQueuedWithGeneration()) {
+                                    if (updated.isActiveOrAssignedQueued()) {
                                         markShardReassigned(shardId, reassignedShardIds);
                                     }
                                     updatedAssignmentsBuilder.put(sid, updated);
@@ -3151,7 +3151,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
             for (var shardId : shardsBuilder.keys()) {
                 final var existingShardSnapshotStatus = shardsBuilder.get(shardId);
-                if (existingShardSnapshotStatus.isQueuedWithGeneration() == false) {
+                if (existingShardSnapshotStatus.isAssignedQueued() == false) {
                     continue;
                 }
                 final IndexRoutingTable indexRouting = clusterState.routingTable(entry.projectId()).index(shardId.getIndex());
@@ -3336,7 +3336,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(primary.currentNodeId())) {
                 shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
             } else {
-                shardSnapshotStatus = ShardSnapshotStatus.queuedWithGeneration(shardRepoGeneration);
+                shardSnapshotStatus = ShardSnapshotStatus.assignedQueued(primary.currentNodeId(), shardRepoGeneration);
             }
         }
         return shardSnapshotStatus;
@@ -3821,7 +3821,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
 
                 if (shardSnapshotStatusUpdate.isClone() == false
-                    && existing.state() == ShardState.INIT
+                    && existing.state() == ShardState.INIT // TODO: this is not right, should consider aborted ones on data nodes as well
                     && updatedShardSnapshotStatus.state() != ShardState.INIT) {
                     perNodeShardSnapshotCounter.completeShardSnapshotOnNode(updatedShardSnapshotStatus.nodeId());
                 }
@@ -3906,7 +3906,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 if (shardSnapshotStatus.isActive()) {
                     startShardOperation(shardsBuilder(), routingShardId, shardSnapshotStatus);
                 } else {
-                    if (shardSnapshotStatus.isQueuedWithGeneration()) {
+                    if (shardSnapshotStatus.isAssignedQueued()) {
                         updatesIterator.remove();
                     }
                     // update to queued snapshot did not result in an actual update execution so we just record it but keep applying

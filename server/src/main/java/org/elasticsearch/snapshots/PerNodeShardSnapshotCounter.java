@@ -44,6 +44,7 @@ public class PerNodeShardSnapshotCounter {
                     return;
                 }
                 for (var shardSnapshotStatus : entry.shards().values()) {
+                    // TODO: consider more states as active, e.g. Abort on data node?
                     if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.INIT) {
                         perNodeCounts.computeIfPresent(shardSnapshotStatus.nodeId(), (nodeId, count) -> count + 1);
                     }

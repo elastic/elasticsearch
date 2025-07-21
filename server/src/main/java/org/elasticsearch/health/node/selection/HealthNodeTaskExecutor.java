@@ -16,12 +16,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -133,10 +135,11 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
      * Returns the node id from the eligible health nodes
      */
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         HealthNodeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
     ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
         if (discoveryNode == null) {

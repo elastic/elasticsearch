@@ -65,19 +65,6 @@ class ValuesIntAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        if (statePosition > state.maxGroupId) {
-            return;
-        }
-        var sorted = state.sortedForOrdinalMerging(current);
-        var start = statePosition > 0 ? sorted.counts[statePosition - 1] : 0;
-        var end = sorted.counts[statePosition];
-        for (int i = start; i < end; i++) {
-            int id = sorted.ids[i];
-            current.addValue(currentGroupId, state.getValue(id));
-        }
-    }
-
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory(), selected);
     }
@@ -142,8 +129,6 @@ class ValuesIntAggregator {
         private int maxGroupId = -1;
         private final BlockFactory blockFactory;
         private final LongHash values;
-
-        private Sorted sortedForOrdinalMerging = null;
 
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
@@ -268,15 +253,6 @@ class ValuesIntAggregator {
             }
         }
 
-        private Sorted sortedForOrdinalMerging(GroupingState other) {
-            if (sortedForOrdinalMerging == null) {
-                try (var selected = IntVector.range(0, maxGroupId + 1, blockFactory)) {
-                    sortedForOrdinalMerging = buildSorted(selected);
-                }
-            }
-            return sortedForOrdinalMerging;
-        }
-
         Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
             /*
              * Insert the ids in order.
@@ -316,7 +292,7 @@ class ValuesIntAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(values, sortedForOrdinalMerging);
+            Releasables.closeExpectNoException(values);
         }
     }
 }

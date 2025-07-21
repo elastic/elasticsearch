@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -340,7 +341,12 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null, DataPartitioning.AUTO);
+        return new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            shardContexts,
+            null,
+            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+        );
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {

@@ -23,6 +23,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -201,6 +202,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             operators.add(
                 new ValuesSourceReaderOperator(
                     blockFactory,
+                    ByteSizeValue.ofGb(1).getBytes(),
                     List.of(
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,

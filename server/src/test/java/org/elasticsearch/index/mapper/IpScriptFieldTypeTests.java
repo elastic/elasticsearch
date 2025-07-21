@@ -273,7 +273,8 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                     new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
                     new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")))
                 );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(expected.subList(1, 2)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
             }
         }

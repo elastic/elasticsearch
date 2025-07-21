@@ -119,6 +119,9 @@ toc:
 
       - file: esql/limitations.md
       - file: esql/esql-examples.md
+      - file: esql/esql-troubleshooting.md
+        children:
+          - file: esql/esql-query-log.md
   - file: sql.md
     children:
       - file: sql/sql-spec.md

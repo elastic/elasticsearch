@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -898,8 +900,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             assertBusy(
                 () -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(expectedAvailableBudget.get()))
             );
-            List<ThreadPoolMergeScheduler.MergeTask> tasksRunList = new ArrayList<>();
-            List<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = new ArrayList<>();
+            Set<ThreadPoolMergeScheduler.MergeTask> tasksRunList = ConcurrentCollections.newConcurrentSet();
+            Set<ThreadPoolMergeScheduler.MergeTask> tasksAbortList = ConcurrentCollections.newConcurrentSet();
             int submittedMergesCount = randomIntBetween(1, 5);
             long[] mergeSizeEstimates = new long[submittedMergesCount];
             for (int i = 0; i < submittedMergesCount; i++) {

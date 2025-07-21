@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -37,6 +38,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,10 +60,12 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
@@ -98,6 +103,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -108,10 +114,13 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -122,12 +131,16 @@ import static org.mockito.Mockito.when;
 
 public class ElasticsearchInternalServiceTests extends ESTestCase {
 
-    String randomInferenceEntityId = randomAlphaOfLength(10);
+    private String randomInferenceEntityId;
+    private InferenceStats inferenceStats;
 
     private static ThreadPool threadPool;
 
     @Before
-    public void setUpThreadPool() {
+    public void setUp() throws Exception {
+        super.setUp();
+        randomInferenceEntityId = randomAlphaOfLength(10);
+        inferenceStats = InferenceStatsTests.mockInferenceStats();
         threadPool = createThreadPool(InferencePlugin.inferenceUtilityExecutor(Settings.EMPTY));
     }
 
@@ -1767,7 +1780,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             modelsByDeploymentId.forEach((deploymentId, models) -> {
                 var expectedNumberOfAllocations = updatedNumberOfAllocations.get(deploymentId);
                 models.forEach(model -> {
-                    verify((ElasticsearchInternalModel) model).updateNumAllocations(expectedNumberOfAllocations);
+                    verify((ElasticsearchInternalModel) model).updateServiceSettings(assertArg(assignmentStats -> {
+                        assertThat(assignmentStats.getNumberOfAllocations(), equalTo(expectedNumberOfAllocations));
+                    }));
                     verify((ElasticsearchInternalModel) model).mlNodeDeploymentId();
                     verifyNoMoreInteractions(model);
                 });
@@ -1809,7 +1824,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             mock(),
             threadPool,
             cs,
-            Settings.builder().put("xpack.ml.enabled", false).build()
+            Settings.builder().put("xpack.ml.enabled", false).build(),
+            inferenceStats
         );
         try (var service = new ElasticsearchInternalService(context)) {
             var models = List.of(mock(Model.class));
@@ -1851,19 +1867,97 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             client,
             threadPool,
             cs,
-            Settings.builder().put("xpack.ml.enabled", true).build()
+            Settings.builder().put("xpack.ml.enabled", true).build(),
+            inferenceStats
         );
         try (var service = new ElasticsearchInternalService(context)) {
             List<Model> models = List.of(model);
             var latch = new CountDownLatch(1);
             service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
             assertTrue(latch.await(30, TimeUnit.SECONDS));
-            verify(model).updateNumAllocations(3);
+            verify(model).updateServiceSettings(
+                assertArg(assignmentStats -> { assertThat(assignmentStats.getNumberOfAllocations(), equalTo(3)); })
+            );
         }
     }
 
     public void testStart_OnFailure_WhenTimeoutOccurs() throws IOException {
-        var model = new ElserInternalModel(
+        var model = mockModel();
+
+        var client = mockClientForStart(
+            listener -> listener.onFailure(new ElasticsearchStatusException("failed", RestStatus.GATEWAY_TIMEOUT))
+        );
+
+        try (var service = createService(client)) {
+            var actionListener = new PlainActionFuture<Boolean>();
+            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
+            var exception = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> actionListener.actionGet(TimeValue.timeValueSeconds(30))
+            );
+
+            assertThat(exception.getMessage(), is("failed"));
+            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+                assertNotNull(attributes);
+                assertThat(attributes.get("error.type"), is("504"));
+            }));
+        }
+    }
+
+    public void testStart_OnFailure_WhenDeploymentTimeoutOccurs() throws IOException {
+        var model = mockModel();
+
+        var client = mockClientForStart(
+            listener -> listener.onFailure(new ElasticsearchTimeoutException("failed", RestStatus.GATEWAY_TIMEOUT))
+        );
+
+        try (var service = createService(client)) {
+            var actionListener = new PlainActionFuture<Boolean>();
+            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
+            var exception = expectThrows(
+                ModelDeploymentTimeoutException.class,
+                () -> actionListener.actionGet(TimeValue.timeValueSeconds(30))
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Timed out after [30s] waiting for trained model deployment for inference endpoint [inference_id] to start. "
+                        + "The inference endpoint can not be used to perform inference until the deployment has started. "
+                        + "Use the trained model stats API to track the state of the deployment."
+                )
+            );
+            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+                assertNotNull(attributes);
+                assertThat(attributes.get("error.type"), is("408"));
+            }));
+        }
+    }
+
+    public void testStart() throws IOException {
+        var model = mockModel();
+
+        var client = mockClientForStart(listener -> {
+            var response = mock(CreateTrainedModelAssignmentAction.Response.class);
+            when(response.getTrainedModelAssignment()).thenReturn(TrainedModelAssignmentTests.randomInstance());
+            listener.onResponse(response);
+        });
+
+        try (var service = createService(client)) {
+            var actionListener = new PlainActionFuture<Boolean>();
+            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
+            assertTrue(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
+
+            verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
+                assertNotNull(attributes);
+                assertNull(attributes.get("error.type"));
+                assertThat(attributes.get("status_code"), is(200));
+            }));
+        }
+    }
+
+    private ElserInternalModel mockModel() {
+        return new ElserInternalModel(
             "inference_id",
             TaskType.SPARSE_EMBEDDING,
             "elasticsearch",
@@ -1873,7 +1967,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             new ElserMlNodeTaskSettings(),
             null
         );
+    }
 
+    private Client mockClientForStart(Consumer<ActionListener<CreateTrainedModelAssignmentAction.Response>> startModelListener) {
         var client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
 
@@ -1889,27 +1985,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             ActionListener<CreateTrainedModelAssignmentAction.Response> listener = invocationOnMock.getArgument(2);
-            listener.onFailure(new ElasticsearchStatusException("failed", RestStatus.GATEWAY_TIMEOUT));
+            startModelListener.accept(listener);
             return Void.TYPE;
         }).when(client).execute(eq(StartTrainedModelDeploymentAction.INSTANCE), any(), any());
 
-        try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
-            service.start(model, TimeValue.timeValueSeconds(30), actionListener);
-            var exception = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> actionListener.actionGet(TimeValue.timeValueSeconds(30))
-            );
-
-            assertThat(exception.getMessage(), is("failed"));
-        }
+        return client;
     }
 
     private ElasticsearchInternalService createService(Client client) {
         var cs = mock(ClusterService.class);
         var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
         when(cs.getClusterSettings()).thenReturn(cSettings);
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY, inferenceStats);
         return new ElasticsearchInternalService(context);
     }
 
@@ -1918,7 +2005,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             client,
             threadPool,
             mock(ClusterService.class),
-            Settings.EMPTY
+            Settings.EMPTY,
+            inferenceStats
         );
         return new ElasticsearchInternalService(context, l -> l.onResponse(modelVariant));
     }

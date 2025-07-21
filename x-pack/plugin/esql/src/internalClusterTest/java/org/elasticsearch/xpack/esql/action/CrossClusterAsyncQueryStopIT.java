@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -128,10 +129,14 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
     }
 
     public void testStopQueryLocal() throws Exception {
+        assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
         int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
         populateRuntimeIndex(LOCAL_CLUSTER, "pause", INDEX_WITH_BLOCKING_MAPPING);
+
+        // Gets random node client but ensure it's the same node for all operations
+        Client client = cluster(LOCAL_CLUSTER).client();
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
@@ -145,7 +150,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         int maxEsqlWorkers = threadpool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
         LOGGER.info("--> Launching async query");
         final String asyncExecutionId = startAsyncQueryWithPragmas(
-            client(),
+            client,
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
             includeCCSMetadata.v1(),
             Map.of(QueryPragmas.TASK_CONCURRENCY.getKey(), between(1, maxEsqlWorkers - 1))
@@ -157,9 +162,9 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
             // wait until the remotes are done
             LOGGER.info("--> Waiting for remotes", asyncExecutionId);
-            waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
+            waitForCluster(client, REMOTE_CLUSTER_1, asyncExecutionId);
             LOGGER.info("--> Remote 1 done", asyncExecutionId);
-            waitForCluster(client(), REMOTE_CLUSTER_2, asyncExecutionId);
+            waitForCluster(client, REMOTE_CLUSTER_2, asyncExecutionId);
             LOGGER.info("--> Remote 2 done", asyncExecutionId);
 
             /* at this point:
@@ -169,10 +174,10 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             // run the stop query
             AsyncStopRequest stopRequest = new AsyncStopRequest(asyncExecutionId);
             LOGGER.info("Launching stop for {}", asyncExecutionId);
-            ActionFuture<EsqlQueryResponse> stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+            ActionFuture<EsqlQueryResponse> stopAction = client.execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
             // ensure stop operation is running
             assertBusy(() -> {
-                try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
+                try (EsqlQueryResponse asyncResponse = getAsyncResponse(client, asyncExecutionId)) {
                     EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
                     LOGGER.info("--> Waiting for stop operation to start, current status: {}", executionInfo);
                     assertNotNull(executionInfo);
@@ -216,7 +221,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             }
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
-            assertAcked(deleteAsyncId(client(), asyncExecutionId));
+            assertAcked(deleteAsyncId(client, asyncExecutionId));
         }
     }
 

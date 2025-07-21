@@ -7,8 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ElserInternalModelTests extends ESTestCase {
     public void testUpdateNumAllocation() {
@@ -21,10 +30,22 @@ public class ElserInternalModelTests extends ESTestCase {
             null
         );
 
-        model.updateNumAllocations(1);
-        assertEquals(1, model.getServiceSettings().getNumAllocations().intValue());
+        AssignmentStats assignmentStats = mock();
+        when(assignmentStats.getNumberOfAllocations()).thenReturn(1);
+        model.updateServiceSettings(assignmentStats);
 
-        model.updateNumAllocations(null);
-        assertNull(model.getServiceSettings().getNumAllocations());
+        assertThat(model.getServiceSettings().getNumAllocations(), equalTo(1));
+        assertNull(model.getServiceSettings().getAdaptiveAllocationsSettings());
+
+        TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentTests.randomInstance();
+        CreateTrainedModelAssignmentAction.Response response = mock();
+        when(response.getTrainedModelAssignment()).thenReturn(trainedModelAssignment);
+        model.getCreateTrainedModelAssignmentActionListener(model, ActionListener.noop()).onResponse(response);
+
+        assertThat(model.getServiceSettings().getNumAllocations(), equalTo(1));
+        assertThat(
+            model.getServiceSettings().getAdaptiveAllocationsSettings(),
+            equalTo(trainedModelAssignment.getAdaptiveAllocationsSettings())
+        );
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
@@ -82,10 +81,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
-import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -182,6 +182,7 @@ public class ExpressionWritables {
         entries.add(Neg.ENTRY);
         entries.add(Not.ENTRY);
         entries.add(RLike.ENTRY);
+        entries.add(RLikeList.ENTRY);
         entries.add(RTrim.ENTRY);
         entries.add(Scalb.ENTRY);
         entries.add(Signum.ENTRY);
@@ -259,9 +260,6 @@ public class ExpressionWritables {
     }
 
     private static List<NamedWriteableRegistry.Entry> vector() {
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled()) {
-            return List.of(Knn.ENTRY);
-        }
-        return List.of();
+        return VectorWritables.getNamedWritables();
     }
 }

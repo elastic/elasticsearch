@@ -597,7 +597,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -635,7 +635,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
 
         var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             var thrownException = expectThrows(
@@ -1018,12 +1018,12 @@ public class IbmWatsonxServiceTests extends ESTestCase {
     }
 
     private IbmWatsonxService createIbmWatsonxService() {
-        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new IbmWatsonxService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {
         IbmWatsonxServiceWithoutAuth(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents);
+            super(factory, serviceComponents, mockClusterServiceEmpty());
         }
 
         @Override

@@ -69,12 +69,6 @@ class SumDoubleAggregator {
         current.add(v, groupId);
     }
 
-    public static void combineStates(GroupingSumState current, int groupId, GroupingSumState state, int statePosition) {
-        if (state.hasValue(statePosition)) {
-            current.add(state.values.get(statePosition), state.deltas.get(statePosition), groupId);
-        }
-    }
-
     public static void combineIntermediate(GroupingSumState current, int groupId, double inValue, double inDelta, boolean seen) {
         if (seen) {
             current.add(inValue, inDelta, groupId);

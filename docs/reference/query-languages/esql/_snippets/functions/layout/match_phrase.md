@@ -2,7 +2,7 @@
 
 ## `MATCH_PHRASE` [esql-match_phrase]
 ```{applies_to}
-stack: unavailable 9.0, ga 9.1.0
+stack: ga 9.1.0
 ```
 
 **Syntax**

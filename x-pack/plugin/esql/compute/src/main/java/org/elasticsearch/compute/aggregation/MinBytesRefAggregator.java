@@ -62,10 +62,6 @@ class MinBytesRefAggregator {
         }
     }
 
-    public static void combineStates(GroupingState state, int groupId, GroupingState otherState, int otherGroupId) {
-        state.combine(groupId, otherState, otherGroupId);
-    }
-
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(selected, driverContext);
     }
@@ -80,12 +76,6 @@ class MinBytesRefAggregator {
         public void add(int groupId, BytesRef value) {
             if (internalState.hasValue(groupId) == false || isBetter(value, internalState.get(groupId))) {
                 internalState.set(groupId, value);
-            }
-        }
-
-        public void combine(int groupId, GroupingState otherState, int otherGroupId) {
-            if (otherState.internalState.hasValue(otherGroupId)) {
-                add(groupId, otherState.internalState.get(otherGroupId));
             }
         }
 

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_COMPLETIONS_PATH;
 
@@ -95,21 +94,15 @@ public class MistralChatCompletionModel extends MistralModel {
         DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
     private void setPropertiesFromServiceSettings(MistralChatCompletionServiceSettings serviceSettings) {
-        this.model = serviceSettings.modelId();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
-    }
-
-    @Override
-    public int rateLimitGroupingHash() {
-        return Objects.hash(model, getSecretSettings().apiKey());
     }
 
     private void setEndpointUrl() {
@@ -131,6 +124,7 @@ public class MistralChatCompletionModel extends MistralModel {
      * @param creator The visitor that creates the executable action.
      * @return An ExecutableAction that can be executed.
      */
+    @Override
     public ExecutableAction accept(MistralActionVisitor creator) {
         return creator.create(this);
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +49,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.maybeSubstituteWithRoundTo;
+import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
  * Splits dates and numbers into a given number of buckets. There are two ways to invoke
@@ -57,8 +62,33 @@ import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         PostOptimizationVerificationAware,
-        ThreeOptionalArguments {
+        ThreeOptionalArguments,
+        LocalSurrogateExpression {
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+
+    // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
+    // That way you never end up with more than the target number of buckets.
+    private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
+    private static final Rounding[] HUMAN_DATE_ROUNDINGS = new Rounding[] {
+        Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build(),
+        Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build(),
+        Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build(),
+        Rounding.builder(TimeValue.timeValueHours(12)).build(),
+        Rounding.builder(TimeValue.timeValueHours(3)).build(),
+        Rounding.builder(TimeValue.timeValueHours(1)).build(),
+        Rounding.builder(TimeValue.timeValueMinutes(30)).build(),
+        Rounding.builder(TimeValue.timeValueMinutes(10)).build(),
+        Rounding.builder(TimeValue.timeValueMinutes(5)).build(),
+        Rounding.builder(TimeValue.timeValueMinutes(1)).build(),
+        Rounding.builder(TimeValue.timeValueSeconds(30)).build(),
+        Rounding.builder(TimeValue.timeValueSeconds(10)).build(),
+        Rounding.builder(TimeValue.timeValueSeconds(5)).build(),
+        Rounding.builder(TimeValue.timeValueSeconds(1)).build(),
+        Rounding.builder(TimeValue.timeValueMillis(100)).build(),
+        Rounding.builder(TimeValue.timeValueMillis(50)).build(),
+        Rounding.builder(TimeValue.timeValueMillis(10)).build(),
+        Rounding.builder(TimeValue.timeValueMillis(1)).build(), };
 
     private final Expression field;
     private final Expression buckets;
@@ -309,6 +339,64 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
+    private Rounding.Prepared getDateRounding(FoldContext foldContext) {
+        return getDateRounding(foldContext, null, null);
+    }
+
+    private Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
+        assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
+        if (buckets.dataType().isWholeNumber()) {
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            long f = foldToLong(foldContext, from);
+            long t = foldToLong(foldContext, to);
+            if (min != null && max != null) {
+                return new DateRoundingPicker(b, f, t).pickRounding().prepare(min, max);
+            }
+            return new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
+        } else {
+            assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+            return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ, min, max);
+        }
+    }
+
+    private record DateRoundingPicker(int buckets, long from, long to) {
+        Rounding pickRounding() {
+            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING;
+            for (Rounding r : HUMAN_DATE_ROUNDINGS) {
+                if (roundingIsOk(r)) {
+                    prev = r;
+                } else {
+                    return prev;
+                }
+            }
+            return prev;
+        }
+
+        /**
+         * True if the rounding produces less than or equal to the requested number of buckets.
+         */
+        boolean roundingIsOk(Rounding rounding) {
+            Rounding.Prepared r = rounding.prepareForUnknown();
+            long bucket = r.round(from);
+            int used = 0;
+            while (used < buckets) {
+                bucket = r.nextRoundingValue(bucket);
+                used++;
+                if (bucket >= to) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private double pickRounding(int buckets, double from, double to) {
+        double precise = (to - from) / buckets;
+        double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
+        double halfPower = nextPowerOfTen / 2;
+        return precise < halfPower ? halfPower : nextPowerOfTen;
+    }
+
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
     // datetime/date_nanos, integer, string/datetime, string/datetime
     // datetime/date_nanos, rounding/duration, -, -
@@ -455,5 +543,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             + ", emitEmptyBuckets="
             + emitEmptyBuckets
             + '}';
+    }
+
+    @Override
+    public Expression surrogate(SearchStats searchStats) {
+        // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
+        assert searchStats != null : "SearchStats cannot be null";
+        return maybeSubstituteWithRoundTo(
+            source(),
+            field(),
+            buckets(),
+            searchStats,
+            (interval, minValue, maxValue) -> getDateRounding(FoldContext.small(), minValue, maxValue)
+        );
     }
 }

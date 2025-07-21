@@ -278,6 +278,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
             );
             assumeFalse(
+                "can't use score function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SCORE_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "can't load metrics in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METRICS_COMMAND.capabilityName())
             );
@@ -299,7 +303,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use KNN function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V2.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",

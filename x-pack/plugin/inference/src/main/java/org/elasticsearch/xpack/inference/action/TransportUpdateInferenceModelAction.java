@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -224,13 +223,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         if (settingsToUpdate.serviceSettings() != null && existingSecretSettings != null) {
             newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
         }
-        if (settingsToUpdate.serviceSettings() != null && settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)) {
-            // In cluster services can only have their num_allocations updated, so this is a special case
+        if (settingsToUpdate.serviceSettings() != null) {
+            // In cluster services can have their deployment settings updated, so this is a special case
             if (newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
-                newServiceSettings = new ElasticsearchInternalServiceSettings(
-                    elasticServiceSettings,
-                    (Integer) settingsToUpdate.serviceSettings().get(NUM_ALLOCATIONS)
-                );
+                newServiceSettings = elasticServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
             }
         }
         if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {
@@ -257,26 +253,59 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         Model newModel,
         Model existingParsedModel,
         ActionListener<Boolean> listener
-    ) throws IOException {
+    ) {
         // The model we are trying to update must have a trained model associated with it if it is an in-cluster deployment
         var deploymentId = getDeploymentIdForInClusterEndpoint(existingParsedModel);
-        throwIfTrainedModelDoesntExist(request.getInferenceEntityId(), deploymentId);
+        var inferenceEntityId = request.getInferenceEntityId();
+        throwIfTrainedModelDoesntExist(inferenceEntityId, deploymentId);
 
-        Map<String, Object> serviceSettings = request.getContentAsSettings().serviceSettings();
-        if (serviceSettings != null && serviceSettings.get(NUM_ALLOCATIONS) instanceof Integer numAllocations) {
+        if (inferenceEntityId.equals(deploymentId) == false) {
+            modelRegistry.getModel(deploymentId, ActionListener.wrap(unparsedModel -> {
+                // if this deployment was created by another inference endpoint, then it must be updated using that inference endpoint
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        Messages.INFERENCE_REFERENCE_CANNOT_UPDATE_ANOTHER_ENDPOINT,
+                        RestStatus.CONFLICT,
+                        inferenceEntityId,
+                        deploymentId,
+                        unparsedModel.inferenceEntityId()
+                    )
+                );
+            }, e -> {
+                if (e instanceof ResourceNotFoundException) {
+                    // if this deployment was created by the trained models API, then it must be updated by the trained models API
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Messages.INFERENCE_CAN_ONLY_UPDATE_MODELS_IT_CREATED,
+                            RestStatus.CONFLICT,
+                            inferenceEntityId,
+                            deploymentId
+                        )
+                    );
+                    return;
+                }
+                listener.onFailure(e);
+            }));
+            return;
+        }
 
-            UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
-            updateRequest.setNumberOfAllocations(numAllocations);
+        if (newModel.getServiceSettings() instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
+
+            var updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
+            updateRequest.setNumberOfAllocations(elasticServiceSettings.getNumAllocations());
+            updateRequest.setAdaptiveAllocationsSettings(elasticServiceSettings.getAdaptiveAllocationsSettings());
+            updateRequest.setIsInternal(true);
 
             var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure((l2, response) -> {
                 modelRegistry.updateModelTransaction(newModel, existingParsedModel, l2);
             });
 
             logger.info(
-                "Updating trained model deployment [{}] for inference entity [{}] with [{}] num_allocations",
+                "Updating trained model deployment [{}] for inference entity [{}] with [{}] num_allocations and adaptive allocations [{}]",
                 deploymentId,
                 request.getInferenceEntityId(),
-                numAllocations
+                elasticServiceSettings.getNumAllocations(),
+                elasticServiceSettings.getAdaptiveAllocationsSettings()
             );
             client.execute(UpdateTrainedModelDeploymentAction.INSTANCE, updateRequest, delegate);
 
@@ -317,7 +346,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             throw ExceptionsHelper.entityNotFoundException(
                 Messages.MODEL_ID_DOES_NOT_MATCH_EXISTING_MODEL_IDS_BUT_MUST_FOR_IN_CLUSTER_SERVICE,
                 inferenceEntityId
-
             );
         }
     }

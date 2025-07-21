@@ -34,7 +34,7 @@ public class IbmWatsonUnifiedChatCompletionResponseHandler extends OpenAiUnified
         assert request.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         if (request.isStreaming()) {
-            var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
+            var errorMessage = constructErrorMessage(message, request, errorResponse, responseStatusCode);
             var restStatus = toRestStatus(responseStatusCode);
             return errorResponse instanceof IbmWatsonxErrorResponseEntity
                 ? new UnifiedChatCompletionException(restStatus, errorMessage, WATSONX_ERROR, restStatus.name().toLowerCase(Locale.ROOT))

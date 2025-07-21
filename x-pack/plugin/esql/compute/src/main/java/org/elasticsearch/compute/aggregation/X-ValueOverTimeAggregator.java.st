@@ -60,14 +60,6 @@ public class $Occurrence$OverTime$Type$Aggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState otherState, int otherGroupId) {
-        if (otherGroupId < otherState.timestamps.size() && otherState.hasValue(otherGroupId)) {
-            var timestamp = otherState.timestamps.get(otherGroupId);
-            var value = otherState.values.get(otherGroupId);
-            current.collectValue(currentGroupId, timestamp, value);
-        }
-    }
-
     public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }

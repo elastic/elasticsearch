@@ -57,6 +57,11 @@
       "max_docs":{
         "type":"number",
         "description":"Maximum number of documents to process (default: all documents)"
+      },
+      "require_alias":{
+        "type":"boolean",
+        "default":false,
+        "description":"When true, requires destination to be an alias."
       }
     },
     "body":{

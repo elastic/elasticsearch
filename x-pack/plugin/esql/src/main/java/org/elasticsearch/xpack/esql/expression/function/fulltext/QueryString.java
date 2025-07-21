@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
@@ -320,18 +322,13 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         }
 
         Map<String, Object> matchOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
+        Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, ALLOWED_OPTIONS);
         return matchOptions;
     }
 
     @Override
-    protected Map<String, Object> resolvedOptions() {
-        return queryStringOptions();
-    }
-
-    @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(resolveOptions(options(), SECOND));
+        return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));
     }
 
     @Override
@@ -345,7 +342,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), queryStringOptions());
     }
 

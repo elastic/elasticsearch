@@ -1,0 +1,5 @@
+pr: 131053
+summary: Split large pages on load sometimes
+area: ES|QL
+type: bug
+issues: []

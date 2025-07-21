@@ -134,7 +134,7 @@ GET my-index/_search
 }
 ```
 
-This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers.md#standard-retriever).
+This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers/standard-retriever.md).
 
 ```console
 GET my-index/_search

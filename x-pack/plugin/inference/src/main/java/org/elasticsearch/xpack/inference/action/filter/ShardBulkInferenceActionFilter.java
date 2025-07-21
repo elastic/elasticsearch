@@ -46,6 +46,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -63,7 +64,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,11 +76,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -459,8 +458,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
             Map<String, Object> requestCountAttributes = new HashMap<>();
-            requestCountAttributes.putAll(modelAttributes(model));
-            requestCountAttributes.putAll(responseAttributes(throwable));
+            requestCountAttributes.putAll(modelAndResponseAttributes(model, throwable));
             requestCountAttributes.put("inference_source", "semantic_text_bulk");
             inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
         }
@@ -637,7 +635,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     addInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
-                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
+                            "Unable to insert inference results into document ["
+                                + indexRequest.getIndexRequest().id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                             e
                         )
                     );
@@ -749,7 +749,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 item.abort(
                     item.index(),
                     new InferenceException(
-                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        "Unable to insert inference results into document ["
+                            + indexRequest.id()
+                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                         e
                     )
                 );

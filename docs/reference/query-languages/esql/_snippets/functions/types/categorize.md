@@ -2,8 +2,8 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| keyword | keyword |
-| text | keyword |
+| field | options | result |
+| --- | --- | --- |
+| keyword | | keyword |
+| text | | keyword |
 

@@ -24,8 +24,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
-
 /**
  * A rate grouping aggregation definition for double.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
@@ -58,15 +56,6 @@ public class RateDoubleAggregator {
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, sampleCount, reset, otherPosition);
-    }
-
-    public static void combineStates(
-        DoubleRateGroupingState current,
-        int currentGroupId, // make the stylecheck happy
-        DoubleRateGroupingState otherState,
-        int otherGroupId
-    ) {
-        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal(DoubleRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
@@ -214,25 +203,6 @@ public class RateDoubleAggregator {
                 dst.values[k] = values.getDouble(firstIndex + j);
                 ++k;
                 ++j;
-            }
-        }
-
-        void combineState(int groupId, DoubleRateGroupingState otherState, int otherGroupId) {
-            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
-            if (other == null) {
-                return;
-            }
-            ensureCapacity(groupId);
-            var curr = states.get(groupId);
-            if (curr == null) {
-                var len = other.entries();
-                adjustBreaker(DoubleRateState.bytesUsed(len));
-                curr = new DoubleRateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
-                curr.reset = other.reset;
-                curr.sampleCount = other.sampleCount;
-                states.set(groupId, curr);
-            } else {
-                states.set(groupId, mergeState(curr, other));
             }
         }
 

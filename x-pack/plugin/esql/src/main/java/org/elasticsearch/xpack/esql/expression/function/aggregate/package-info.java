@@ -121,7 +121,7 @@
  *         It is also possible to declare any number of arbitrary arguments that must be provided via generated Supplier.
  *     </li>
  *     <li>
- *         {@code combine, combineStates, combineIntermediate, evaluateFinal} methods (see below) could be generated automatically
+ *         {@code combine, combineIntermediate, evaluateFinal} methods (see below) could be generated automatically
  *         when both input type I and mutable accumulator state AggregatorState and GroupingAggregatorState are primitive (DOUBLE, INT).
  *     </li>
  *     <li>
@@ -165,10 +165,6 @@
  *     <li>
  *         {@code void combine(GroupingAggregatorState state, int groupId, I input)} adds input entry to the corresponding group (bucket)
  *         of the grouping aggregation state
- *     </li>
- *     <li>
- *         {@code void combineStates(GroupingAggregatorState targetState, int targetGroupId, GS otherState, int otherGroupId)}
- *         merges other grouped aggregation state into the first one
  *     </li>
  *     <li>
  *         {@code void combineIntermediate(GroupingAggregatorState current, int groupId, intermediate states)} adds serialized

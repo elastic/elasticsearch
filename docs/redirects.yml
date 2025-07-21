@@ -1,3 +1,25 @@
 redirects:
-# Related to https://github.com/elastic/elasticsearch/pull/130716/
+  # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
+  
+  # https://github.com/elastic/elasticsearch/pull/131385
+  'reference/elasticsearch/rest-apis/retrievers.md':
+    to: 'reference/elasticsearch/rest-apis/retrievers.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/rest-apis/retrievers/standard-retriever.md'
+        anchors: {'standard-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/knn-retriever.md'
+        anchors: {'knn-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/linear-retriever.md'
+        anchors: {'linear-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md'
+        anchors: {'rrf-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rescorer-retriever.md'
+        anchors: {'rescorer-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md'
+        anchors: {'text-similarity-reranker-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/rule-retriever.md'
+        anchors: {'rule-retriever'}
+      - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
+        anchors: {'pinned-retriever'}

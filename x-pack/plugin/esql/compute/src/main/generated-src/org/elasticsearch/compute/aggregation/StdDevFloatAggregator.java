@@ -52,10 +52,6 @@ public class StdDevFloatAggregator {
         current.add(groupId, value);
     }
 
-    public static void combineStates(StdDevStates.GroupingState current, int groupId, StdDevStates.GroupingState state, int statePosition) {
-        current.combine(groupId, state.getOrNull(statePosition));
-    }
-
     public static void combineIntermediate(StdDevStates.GroupingState state, int groupId, double mean, double m2, long count) {
         state.combine(groupId, mean, m2, count);
     }

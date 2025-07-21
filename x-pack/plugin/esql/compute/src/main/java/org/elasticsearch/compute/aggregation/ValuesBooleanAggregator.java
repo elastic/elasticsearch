@@ -66,19 +66,6 @@ class ValuesBooleanAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        long stateOffset = ((long) statePosition) << 1;
-        boolean seenFalse = state.values.get(stateOffset);
-        boolean seenTrue = state.values.get(stateOffset | 1);
-
-        if (seenFalse) {
-            combine(current, currentGroupId, false);
-        }
-        if (seenTrue) {
-            combine(current, currentGroupId, true);
-        }
-    }
-
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory(), selected);
     }

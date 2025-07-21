@@ -1,0 +1,6 @@
+pr: 129745
+summary: "ESQL: Fix `mv_expand` inconsistent column order"
+area: ES|QL
+type: bug
+issues:
+  - 129000

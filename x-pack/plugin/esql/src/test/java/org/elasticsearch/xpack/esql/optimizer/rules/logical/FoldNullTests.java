@@ -269,7 +269,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullCategorizeGroupingNotFolded() {
-        Categorize categorize = new Categorize(EMPTY, NULL);
+        Categorize categorize = new Categorize(EMPTY, NULL, NULL);
         assertEquals(categorize, foldNull(categorize));
     }
 

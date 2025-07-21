@@ -290,12 +290,12 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public byte[] min(FieldName field, DataType dataType) {
+        public Object min(FieldName field) {
             return null;
         }
 
         @Override
-        public byte[] max(FieldName field, DataType dataType) {
+        public Object max(FieldName field) {
             return null;
         }
 
@@ -378,6 +378,27 @@ public final class EsqlTestUtils {
         @Override
         public String toString() {
             return "TestConfigurableSearchStats{" + "includes=" + includes + ", excludes=" + excludes + '}';
+        }
+    }
+
+    public static class TestSearchStatsWithMinMax extends TestSearchStats {
+
+        private final Map<String, Object> minValues;
+        private final Map<String, Object> maxValues;
+
+        public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues) {
+            this.minValues = minValues;
+            this.maxValues = maxValues;
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            return minValues.get(field.string());
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            return maxValues.get(field.string());
         }
     }
 

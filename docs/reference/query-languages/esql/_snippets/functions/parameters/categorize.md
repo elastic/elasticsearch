@@ -5,3 +5,6 @@
 `field`
 :   Expression to categorize
 
+`options`
+:   (Optional) Categorize additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+

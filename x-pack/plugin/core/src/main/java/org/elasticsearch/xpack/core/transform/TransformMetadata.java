@@ -12,7 +12,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -209,6 +211,9 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         }
     }
 
+    /**
+     * @deprecated use {@link #transformMetadata(ClusterState, ProjectId)}
+     */
     @Deprecated(forRemoval = true)
     public static TransformMetadata getTransformMetadata(ClusterState state) {
         TransformMetadata TransformMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
@@ -216,6 +221,24 @@ public class TransformMetadata implements Metadata.ProjectCustom {
             return EMPTY_METADATA;
         }
         return TransformMetadata;
+    }
+
+    public static TransformMetadata transformMetadata(@Nullable ClusterState state, @Nullable ProjectId projectId) {
+        if (state == null || projectId == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata(state.projectState(projectId));
+    }
+
+    public static TransformMetadata transformMetadata(@Nullable ProjectState projectState) {
+        if (projectState == null) {
+            return EMPTY_METADATA;
+        }
+        TransformMetadata transformMetadata = projectState.metadata().custom(TYPE);
+        if (transformMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata;
     }
 
     public static boolean upgradeMode(ClusterState state) {

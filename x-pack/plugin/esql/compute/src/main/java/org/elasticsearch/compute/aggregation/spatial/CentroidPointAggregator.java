@@ -44,10 +44,6 @@ abstract class CentroidPointAggregator {
         current.add(xVal, xDel, yVal, yDel, count);
     }
 
-    public static void combineStates(CentroidState current, CentroidState state) {
-        current.add(state);
-    }
-
     public static void combineIntermediate(CentroidState state, double xIn, double dx, double yIn, double dy, long count) {
         if (count > 0) {
             combine(state, xIn, dx, yIn, dy, count);
@@ -66,19 +62,6 @@ abstract class CentroidPointAggregator {
 
     public static Block evaluateFinal(CentroidState state, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory());
-    }
-
-    public static void combineStates(GroupingCentroidState current, int groupId, GroupingCentroidState state, int statePosition) {
-        if (state.hasValue(statePosition)) {
-            current.add(
-                state.xValues.get(statePosition),
-                state.xDeltas.get(statePosition),
-                state.yValues.get(statePosition),
-                state.yDeltas.get(statePosition),
-                state.counts.get(statePosition),
-                groupId
-            );
-        }
     }
 
     public static void combineIntermediate(
@@ -168,12 +151,6 @@ abstract class CentroidPointAggregator {
 
         public void count(long count) {
             this.count = count;
-        }
-
-        public void add(CentroidState other) {
-            xSum.add(other.xSum.value(), other.xSum.delta());
-            ySum.add(other.ySum.value(), other.ySum.delta());
-            count += other.count;
         }
 
         public void add(double x, double y) {

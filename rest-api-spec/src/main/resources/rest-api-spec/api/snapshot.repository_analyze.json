@@ -36,6 +36,10 @@
         "type":"number",
         "description":"Number of operations to run concurrently during the test. Defaults to 10."
       },
+      "register_operation_count":{
+        "type":"number",
+        "description":"The minimum number of linearizable register operations to perform in total. Defaults to 10."
+      },
       "read_node_count":{
         "type":"number",
         "description":"Number of nodes on which to read a blob after writing. Defaults to 10."

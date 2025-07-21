@@ -25,8 +25,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
-
 /**
  * A rate grouping aggregation definition for int.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
@@ -59,15 +57,6 @@ public class RateIntAggregator {
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, sampleCount, reset, otherPosition);
-    }
-
-    public static void combineStates(
-        IntRateGroupingState current,
-        int currentGroupId, // make the stylecheck happy
-        IntRateGroupingState otherState,
-        int otherGroupId
-    ) {
-        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal(IntRateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
@@ -215,25 +204,6 @@ public class RateIntAggregator {
                 dst.values[k] = values.getInt(firstIndex + j);
                 ++k;
                 ++j;
-            }
-        }
-
-        void combineState(int groupId, IntRateGroupingState otherState, int otherGroupId) {
-            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
-            if (other == null) {
-                return;
-            }
-            ensureCapacity(groupId);
-            var curr = states.get(groupId);
-            if (curr == null) {
-                var len = other.entries();
-                adjustBreaker(IntRateState.bytesUsed(len));
-                curr = new IntRateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
-                curr.reset = other.reset;
-                curr.sampleCount = other.sampleCount;
-                states.set(groupId, curr);
-            } else {
-                states.set(groupId, mergeState(curr, other));
             }
         }
 

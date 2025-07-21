@@ -48,15 +48,6 @@ class MedianAbsoluteDeviationFloatAggregator {
         state.add(groupId, inValue);
     }
 
-    public static void combineStates(
-        QuantileStates.GroupingState current,
-        int currentGroupId,
-        QuantileStates.GroupingState state,
-        int statePosition
-    ) {
-        current.add(currentGroupId, state.getOrNull(statePosition));
-    }
-
     public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.evaluateMedianAbsoluteDeviation(selected, driverContext);
     }

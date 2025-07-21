@@ -114,6 +114,29 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKnnWithPrefilters() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s, 5) AND id > 5
+            | KEEP id, floats, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            // K = 5, 1 more for every id > 10
+            assertEquals(5, valuesList.size());
+        }
+    }
+
     public void testKnnWithLookupJoin() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 1.0f);
@@ -136,7 +159,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
+        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
         var indexName = "test";
         var client = client().admin().indices();
@@ -163,7 +186,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var createRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(createRequest);
 
-        numDocs = randomIntBetween(10, 20);
+        numDocs = randomIntBetween(15, 25);
         numDims = randomIntBetween(3, 10);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         float value = 0.0f;
@@ -202,6 +225,5 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var createRequest = client.prepareCreate(lookupIndexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(createRequest);
-
     }
 }

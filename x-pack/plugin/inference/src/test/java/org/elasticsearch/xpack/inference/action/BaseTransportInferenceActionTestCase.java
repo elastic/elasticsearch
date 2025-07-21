@@ -21,6 +21,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +35,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -88,7 +89,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
-        inferenceStats = new InferenceStats(mock(), mock());
+        inferenceStats = InferenceStatsTests.mockInferenceStats();
         streamingTaskManager = mock();
 
         action = createAction(

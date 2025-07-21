@@ -1,0 +1,5 @@
+pr: 131173
+summary: Add attribute count to `SamlAttribute` `toString`
+area: Authentication
+type: enhancement
+issues: []

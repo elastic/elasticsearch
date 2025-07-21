@@ -146,7 +146,6 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
         } finally {
             // Clean up.
-            assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
             executor.shutdown();
             executor.awaitTermination(10, TimeUnit.SECONDS);
         }

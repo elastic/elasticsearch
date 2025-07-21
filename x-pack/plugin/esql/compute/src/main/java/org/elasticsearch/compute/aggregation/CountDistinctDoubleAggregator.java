@@ -50,15 +50,6 @@ public class CountDistinctDoubleAggregator {
         current.merge(groupId, inValue, 0);
     }
 
-    public static void combineStates(
-        HllStates.GroupingState current,
-        int currentGroupId,
-        HllStates.GroupingState state,
-        int statePosition
-    ) {
-        current.merge(currentGroupId, state.hll, statePosition);
-    }
-
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
         try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {

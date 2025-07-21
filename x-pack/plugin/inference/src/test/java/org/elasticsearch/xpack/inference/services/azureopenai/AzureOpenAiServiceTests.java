@@ -752,7 +752,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AzureOpenAiService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -785,7 +785,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testInfer_SendsRequest() throws IOException, URISyntaxException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -844,7 +844,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues();
             assertThrows(
                 ElasticsearchStatusException.class,
@@ -864,7 +864,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var embeddingSize = randomNonNegativeInt();
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
@@ -891,7 +891,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException, URISyntaxException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -952,7 +952,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     private void testChunkedInfer(AzureOpenAiEmbeddingsModel model) throws IOException, URISyntaxException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1065,7 +1065,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AzureOpenAiCompletionModelTests.createCompletionModel(
                 "resource",
                 "deployment",
@@ -1209,14 +1209,18 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
+        try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }
 
     private AzureOpenAiService createAzureOpenAiService() {
-        return new AzureOpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new AzureOpenAiService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(

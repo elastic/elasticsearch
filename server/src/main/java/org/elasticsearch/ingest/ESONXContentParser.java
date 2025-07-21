@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
@@ -44,6 +45,7 @@ import java.util.Map;
 public class ESONXContentParser extends AbstractXContentParser {
 
     private final ESONSource.ESONObject root;
+    private final ESONSource.Values values;
     private final XContentType xContentType;
 
     // Parsing state
@@ -95,6 +97,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     ) {
         super(registry, deprecationHandler);
         this.root = root;
+        this.values = root.objectValues().get();
         // Start with the root object context
         this.currentContext = new ParseContext(root);
         this.xContentType = xContentType;
@@ -268,34 +271,14 @@ public class ESONXContentParser extends AbstractXContentParser {
         } else if (esonType instanceof ESONSource.ESONArray arr) {
             return arr;
         } else if (esonType instanceof ESONSource.FixedValue fixedVal) {
-            return fixedVal.getValue(getValuesFromContext());
+            return fixedVal.getValue(values);
         } else if (esonType instanceof ESONSource.VariableValue varVal) {
-            return varVal.getValue(getValuesFromContext());
+            return varVal.getValue(values);
         } else if (esonType instanceof ESONSource.Mutation mutation) {
             return mutation.object();
         } else {
             throw new IllegalStateException("Unknown ESON type: " + esonType.getClass());
         }
-    }
-
-    // Helper to get Values instance from current context
-    private ESONSource.Values getValuesFromContext() {
-        if (currentContext != null && currentContext.rawObject instanceof ESONSource.ESONObject esonObj) {
-            return esonObj.objectValues().get();
-        } else if (currentContext != null && currentContext.rawObject instanceof ESONSource.ESONArray esonArr) {
-            return esonArr.arrayValues().get();
-        }
-
-        // Try to find an ancestor context with Values (arrays inherit from parent objects)
-        for (ParseContext ctx : contextStack) {
-            if (ctx.rawObject instanceof ESONSource.ESONObject esonObj) {
-                return esonObj.objectValues().get();
-            } else if (ctx.rawObject instanceof ESONSource.ESONArray esonArr) {
-                return esonArr.arrayValues().get();
-            }
-        }
-
-        throw new IllegalStateException("Cannot find Values instance in context stack");
     }
 
     @Override
@@ -339,17 +322,21 @@ public class ESONXContentParser extends AbstractXContentParser {
     public XContentString optimizedText() throws IOException {
         // For strings, try to access raw bytes directly without materializing the string
         if (currentEsonType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
-            try {
-                ESONSource.Values values = getValuesFromContext();
-                if (values.data().hasArray()) {
-                    // Return XContentString with direct byte access (lazy string conversion)
-                    byte[] rawBytes = values.data().array();
-                    int offset = values.data().arrayOffset() + varValue.position();
-                    return new Text(new XContentString.UTF8Bytes(rawBytes, offset, varValue.length()));
-                }
-            } catch (Exception e) {
-                // Fall back to materialized string
+            // Return XContentString with direct byte access (lazy string conversion)
+            byte[] rawBytes;
+            int offset;
+            int length = varValue.length();
+            if (values.data().hasArray()) {
+                rawBytes = values.data().array();
+                offset = values.data().arrayOffset() + varValue.position();
+            } else {
+                rawBytes = new byte[Math.toIntExact(length)];
+                offset = 0;
+                StreamInput streamInput = values.data().streamInput();
+                streamInput.skip(varValue.position());
+                streamInput.read(rawBytes);
             }
+            return new Text(new XContentString.UTF8Bytes(rawBytes, offset, length));
         }
 
         // Fallback: materialize value and convert to bytes
@@ -364,9 +351,8 @@ public class ESONXContentParser extends AbstractXContentParser {
     public boolean optimizedText(OutputStream out) throws IOException {
         // For strings, try to write raw bytes directly without materializing the string
         if (currentEsonType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
-
             try {
-                ESONSource.Values values = getValuesFromContext();
+                // TODO: Can optimize more. Just not sure if this method needs to stay.
                 if (values.data().hasArray()) {
                     // Write directly from the raw bytes
                     byte[] rawBytes = values.data().array();

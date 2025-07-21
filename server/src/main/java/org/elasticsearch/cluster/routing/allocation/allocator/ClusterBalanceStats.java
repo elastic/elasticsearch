@@ -242,7 +242,7 @@ public record ClusterBalanceStats(
                 }
             }
 
-            Double nodeWeight = desiredBalance == null || desiredBalance.weightsPerNode().isEmpty()
+            Double nodeWeight = desiredBalance.weightsPerNode().isEmpty()
                 ? null
                 : desiredBalance.weightsPerNode().get(routingNode.node()).nodeWeight();
 

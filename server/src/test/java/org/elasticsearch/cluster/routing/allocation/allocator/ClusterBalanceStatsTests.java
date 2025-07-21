@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,19 +21,11 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats.MetricStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats.NodeBalanceStats;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -262,7 +252,49 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
         var clusterState = createClusterState(List.of(NODE1, NODE2, NODE3), List.of());
         var clusterInfo = createClusterInfo(List.of());
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, null, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
+        double nodeWeight = randomDoubleBetween(-1, 1, true);
+        var stats = ClusterBalanceStats.createFrom(clusterState, createDesiredBalance(clusterState, nodeWeight), clusterInfo, TEST_WRITE_LOAD_FORECASTER);
+
+        assertThat(
+            stats,
+            equalTo(
+                new ClusterBalanceStats(
+                    0,
+                    0,
+                    Map.of(
+                        DATA_CONTENT_NODE_ROLE.roleName(),
+                        new ClusterBalanceStats.TierBalanceStats(
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0)
+                        )
+                    ),
+                    Map.ofEntries(
+                        Map.entry(
+                            "node-1",
+                            new NodeBalanceStats("node-1", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, nodeWeight)
+                        ),
+                        Map.entry(
+                            "node-2",
+                            new NodeBalanceStats("node-2", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, nodeWeight)
+                        ),
+                        Map.entry(
+                            "node-3",
+                            new NodeBalanceStats("node-3", List.of(DATA_CONTENT_NODE_ROLE.roleName()), 0, 0, 0.0, 0L, 0L, nodeWeight)
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testStatsForDesiredBalanceWithEmptyWeightsPerNodeMap() {
+        var clusterState = createClusterState(List.of(NODE1, NODE2, NODE3), List.of());
+        var clusterInfo = createClusterInfo(List.of());
+
+        var stats = ClusterBalanceStats.createFrom(clusterState, createDesiredBalanceWithEmptyNodeWeights(clusterState), clusterInfo, TEST_WRITE_LOAD_FORECASTER);
 
         assertThat(
             stats,
@@ -330,7 +362,15 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             .build();
     }
 
-    private static DesiredBalance createDesiredBalance(ClusterState state, Double nodeWeight) {
+    private static DesiredBalance createDesiredBalanceWithEmptyNodeWeights(ClusterState state) {
+        return createDesiredBalance(state, randomDoubleBetween(-1, 1, true), true);
+    }
+
+    private static DesiredBalance createDesiredBalance(ClusterState state, double nodeWeight) {
+        return createDesiredBalance(state, nodeWeight, false);
+    }
+
+    private static DesiredBalance createDesiredBalance(ClusterState state, double nodeWeight, boolean emptyNodeWeights) {
         var assignments = new HashMap<ShardId, ShardAssignment>();
         Map<String, Long> shardCounts = new HashMap<>();
         for (var indexRoutingTable : state.getRoutingTable()) {
@@ -340,6 +380,10 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                 assignments.put(indexShardRoutingTable.shardId(), new ShardAssignment(Set.of(nodeId), 1, 0, 0));
                 shardCounts.compute(nodeId, (k, v) -> v == null ? 1 : v + 1);
             }
+        }
+
+        if (emptyNodeWeights) {
+            return new DesiredBalance(1, assignments, new HashMap<>(), DesiredBalance.ComputationFinishReason.CONVERGED);
         }
 
         final var nodeWeights = state.nodes()

@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -58,7 +59,11 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
     public void testSerializationWithTransportVersionV_8_7_0() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
-        TransportVersion oldVersion = TransportVersions.V_8_7_0;
+        final var oldVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0)
+        );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
         // Assert the default values are as expected
@@ -71,12 +76,16 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
     public void testSerializationWithTransportVersionV_8_8_0() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
-        TransportVersion oldVersion = TransportVersions.V_8_8_0;
+        final var oldVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_8_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_12_0)
+        );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
-        // Assert the default values have not been used
-        assertNotEquals(UNKNOWN, deserialized.nodeId());
-        assertNotEquals(List.of(), deserialized.roles());
+        // Assert the values are as expected
+        assertEquals(instance.nodeId(), deserialized.nodeId());
+        assertEquals(instance.roles(), deserialized.roles());
 
         // Assert the default values are as expected
         assertEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, deserialized.undesiredShardAllocations());
@@ -86,13 +95,17 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
     public void testSerializationWithTransportVersionV_8_12_0() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
-        TransportVersion oldVersion = TransportVersions.V_8_12_0;
+        final var oldVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_12_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
+        );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
-        // Assert the default values have not been used
-        assertNotEquals(UNKNOWN, deserialized.nodeId());
-        assertNotEquals(List.of(), deserialized.roles());
-        assertNotEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, deserialized.undesiredShardAllocations());
+        // Assert the values are as expected
+        assertEquals(instance.nodeId(), deserialized.nodeId());
+        assertEquals(instance.roles(), deserialized.roles());
+        assertEquals(instance.undesiredShardAllocations(), deserialized.undesiredShardAllocations());
 
         // Assert the default values are as expected
         assertNull(deserialized.nodeWeight());
@@ -101,13 +114,18 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
     public void testSerializationWithTransportVersionNodeWeightsAddedToNodeBalanceStats() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
-        TransportVersion oldVersion = TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS;
+        final var oldVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
+                TransportVersion.current()
+        );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
-        // Assert the default values have not been used
-        assertNotEquals(UNKNOWN, deserialized.nodeId());
-        assertNotEquals(List.of(), deserialized.roles());
-        assertNotEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, deserialized.undesiredShardAllocations());
+        // Assert the values are as expected
+        assertEquals(instance.nodeId(), deserialized.nodeId());
+        assertEquals(instance.roles(), deserialized.roles());
+        assertEquals(instance.undesiredShardAllocations(), deserialized.undesiredShardAllocations());
+        assertEquals(instance.nodeWeight(), deserialized.nodeWeight());
     }
 
     public void testToXContentWithoutHumanReadableNames() throws IOException {

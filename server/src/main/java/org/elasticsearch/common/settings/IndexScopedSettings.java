@@ -173,7 +173,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPER_DYNAMIC_SETTING,
-                MapperService.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING,
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -205,6 +204,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
+                IndexSettings.INDEX_MAPPING_META_LENGTH_LIMIT_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

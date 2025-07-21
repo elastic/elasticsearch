@@ -1535,7 +1535,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSpecificSparseVectorIndexOptions() throws IOException {
-        for (int i=0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             SparseVectorFieldMapper.SparseVectorIndexOptions testIndexOptions = randomSparseVectorIndexOptionsAll();
             var mapperService = createMapperService(fieldMapping(b -> {
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -1556,10 +1556,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 "field",
                 false,
                 null,
-                new SemanticTextIndexOptions(
-                    SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                    testIndexOptions
-                )
+                new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, testIndexOptions)
             );
         }
 
@@ -1581,10 +1578,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
-        assertThat(
-            e.getMessage(),
-            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
-        );
+        assertThat(e.getMessage(), containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true"));
 
         e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);

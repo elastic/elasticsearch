@@ -378,7 +378,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertTrue(shardWriteLoads.isEmpty());
         }
 
-        // Enable collection for node write loads.
+        // Turn on collection of write load stats.
         updateClusterSettings(
             Settings.builder()
                 .put(

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -137,7 +138,13 @@ public class TopNOperatorStatus implements Operator.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("receive_nanos", receiveNanos);
+        if (builder.humanReadable()) {
+            builder.field("receive_time", TimeValue.timeValueNanos(receiveNanos).toString());
+        }
         builder.field("emit_nanos", emitNanos);
+        if (builder.humanReadable()) {
+            builder.field("emit_time", TimeValue.timeValueNanos(emitNanos).toString());
+        }
         builder.field("occupied_rows", occupiedRows);
         builder.field("ram_bytes_used", ramBytesUsed);
         builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));

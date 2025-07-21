@@ -426,14 +426,16 @@ public class TopNOperator implements Operator, Accountable {
             page.releaseBlocks();
             pagesReceived++;
             rowsReceived += page.getPositionCount();
+            receiveNanos += System.nanoTime() - start;
         }
-        receiveNanos += System.nanoTime() - start;
     }
 
     @Override
     public void finish() {
         if (output == null) {
+            long start = System.nanoTime();
             output = toPages();
+            emitNanos += System.nanoTime() - start;
         }
     }
 
@@ -553,11 +555,9 @@ public class TopNOperator implements Operator, Accountable {
         if (output == null || output.hasNext() == false) {
             return null;
         }
-        long start = System.nanoTime();
         Page ret = output.next();
         pagesEmitted++;
         rowsEmitted += ret.getPositionCount();
-        emitNanos += System.nanoTime() - start;
         return ret;
     }
 

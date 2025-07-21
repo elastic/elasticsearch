@@ -23,7 +23,9 @@ public class TopNOperatorStatusTests extends AbstractWireSerializingTestCase<Top
         return """
             {
               "receive_nanos" : 100,
+              "receive_time" : "100nanos",
               "emit_nanos" : 40,
+              "emit_time" : "40nanos",
               "occupied_rows" : 10,
               "ram_bytes_used" : 2000,
               "ram_used" : "1.9kb",

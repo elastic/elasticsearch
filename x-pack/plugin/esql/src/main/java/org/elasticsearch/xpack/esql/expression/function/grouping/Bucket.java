@@ -649,4 +649,17 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             return new BigDecimal(value).setScale(n, RoundingMode.HALF_UP).doubleValue();
         }
     }
+
+    @Override
+    public Expression surrogate(SearchStats searchStats) {
+        // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
+        assert searchStats != null : "SearchStats cannot be null";
+        return maybeSubstituteWithRoundTo(
+            source(),
+            field(),
+            buckets(),
+            searchStats,
+            (interval, minValue, maxValue) -> getDateRounding(FoldContext.small(), minValue, maxValue)
+        );
+    }
 }

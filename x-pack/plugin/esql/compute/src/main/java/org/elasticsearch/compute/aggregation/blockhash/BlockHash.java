@@ -143,6 +143,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Configuration for a BlockHash group spec that is doing text categorization.
      */
+    public record CategorizeDef(String analyzer, OutputFormat outputFormat, int similarityThreshold) {
+        public enum OutputFormat {
+            REGEX,
+            TOKENS
+        }
+    }
+
     public record GroupSpec(
         int channel,
         ElementType elementType,

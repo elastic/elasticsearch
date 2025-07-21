@@ -198,7 +198,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private void writeBinarizedVectors(FieldWriter fieldData, float[] clusterCenter, OptimizedScalarQuantizer scalarQuantizer)
         throws IOException {
         int discreteDims = BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64);
-        int[] quantizationScratch = new int[discreteDims];
+        int[] quantizationScratch = new int[clusterCenter.length];
         byte[] vector = new byte[discreteDims / 8];
         for (int i = 0; i < fieldData.getVectors().size(); i++) {
             float[] v = fieldData.getVectors().get(i);
@@ -246,7 +246,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         OptimizedScalarQuantizer scalarQuantizer
     ) throws IOException {
         int discreteDims = BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64);
-        int[] quantizationScratch = new int[discreteDims];
+        int[] quantizationScratch = new int[clusterCenter.length];
         byte[] vector = new byte[discreteDims / 8];
         for (int ordinal : ordMap) {
             float[] v = fieldData.getVectors().get(ordinal);

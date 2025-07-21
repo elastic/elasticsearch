@@ -615,6 +615,7 @@ public class CsvTests extends ESTestCase {
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer),
                 configuration,
                 foldCtx,
+                logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread

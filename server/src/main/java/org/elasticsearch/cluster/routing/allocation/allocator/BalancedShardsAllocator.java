@@ -1134,22 +1134,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         continue;
                     }
 
-                    final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
+                    final Decision.Type canAllocateOrRebalance = Decision.Type.min(allocationDecision.type(), rebalanceDecision.type());
 
                     maxNode.removeShard(projectIndex(shard), shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    assert decision.type() == Type.YES || decision.type() == Type.THROTTLE : decision.type();
+                    assert canAllocateOrRebalance == Type.YES || canAllocateOrRebalance == Type.THROTTLE : canAllocateOrRebalance;
                     logger.debug(
                         "decision [{}]: relocate [{}] from [{}] to [{}]",
-                        decision.type(),
+                        canAllocateOrRebalance,
                         shard,
                         maxNode.getNodeId(),
                         minNode.getNodeId()
                     );
                     minNode.addShard(
                         projectIndex(shard),
-                        decision.type() == Type.YES
+                        canAllocateOrRebalance == Type.YES
                             /* only allocate on the cluster if we are not throttled */
                             ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, "rebalance", allocation.changes()).v1()
                             : shard.relocate(minNode.getNodeId(), shardSize)

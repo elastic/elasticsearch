@@ -58,7 +58,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     LongBlock valuesBlock = page.getBlock(channels.get(0));
     LongVector valuesVector = valuesBlock.asVector();
@@ -111,16 +111,13 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -144,7 +141,21 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block minUncast = page.getBlock(channels.get(0));
+    if (minUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector min = ((LongBlock) minUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert min.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -153,9 +164,22 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
+        if (seen.getBoolean(groupPosition + positionOffset)) {
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(groupPosition + positionOffset)));
         }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -179,12 +203,42 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block minUncast = page.getBlock(channels.get(0));
+    if (minUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector min = ((LongBlock) minUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert min.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (seen.getBoolean(groupPosition + positionOffset)) {
+          state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), min.getLong(groupPosition + positionOffset)));
+        }
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
+      int groupId = groups.getInt(groupPosition);
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
@@ -198,11 +252,6 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       int groupId = groups.getInt(groupPosition);
       state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -229,15 +278,8 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    LongArrayState inState = ((MinLongGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MinLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

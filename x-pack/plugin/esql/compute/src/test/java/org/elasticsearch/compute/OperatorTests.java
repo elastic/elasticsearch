@@ -11,8 +11,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -20,13 +18,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -35,12 +31,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
-import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -55,15 +47,10 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
@@ -77,7 +64,6 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -92,8 +78,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
-import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -313,15 +297,12 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
+                List<BlockHash.GroupSpec> groups = List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
                 operators.add(
                     new HashAggregationOperator(
+                        groups,
                         List.of(new ValuesLongAggregatorFunctionSupplier().groupingAggregatorFactory(FINAL, List.of(1))),
-                        () -> BlockHash.build(
-                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
-                            driverContext.blockFactory(),
-                            randomPageSize(),
-                            false
-                        ),
+                        () -> BlockHash.build(groups, driverContext.blockFactory(), randomPageSize(), false),
                         driverContext
                     )
                 );
@@ -379,6 +360,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 LuceneOperator.NO_LIMIT
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofGb(1),
                 List.of(
                     new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, f -> new BlockDocValuesReader.LongsBlockLoader("v"))
                 ),
@@ -405,7 +387,6 @@ public class OperatorTests extends MapperServiceTestCase {
             boolean sawSecondMax = false;
             boolean sawThirdMax = false;
             for (Page page : pages) {
-                logger.error("ADFA {}", page);
                 LongVector group = page.<LongBlock>getBlock(1).asVector();
                 LongVector value = page.<LongBlock>getBlock(2).asVector();
                 for (int p = 0; p < page.getPositionCount(); p++) {

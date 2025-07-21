@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,13 +20,11 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -37,11 +34,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -158,10 +153,12 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        if (isInitialPage.compareAndSet(true, false) && (aggregators.size() == 0 || AggregatorMode.INITIAL.equals(aggregators.get(0).getMode()))) {
-            Page initialPage = createInitialPage(page.getBlockCount());
+        if (isInitialPage.compareAndSet(true, false)
+            && (aggregators.size() == 0 || AggregatorMode.INITIAL.equals(aggregators.get(0).getMode()))) {
+            Page initialPage = createInitialPage(page);
             if (initialPage != null) {
                 addInputInternal(initialPage);
+                return;
             }
         }
         addInputInternal(page);
@@ -313,69 +310,40 @@ public class HashAggregationOperator implements Operator {
         return page;
     }
 
-    private @Nullable Page createInitialPage(int blockCount) {
-        int maxBucketCount = getMaxBucketCount(groups);
-        if (maxBucketCount == 0) {
-            return null;
+    private Page createInitialPage(Page page) {
+        // If no groups are generating bucket keys, move on
+        if (groups.stream().allMatch(g -> g.emptyBucketGenerator() == null)) {
+            return page;
         }
-        Map<Integer, BlockHash.GroupSpec> channelsToAppend = groups.stream()
-            .filter(g -> g.emptyBucketDef() != null && g.emptyBucketDef().emitEmptyBuckets())
-            .collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
-        Block[] blocks = new Block[blockCount];
-        for (int i = 0; i < blockCount; i++) {
-            if (channelsToAppend.containsKey(i)) {
-                blocks[i] = appendValues(channelsToAppend.get(i).emptyBucketDef(), maxBucketCount);
-            } else {
-                blocks[i] = driverContext.blockFactory().newConstantNullBlock(maxBucketCount);
-            }
+        Block.Builder[] blockBuilders = new Block.Builder[page.getBlockCount()];
+        for (int channel = 0; channel < page.getBlockCount(); channel++) {
+            Block block = page.getBlock(channel);
+            blockBuilders[channel] = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory());
+            blockBuilders[channel].copyFrom(block, 0, block.getPositionCount());
         }
-        return new Page(blocks);
-    }
-
-    Block appendValues(BlockHash.EmptyBucketDef group, int maxBucketCount) {
-        Rounding.Prepared rounding = group.rounding();
-        try (
-            LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(
-                maxBucketCount,
-                driverContext.blockFactory()
-            )
-        ) {
-            int i = 0;
-            for (long bucket = rounding.round(group.from()); bucket < group.to(); bucket = rounding.nextRoundingValue(bucket)) {
-                newBlockBuilder.appendLong(bucket);
-                i++;
-            }
-            while (i < maxBucketCount) {
-                newBlockBuilder.appendNull();
-                i++;
-            }
-            return newBlockBuilder.build();
-        }
-    }
-
-    private static int getMaxBucketCount(List<BlockHash.GroupSpec> groups) {
-        int result = 0;
         for (BlockHash.GroupSpec group : groups) {
-            if (group.emptyBucketDef() != null) {
-                int bucketCount = getBucketCount(group.emptyBucketDef());
-                result = Math.max(result, bucketCount);
+            BlockHash.EmptyBucketGenerator emptyBucketGenerator = group.emptyBucketGenerator();
+            if (emptyBucketGenerator != null) {
+                for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                    if (group.channel() == channel) {
+                        emptyBucketGenerator.generate(blockBuilders[channel]);
+                    } else {
+                        for (int i = 0; i < emptyBucketGenerator.getEmptyBucketCount(); i++) {
+                            if (page.getBlock(channel) instanceof DocBlock) {
+                                // TODO: DocBlock doesn't allow appending nulls
+                                ((DocBlock.Builder) blockBuilders[channel]).appendShard(0).appendSegment(0).appendDoc(0);
+                            } else {
+                                blockBuilders[channel].appendNull();
+                            }
+                        }
+                    }
+                }
             }
         }
-        return result;
-    }
-
-    private static int getBucketCount(BlockHash.EmptyBucketDef group) {
-        if (group.emitEmptyBuckets() == false) {
-            return 0;
-        }
-        Rounding.Prepared rounding = group.rounding();
-        long from = group.from();
-        long to = group.to();
-        int result = 0;
-        for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
-            result++;
-        }
-        return result;
+        Block[] blocks = Arrays.stream(blockBuilders).map(Block.Builder::build).toArray(Block[]::new);
+        Releasables.closeExpectNoException(blockBuilders);
+        page.releaseBlocks();
+        return new Page(blocks);
     }
 
     @Override

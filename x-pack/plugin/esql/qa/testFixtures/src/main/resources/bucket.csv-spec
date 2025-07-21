@@ -167,9 +167,132 @@ bucket:datetime
 1985-12-01T00:00:00.000Z
 ;
 
+bucketHeightWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS BY heightBucket = ROUND(BUCKET(height, 10, 1.0, 2.0, true), 1)
+| SORT heightBucket
+;
+
+heightBucket:double
+1.0
+1.1
+1.2
+1.3
+1.4
+1.5
+1.6
+1.7
+1.8
+1.9
+2.0
+;
+
+bucketsWithEmptyYear#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1980-01-01T00:00:00Z" AND hire_date < "1990-01-01T00:00:00Z"
+| STATS BY 
+           yearBucket = BUCKET(hire_date, 1 year, "1980-01-01T00:00:00Z", "1990-01-01T00:00:00Z", true),
+           heightBucket = ROUND(BUCKET(height, 10, 1.0, 2.0), 1)
+| SORT yearBucket, heightBucket
+;
+
+yearBucket:datetime      | heightBucket:double
+1980-01-01T00:00:00.000Z | null
+1981-01-01T00:00:00.000Z | null
+1982-01-01T00:00:00.000Z | null
+1983-01-01T00:00:00.000Z | null
+1984-01-01T00:00:00.000Z | null
+1985-01-01T00:00:00.000Z | 1.4
+1985-01-01T00:00:00.000Z | 1.7
+1985-01-01T00:00:00.000Z | 1.8
+1985-01-01T00:00:00.000Z | 1.9
+1985-01-01T00:00:00.000Z | 2.0
+1985-01-01T00:00:00.000Z | null
+1986-01-01T00:00:00.000Z | 1.4
+1986-01-01T00:00:00.000Z | 1.5
+1986-01-01T00:00:00.000Z | 1.7
+1986-01-01T00:00:00.000Z | 1.8
+1986-01-01T00:00:00.000Z | 2.0
+1986-01-01T00:00:00.000Z | 2.1
+1986-01-01T00:00:00.000Z | null
+1987-01-01T00:00:00.000Z | 1.4
+1987-01-01T00:00:00.000Z | 1.5
+1987-01-01T00:00:00.000Z | 1.6
+1987-01-01T00:00:00.000Z | 1.7
+1987-01-01T00:00:00.000Z | 1.8
+1987-01-01T00:00:00.000Z | 1.9
+1987-01-01T00:00:00.000Z | 2.0
+1987-01-01T00:00:00.000Z | 2.1
+1987-01-01T00:00:00.000Z | null
+1988-01-01T00:00:00.000Z | 1.4
+1988-01-01T00:00:00.000Z | 1.5
+1988-01-01T00:00:00.000Z | 1.7
+1988-01-01T00:00:00.000Z | 1.8
+1988-01-01T00:00:00.000Z | 1.9
+1988-01-01T00:00:00.000Z | null
+1989-01-01T00:00:00.000Z | 1.5
+1989-01-01T00:00:00.000Z | 1.7
+1989-01-01T00:00:00.000Z | 2.0
+1989-01-01T00:00:00.000Z | null
+;
+
+bucketsWithEmptyHeight#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1990-01-01T00:00:00Z"
+| STATS BY 
+           yearBucket = BUCKET(hire_date, 1 year, "1985-01-01T00:00:00Z", "1990-01-01T00:00:00Z"),
+           heightBucket = ROUND(BUCKET(height, 10, 1.0, 2.0, true), 1)
+| SORT yearBucket, heightBucket
+;
+
+yearBucket:datetime      | heightBucket:double
+1985-01-01T00:00:00.000Z | 1.4
+1985-01-01T00:00:00.000Z | 1.7
+1985-01-01T00:00:00.000Z | 1.8
+1985-01-01T00:00:00.000Z | 1.9
+1985-01-01T00:00:00.000Z | 2.0
+1986-01-01T00:00:00.000Z | 1.4
+1986-01-01T00:00:00.000Z | 1.5
+1986-01-01T00:00:00.000Z | 1.7
+1986-01-01T00:00:00.000Z | 1.8
+1986-01-01T00:00:00.000Z | 2.0
+1986-01-01T00:00:00.000Z | 2.1
+1987-01-01T00:00:00.000Z | 1.4
+1987-01-01T00:00:00.000Z | 1.5
+1987-01-01T00:00:00.000Z | 1.6
+1987-01-01T00:00:00.000Z | 1.7
+1987-01-01T00:00:00.000Z | 1.8
+1987-01-01T00:00:00.000Z | 1.9
+1987-01-01T00:00:00.000Z | 2.0
+1987-01-01T00:00:00.000Z | 2.1
+1988-01-01T00:00:00.000Z | 1.4
+1988-01-01T00:00:00.000Z | 1.5
+1988-01-01T00:00:00.000Z | 1.7
+1988-01-01T00:00:00.000Z | 1.8
+1988-01-01T00:00:00.000Z | 1.9
+1989-01-01T00:00:00.000Z | 1.5
+1989-01-01T00:00:00.000Z | 1.7
+1989-01-01T00:00:00.000Z | 2.0
+null                     | 1.0
+null                     | 1.1
+null                     | 1.2
+null                     | 1.3
+null                     | 1.4
+null                     | 1.5
+null                     | 1.6
+null                     | 1.7
+null                     | 1.8
+null                     | 1.9
+;
+
+
+
+
 bucketMonthInAggWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
-| STATS MAX(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS MAX(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", true)
 | SORT bucket
 ;
 
@@ -188,12 +311,114 @@ null                | 1985-08-01T00:00:00.000Z
 null                | 1985-12-01T00:00:00.000Z
 ;
 
+bucketMonthInAggWithEmpty2#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS MAX(salary) BY bucket = BUCKET(hire_date, 1 month, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", true)
+| SORT bucket
+;
+
+MAX(salary):integer | bucket:datetime
+null                | 1985-01-01T00:00:00.000Z
+66174               | 1985-02-01T00:00:00.000Z
+null                | 1985-03-01T00:00:00.000Z
+null                | 1985-04-01T00:00:00.000Z
+44817               | 1985-05-01T00:00:00.000Z
+null                | 1985-06-01T00:00:00.000Z
+62405               | 1985-07-01T00:00:00.000Z
+null                | 1985-08-01T00:00:00.000Z
+49095               | 1985-09-01T00:00:00.000Z
+54329               | 1985-10-01T00:00:00.000Z
+74999               | 1985-11-01T00:00:00.000Z
+null                | 1985-12-01T00:00:00.000Z
+;
+
+bucketMonthInAggWithEmpty3#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS MAX(salary) BY bucket = BUCKET(hire_date, 1 month, "1985-01-01T00:00:00Z", "1987-01-01T00:00:00Z", true)
+| SORT bucket
+;
+
+MAX(salary):integer | bucket:datetime
+null                | 1985-01-01T00:00:00.000Z
+66174               | 1985-02-01T00:00:00.000Z
+null                | 1985-03-01T00:00:00.000Z
+null                | 1985-04-01T00:00:00.000Z
+44817               | 1985-05-01T00:00:00.000Z
+null                | 1985-06-01T00:00:00.000Z
+62405               | 1985-07-01T00:00:00.000Z
+null                | 1985-08-01T00:00:00.000Z
+49095               | 1985-09-01T00:00:00.000Z
+54329               | 1985-10-01T00:00:00.000Z
+74999               | 1985-11-01T00:00:00.000Z
+null                | 1985-12-01T00:00:00.000Z
+null                | 1986-01-01T00:00:00.000Z
+null                | 1986-02-01T00:00:00.000Z
+null                | 1986-03-01T00:00:00.000Z
+null                | 1986-04-01T00:00:00.000Z
+null                | 1986-05-01T00:00:00.000Z
+null                | 1986-06-01T00:00:00.000Z
+null                | 1986-07-01T00:00:00.000Z
+null                | 1986-08-01T00:00:00.000Z
+null                | 1986-09-01T00:00:00.000Z
+null                | 1986-10-01T00:00:00.000Z
+null                | 1986-11-01T00:00:00.000Z
+null                | 1986-12-01T00:00:00.000Z
+;
+
+bucketMonthInAggWithEmpty4#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1989-01-01T00:00:00Z"
+| STATS MAX(salary) BY bucket = BUCKET(hire_date, 1 month, "1985-01-01T00:00:00Z", "1987-01-01T00:00:00Z", true)
+| SORT bucket
+;
+
+MAX(salary):integer | bucket:datetime
+null                | 1985-01-01T00:00:00.000Z
+66174               | 1985-02-01T00:00:00.000Z
+null                | 1985-03-01T00:00:00.000Z
+null                | 1985-04-01T00:00:00.000Z
+44817               | 1985-05-01T00:00:00.000Z
+null                | 1985-06-01T00:00:00.000Z
+62405               | 1985-07-01T00:00:00.000Z
+null                | 1985-08-01T00:00:00.000Z
+49095               | 1985-09-01T00:00:00.000Z
+54329               | 1985-10-01T00:00:00.000Z
+74999               | 1985-11-01T00:00:00.000Z
+null                | 1985-12-01T00:00:00.000Z
+null                | 1986-01-01T00:00:00.000Z
+54462               | 1986-02-01T00:00:00.000Z
+44956               | 1986-03-01T00:00:00.000Z
+null                | 1986-04-01T00:00:00.000Z
+null                | 1986-05-01T00:00:00.000Z
+57305               | 1986-06-01T00:00:00.000Z
+37702               | 1986-07-01T00:00:00.000Z
+61805               | 1986-08-01T00:00:00.000Z
+32272               | 1986-09-01T00:00:00.000Z
+50128               | 1986-10-01T00:00:00.000Z
+null                | 1986-11-01T00:00:00.000Z
+36174               | 1986-12-01T00:00:00.000Z
+70011               | 1987-03-01T00:00:00.000Z
+66817               | 1987-04-01T00:00:00.000Z
+69904               | 1987-05-01T00:00:00.000Z
+25324               | 1987-07-01T00:00:00.000Z
+47411               | 1987-08-01T00:00:00.000Z
+68431               | 1987-09-01T00:00:00.000Z
+40612               | 1987-10-01T00:00:00.000Z
+29175               | 1987-11-01T00:00:00.000Z
+36051               | 1988-01-01T00:00:00.000Z
+60408               | 1988-02-01T00:00:00.000Z
+55360               | 1988-05-01T00:00:00.000Z
+54518               | 1988-07-01T00:00:00.000Z
+39878               | 1988-09-01T00:00:00.000Z
+73578               | 1988-10-01T00:00:00.000Z
+;
+
 bucketMonthInAggsWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-// tag::bucket_in_aggs_with_empty[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS MIN(salary), MAX(salary), AVG(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", true)
-// end::bucket_in_aggs_with_empty[]
 | SORT bucket
 ;
 warningRegex:evaluation of \[AVG\(salary\)\] failed, treating result as null. Only first 20 failures recorded
@@ -214,27 +439,6 @@ null                | null                | null               | 1985-08-01T00:0
 33956               | 74999               | 54539.75           | 1985-11-01T00:00:00.000Z
 null                | null                | null               | 1985-12-01T00:00:00.000Z
 // end::bucket_in_aggs_with_empty-result[]
-;
-
-bucketHeightWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-// tag::bucket_height_with_empty[]
-FROM employees
-| STATS MIN(salary), MAX(salary), AVG(salary) BY height_bucket = ROUND(BUCKET(height, 10, 1.0, 2.0), 2)
-// end::bucket_height_with_empty[]
-| SORT height_bucket
-;
-
-// tag::bucket_height_with_empty-result[]
-MIN(salary):integer | MAX(salary):integer | AVG(salary):double | height_bucket:double
-29175               | 60408               | 42504.0            | 1.4
-27215               | 73851               | 43495.75           | 1.5
-25324               | 70011               | 45273.444444444445 | 1.6
-25976               | 74970               | 53563.64705882353  | 1.7
-25945               | 73578               | 54413.0            | 1.8
-33956               | 74999               | 49684.545454545456 | 1.9
-26436               | 73717               | 47524.0            | 2.0
-28336               | 66817               | 46637.8            | 2.1
-// end::bucket_height_with_empty-result[]
 ;
 
 bucketWithOffset#[skip:-8.13.99, reason:BUCKET renamed in 8.14]

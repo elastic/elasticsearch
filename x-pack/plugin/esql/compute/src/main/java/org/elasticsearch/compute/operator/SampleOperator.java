@@ -66,11 +66,11 @@ public class SampleOperator implements Operator {
     private final RandomSamplingQuery.RandomSamplingIterator randomSamplingIterator;
     private boolean finished;
 
-    private int pagesProcessed = 0;
-    private int rowsReceived = 0;
-    private int rowsEmitted = 0;
     private long collectNanos;
     private long emitNanos;
+    private int pagesProcessed = 0;
+    private long rowsReceived = 0;
+    private long rowsEmitted = 0;
 
     private SampleOperator(double probability, int seed) {
         finished = false;
@@ -109,7 +109,7 @@ public class SampleOperator implements Operator {
         final int[] sampledPositions = new int[page.getPositionCount()];
         int sampledIdx = 0;
         for (int i = randomSamplingIterator.docID(); i - rowsReceived < page.getPositionCount(); i = randomSamplingIterator.nextDoc()) {
-            sampledPositions[sampledIdx++] = i - rowsReceived;
+            sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
             outputPages.add(page.filter(Arrays.copyOf(sampledPositions, sampledIdx)));
@@ -167,7 +167,7 @@ public class SampleOperator implements Operator {
         return new Status(collectNanos, emitNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
-    public record Status(long collectNanos, long emitNanos, int pagesProcessed, int rowsReceived, int rowsEmitted)
+    public record Status(long collectNanos, long emitNanos, int pagesProcessed, long rowsReceived, long rowsEmitted)
         implements
             Operator.Status {
 
@@ -178,7 +178,8 @@ public class SampleOperator implements Operator {
         );
 
         Status(StreamInput streamInput) throws IOException {
-            this(streamInput.readVLong(), streamInput.readVLong(), streamInput.readVInt(), streamInput.readVInt(), streamInput.readVInt());
+            this(
+                streamInput.readVLong(), streamInput.readVLong(), streamInput.readVInt(), streamInput.readVLong(), streamInput.readVLong());
         }
 
         @Override
@@ -186,8 +187,8 @@ public class SampleOperator implements Operator {
             out.writeVLong(collectNanos);
             out.writeVLong(emitNanos);
             out.writeVInt(pagesProcessed);
-            out.writeVInt(rowsReceived);
-            out.writeVInt(rowsEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override

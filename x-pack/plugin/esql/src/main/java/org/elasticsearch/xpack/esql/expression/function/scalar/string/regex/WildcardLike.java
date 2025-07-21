@@ -139,6 +139,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
      * Pushes down string casing optimization for a single pattern using the provided predicate.
      * Returns a new WildcardLike with case insensitivity or a Literal.FALSE if not matched.
      */
+    @Override
     public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
         if (matchesCaseFn.test(pattern().pattern()) == false) {
             return Literal.of(this, Boolean.FALSE);

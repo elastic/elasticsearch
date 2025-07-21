@@ -781,16 +781,16 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     // same plan as above, but mixed case pattern and list of patterns
     public void testReplaceLowerStringCasingWithMixedCaseLikeList() {
-        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"TEST*\", \"valü*\", \"vaLü*\")");
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"TEST*\", \"valü*\", \"vaLü*\")");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        var rLikeList = as(filter.condition(), RLikeList.class);
-        var field = as(rLikeList.field(), FieldAttribute.class);
+        var likeList = as(filter.condition(), WildcardLikeList.class);
+        var field = as(likeList.field(), FieldAttribute.class);
         assertThat(field.fieldName().string(), is("first_name"));
         // only the all lowercase pattern is kept, the mixed case and all uppercase patterns are ignored
-        assertEquals(1, rLikeList.pattern().patternList().size());
-        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("valü*"));
-        assertThat(rLikeList.caseInsensitive(), is(true));
+        assertEquals(1, likeList.pattern().patternList().size());
+        assertThat(likeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(likeList.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);
     }
 
@@ -825,6 +825,17 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testReplaceStringCasingAndLikeListWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"VALÜ*\", \"TEST*\")");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndRLikeListWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"VALÜ*\", \"TEST*\")");
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));

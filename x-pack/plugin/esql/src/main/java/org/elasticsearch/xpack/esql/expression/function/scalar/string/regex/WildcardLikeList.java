@@ -185,6 +185,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Pushes down string casing optimization by filtering patterns using the provided predicate.
      * Returns a new RegexMatch or a Literal.FALSE if none match.
      */
+    @Override
     public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
         List<WildcardPattern> filtered = pattern().patternList()
             .stream()

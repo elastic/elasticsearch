@@ -152,6 +152,7 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
      * Pushes down string casing optimization by filtering patterns using the provided predicate.
      * Returns a new RegexMatch or a Literal.FALSE if none match.
      */
+    @Override
     public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
         List<RLikePattern> filtered = pattern().patternList()
             .stream()

@@ -115,6 +115,7 @@ public class RLike extends RegexMatch<RLikePattern> {
      * Pushes down string casing optimization for a single pattern using the provided predicate.
      * Returns a new RLike with case insensitivity or a Literal.FALSE if not matched.
      */
+    @Override
     public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
         if (matchesCaseFn.test(pattern().pattern()) == false) {
             return Literal.of(this, Boolean.FALSE);

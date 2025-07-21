@@ -127,6 +127,12 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
 
+    public interface EmptyBucketGenerator {
+        int getEmptyBucketCount();
+
+        void generate(Block.Builder blockBuilder);
+    }
+
     /**
      * Configuration for a BlockHash group spec that is doing text categorization.
      */
@@ -137,13 +143,19 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         }
     }
 
-    public record GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
+    public record GroupSpec(
+        int channel,
+        ElementType elementType,
+        @Nullable CategorizeDef categorizeDef,
+        @Nullable TopNDef topNDef,
+        @Nullable EmptyBucketGenerator emptyBucketGenerator
+    ) {
         public GroupSpec(int channel, ElementType elementType) {
-            this(channel, elementType, null, null);
+            this(channel, elementType, null, null, null);
         }
 
         public GroupSpec(int channel, ElementType elementType, CategorizeDef categorizeDef) {
-            this(channel, elementType, categorizeDef, null);
+            this(channel, elementType, categorizeDef, null, null);
         }
 
         public boolean isCategorize() {

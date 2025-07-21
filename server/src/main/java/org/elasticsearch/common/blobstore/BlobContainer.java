@@ -304,7 +304,7 @@ public interface BlobContainer {
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
-     * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
      * <p>
      * This operation, together with {@link #compareAndSetRegister}, must have linearizable semantics: a collection of such operations must
      * act as if they operate serially, with each operation taking place at some instant in between its invocation and its completion.
@@ -326,7 +326,7 @@ public interface BlobContainer {
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
-     * Keys not yet used start at initial value 0.
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
      * <p>
      * This operation, together with {@link #compareAndExchangeRegister}, must have linearizable semantics: a collection of such operations
      * must act as if they operate serially, with each operation taking place at some instant in between its invocation and its completion.
@@ -356,7 +356,7 @@ public interface BlobContainer {
 
     /**
      * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
-     * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
      * <p>
      * This operation has read-after-write consistency with respect to writes performed using {@link #compareAndExchangeRegister} and
      * {@link #compareAndSetRegister}, but does not guarantee full linearizability. In particular, a {@code getRegister} performed during

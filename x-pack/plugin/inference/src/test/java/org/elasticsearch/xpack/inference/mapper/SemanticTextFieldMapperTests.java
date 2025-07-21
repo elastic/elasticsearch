@@ -1535,7 +1535,77 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSpecificSparseVectorIndexOptions() throws IOException {
-        // TODO
+        for (int i=0; i < 10; i++) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions testIndexOptions = randomSparseVectorIndexOptionsAll();
+            var mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                b.field(INFERENCE_ID_FIELD, "test_inference_id");
+                b.startObject(INDEX_OPTIONS_FIELD);
+                {
+                    b.startObject("sparse_vector");
+                    {
+                        setSparseVectorIndexOptionInMapper(b, testIndexOptions.getPrune(), testIndexOptions.getPruningConfig());
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
+
+            assertSemanticTextField(
+                mapperService,
+                "field",
+                false,
+                null,
+                new SemanticTextIndexOptions(
+                    SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                    testIndexOptions
+                )
+            );
+        }
+
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+            b.field(INFERENCE_ID_FIELD, "test_inference_id");
+            b.startObject(INDEX_OPTIONS_FIELD);
+            {
+                b.startObject("sparse_vector");
+                {
+                    b.field("prune", false);
+                    b.startObject("pruning_config");
+                    {
+                        b.field(TokenPruningConfig.TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(), 5.0f);
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
+        assertThat(
+            e.getMessage(),
+            containsString("[index_options] field [pruning_config] should only be set if [prune] is set to true")
+        );
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+            b.field(INFERENCE_ID_FIELD, "test_inference_id");
+            b.startObject(INDEX_OPTIONS_FIELD);
+            {
+                b.startObject("sparse_vector");
+                {
+                    b.field("prune", true);
+                    b.startObject("pruning_config");
+                    {
+                        b.field(TokenPruningConfig.TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(), 1000.0f);
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
+        var innerClause = e.getCause().getCause().getCause();
+        assertThat(innerClause.getMessage(), containsString("[tokens_freq_ratio_threshold] must be between [1] and [100], got 1000.0"));
     }
 
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {

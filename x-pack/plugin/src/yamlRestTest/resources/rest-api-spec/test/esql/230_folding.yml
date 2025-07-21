@@ -454,7 +454,7 @@ Foldable query using KNN on image_vector:
             FROM employees
             | WHERE KNN(image_vector, [0.4, 0.5, 0.9], 1 + 1)
             | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
-            | LIMIT 5
+            | LIMIT 2
   - match: { columns.0.name: "hire_date" }
   - match: { columns.1.name: "salary" }
   - match: { columns.2.name: "salary_change" }
@@ -533,7 +533,10 @@ KNN on non constant query:
             | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
             | LIMIT 5
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "Query must be a valid string in [KNN(image_vector, image_vector, 1)], found [image_vector" }
+    #We only check that the problematic string is there, because the error message is slightly different in old versions
+    #Query must be a valid string in [KNN(image_vector, image_vector, 1)], found [image_vector
+    #second argument of [KNN(image_vector, image_vector, 1)] must be a constant, received [image_vector]
+  - contains: { error.reason: "[KNN(image_vector, image_vector, 1)]" }
 
 ---
 

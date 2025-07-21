@@ -43,7 +43,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -113,7 +112,7 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
 
     @Override
     protected TypeResolution resolveParams() {
-        return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
+        return resolveField().and(resolveQuery()).and(resolveMinimumSimilarity());
     }
 
     private TypeResolution resolveField() {
@@ -121,8 +120,8 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
     }
 
     private TypeResolution resolveQuery() {
-        return isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector").and(
-            isNotNullAndFoldable(query(), sourceText(), SECOND)
+        return isNotNull(query(), sourceText(), SECOND).and(
+            isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector")
         );
     }
 

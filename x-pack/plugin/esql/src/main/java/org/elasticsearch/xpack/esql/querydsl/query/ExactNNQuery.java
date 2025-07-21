@@ -46,10 +46,10 @@ public class ExactNNQuery extends Query {
         if (super.equals(o) == false) return false;
 
         if (o == null || getClass() != o.getClass()) return false;
-        ExactNNQuery knnQuery = (ExactNNQuery) o;
-        return Objects.equals(field, knnQuery.field)
-            && Objects.deepEquals(query, knnQuery.query)
-            && Objects.equals(minimumSimilarity, knnQuery.minimumSimilarity)
+        ExactNNQuery query = (ExactNNQuery) o;
+        return Objects.equals(field, query.field)
+            && Objects.deepEquals(this.query, query.query)
+            && Objects.equals(minimumSimilarity, query.minimumSimilarity);
     }
 
     @Override

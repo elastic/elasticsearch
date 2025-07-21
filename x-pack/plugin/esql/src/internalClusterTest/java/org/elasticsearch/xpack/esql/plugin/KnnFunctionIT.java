@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -32,6 +33,7 @@ import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     private final Map<Integer, List<Float>> indexedVectors = new HashMap<>();
@@ -157,6 +159,50 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testKnnNotPushedDown() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        // We retrieve 5 from knn, and 5 from the non-pushed down disjunction. They are disjoint so we get 10 as a result
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            | WHERE knn(vector, %s, 5) OR (length(keyword) > 5 AND length(keyword) <= 10)
+            | KEEP id, vector, keyword
+            | SORT id ASC
+            | LIMIT 20
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "vector", "keyword"));
+            assertColumnTypes(resp.columns(), List.of("integer", "dense_vector", "keyword"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(10, valuesList.size());
+        }
+    }
+
+    public void testKnnPrefiltersNotPushedDown() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        // We retrieve 5 from knn, but must be prefiltered with the non-pushed down conjunction
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            | WHERE knn(vector, %s, 5) AND length(keyword) > 5 AND length(keyword) <= 10
+            | KEEP id, vector, keyword
+            | SORT id ASC
+            | LIMIT 20
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "vector", "keyword"));
+            assertColumnTypes(resp.columns(), List.of("integer", "dense_vector", "keyword"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
     @Before
     public void setup() throws IOException {
         assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
@@ -175,6 +221,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             .endObject()
             .startObject("floats")
             .field("type", "float")
+            .endObject()
+            .startObject("keyword")
+            .field("type", "keyword")
             .endObject()
             .endObject()
             .endObject();
@@ -195,7 +244,8 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             for (int j = 0; j < numDims; j++) {
                 vector.add(value++);
             }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "floats", vector, "vector", vector);
+            docs[i] = prepareIndex("test").setId("" + i)
+                .setSource("id", String.valueOf(i), "floats", vector, "vector", vector, "keyword", randomAlphaOfLength(i));
             indexedVectors.put(i, vector);
         }
 

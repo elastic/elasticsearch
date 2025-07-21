@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -272,6 +273,10 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
 
     public Expression withFilters(List<Expression> filterExpressions) {
         return new Knn(source(), field(), query(), k(), options(), queryBuilder(), filterExpressions);
+    }
+
+    public boolean hasNonPushableFilters() {
+        return filterExpressions().size() > ((KnnVectorQueryBuilder) queryBuilder()).filterQueries().size();
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {

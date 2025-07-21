@@ -208,8 +208,8 @@ public final class AggregateMetricDoubleBlock extends AbstractNonThreadSafeRefCo
 
     @Override
     public Block expand() {
-        // TODO: support
-        throw new UnsupportedOperationException("AggregateMetricDoubleBlock");
+        this.incRef();
+        return this;
     }
 
     @Override

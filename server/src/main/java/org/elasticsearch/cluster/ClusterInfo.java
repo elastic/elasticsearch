@@ -41,7 +41,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
- * and a map of shard ids to shard sizes, see
+ * and a map of shard ids to shard sizes and shard write-loads, see
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */

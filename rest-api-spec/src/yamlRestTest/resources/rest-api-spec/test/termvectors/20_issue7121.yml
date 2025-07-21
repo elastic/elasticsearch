@@ -15,6 +15,10 @@
                    term_vector : "with_positions_offsets"
 
   - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+
+  - do:
       index:
         index: testidx
         id:    "1"

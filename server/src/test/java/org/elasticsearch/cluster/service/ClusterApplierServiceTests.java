@@ -55,8 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterApplierServiceTests extends ESTestCase {
-    private static final Setting<Integer> PROJECT_SETTING = new Setting<>("test_project_setting", "0",
-        Integer::parseInt, value -> {
+    private static final Setting<Integer> PROJECT_SETTING = new Setting<>("test_project_setting", "0", Integer::parseInt, value -> {
         if (value < 0) {
             throw new IllegalArgumentException("must be positive");
         }
@@ -517,11 +516,12 @@ public class ClusterApplierServiceTests extends ESTestCase {
         clusterApplierService.onNewClusterState(
             "test",
             () -> ClusterState.builder(clusterApplierService.state())
-                .putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder()
-                    .putProjectSettings(randomUniqueProjectId(), Settings.builder()
-                        .put(PROJECT_SETTING.getKey(), -1)
-                        .build())
-                    .build())
+                .putCustom(
+                    ProjectStateRegistry.TYPE,
+                    ProjectStateRegistry.builder()
+                        .putProjectSettings(randomUniqueProjectId(), Settings.builder().put(PROJECT_SETTING.getKey(), -1).build())
+                        .build()
+                )
                 .build(),
             new ActionListener<>() {
 
@@ -556,7 +556,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     Metadata.builder(clusterApplierService.state().metadata())
                         .persistentSettings(
                             Settings.builder()
-                                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NEW_PRIMARIES)
+                                .put(
+                                    EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                                    EnableAllocationDecider.Allocation.NEW_PRIMARIES
+                                )
                                 .build()
                         )
                         .build()
@@ -595,12 +598,13 @@ public class ClusterApplierServiceTests extends ESTestCase {
         clusterApplierService.onNewClusterState(
             "test",
             () -> ClusterState.builder(clusterApplierService.state())
-                .putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder()
-                    .putProjectSettings(projectId, Settings.builder()
-                        .put(PROJECT_SETTING.getKey(), 42)
-                        .build())
-                    .putProjectSettings(randomUniqueProjectId(), Settings.builder().build())
-                    .build())
+                .putCustom(
+                    ProjectStateRegistry.TYPE,
+                    ProjectStateRegistry.builder()
+                        .putProjectSettings(projectId, Settings.builder().put(PROJECT_SETTING.getKey(), 42).build())
+                        .putProjectSettings(randomUniqueProjectId(), Settings.builder().build())
+                        .build()
+                )
                 .build(),
             new ActionListener<>() {
                 @Override

@@ -1000,7 +1000,12 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(C context, Map<AbstractScopedSettings.SettingUpdater<C, T>, T> value, Settings current, Settings previous) {
+                public void apply(
+                    C context,
+                    Map<AbstractScopedSettings.SettingUpdater<C, T>, T> value,
+                    Settings current,
+                    Settings previous
+                ) {
                     for (Map.Entry<AbstractScopedSettings.SettingUpdater<C, T>, T> entry : value.entrySet()) {
                         entry.getKey().apply(context, entry.getValue(), current, previous);
                     }

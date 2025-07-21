@@ -69,11 +69,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
@@ -145,11 +143,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -698,8 +693,16 @@ public final class ClusterSettings extends AbstractContextlessScopedSettings {
         // down the road this would be nice to have!
         ensureSettingIsRegistered(settingA);
         ensureSettingIsRegistered(settingB);
-        SettingUpdater<Object, Map<SettingUpdater<Object, A>, A>> affixUpdaterA = settingA.newAffixUpdater((ctx, a, b) -> {}, logger, (a, b) -> {});
-        SettingUpdater<Object, Map<SettingUpdater<Object, B>, B>> affixUpdaterB = settingB.newAffixUpdater((ctx, a, b) -> {}, logger, (a, b) -> {});
+        SettingUpdater<Object, Map<SettingUpdater<Object, A>, A>> affixUpdaterA = settingA.newAffixUpdater(
+            (ctx, a, b) -> {},
+            logger,
+            (a, b) -> {}
+        );
+        SettingUpdater<Object, Map<SettingUpdater<Object, B>, B>> affixUpdaterB = settingB.newAffixUpdater(
+            (ctx, a, b) -> {},
+            logger,
+            (a, b) -> {}
+        );
 
         addSettingsUpdater(new SettingUpdater<Void, Map<String, Tuple<A, B>>>() {
 
@@ -711,7 +714,7 @@ public final class ClusterSettings extends AbstractContextlessScopedSettings {
             @Override
             public Map<String, Tuple<A, B>> getValue(Settings current, Settings previous) {
                 Map<String, Tuple<A, B>> map = new HashMap<>();
-                TriConsumer<Void, String, A> aConsumer = (ctx,key, value) -> {
+                TriConsumer<Void, String, A> aConsumer = (ctx, key, value) -> {
                     assert map.containsKey(key) == false : "duplicate key: " + key;
                     map.put(key, new Tuple<>(value, settingB.getConcreteSettingForNamespace(key).get(current)));
                 };
@@ -724,14 +727,22 @@ public final class ClusterSettings extends AbstractContextlessScopedSettings {
                             .get(current)
                             .equals(settingA.getConcreteSettingForNamespace(key).get(previous))
                             : "expected: "
-                            + settingA.getConcreteSettingForNamespace(key).get(current)
-                            + " but was "
-                            + settingA.getConcreteSettingForNamespace(key).get(previous);
+                                + settingA.getConcreteSettingForNamespace(key).get(current)
+                                + " but was "
+                                + settingA.getConcreteSettingForNamespace(key).get(previous);
                         map.put(key, new Tuple<>(settingA.getConcreteSettingForNamespace(key).get(current), value));
                     }
                 };
-                SettingUpdater<Void, Map<SettingUpdater<Void, A>, A>> affixUpdaterA = settingA.newAffixUpdater(aConsumer, logger, (a, b) -> {});
-                SettingUpdater<Void, Map<SettingUpdater<Void, B>, B>> affixUpdaterB = settingB.newAffixUpdater(bConsumer, logger, (a, b) -> {});
+                SettingUpdater<Void, Map<SettingUpdater<Void, A>, A>> affixUpdaterA = settingA.newAffixUpdater(
+                    aConsumer,
+                    logger,
+                    (a, b) -> {}
+                );
+                SettingUpdater<Void, Map<SettingUpdater<Void, B>, B>> affixUpdaterB = settingB.newAffixUpdater(
+                    bConsumer,
+                    logger,
+                    (a, b) -> {}
+                );
                 affixUpdaterA.apply(null, current, previous);
                 affixUpdaterB.apply(null, current, previous);
                 for (Map.Entry<String, Tuple<A, B>> entry : map.entrySet()) {

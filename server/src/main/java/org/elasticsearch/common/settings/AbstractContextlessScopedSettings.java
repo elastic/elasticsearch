@@ -23,7 +23,12 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
     protected final Settings settings;
     private Settings lastSettingsApplied;
 
-    public AbstractContextlessScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractContextlessScopedSettings other, Logger logger) {
+    public AbstractContextlessScopedSettings(
+        Settings nodeSettings,
+        Settings scopeSettings,
+        AbstractContextlessScopedSettings other,
+        Logger logger
+    ) {
         super(other, logger);
 
         this.settings = nodeSettings;
@@ -140,11 +145,7 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
         super.addSettingsUpdateConsumer(a, b, wrapIgnoringContext(consumer), validator);
     }
 
-    public synchronized <A, B> void addSettingsUpdateConsumer(
-        Setting<A> a,
-        Setting<B> b,
-        BiConsumer<A, B> consumer
-    ) {
+    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
         super.addSettingsUpdateConsumer(a, b, wrapIgnoringContext(consumer));
     }
 }

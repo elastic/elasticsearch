@@ -111,7 +111,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this(nodeName, clusterSettings, new ProjectScopedSettings(), threadPool);
     }
 
-    public ClusterApplierService(String nodeName, ClusterSettings clusterSettings, ProjectScopedSettings projectScopedSettings, ThreadPool threadPool) {
+    public ClusterApplierService(
+        String nodeName,
+        ClusterSettings clusterSettings,
+        ProjectScopedSettings projectScopedSettings,
+        ThreadPool threadPool
+    ) {
         this.clusterSettings = clusterSettings;
         this.projectScopedSettings = projectScopedSettings;
         this.threadPool = threadPool;
@@ -551,8 +556,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 }
             }
 
-            ProjectStateRegistry oldProjectStateRegistry = clusterChangedEvent.previousState().custom(ProjectStateRegistry.TYPE, ProjectStateRegistry.EMPTY);
-            ProjectStateRegistry newProjectStateRegistry = clusterChangedEvent.state().custom(ProjectStateRegistry.TYPE, ProjectStateRegistry.EMPTY);
+            ProjectStateRegistry oldProjectStateRegistry = clusterChangedEvent.previousState()
+                .custom(ProjectStateRegistry.TYPE, ProjectStateRegistry.EMPTY);
+            ProjectStateRegistry newProjectStateRegistry = clusterChangedEvent.state()
+                .custom(ProjectStateRegistry.TYPE, ProjectStateRegistry.EMPTY);
             if (oldProjectStateRegistry != newProjectStateRegistry) {
                 for (ProjectId projectId : newProjectStateRegistry.knownProjects()) {
                     Settings oldProjectSettings = oldProjectStateRegistry.getProjectSettings(projectId);

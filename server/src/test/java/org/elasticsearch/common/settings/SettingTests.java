@@ -105,7 +105,10 @@ public class SettingTests extends ESTestCase {
         final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertThat(byteSizeValue.getBytes(), equalTo(2048L));
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater<Void, ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater((ctx, newValue) -> value.set(newValue), logger);
+        ClusterSettings.SettingUpdater<Void, ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(
+            (ctx, newValue) -> value.set(newValue),
+            logger
+        );
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -147,7 +150,10 @@ public class SettingTests extends ESTestCase {
         assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25, 1.0);
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
-        ClusterSettings.SettingUpdater<Void, ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater((ctx, newValue) -> value.set(newValue), logger);
+        ClusterSettings.SettingUpdater<Void, ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater(
+            (ctx, newValue) -> value.set(newValue),
+            logger
+        );
         try {
             settingUpdater.apply(null, Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
@@ -208,7 +214,10 @@ public class SettingTests extends ESTestCase {
 
     public void testSimpleUpdateOfFilteredSetting() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.Filtered);
-        SettingUpdater<Object, Boolean> settingUpdater = booleanSetting.newUpdater((ctx, value) -> fail("Listeners should not be called"), logger);
+        SettingUpdater<Object, Boolean> settingUpdater = booleanSetting.newUpdater(
+            (ctx, value) -> fail("Listeners should not be called"),
+            logger
+        );
         Object ctx = new Object();
 
         // try update bogus value
@@ -600,9 +609,13 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        SettingUpdater<Object, Settings> predicateSettingUpdater = setting.newUpdater((c, value) -> fail("Listeners shouldn't be called"), logger, (s) -> {
-            throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
-        });
+        SettingUpdater<Object, Settings> predicateSettingUpdater = setting.newUpdater(
+            (c, value) -> fail("Listeners shouldn't be called"),
+            logger,
+            (s) -> {
+                throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+            }
+        );
         try {
             predicateSettingUpdater.apply(
                 ctx,
@@ -625,9 +638,13 @@ public class SettingTests extends ESTestCase {
     public void testFilteredGroups() {
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
 
-        ClusterSettings.SettingUpdater<Object, Settings> predicateSettingUpdater = setting.newUpdater((ctx, value) -> fail("Listeners shouldn't be called"), logger, (s) -> {
-            throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
-        });
+        ClusterSettings.SettingUpdater<Object, Settings> predicateSettingUpdater = setting.newUpdater(
+            (ctx, value) -> fail("Listeners shouldn't be called"),
+            logger,
+            (s) -> {
+                throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+            }
+        );
         Object ctx = new Object();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -1318,10 +1335,7 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        SettingUpdater<Object, Settings> updater = Setting.groupedSettingsUpdater(
-            (ctx, s) -> {},
-            Arrays.asList(intSetting, intSetting2)
-        );
+        SettingUpdater<Object, Settings> updater = Setting.groupedSettingsUpdater((ctx, s) -> {}, Arrays.asList(intSetting, intSetting2));
 
         Settings current = Settings.builder().put("prefix.foo", 123).put("prefix.same", 5555).build();
         Settings previous = Settings.builder().put("prefix.foo", 321).put("prefix.same", 5555).build();

@@ -220,7 +220,10 @@ public abstract class AbstractScopedSettings<C> {
      * </p>
      */
     @SuppressWarnings("rawtypes")
-    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, TriConsumer<C, String, Settings> consumer) {
+    public synchronized void addAffixGroupUpdateConsumer(
+        List<Setting.AffixSetting<?>> settings,
+        TriConsumer<C, String, Settings> consumer
+    ) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
@@ -238,7 +241,7 @@ public abstract class AbstractScopedSettings<C> {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater<?, ?> affixUpdaterA = setting.newAffixUpdater((ctx,k, v) -> namespaces.add(k), logger, (a, b) -> {});
+                    SettingUpdater<?, ?> affixUpdaterA = setting.newAffixUpdater((ctx, k, v) -> namespaces.add(k), logger, (a, b) -> {});
                     affixUpdaterA.apply(null, current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());

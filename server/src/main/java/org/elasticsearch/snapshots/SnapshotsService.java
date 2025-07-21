@@ -1876,7 +1876,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
                 && snapshotsInProgress.forRepo(projectRepo)
                     .stream()
-                    .noneMatch(SnapshotsService::isWritingToRepositoryOrQueueWithGeneration)) {
+                    .noneMatch(SnapshotsService::isWritingToRepositoryOrAssignedQueued)) {
                 changed = true;
                 final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
                 readyDeletions.add(newEntry);
@@ -2370,7 +2370,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         repositoryData.getGenId(),
                         updatedSnapshots.forRepo(projectId, repositoryName)
                             .stream()
-                            .noneMatch(SnapshotsService::isWritingToRepositoryOrQueueWithGeneration)
+                            .noneMatch(SnapshotsService::isWritingToRepositoryOrAssignedQueued)
                             && deletionsInProgress.hasExecutingDeletion(projectId, repositoryName) == false
                                 ? SnapshotDeletionsInProgress.State.STARTED
                                 : SnapshotDeletionsInProgress.State.WAITING
@@ -2452,7 +2452,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param entry snapshot entry
      * @return true if entry is currently writing to the repository
      */
-    private static boolean isWritingToRepositoryOrQueueWithGeneration(SnapshotsInProgress.Entry entry) {
+    private static boolean isWritingToRepositoryOrAssignedQueued(SnapshotsInProgress.Entry entry) {
         if (entry.state().completed()) {
             // Entry is writing to the repo because it's finalizing on master
             return true;

@@ -834,7 +834,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                 // - all earlier uploads are now complete,
                 // - our upload is not completing yet, and
                 // - later uploads can only be completing if they have already aborted ours.
-                // Thus either this read is linearizable or its result does not matter because our write is not going to succeed anyway.
+                // Thus if our operation ultimately succeeds then there cannot have been any concurrent writes in flight, so this read
+                // cannot have observed a stale value, whereas if our operation ultimately fails then it doesn't matter what this read
+                // observes.
 
                 .<OptionalBytesReference>andThen(l -> getRegister(purpose, rawKey, l))
 

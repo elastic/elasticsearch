@@ -1,0 +1,143 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package co.elastic.elasticsearch.stateless;
+
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+
+import java.util.Locale;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class StatelessSearchSkipBlockIT extends AbstractStatelessIntegTestCase {
+
+    private final int numShards = randomIntBetween(1, 3);
+    private final int numReplicas = randomIntBetween(1, 2);
+
+    public void testSearchWhenIndexSearchShardsAreNotUp() throws Exception {
+        // If a new index does not have search shards ready when a search request comes in,
+        // depending on USE_INDEX_REFRESH_BLOCK_SETTING_NAME, we should either fail with
+        // a 503 here, or skip the shards and succeed.
+        boolean useBlock = randomBoolean();
+        startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        startIndexNodes(numShards);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas);
+        // Wait for 0 shards, else this will hang until search shards are added
+        assertAcked(prepareCreate(indexName, indexSettings).setWaitForActiveShards(0));
+
+        int numDocs = randomIntBetween(0, 10);
+        indexDocuments(indexName, numDocs);
+
+        var searchRequest = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
+        if (useBlock) {
+            assertHitCount(searchRequest, 0);
+        } else {
+            assertFailures(searchRequest, RestStatus.SERVICE_UNAVAILABLE, containsString("NoShardAvailableActionException"));
+        }
+
+        startSearchNodes(numShards * numReplicas);
+        ensureGreen(indexName);
+        assertBusy(() -> assertHitCount(searchRequest, numDocs));
+    }
+
+    public void testOpenPITWhenIndexSearchShardsAreNotUp() {
+        // If a new index does not have search shards ready when an open PIT request comes in,
+        // depending on USE_INDEX_REFRESH_BLOCK_SETTING_NAME, we should either fail with
+        // a 503 here, or skip the shards and succeed.
+        boolean useBlock = randomBoolean();
+        startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        startIndexNodes(numShards);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas);
+        // Wait for 0 shards, else this will hang until search shards are added
+        assertAcked(prepareCreate(indexName, indexSettings).setWaitForActiveShards(0));
+
+        BytesReference pitId = null;
+        try {
+            boolean allowPartialSearchResults = randomBoolean();
+            OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(10))
+                .allowPartialSearchResults(allowPartialSearchResults);
+            if (useBlock) {
+                pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
+                SearchRequest searchRequest = new SearchRequest().source(
+                    new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(10)))
+                );
+                assertHitCount(client().search(searchRequest), 0);
+
+                startSearchNodes(numShards * numReplicas);
+                int numDocs = randomIntBetween(0, 10);
+                indexDocuments(indexName, numDocs).actionGet();
+
+                // The PIT should 'remember' the index was skipped, even when it's no longer blocked
+                assertHitCount(client().search(searchRequest), 0);
+            } else {
+                Throwable openPITThrowable = assertThrows(
+                    SearchPhaseExecutionException.class,
+                    () -> client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet()
+                );
+                if (allowPartialSearchResults) {
+                    assertThat(openPITThrowable.getCause(), instanceOf(NoShardAvailableActionException.class));
+                } else {
+                    assertThat(openPITThrowable.getCause(), instanceOf(SearchPhaseExecutionException.class));
+                    assertThat(openPITThrowable.getCause().getMessage(), containsString("Search rejected due to missing shards"));
+                }
+            }
+        } finally {
+            if (pitId != null) {
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+            }
+        }
+    }
+
+    private ActionFuture<BulkResponse> indexDocuments(String indexName, int numDocs) {
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequestBuilder.add(prepareIndex(indexName).setId(String.valueOf(i)).setSource("field", "value"));
+        }
+        return bulkRequestBuilder.execute();
+    }
+}

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
@@ -110,7 +108,6 @@ public class SearchWithIndexBlocksIT extends ESIntegTestCase {
         );
     }
 
-    @Repeat(iterations = 100)
     public void testSearchShardsOnIndicesWithIndexRefreshBlocks() {
         List<String> indices = createIndices();
         indexDocuments(indices);

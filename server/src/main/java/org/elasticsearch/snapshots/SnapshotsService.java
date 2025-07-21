@@ -2852,6 +2852,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             ClusterState updatedState = res.v1();
 
+            // Check whether we can start any assigned-queued shard snapshots in other repositories. They may have been
+            // limited because the deleted entry took all node capacity.
             // TODO: deduplicate the code for starting queued-with-gen shards across repos
             final var snapshotsInProgress = SnapshotsInProgress.get(updatedState);
             final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
@@ -2867,7 +2869,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     if (repo.equals(repoForDeletedEntry)) {
                         continue;
                     }
-                    updatedSnapshotsInProgress = maybeStartQueuedWithGenerationShardSnapshotsForRepo(
+                    updatedSnapshotsInProgress = maybeStartAssignedQueuedShardSnapshotsForRepo(
                         repo,
                         updatedState,
                         updatedSnapshotsInProgress,
@@ -3102,7 +3104,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private static SnapshotsInProgress maybeStartQueuedWithGenerationShardSnapshotsForRepo(
+    private static SnapshotsInProgress maybeStartAssignedQueuedShardSnapshotsForRepo(
         ProjectRepo projectRepo,
         ClusterState clusterState,
         SnapshotsInProgress snapshotsInProgress,
@@ -3119,7 +3121,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         for (SnapshotsInProgress.Entry entry : oldEntries) {
             if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
                 final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
-                maybeStartQueuedWithGenerationShardSnapshots(
+                maybeStartAssignedQueuedShardSnapshots(
                     clusterState,
                     entry,
                     snapshotsInProgress::isNodeIdForRemoval,
@@ -3140,7 +3142,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         return snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
     }
 
-    private static void maybeStartQueuedWithGenerationShardSnapshots(
+    private static void maybeStartAssignedQueuedShardSnapshots(
         ClusterState clusterState,
         SnapshotsInProgress.Entry entry,
         Predicate<String> nodeIdRemovalPredicate,
@@ -3558,12 +3560,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 updated = updated.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
             }
 
+            // Also check snapshots in other repositories since they might have been limited earlier due to shard snapshots running
+            // from repositories currently seeing updates
             // TODO: deduplicate the code for starting queued-with-gen shards across repos
             for (var notUpdatedRepo : Sets.difference(existing.repos(), updatesByRepo.keySet())) {
                 if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode() == false) {
                     break;
                 }
-                updated = maybeStartQueuedWithGenerationShardSnapshotsForRepo(
+                updated = maybeStartAssignedQueuedShardSnapshotsForRepo(
                     notUpdatedRepo,
                     initialState,
                     updated,
@@ -3693,7 +3697,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             + " as well as "
                             + shardsBuilder;
 
-                    maybeStartQueuedWithGenerationShardSnapshots(
+                    // Check horizontally within the snapshot to see whether any previously limited shard snapshots can now start
+                    maybeStartAssignedQueuedShardSnapshots(
                         initialState,
                         entry,
                         nodeIdRemovalPredicate,

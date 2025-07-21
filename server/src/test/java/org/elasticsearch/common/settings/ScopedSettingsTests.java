@@ -148,7 +148,7 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testAddConsumer() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, Collections.singleton(testSetting));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, Collections.singleton(testSetting));
 
         AtomicInteger consumer = new AtomicInteger();
         service.addSettingsUpdateConsumer(testSetting, consumer::set);
@@ -189,7 +189,7 @@ public class ScopedSettingsTests extends ESTestCase {
             () -> stringSetting
         );
 
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
@@ -228,7 +228,7 @@ public class ScopedSettingsTests extends ESTestCase {
             }
         );
 
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
         SettingsException iae = expectThrows(
             SettingsException.class,
@@ -266,7 +266,7 @@ public class ScopedSettingsTests extends ESTestCase {
             () -> nameSetting
         );
 
-        final AbstractScopedSettings service = new ClusterSettings(
+        final ClusterSettings service = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(Arrays.asList(nameFallbackSetting, nameSetting, barSetting))
         );
@@ -309,7 +309,7 @@ public class ScopedSettingsTests extends ESTestCase {
         };
         final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", dependingValidator, scopeProperty);
 
-        final AbstractScopedSettings service = nodeSetting
+        final AbstractContextlessScopedSettings service = nodeSetting
             ? new ClusterSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting))
             : new IndexScopedSettings(Settings.EMPTY, Set.of(baseSetting, dependingSetting));
 
@@ -349,7 +349,7 @@ public class ScopedSettingsTests extends ESTestCase {
             listSuffix,
             (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
         Map<String, Tuple<List<Integer>, Integer>> results = new HashMap<>();
         Function<String, String> listBuilder = g -> (prefix + g + "." + listSuffix);
         Function<String, String> intBuilder = g -> (prefix + g + "." + intSuffix);
@@ -459,7 +459,7 @@ public class ScopedSettingsTests extends ESTestCase {
             listSuffix,
             (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
         Map<String, Settings> results = new HashMap<>();
         Function<String, String> listBuilder = g -> (prefix + g + "." + listSuffix);
         Function<String, String> intBuilder = g -> (prefix + g + "." + intSuffix);
@@ -544,14 +544,13 @@ public class ScopedSettingsTests extends ESTestCase {
         results.clear();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106283")
     public void testAffixUpdateConsumerWithAlias() {
         Setting.AffixSetting<String> prefixSetting = Setting.prefixKeySetting(
             "prefix.",
             "fallback.",
             (ns, k) -> Setting.simpleString(k, "default", Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting)));
         BiConsumer<String, String> affixUpdateConsumer = Mockito.mock("affixUpdateConsumer");
         service.addAffixUpdateConsumer(prefixSetting, affixUpdateConsumer, (s, v) -> {});
 
@@ -583,7 +582,7 @@ public class ScopedSettingsTests extends ESTestCase {
             "bar.",
             (ns, k) -> Setting.boolSetting(k, false, Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(
+        ClusterSettings service = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(Arrays.asList(intSetting, listSetting, fallbackSetting))
         );
@@ -656,7 +655,7 @@ public class ScopedSettingsTests extends ESTestCase {
             "list",
             (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, listSetting)));
         Map<String, List<Integer>> listResults = new HashMap<>();
         Map<String, Integer> intResults = new HashMap<>();
 
@@ -731,7 +730,7 @@ public class ScopedSettingsTests extends ESTestCase {
             "other.",
             (k) -> Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope)
         );
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting, otherSetting)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting, otherSetting)));
         Map<String, Integer> affixResults = new HashMap<>();
 
         Consumer<Map<String, Integer>> consumer = (map) -> {
@@ -753,7 +752,7 @@ public class ScopedSettingsTests extends ESTestCase {
     public void testApply() {
         Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(testSetting, testSetting2)));
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(testSetting, testSetting2)));
 
         AtomicInteger consumer = new AtomicInteger();
         service.addSettingsUpdateConsumer(testSetting, consumer::set);

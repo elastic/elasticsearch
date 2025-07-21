@@ -1136,7 +1136,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             );
         }
 
-        AbstractScopedSettings service = new ClusterSettings(
+        ClusterSettings service = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE))
         );

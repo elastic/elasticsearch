@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -777,7 +778,7 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Build a new updater with a noop validator.
      */
-    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger) {
+    final <C> AbstractScopedSettings.SettingUpdater<C, T> newUpdater(BiConsumer<C, T> consumer, Logger logger) {
         return newUpdater(consumer, logger, (s) -> {});
     }
 
@@ -785,9 +786,9 @@ public class Setting<T> implements ToXContentObject {
      * Build the updater responsible for validating new values, logging the new
      * value, and eventually setting the value where it belongs.
      */
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
+    <C> AbstractScopedSettings.SettingUpdater<C, T> newUpdater(BiConsumer<C, T> consumer, Logger logger, Consumer<T> validator) {
         if (isDynamic()) {
-            return new Updater(consumer, logger, validator);
+            return new Updater<>(consumer, logger, validator);
         } else {
             throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
         }
@@ -795,17 +796,17 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Updates settings that depend on each other.
-     * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and its usage for details.
+     * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, TriConsumer)} and its usage for details.
      */
-    static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(
-        final BiConsumer<A, B> consumer,
+    static <A, B, C> AbstractScopedSettings.SettingUpdater<C, Tuple<A, B>> compoundUpdater(
+        final TriConsumer<C, A, B> consumer,
         final BiConsumer<A, B> validator,
         final Setting<A> aSetting,
         final Setting<B> bSetting,
         Logger logger
     ) {
-        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
-        final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
+        final AbstractScopedSettings.SettingUpdater<C, A> aSettingUpdater = aSetting.newUpdater(null, logger);
+        final AbstractScopedSettings.SettingUpdater<C, B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<>() {
             @Override
             public boolean hasChanged(Settings current, Settings previous) {
@@ -821,14 +822,14 @@ public class Setting<T> implements ToXContentObject {
             }
 
             @Override
-            public void apply(Tuple<A, B> value, Settings current, Settings previous) {
+            public void apply(C context, Tuple<A, B> value, Settings current, Settings previous) {
                 if (aSettingUpdater.hasChanged(current, previous)) {
                     logSettingUpdate(aSetting, current, previous, logger);
                 }
                 if (bSettingUpdater.hasChanged(current, previous)) {
                     logSettingUpdate(bSetting, current, previous, logger);
                 }
-                consumer.accept(value.v1(), value.v2());
+                consumer.apply(context, value.v1(), value.v2());
             }
 
             @Override
@@ -838,15 +839,15 @@ public class Setting<T> implements ToXContentObject {
         };
     }
 
-    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(
-        Consumer<Settings> consumer,
+    static <C> AbstractScopedSettings.SettingUpdater<C, Settings> groupedSettingsUpdater(
+        BiConsumer<C, Settings> consumer,
         final List<? extends Setting<?>> configuredSettings
     ) {
         return groupedSettingsUpdater(consumer, configuredSettings, (v) -> {});
     }
 
-    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(
-        Consumer<Settings> consumer,
+    static <C> AbstractScopedSettings.SettingUpdater<C, Settings> groupedSettingsUpdater(
+        BiConsumer<C, Settings> consumer,
         final List<? extends Setting<?>> configuredSettings,
         Consumer<Settings> validator
     ) {
@@ -877,8 +878,8 @@ public class Setting<T> implements ToXContentObject {
             }
 
             @Override
-            public void apply(Settings value, Settings current, Settings previous) {
-                consumer.accept(value);
+            public void apply(C context, Settings value, Settings current, Settings previous) {
+                consumer.accept(context, value);
             }
 
             @Override
@@ -964,8 +965,8 @@ public class Setting<T> implements ToXContentObject {
             }
         }
 
-        AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
-            BiConsumer<String, T> consumer,
+        <C> AbstractScopedSettings.SettingUpdater<C, Map<AbstractScopedSettings.SettingUpdater<C, T>, T>> newAffixUpdater(
+            TriConsumer<C, String, T> consumer,
             Logger logger,
             BiConsumer<String, T> validator
         ) {
@@ -977,14 +978,14 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public Map<AbstractScopedSettings.SettingUpdater<T>, T> getValue(Settings current, Settings previous) {
+                public Map<AbstractScopedSettings.SettingUpdater<C, T>, T> getValue(Settings current, Settings previous) {
                     // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
-                    final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
+                    final Map<AbstractScopedSettings.SettingUpdater<C, T>, T> result = new IdentityHashMap<>();
                     Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
                         Setting<T> concreteSetting = getConcreteSetting(namespace, aKey);
-                        AbstractScopedSettings.SettingUpdater<T> updater = concreteSetting.newUpdater(
-                            (v) -> consumer.accept(namespace, v),
+                        AbstractScopedSettings.SettingUpdater<C, T> updater = concreteSetting.newUpdater(
+                            (c, v) -> consumer.apply(null, namespace, v),
                             logger,
                             (v) -> validator.accept(namespace, v)
                         );
@@ -999,16 +1000,16 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(Map<AbstractScopedSettings.SettingUpdater<T>, T> value, Settings current, Settings previous) {
-                    for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
-                        entry.getKey().apply(entry.getValue(), current, previous);
+                public void apply(C context, Map<AbstractScopedSettings.SettingUpdater<C, T>, T> value, Settings current, Settings previous) {
+                    for (Map.Entry<AbstractScopedSettings.SettingUpdater<C, T>, T> entry : value.entrySet()) {
+                        entry.getKey().apply(context, entry.getValue(), current, previous);
                     }
                 }
             };
         }
 
-        AbstractScopedSettings.SettingUpdater<Map<String, T>> newAffixMapUpdater(
-            Consumer<Map<String, T>> consumer,
+        <C> AbstractScopedSettings.SettingUpdater<C, Map<String, T>> newAffixMapUpdater(
+            BiConsumer<C, Map<String, T>> consumer,
             Logger logger,
             BiConsumer<String, T> validator
         ) {
@@ -1026,8 +1027,8 @@ public class Setting<T> implements ToXContentObject {
                     Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
                         Setting<T> concreteSetting = getConcreteSetting(namespace, aKey);
-                        AbstractScopedSettings.SettingUpdater<T> updater = concreteSetting.newUpdater(
-                            (v) -> {},
+                        AbstractScopedSettings.SettingUpdater<C, T> updater = concreteSetting.newUpdater(
+                            (c, v) -> {},
                             logger,
                             (v) -> validator.accept(namespace, v)
                         );
@@ -1042,9 +1043,9 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(Map<String, T> value, Settings current, Settings previous) {
+                public void apply(C context, Map<String, T> value, Settings current, Settings previous) {
                     Setting.logSettingUpdate(AffixSetting.this, current, previous, logger);
-                    consumer.accept(value);
+                    consumer.accept(context, value);
                 }
             };
         }
@@ -1248,8 +1249,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(
-            Consumer<Settings> consumer,
+        public <C> AbstractScopedSettings.SettingUpdater<C, Settings> newUpdater(
+            BiConsumer<C, Settings> consumer,
             Logger logger,
             Consumer<Settings> validator
         ) {
@@ -1283,9 +1284,9 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(Settings value, Settings current, Settings previous) {
+                public void apply(C context, Settings value, Settings current, Settings previous) {
                     Setting.logSettingUpdate(GroupSetting.this, current, previous, logger);
-                    consumer.accept(value);
+                    consumer.accept(context, value);
                 }
 
                 @Override
@@ -1296,15 +1297,15 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
-        private final Consumer<T> consumer;
+    private final class Updater<C> implements AbstractScopedSettings.SettingUpdater<C, T> {
+        private final BiConsumer<C, T> consumer;
         private final Logger logger;
-        private final Consumer<T> accept;
+        private final Consumer<T> validator;
 
-        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
+        Updater(BiConsumer<C, T> consumer, Logger logger, Consumer<T> validator) {
             this.consumer = consumer;
             this.logger = logger;
-            this.accept = accept;
+            this.validator = validator;
         }
 
         @Override
@@ -1328,7 +1329,7 @@ public class Setting<T> implements ToXContentObject {
             final String value = getRaw(previous);
             try {
                 T inst = get(current);
-                accept.accept(inst);
+                validator.accept(inst);
                 return inst;
             } catch (Exception e) {
                 if (isFiltered()) {
@@ -1343,9 +1344,9 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public void apply(T value, Settings current, Settings previous) {
+        public void apply(C context, T value, Settings current, Settings previous) {
             logSettingUpdate(Setting.this, current, previous, logger);
-            consumer.accept(value);
+            consumer.accept(context, value);
         }
     }
 

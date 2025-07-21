@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ProjectScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -145,7 +146,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             settings,
             clusterSettings,
             new FakeThreadPoolMasterService(LOCAL_NODE_ID, threadPool, deterministicTaskQueue::scheduleNow),
-            new ClusterApplierService(LOCAL_NODE_ID, settings, clusterSettings, threadPool) {
+            new ClusterApplierService(LOCAL_NODE_ID, clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                     return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();

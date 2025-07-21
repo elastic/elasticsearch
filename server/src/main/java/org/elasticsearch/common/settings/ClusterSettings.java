@@ -63,14 +63,18 @@ import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHea
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
@@ -141,13 +145,21 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid cluster level settings.
  */
-public final class ClusterSettings extends AbstractScopedSettings {
+public final class ClusterSettings extends AbstractContextlessScopedSettings {
 
     public static ClusterSettings createBuiltInClusterSettings() {
         return createBuiltInClusterSettings(Settings.EMPTY);
@@ -162,7 +174,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
-    private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
+    private static final class LoggingSettingUpdater implements SettingUpdater<Void, Settings> {
         final Predicate<String> loggerPredicate = Loggers.LOG_LEVEL_SETTING::match;
         private final Settings settings;
 
@@ -192,7 +204,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
 
         @Override
-        public void apply(Settings value, Settings current, Settings previous) {
+        public void apply(Void context, Settings value, Settings current, Settings previous) {
             for (String key : value.keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
@@ -652,4 +664,88 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_POLLING_INTERVAL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
     );
+
+    /**
+     * This methods passes the setting value to a consumer during the initialization and on every setting change
+     * <p>
+     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized <T> void initializeAndWatch(Setting<T> setting, Consumer<T> consumer) {
+        assert setting.getProperties().contains(Setting.Property.Dynamic)
+            || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
+        assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
+        consumer.accept(setting.get(settings));
+        addSettingsUpdateConsumer(setting, consumer);
+    }
+
+    /**
+     * Adds a affix settings consumer that accepts the values for two settings. The consumer is only notified if one or both settings change
+     * and if the provided validator succeeded.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     * This method registers a compound updater that is useful if two settings are depending on each other.
+     * The consumer is always provided with both values even if only one of the two changes.
+     */
+    public synchronized <A, B> void addAffixUpdateConsumer(
+        Setting.AffixSetting<A> settingA,
+        Setting.AffixSetting<B> settingB,
+        BiConsumer<String, Tuple<A, B>> consumer,
+        BiConsumer<String, Tuple<A, B>> validator
+    ) {
+        // it would be awesome to have a generic way to do that ie. a set of settings that map to an object with a builder
+        // down the road this would be nice to have!
+        ensureSettingIsRegistered(settingA);
+        ensureSettingIsRegistered(settingB);
+        SettingUpdater<Object, Map<SettingUpdater<Object, A>, A>> affixUpdaterA = settingA.newAffixUpdater((ctx, a, b) -> {}, logger, (a, b) -> {});
+        SettingUpdater<Object, Map<SettingUpdater<Object, B>, B>> affixUpdaterB = settingB.newAffixUpdater((ctx, a, b) -> {}, logger, (a, b) -> {});
+
+        addSettingsUpdater(new SettingUpdater<Void, Map<String, Tuple<A, B>>>() {
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                return affixUpdaterA.hasChanged(current, previous) || affixUpdaterB.hasChanged(current, previous);
+            }
+
+            @Override
+            public Map<String, Tuple<A, B>> getValue(Settings current, Settings previous) {
+                Map<String, Tuple<A, B>> map = new HashMap<>();
+                TriConsumer<Void, String, A> aConsumer = (ctx,key, value) -> {
+                    assert map.containsKey(key) == false : "duplicate key: " + key;
+                    map.put(key, new Tuple<>(value, settingB.getConcreteSettingForNamespace(key).get(current)));
+                };
+                TriConsumer<Void, String, B> bConsumer = (ctx, key, value) -> {
+                    Tuple<A, B> abTuple = map.get(key);
+                    if (abTuple != null) {
+                        map.put(key, new Tuple<>(abTuple.v1(), value));
+                    } else {
+                        assert settingA.getConcreteSettingForNamespace(key)
+                            .get(current)
+                            .equals(settingA.getConcreteSettingForNamespace(key).get(previous))
+                            : "expected: "
+                            + settingA.getConcreteSettingForNamespace(key).get(current)
+                            + " but was "
+                            + settingA.getConcreteSettingForNamespace(key).get(previous);
+                        map.put(key, new Tuple<>(settingA.getConcreteSettingForNamespace(key).get(current), value));
+                    }
+                };
+                SettingUpdater<Void, Map<SettingUpdater<Void, A>, A>> affixUpdaterA = settingA.newAffixUpdater(aConsumer, logger, (a, b) -> {});
+                SettingUpdater<Void, Map<SettingUpdater<Void, B>, B>> affixUpdaterB = settingB.newAffixUpdater(bConsumer, logger, (a, b) -> {});
+                affixUpdaterA.apply(null, current, previous);
+                affixUpdaterB.apply(null, current, previous);
+                for (Map.Entry<String, Tuple<A, B>> entry : map.entrySet()) {
+                    validator.accept(entry.getKey(), entry.getValue());
+                }
+                return Collections.unmodifiableMap(map);
+            }
+
+            @Override
+            public void apply(Void context, Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
+                for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
+                    consumer.accept(entry.getKey(), entry.getValue());
+                }
+            }
+        });
+    }
 }

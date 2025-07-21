@@ -18,12 +18,16 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -38,6 +42,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,12 +55,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterApplierServiceTests extends ESTestCase {
+    private static final Setting<Integer> PROJECT_SETTING = new Setting<>("test_project_setting", "0",
+        Integer::parseInt, value -> {
+        if (value < 0) {
+            throw new IllegalArgumentException("must be positive");
+        }
+    }, Setting.Property.Dynamic, Setting.Property.ProjectScope);
 
     private ThreadPool threadPool;
     private long currentTimeMillis;
     private boolean allowClusterStateApplicationFailure = false;
     private ClusterApplierService clusterApplierService;
     private ClusterSettings clusterSettings;
+    private ProjectScopedSettings projectScopedSettings;
 
     @Before
     public void setUp() throws Exception {
@@ -74,6 +86,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             }
         };
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        projectScopedSettings = new ProjectScopedSettings(Set.of(PROJECT_SETTING));
         allowClusterStateApplicationFailure = false;
         clusterApplierService = createClusterApplierService(true);
     }
@@ -91,8 +104,8 @@ public class ClusterApplierServiceTests extends ESTestCase {
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final ClusterApplierService clusterApplierService = new ClusterApplierService(
             "test_node",
-            Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
             clusterSettings,
+            projectScopedSettings,
             threadPool
         ) {
             @Override
@@ -493,6 +506,119 @@ public class ClusterApplierServiceTests extends ESTestCase {
         latch.await();
         assertNotNull(error.get());
         assertThat(error.get().getMessage(), containsString("illegal value can't update"));
+    }
+
+    public void testClusterStateApplierBubblesUpExceptionsInProjectSettingsApplier() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        projectScopedSettings.addSettingsUpdateConsumer(PROJECT_SETTING, (c, v) -> {});
+        allowClusterStateApplicationFailure = true;
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState(
+            "test",
+            () -> ClusterState.builder(clusterApplierService.state())
+                .putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder()
+                    .putProjectSettings(randomUniqueProjectId(), Settings.builder()
+                        .put(PROJECT_SETTING.getKey(), -1)
+                        .build())
+                    .build())
+                .build(),
+            new ActionListener<>() {
+
+                @Override
+                public void onResponse(Void ignored) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertTrue(error.compareAndSet(null, e));
+                    latch.countDown();
+                }
+            }
+        );
+
+        latch.await();
+        assertNotNull(error.get());
+        assertThat(error.get().getMessage(), containsString("illegal value can't update"));
+    }
+
+    public void testClusterSettingsUpdaterCalledOnSettingsChange() throws InterruptedException {
+        AtomicReference<EnableAllocationDecider.Allocation> ref = new AtomicReference<>();
+        clusterSettings.addSettingsUpdateConsumer(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, ref::set);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState(
+            "test",
+            () -> ClusterState.builder(clusterApplierService.state())
+                .metadata(
+                    Metadata.builder(clusterApplierService.state().metadata())
+                        .persistentSettings(
+                            Settings.builder()
+                                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NEW_PRIMARIES)
+                                .build()
+                        )
+                        .build()
+                )
+                .build(),
+            new ActionListener<>() {
+
+                @Override
+                public void onResponse(Void ignored) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+            }
+        );
+
+        latch.await();
+        assertNotNull(ref.get());
+        assertThat(ref.get(), is(EnableAllocationDecider.Allocation.NEW_PRIMARIES));
+    }
+
+    public void testProjectSettingsUpdaterCalledOnSettingsChange() throws InterruptedException {
+        AtomicReference<Integer> ref = new AtomicReference<>();
+        ProjectId projectId = randomUniqueProjectId();
+        projectScopedSettings.addSettingsUpdateConsumer(PROJECT_SETTING, (c, v) -> {
+            assertThat(c, is(projectId));
+            ref.set(v);
+        });
+        allowClusterStateApplicationFailure = true;
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState(
+            "test",
+            () -> ClusterState.builder(clusterApplierService.state())
+                .putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder()
+                    .putProjectSettings(projectId, Settings.builder()
+                        .put(PROJECT_SETTING.getKey(), 42)
+                        .build())
+                    .putProjectSettings(randomUniqueProjectId(), Settings.builder().build())
+                    .build())
+                .build(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void ignored) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+            }
+        );
+
+        latch.await();
+        assertNotNull(ref.get());
+        assertThat(ref.get(), is(42));
     }
 
     public void testClusterStateApplierSwallowsExceptionInListener() throws InterruptedException {

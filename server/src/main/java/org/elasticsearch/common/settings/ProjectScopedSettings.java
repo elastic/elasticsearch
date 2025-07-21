@@ -9,18 +9,52 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.cluster.metadata.ProjectId;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class ProjectScopedSettings extends AbstractScopedSettings {
-    public ProjectScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Setting.Property.ProjectScope);
+public class ProjectScopedSettings extends AbstractScopedSettings<ProjectId> {
+    private final Map<ProjectId, Settings> projectSettings = new ConcurrentHashMap<>();
+
+    public ProjectScopedSettings(Set<Setting<?>> settingsSet) {
+        super(settingsSet, Setting.Property.ProjectScope);
     }
 
-    @FixForMultiProject
-    @Override
-    public <T> T get(Setting<T> setting) {
-        throw new UnsupportedOperationException("Not implemented for project scoped settings");
+    public ProjectScopedSettings() {
+        this(Collections.emptySet());
+    }
+
+    public <T> T get(ProjectId projectId, Setting<T> setting) {
+        return setting.get(projectSettings.getOrDefault(projectId, Settings.EMPTY));
+    }
+
+    /**
+     *
+     * Validates the given settings for the given project by running it through all update listeners without applying it. This
+     * method will not change any settings but will fail if any of the settings can't be applied.
+     */
+    public void validateUpdate(ProjectId projectId, Settings newSettings) {
+        Settings lastSettingsApplied = projectSettings.getOrDefault(projectId, Settings.EMPTY);
+        validateUpdate(newSettings, lastSettingsApplied);
+    }
+
+    /**
+     * Applies the given settings of the project to all the settings consumers or to none of them.
+     *
+     * @param projectId id of the project
+     * @param newSettings the settings to apply
+     * @return the unmerged applied settings
+     */
+    public Settings applySettings(ProjectId projectId, Settings newSettings) {
+        return projectSettings.compute(projectId, (id, lastSettingsApplied) -> {
+            if (lastSettingsApplied == null) {
+                lastSettingsApplied = Settings.EMPTY;
+            }
+            executeSettingsUpdaters(projectId, newSettings, lastSettingsApplied);
+            return newSettings;
+        });
     }
 }

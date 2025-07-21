@@ -55,7 +55,7 @@ import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
  */
-public final class IndexScopedSettings extends AbstractScopedSettings {
+public final class IndexScopedSettings extends AbstractContextlessScopedSettings {
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS;
 

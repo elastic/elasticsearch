@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -37,27 +38,23 @@ import java.util.regex.Pattern;
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
  */
-public abstract class AbstractScopedSettings {
+public abstract class AbstractScopedSettings<C> {
 
     public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    private final Logger logger;
+    protected final Logger logger;
 
-    private final Settings settings;
-    private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
+    private final List<SettingUpdater<C, ?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Setting.Property scope;
-    private Settings lastSettingsApplied;
+    protected final Setting.Property scope;
 
     @SuppressWarnings("this-escape")
-    protected AbstractScopedSettings(final Settings settings, final Set<Setting<?>> settingsSet, final Setting.Property scope) {
+    protected AbstractScopedSettings(final Set<Setting<?>> settingsSet, final Setting.Property scope) {
         this.logger = LogManager.getLogger(this.getClass());
-        this.settings = settings;
-        this.lastSettingsApplied = Settings.EMPTY;
 
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
@@ -98,10 +95,8 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other, Logger logger) {
+    protected AbstractScopedSettings(AbstractScopedSettings<C> other, Logger logger) {
         this.logger = logger;
-        this.settings = nodeSettings;
-        this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
@@ -128,11 +123,9 @@ public abstract class AbstractScopedSettings {
      * Validates the given settings by running it through all update listeners without applying it. This
      * method will not change any settings but will fail if any of the settings can't be applied.
      */
-    public synchronized Settings validateUpdate(Settings settings) {
-        final Settings current = Settings.builder().put(this.settings).put(settings).build();
-        final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
+    public void validateUpdate(Settings current, Settings previous) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        for (SettingUpdater<?> settingUpdater : settingUpdaters) {
+        for (SettingUpdater<C, ?> settingUpdater : settingUpdaters) {
             try {
                 // ensure running this through the updater / dynamic validator
                 // don't check if the value has changed we wanna test this anyways
@@ -144,28 +137,14 @@ public abstract class AbstractScopedSettings {
         }
         // here we are exhaustive and record all settings that failed.
         ExceptionsHelper.rethrowAndSuppress(exceptions);
-        return current;
     }
 
-    /**
-     * Applies the given settings to all the settings consumers or to none of them. The settings
-     * will be merged with the node settings before they are applied while given settings override existing node
-     * settings.
-     * @param newSettings the settings to apply
-     * @return the unmerged applied settings
-    */
-    public synchronized Settings applySettings(Settings newSettings) {
-        if (lastSettingsApplied != null && newSettings.equals(lastSettingsApplied)) {
-            // nothing changed in the settings, ignore
-            return newSettings;
-        }
-        final Settings current = Settings.builder().put(this.settings).put(newSettings).build();
-        final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
+    protected final void executeSettingsUpdaters(C context, Settings current, Settings previous) {
         try {
             List<Runnable> applyRunnables = new ArrayList<>();
-            for (SettingUpdater<?> settingUpdater : settingUpdaters) {
+            for (SettingUpdater<C, ?> settingUpdater : settingUpdaters) {
                 try {
-                    applyRunnables.add(settingUpdater.updater(current, previous));
+                    applyRunnables.add(settingUpdater.updater(context, current, previous));
                 } catch (Exception ex) {
                     logger.warn(() -> "failed to prepareCommit settings for [" + settingUpdater + "]", ex);
                     throw ex;
@@ -178,7 +157,6 @@ public abstract class AbstractScopedSettings {
             logger.warn("failed to apply settings", ex);
             throw ex;
         }
-        return lastSettingsApplied = newSettings;
     }
 
     /**
@@ -189,7 +167,7 @@ public abstract class AbstractScopedSettings {
      * @param validator an additional validator that is only applied to updates of this setting.
      *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
-    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
+    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, BiConsumer<C, T> consumer, Consumer<T> validator) {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
@@ -202,7 +180,7 @@ public abstract class AbstractScopedSettings {
      *
      * Also automatically adds empty consumers for all settings in order to activate logging
      */
-    public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings) {
+    public synchronized void addSettingsUpdateConsumer(BiConsumer<C, Settings> consumer, List<? extends Setting<?>> settings) {
         addSettingsUpdater(Setting.groupedSettingsUpdater(consumer, settings));
     }
 
@@ -214,7 +192,7 @@ public abstract class AbstractScopedSettings {
      * Also automatically adds empty consumers for all settings in order to activate logging
      */
     public synchronized void addSettingsUpdateConsumer(
-        Consumer<Settings> consumer,
+        BiConsumer<C, Settings> consumer,
         List<? extends Setting<?>> settings,
         Consumer<Settings> validator
     ) {
@@ -227,81 +205,11 @@ public abstract class AbstractScopedSettings {
      */
     public synchronized <T> void addAffixUpdateConsumer(
         Setting.AffixSetting<T> setting,
-        BiConsumer<String, T> consumer,
+        TriConsumer<C, String, T> consumer,
         BiConsumer<String, T> validator
     ) {
         ensureSettingIsRegistered(setting);
         addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
-    }
-
-    /**
-     * Adds a affix settings consumer that accepts the values for two settings. The consumer is only notified if one or both settings change
-     * and if the provided validator succeeded.
-     * <p>
-     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
-     * </p>
-     * This method registers a compound updater that is useful if two settings are depending on each other.
-     * The consumer is always provided with both values even if only one of the two changes.
-     */
-    public synchronized <A, B> void addAffixUpdateConsumer(
-        Setting.AffixSetting<A> settingA,
-        Setting.AffixSetting<B> settingB,
-        BiConsumer<String, Tuple<A, B>> consumer,
-        BiConsumer<String, Tuple<A, B>> validator
-    ) {
-        // it would be awesome to have a generic way to do that ie. a set of settings that map to an object with a builder
-        // down the road this would be nice to have!
-        ensureSettingIsRegistered(settingA);
-        ensureSettingIsRegistered(settingB);
-        SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater((a, b) -> {}, logger, (a, b) -> {});
-        SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater((a, b) -> {}, logger, (a, b) -> {});
-
-        addSettingsUpdater(new SettingUpdater<Map<String, Tuple<A, B>>>() {
-
-            @Override
-            public boolean hasChanged(Settings current, Settings previous) {
-                return affixUpdaterA.hasChanged(current, previous) || affixUpdaterB.hasChanged(current, previous);
-            }
-
-            @Override
-            public Map<String, Tuple<A, B>> getValue(Settings current, Settings previous) {
-                Map<String, Tuple<A, B>> map = new HashMap<>();
-                BiConsumer<String, A> aConsumer = (key, value) -> {
-                    assert map.containsKey(key) == false : "duplicate key: " + key;
-                    map.put(key, new Tuple<>(value, settingB.getConcreteSettingForNamespace(key).get(current)));
-                };
-                BiConsumer<String, B> bConsumer = (key, value) -> {
-                    Tuple<A, B> abTuple = map.get(key);
-                    if (abTuple != null) {
-                        map.put(key, new Tuple<>(abTuple.v1(), value));
-                    } else {
-                        assert settingA.getConcreteSettingForNamespace(key)
-                            .get(current)
-                            .equals(settingA.getConcreteSettingForNamespace(key).get(previous))
-                            : "expected: "
-                                + settingA.getConcreteSettingForNamespace(key).get(current)
-                                + " but was "
-                                + settingA.getConcreteSettingForNamespace(key).get(previous);
-                        map.put(key, new Tuple<>(settingA.getConcreteSettingForNamespace(key).get(current), value));
-                    }
-                };
-                SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater(aConsumer, logger, (a, b) -> {});
-                SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater(bConsumer, logger, (a, b) -> {});
-                affixUpdaterA.apply(current, previous);
-                affixUpdaterB.apply(current, previous);
-                for (Map.Entry<String, Tuple<A, B>> entry : map.entrySet()) {
-                    validator.accept(entry.getKey(), entry.getValue());
-                }
-                return Collections.unmodifiableMap(map);
-            }
-
-            @Override
-            public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
-                for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
-                    consumer.accept(entry.getKey(), entry.getValue());
-                }
-            }
-        });
     }
 
     /**
@@ -312,14 +220,14 @@ public abstract class AbstractScopedSettings {
      * </p>
      */
     @SuppressWarnings("rawtypes")
-    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, TriConsumer<C, String, Settings> consumer) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
-            affixUpdaters.add(setting.newAffixUpdater((a, b) -> {}, logger, (a, b) -> {}));
+            affixUpdaters.add(setting.newAffixUpdater((ctx, a, b) -> {}, logger, (a, b) -> {}));
         }
 
-        addSettingsUpdater(new SettingUpdater<Map<String, Settings>>() {
+        addSettingsUpdater(new SettingUpdater<C, Map<String, Settings>>() {
 
             @Override
             public boolean hasChanged(Settings current, Settings previous) {
@@ -330,8 +238,8 @@ public abstract class AbstractScopedSettings {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
-                    affixUpdaterA.apply(current, previous);
+                    SettingUpdater<?, ?> affixUpdaterA = setting.newAffixUpdater((ctx,k, v) -> namespaces.add(k), logger, (a, b) -> {});
+                    affixUpdaterA.apply(null, current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
@@ -345,15 +253,15 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
+            public void apply(C context, Map<String, Settings> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Settings> entry : values.entrySet()) {
-                    consumer.accept(entry.getKey(), entry.getValue());
+                    consumer.apply(context, entry.getKey(), entry.getValue());
                 }
             }
         });
     }
 
-    private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
+    protected final void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
@@ -363,11 +271,11 @@ public abstract class AbstractScopedSettings {
     /**
      * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
      * consumer in order to be processed correctly. This consumer will get a namespace to value map instead of each individual namespace
-     * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, BiConsumer, BiConsumer)}
+     * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, TriConsumer, BiConsumer)}
      */
     public synchronized <T> void addAffixMapUpdateConsumer(
         Setting.AffixSetting<T> setting,
-        Consumer<Map<String, T>> consumer,
+        BiConsumer<C, Map<String, T>> consumer,
         BiConsumer<String, T> validator
     ) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
@@ -377,15 +285,15 @@ public abstract class AbstractScopedSettings {
         addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator));
     }
 
-    synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
+    synchronized void addSettingsUpdater(SettingUpdater<C, ?> updater) {
         this.settingUpdaters.add(updater);
     }
 
     /**
      * Adds a settings consumer that accepts the values for two settings.
-     * See {@link #addSettingsUpdateConsumer(Setting, Setting, BiConsumer, BiConsumer)} for details.
+     * See {@link #addSettingsUpdateConsumer(Setting, Setting, TriConsumer, BiConsumer)} for details.
      */
-    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
+    public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, TriConsumer<C, A, B> consumer) {
         addSettingsUpdateConsumer(a, b, consumer, (i, j) -> {});
     }
 
@@ -401,7 +309,7 @@ public abstract class AbstractScopedSettings {
     public synchronized <A, B> void addSettingsUpdateConsumer(
         Setting<A> a,
         Setting<B> b,
-        BiConsumer<A, B> consumer,
+        TriConsumer<C, A, B> consumer,
         BiConsumer<A, B> validator
     ) {
         if (a != get(a.getKey())) {
@@ -419,22 +327,8 @@ public abstract class AbstractScopedSettings {
      * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
      * </p>
      */
-    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
+    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, BiConsumer<C, T> consumer) {
         addSettingsUpdateConsumer(setting, consumer, (s) -> {});
-    }
-
-    /**
-     * This methods passes the setting value to a consumer during the initialization and on every setting change
-     * <p>
-     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
-     * </p>
-     */
-    public synchronized <T> void initializeAndWatch(Setting<T> setting, Consumer<T> consumer) {
-        assert setting.getProperties().contains(Setting.Property.Dynamic)
-            || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
-        assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
-        consumer.accept(setting.get(settings));
-        addSettingsUpdateConsumer(setting, consumer);
     }
 
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
@@ -617,9 +511,10 @@ public abstract class AbstractScopedSettings {
     /**
      * Transactional interface to update settings.
      * @see Setting
+     * @param <C> the type of setting context
      * @param <T> the type of the value of the setting
      */
-    public interface SettingUpdater<T> {
+    public interface SettingUpdater<C, T> {
 
         /**
          * Returns true if this updaters setting has changed with the current update
@@ -638,16 +533,16 @@ public abstract class AbstractScopedSettings {
         /**
          * Applies the given value to the updater. This methods will actually run the update.
          */
-        void apply(T value, Settings current, Settings previous);
+        void apply(C context, T value, Settings current, Settings previous);
 
         /**
          * Updates this updaters value if it has changed.
          * @return <code>true</code> iff the value has been updated.
          */
-        default boolean apply(Settings current, Settings previous) {
+        default boolean apply(C context, Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                apply(value, current, previous);
+                apply(context, value, current, previous);
                 return true;
             }
             return false;
@@ -658,10 +553,10 @@ public abstract class AbstractScopedSettings {
          * actually changed. This allows to defer the update to a later point in time while keeping type safety.
          * If the value didn't change the returned runnable is a noop.
          */
-        default Runnable updater(Settings current, Settings previous) {
+        default Runnable updater(C context, Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                return () -> { apply(value, current, previous); };
+                return () -> { apply(context, value, current, previous); };
             }
             return () -> {};
         }
@@ -739,21 +634,6 @@ public abstract class AbstractScopedSettings {
             setting.diff(builder, source, defaultSettings);
         }
         return builder.build();
-    }
-
-    /**
-     * Returns the value for the given setting.
-     */
-    public <T> T get(Setting<T> setting) {
-        if (setting.getProperties().contains(scope) == false) {
-            throw new IllegalArgumentException(
-                "settings scope doesn't match the setting scope [" + this.scope + "] not in [" + setting.getProperties() + "]"
-            );
-        }
-        if (get(setting.getKey()) == null) {
-            throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");
-        }
-        return setting.get(this.lastSettingsApplied, settings);
     }
 
     /**

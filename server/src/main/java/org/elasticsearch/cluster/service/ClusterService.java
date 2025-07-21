@@ -63,9 +63,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            new ProjectScopedSettings(settings, Collections.emptySet()),
+            new ProjectScopedSettings(Collections.emptySet()),
             new MasterService(settings, clusterSettings, threadPool, taskManager),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), clusterSettings,
+                new ProjectScopedSettings(Collections.emptySet()), threadPool)
         );
     }
 
@@ -81,7 +82,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             clusterSettings,
             projectScopedSettings,
             new MasterService(settings, clusterSettings, threadPool, taskManager),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), clusterSettings, projectScopedSettings, threadPool)
         );
     }
 
@@ -91,7 +92,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         MasterService masterService,
         ClusterApplierService clusterApplierService
     ) {
-        this(settings, clusterSettings, new ProjectScopedSettings(settings, Collections.emptySet()), masterService, clusterApplierService);
+        this(settings, clusterSettings, new ProjectScopedSettings(Collections.emptySet()), masterService, clusterApplierService);
     }
 
     public ClusterService(

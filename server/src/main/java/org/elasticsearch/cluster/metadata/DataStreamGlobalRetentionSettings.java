@@ -112,7 +112,7 @@ public class DataStreamGlobalRetentionSettings {
     @Nullable
     private volatile TimeValue failuresDefaultRetention;
     /** We cache the global retention objects, volatile is sufficient we only "write" this values in the settings appliers which
-     * are executed by {@link org.elasticsearch.common.settings.AbstractScopedSettings#applySettings(Settings)} which is synchronised.
+     * are executed by {@link org.elasticsearch.common.settings.AbstractContextlessScopedSettings#applySettings(Settings)} which is synchronised.
      */
     @Nullable
     private volatile DataStreamGlobalRetention dataGlobalRetention;

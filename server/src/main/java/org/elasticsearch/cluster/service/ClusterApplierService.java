@@ -21,11 +21,14 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Recorder;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -78,6 +81,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterApplierService#updateTask";
 
     private final ClusterSettings clusterSettings;
+    private final ProjectScopedSettings projectScopedSettings;
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowTaskLoggingThreshold;
@@ -103,8 +107,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterApplierService(String nodeName, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(nodeName, clusterSettings, new ProjectScopedSettings(), threadPool);
+    }
+
+    public ClusterApplierService(String nodeName, ClusterSettings clusterSettings, ProjectScopedSettings projectScopedSettings, ThreadPool threadPool) {
         this.clusterSettings = clusterSettings;
+        this.projectScopedSettings = projectScopedSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
@@ -518,14 +527,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             connectToNodesAndWait(newClusterState);
         }
 
-        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
-            logger.debug("applying settings from cluster state with version {}", newClusterState.version());
-            final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
-            try (Releasable ignored = stopWatch.record("applying settings")) {
-                clusterSettings.applySettings(incomingSettings);
-            }
-        }
+        applySettings(clusterChangedEvent, stopWatch);
 
         logger.debug("apply cluster state with version {}", newClusterState.version());
         callClusterStateAppliers(clusterChangedEvent, stopWatch);
@@ -536,6 +538,33 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         state.set(newClusterState);
 
         callClusterStateListeners(clusterChangedEvent, stopWatch);
+    }
+
+    private void applySettings(ClusterChangedEvent clusterChangedEvent, Recorder stopWatch) {
+        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false) {
+            if (clusterChangedEvent.metadataChanged()) {
+                logger.debug("applying settings from cluster state with version {}", clusterChangedEvent.state().version());
+                final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
+                try (Releasable ignored = stopWatch.record("applying settings")) {
+                    clusterSettings.applySettings(incomingSettings);
+                }
+            }
+
+            ProjectStateRegistry oldProjectStateRegistry = clusterChangedEvent.previousState().custom(ProjectStateRegistry.TYPE, ProjectStateRegistry.EMPTY);
+            ProjectStateRegistry newProjectStateRegistry = clusterChangedEvent.state().custom(ProjectStateRegistry.TYPE, ProjectStateRegistry.EMPTY);
+            if (oldProjectStateRegistry != newProjectStateRegistry) {
+                for (ProjectId projectId : newProjectStateRegistry.knownProjects()) {
+                    Settings oldProjectSettings = oldProjectStateRegistry.getProjectSettings(projectId);
+                    Settings newProjectSettings = newProjectStateRegistry.getProjectSettings(projectId);
+                    if (newProjectSettings.equals(oldProjectSettings) == false) {
+                        try (Releasable ignored = stopWatch.record("applying project settings")) {
+                            projectScopedSettings.applySettings(projectId, newProjectSettings);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {

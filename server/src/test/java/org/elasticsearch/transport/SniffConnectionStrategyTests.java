@@ -1216,7 +1216,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Set<Setting<?>> clusterSettings = new HashSet<>();
         clusterSettings.add(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE);
         clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).toList());
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
 
         // Should validate successfully
         service.validate(settings, true);

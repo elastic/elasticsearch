@@ -69,7 +69,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
 
-        final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
+        final ClusterApplierService clusterApplierService = new ClusterApplierService("test", clusterSettings, threadPool) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                 return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();

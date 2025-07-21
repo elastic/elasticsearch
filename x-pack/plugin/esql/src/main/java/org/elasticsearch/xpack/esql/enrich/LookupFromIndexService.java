@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.ExpressionQueryList;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -91,7 +94,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected QueryList queryList(
+    protected LookupEnrichQueryGenerator queryList(
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
@@ -99,14 +102,28 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         @Nullable DataType inputDataType,
         Warnings warnings
     ) {
-        // TODO: THIS NEEDS IMPLEMENTATION FOR MULTI-FIELD MATCHING
-        return termQueryList(
-            context.getFieldType(request.matchFields.get(0).fieldName().string()),
-            context,
-            aliasFilter,
-            inputBlock,
-            inputDataType
-        ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+        if (request.matchFields.size() == 1) {
+            return termQueryList(
+                context.getFieldType(request.matchFields.get(0).fieldName().string()),
+                context,
+                aliasFilter,
+                inputBlock,
+                inputDataType
+            ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+        }
+        List<QueryList> queryLists = new ArrayList<>();
+        for (int i = 0; i < request.matchFields.size(); i++) {
+            LookupFromIndexOperator.MatchConfig matchField = request.matchFields.get(i);
+            QueryList q = termQueryList(
+                context.getFieldType(matchField.fieldName().string()),
+                context,
+                aliasFilter,
+                request.inputPage.getBlock(i),
+                matchField.type()
+            ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+            queryLists.add(q);
+        }
+        return new ExpressionQueryList(queryLists);
     }
 
     @Override

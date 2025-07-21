@@ -49,7 +49,7 @@ import java.util.function.IntFunction;
 /**
  * Generates a list of Lucene queries based on the input block.
  */
-public abstract class QueryList {
+public abstract class QueryList implements LookupEnrichQueryGenerator {
     protected final SearchExecutionContext searchExecutionContext;
     protected final AliasFilter aliasFilter;
     protected final MappedFieldType field;
@@ -74,7 +74,7 @@ public abstract class QueryList {
     /**
      * Returns the number of positions in this query list
      */
-    int getPositionCount() {
+    public int getPositionCount() {
         return block.getPositionCount();
     }
 
@@ -87,7 +87,7 @@ public abstract class QueryList {
      */
     public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
-    final Query getQuery(int position) {
+    public final Query getQuery(int position) {
         final int valueCount = block.getValueCount(position);
         if (onlySingleValueParams != null && valueCount != 1) {
             if (valueCount > 1) {

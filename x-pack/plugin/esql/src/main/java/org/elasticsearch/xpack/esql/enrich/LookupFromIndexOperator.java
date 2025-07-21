@@ -146,9 +146,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        // what is happening here?
-        // should I be getting multiple bloks, and send them using the LookupFromIndexService.Request
-        // is the totalTerms supposed to be the total number of terms in all blocks?
+        // JULIAN: should I be getting multiple blocks, and send them using the LookupFromIndexService.Request
+        // is the totalTerms supposed to be the total number of terms in all blocks combined?
         Block[] inputBlockArray = new Block[matchFields.size()];
         for (int i = 0; i < matchFields.size(); i++) {
             MatchConfig matchField = matchFields.get(i);

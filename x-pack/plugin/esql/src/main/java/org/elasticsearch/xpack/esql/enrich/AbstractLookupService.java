@@ -43,6 +43,7 @@ import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -191,7 +192,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(
+    protected abstract LookupEnrichQueryGenerator queryList(
         T request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
@@ -271,17 +272,20 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
-        Block inputBlock = request.inputPage.getBlock(0);
-        if (inputBlock.areAllValuesNull()) {
-            List<Page> nullResponse = mergePages
-                ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
-                : List.of();
-            listener.onResponse(nullResponse);
-            return;
-        }
-        final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
+        final List<Releasable> releasables = new ArrayList<>(6);
         try {
+            for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
+                Block inputBlock = request.inputPage.getBlock(j);
+                if (inputBlock.areAllValuesNull()) {
+                    List<Page> nullResponse = mergePages
+                        ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                        : List.of();
+                    listener.onResponse(nullResponse);
+                    return;
+                }
+            }
+
             var projectState = projectResolver.getProjectState(clusterService.state());
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
                 projectState,
@@ -305,6 +309,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
             final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
+            // JULIAN: SHOULD WE DO THE NEXT CODE FOR EACH BLOCK IN THE PAGE?
+            Block inputBlock = request.inputPage.getBlock(0);
             if (mergePages  // TODO fix this optimization for Lookup.
                 && inputBlock instanceof BytesRefBlock bytesRefBlock
                 && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
@@ -334,7 +340,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
-            QueryList queryList = queryList(
+            LookupEnrichQueryGenerator queryList = queryList(
                 request,
                 shardContext.executionContext,
                 aliasFilter,

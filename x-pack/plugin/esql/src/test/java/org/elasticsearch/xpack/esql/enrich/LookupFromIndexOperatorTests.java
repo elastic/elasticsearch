@@ -142,16 +142,17 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
         );
+        List<LookupFromIndexOperator.MatchConfig> matchFields = List.of(
+            new LookupFromIndexOperator.MatchConfig(matchField, inputChannel, inputDataType)
+        );
         return new LookupFromIndexOperator.Factory(
+            matchFields,
             sessionId,
             parentTask,
             maxOutstandingRequests,
-            inputChannel,
             this::lookupService,
-            inputDataType,
             lookupIndex,
             lookupIndex,
-            matchField,
             loadFields,
             Source.EMPTY
         );
@@ -165,7 +166,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return matchesPattern(
-            "LookupOperator\\[index=idx input_type=LONG match_field=match load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] inputChannel=0]"
+            "LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] input_type=LONG match_field=match inputChannel=0]"
         );
     }
 

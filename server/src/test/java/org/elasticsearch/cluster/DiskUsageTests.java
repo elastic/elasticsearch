@@ -135,7 +135,7 @@ public class DiskUsageTests extends ESTestCase {
                 0
             ) };
         Map<String, Long> shardSizes = new HashMap<>();
-        HashMap<ShardId, Double> shardWriteLoads = new HashMap<>();
+        Map<ShardId, Double> shardWriteLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(

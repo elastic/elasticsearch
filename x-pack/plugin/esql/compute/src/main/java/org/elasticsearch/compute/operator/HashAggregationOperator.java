@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -52,6 +54,7 @@ public class HashAggregationOperator implements Operator {
         public Operator get(DriverContext driverContext) {
             if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
                 return new HashAggregationOperator(
+                    groups,
                     aggregators,
                     () -> BlockHash.buildCategorizeBlockHash(
                         groups,
@@ -64,6 +67,7 @@ public class HashAggregationOperator implements Operator {
                 );
             }
             return new HashAggregationOperator(
+                groups,
                 aggregators,
                 () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
                 driverContext
@@ -83,6 +87,7 @@ public class HashAggregationOperator implements Operator {
     private boolean finished;
     private Page output;
 
+    private final List<BlockHash.GroupSpec> groups;
     private final BlockHash blockHash;
 
     protected final List<GroupingAggregator> aggregators;
@@ -117,10 +122,12 @@ public class HashAggregationOperator implements Operator {
 
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
+        List<BlockHash.GroupSpec> groups,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
+        this.groups = groups;
         this.aggregators = new ArrayList<>(aggregators.size());
         this.driverContext = driverContext;
         boolean success = false;
@@ -142,8 +149,22 @@ public class HashAggregationOperator implements Operator {
         return finished == false;
     }
 
+    private final AtomicBoolean isInitialPage = new AtomicBoolean(true);
+
     @Override
     public void addInput(Page page) {
+        if (isInitialPage.compareAndSet(true, false)
+            && (aggregators.size() == 0 || AggregatorMode.INITIAL.equals(aggregators.get(0).getMode()))) {
+            Page initialPage = createInitialPage(page);
+            if (initialPage != null) {
+                addInputInternal(initialPage);
+                return;
+            }
+        }
+        addInputInternal(page);
+    }
+
+    private void addInputInternal(Page page) {
         try {
             GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
             class AddInput implements GroupingAggregatorFunction.AddInput {
@@ -287,6 +308,42 @@ public class HashAggregationOperator implements Operator {
 
     protected Page wrapPage(Page page) {
         return page;
+    }
+
+    private Page createInitialPage(Page page) {
+        // If no groups are generating bucket keys, move on
+        if (groups.stream().allMatch(g -> g.emptyBucketGenerator() == null)) {
+            return page;
+        }
+        Block.Builder[] blockBuilders = new Block.Builder[page.getBlockCount()];
+        for (int channel = 0; channel < page.getBlockCount(); channel++) {
+            Block block = page.getBlock(channel);
+            blockBuilders[channel] = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory());
+            blockBuilders[channel].copyFrom(block, 0, block.getPositionCount());
+        }
+        for (BlockHash.GroupSpec group : groups) {
+            BlockHash.EmptyBucketGenerator emptyBucketGenerator = group.emptyBucketGenerator();
+            if (emptyBucketGenerator != null) {
+                for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                    if (group.channel() == channel) {
+                        emptyBucketGenerator.generate(blockBuilders[channel]);
+                    } else {
+                        for (int i = 0; i < emptyBucketGenerator.getEmptyBucketCount(); i++) {
+                            if (page.getBlock(channel) instanceof DocBlock) {
+                                // TODO: DocBlock doesn't allow appending nulls
+                                ((DocBlock.Builder) blockBuilders[channel]).appendShard(0).appendSegment(0).appendDoc(0);
+                            } else {
+                                blockBuilders[channel].appendNull();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Block[] blocks = Arrays.stream(blockBuilders).map(Block.Builder::build).toArray(Block[]::new);
+        Releasables.closeExpectNoException(blockBuilders);
+        page.releaseBlocks();
+        return new Page(blocks);
     }
 
     @Override

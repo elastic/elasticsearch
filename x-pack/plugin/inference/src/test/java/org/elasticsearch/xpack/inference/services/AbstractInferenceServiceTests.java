@@ -23,7 +23,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -141,7 +140,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
             return true;
         }
 
-        protected abstract CustomModel createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure);
+        protected abstract Model createEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure);
     }
 
     private static final UpdateModelConfiguration DISABLED_UPDATE_MODEL_TESTS = new UpdateModelConfiguration() {
@@ -151,7 +150,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
         }
 
         @Override
-        protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+        protected Model createEmbeddingModel(SimilarityMeasure similarityMeasure) {
             throw new UnsupportedOperationException("Update model tests are disabled");
         }
     };
@@ -351,9 +350,15 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             assertThat(
                 exception.getMessage(),
-                containsString(Strings.format("service does not support task type [%s]", parseConfigTestConfig.unsupportedTaskType))
+                containsString(
+                    Strings.format(fetchPersistedConfigTaskTypeParsingErrorMessageFormat(), parseConfigTestConfig.unsupportedTaskType)
+                )
             );
         }
+    }
+
+    protected String fetchPersistedConfigTaskTypeParsingErrorMessageFormat() {
+        return "service does not support task type [%s]";
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
@@ -374,7 +379,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 persistedConfigMap.secrets()
             );
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -396,7 +401,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 persistedConfigMap.secrets()
             );
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -413,7 +418,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -430,7 +435,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
 
             var model = service.parsePersistedConfigWithSecrets("id", parseConfigTestConfig.taskType, config.config(), config.secrets());
 
-            parseConfigTestConfig.assertModel(model, TaskType.TEXT_EMBEDDING);
+            parseConfigTestConfig.assertModel(model, parseConfigTestConfig.taskType);
         }
     }
 
@@ -468,7 +473,7 @@ public abstract class AbstractInferenceServiceTests extends ESTestCase {
                 () -> service.updateModelWithEmbeddingDetails(getInvalidModel("id", "service"), randomNonNegativeInt())
             );
 
-            assertThat(exception.getMessage(), containsString("Can't update embedding details for model of type:"));
+            assertThat(exception.getMessage(), containsString("Can't update embedding details for model"));
         }
     }
 

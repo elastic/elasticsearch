@@ -16,7 +16,7 @@ COMPLETION [column =] prompt WITH inference_id
 **Parameters**
 
 `column`
-:   (Optional) The name of the output column that will contain the completion results.
+:   (Optional) The name of the output column containing the LLM's response.
     If not specified, the results will be stored in a column named `completion`.
     If the specified column already exists, it will be overwritten with the new completion results.
 

@@ -376,10 +376,13 @@ public class PolicyManager {
             return true;
         }
         if (isTrustedSystemClass(requestingClass)) {
+            // note: logging prior to allowing trusted system classes can fail if loading of new classes is necessary
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
-        generalLogger.trace("Entitlement not trivially allowed");
+        if (generalLogger.isTraceEnabled()) {
+            generalLogger.trace("Stack trace if entitlement not trivially allowed", new Exception());
+        }
         return false;
     }
 

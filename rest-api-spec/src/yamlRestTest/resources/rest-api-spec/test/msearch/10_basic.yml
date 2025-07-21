@@ -73,7 +73,6 @@ setup:
         ignore_throttled: false
         allow_no_indices: false
         expand_wildcards: open
-        include_named_queries_score: false
         index: index_*
         body:
           - index: index_*
@@ -101,6 +100,24 @@ setup:
   - match:  { responses.3.error.root_cause.0.reason: "/no.such.index/" }
   - match:  { responses.3.error.root_cause.0.index: index_3 }
   - match:  { responses.4.hits.total:     4  }
+
+---
+"Smoke test with query score":
+  - requires:
+          cluster_features: ["gte_v8.8.0"]
+          reason: introduced in 8.8.0
+
+  - do:
+      msearch:
+        rest_total_hits_as_int: true
+        include_named_queries_score: false
+        index: index_*
+        body:
+          - index: index_*
+          - query:
+              match: {foo: foo}
+
+  - match:  { responses.0.hits.total:     2  }
 
 ---
 "Search with new response format":

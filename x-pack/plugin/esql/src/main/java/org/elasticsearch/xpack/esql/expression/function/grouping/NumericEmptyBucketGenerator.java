@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 
@@ -38,23 +36,9 @@ record NumericEmptyBucketGenerator(double from, double to, double roundTo) imple
     }
 
     @Override
-    public Block generate(BlockFactory blockFactory, int maxPositionsInBucket) {
-        try (
-            DoubleBlock.Builder newBlockBuilder = (DoubleBlock.Builder) ElementType.DOUBLE.newBlockBuilder(
-                maxPositionsInBucket,
-                blockFactory
-            )
-        ) {
-            int i = 0;
-            for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(bucket + roundTo, 2)) {
-                newBlockBuilder.appendDouble(bucket);
-                i++;
-            }
-            while (i < maxPositionsInBucket) {
-                newBlockBuilder.appendNull();
-                i++;
-            }
-            return newBlockBuilder.build();
+    public void generate(Block.Builder blockBuilder) {
+        for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(bucket + roundTo, 2)) {
+            ((DoubleBlock.Builder) blockBuilder).appendDouble(bucket);
         }
     }
 

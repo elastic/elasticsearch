@@ -20,11 +20,11 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -34,11 +34,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -160,6 +158,7 @@ public class HashAggregationOperator implements Operator {
             Page initialPage = createInitialPage(page);
             if (initialPage != null) {
                 addInputInternal(initialPage);
+                return;
             }
         }
         addInputInternal(page);
@@ -311,50 +310,40 @@ public class HashAggregationOperator implements Operator {
         return page;
     }
 
-    private @Nullable Page createInitialPage(Page page) {
-        if (anyGroupEmitsEmptyBuckets(groups) == false) {
-            return null;
+    private Page createInitialPage(Page page) {
+        // If no groups are generating bucket keys, move on
+        if (groups.stream().allMatch(g -> g.emptyBucketGenerator() == null)) {
+            return page;
         }
-        int maxPositionsInBucket = getMaxPositionsInBucket(groups, page);
-        Map<Integer, BlockHash.GroupSpec> groupByChannel = groups.stream().collect(Collectors.toMap(BlockHash.GroupSpec::channel, x -> x));
-        Block[] blocks = new Block[page.getBlockCount()];
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            if (groupByChannel.containsKey(i)) {
-                BlockHash.EmptyBucketGenerator emptyBucketGenerator = groupByChannel.get(i).emptyBucketGenerator();
-                blocks[i] = emptyBucketGenerator != null
-                    ? emptyBucketGenerator.generate(driverContext.blockFactory(), maxPositionsInBucket)
-                    : copyValues(page.getBlock(i), maxPositionsInBucket);
-            } else {
-                blocks[i] = driverContext.blockFactory().newConstantNullBlock(maxPositionsInBucket);
-            }
+        Block.Builder[] blockBuilders = new Block.Builder[page.getBlockCount()];
+        for (int channel = 0; channel < page.getBlockCount(); channel++) {
+            Block block = page.getBlock(channel);
+            blockBuilders[channel] = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory());
+            blockBuilders[channel].copyFrom(block, 0, block.getPositionCount());
         }
-        return new Page(blocks);
-    }
-
-    private Block copyValues(Block block, int maxPositionsInBucket) {
-        try (Block.Builder newBlockBuilder = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
-            newBlockBuilder.copyFrom(block, 0, block.getPositionCount());
-            for (int i = block.getPositionCount(); i < maxPositionsInBucket; i++) {
-                newBlockBuilder.appendNull();
-            }
-            return newBlockBuilder.build();
-        }
-    }
-
-    private static boolean anyGroupEmitsEmptyBuckets(List<BlockHash.GroupSpec> groups) {
-        return groups.stream().anyMatch(g -> g.emptyBucketGenerator() != null);
-    }
-
-    private static int getMaxPositionsInBucket(List<BlockHash.GroupSpec> groups, Page page) {
-        int maxPositionCount = 0;
         for (BlockHash.GroupSpec group : groups) {
             BlockHash.EmptyBucketGenerator emptyBucketGenerator = group.emptyBucketGenerator();
-            int positionCount = emptyBucketGenerator != null
-                ? emptyBucketGenerator.getEmptyBucketCount()
-                : page.getBlock(group.channel()).getPositionCount();
-            maxPositionCount = Math.max(maxPositionCount, positionCount);
+            if (emptyBucketGenerator != null) {
+                for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                    if (group.channel() == channel) {
+                        emptyBucketGenerator.generate(blockBuilders[channel]);
+                    } else {
+                        for (int i = 0; i < emptyBucketGenerator.getEmptyBucketCount(); i++) {
+                            if (page.getBlock(channel) instanceof DocBlock) {
+                                // TODO: DocBlock doesn't allow appending nulls
+                                ((DocBlock.Builder) blockBuilders[channel]).appendShard(0).appendSegment(0).appendDoc(0);
+                            } else {
+                                blockBuilders[channel].appendNull();
+                            }
+                        }
+                    }
+                }
+            }
         }
-        return maxPositionCount;
+        Block[] blocks = Arrays.stream(blockBuilders).map(Block.Builder::build).toArray(Block[]::new);
+        Releasables.closeExpectNoException(blockBuilders);
+        page.releaseBlocks();
+        return new Page(blocks);
     }
 
     @Override

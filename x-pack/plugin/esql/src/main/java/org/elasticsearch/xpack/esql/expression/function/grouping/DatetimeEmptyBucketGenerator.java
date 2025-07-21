@@ -11,8 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -67,18 +65,9 @@ record DatetimeEmptyBucketGenerator(long from, long to, Rounding.Prepared roundi
     }
 
     @Override
-    public Block generate(BlockFactory blockFactory, int maxPositionsInBucket) {
-        try (LongBlock.Builder newBlockBuilder = (LongBlock.Builder) ElementType.LONG.newBlockBuilder(maxPositionsInBucket, blockFactory)) {
-            int i = 0;
-            for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
-                newBlockBuilder.appendLong(bucket);
-                i++;
-            }
-            while (i < maxPositionsInBucket) {
-                newBlockBuilder.appendNull();
-                i++;
-            }
-            return newBlockBuilder.build();
+    public void generate(Block.Builder blockBuilder) {
+        for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
+            ((LongBlock.Builder) blockBuilder).appendLong(bucket);
         }
     }
 

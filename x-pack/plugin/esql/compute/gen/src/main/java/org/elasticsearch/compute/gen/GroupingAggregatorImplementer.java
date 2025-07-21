@@ -620,8 +620,10 @@ public class GroupingAggregatorImplementer {
             )
         );
         if (bulkCombineIntermediateMethod != null) {
-            var states = intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::name).collect(Collectors.joining(","));
-            builder.addStatement("$T.combineIntermediate(state, positionOffset, groups," + states + ")", declarationType);
+            var states = intermediateState.stream()
+                .map(AggregatorImplementer.IntermediateStateDesc::name)
+                .collect(Collectors.joining(", "));
+            builder.addStatement("$T.combineIntermediate(state, positionOffset, groups, " + states + ")", declarationType);
         } else {
             if (intermediateState.stream()
                 .map(AggregatorImplementer.IntermediateStateDesc::elementType)

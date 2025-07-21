@@ -214,7 +214,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups,values);
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   @Override

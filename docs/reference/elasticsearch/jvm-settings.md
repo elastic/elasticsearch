@@ -92,7 +92,7 @@ The heap size should be based on the available RAM:
     ::::{note}
     When running in a container, such as [Docker](docs-content://deploy-manage/deploy/self-managed/install-elasticsearch-with-docker.md), the total memory available to {{es}} means the amount of memory available within the container, not the total system memory on the host.
 
-    If you are running multiple {{es}} nodes on the same host, or in the same container, the total of all the nodes' heap sizes should not exceed 50% of the total available memory on the host.
+    If you are running multiple {{es}} nodes on the same host, or in the same container, the total of all the nodes' heap sizes should not exceed 50% of the total available memory.
 
     Account for the memory usage of other processes running on the same host, or in the same container, when computing the total memory available to {{es}}.
 

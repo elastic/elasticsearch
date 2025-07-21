@@ -30,7 +30,7 @@ COMPLETION [column =] prompt WITH inference_id
 
 **Description**
 
-The `COMPLETION`  command provides a general-purpose interface for
+The `COMPLETION` command provides a general-purpose interface for
 text generation tasks using a Large Language Model (LLM) in ES|QL.
 
 `COMPLETION` supports a wide range of text generation tasks. Depending on your
@@ -43,9 +43,11 @@ including:
 - Content rewriting
 - Creative generation
 
-The command works with any LLM deployed to
-the [Elasticsearch inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-and can be chained with other ES|QL commands for further processing.
+**Requirements**
+
+To use this command, you must deploy your LLM model in Elasticsearch as
+an [≈inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
+task type `completion`.
 
 **Examples**
 

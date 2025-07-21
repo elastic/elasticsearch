@@ -378,7 +378,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertTrue(shardWriteLoads.isEmpty());
         }
 
-        // Turn on collection of write load stats.
+        // Turn on collection of write-load stats.
         updateClusterSettings(
             Settings.builder()
                 .put(
@@ -389,7 +389,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         );
 
         try {
-            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+            // Force a ClusterInfo refresh to run collection of the write-load stats.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
 

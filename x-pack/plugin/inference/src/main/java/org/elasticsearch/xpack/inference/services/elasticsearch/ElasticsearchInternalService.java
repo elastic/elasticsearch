@@ -610,7 +610,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (timeout == null) {

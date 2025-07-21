@@ -71,7 +71,7 @@ public abstract class SenderService implements InferenceService {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (timeout == null) {

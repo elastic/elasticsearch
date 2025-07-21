@@ -613,10 +613,10 @@ public class GroupingAggregatorImplementer {
             requireVoidType(),
             requireName("combineIntermediate"),
             requireArgs(
-                Stream.of(
+                Stream.concat(
                     Stream.of(aggState.declaredType(), TypeName.INT, INT_VECTOR), // aggState, positionOffset, groupIds
                     intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::combineArgType)
-                ).flatMap(Function.identity()).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
+                ).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
             )
         );
         if (bulkCombineIntermediateMethod != null) {

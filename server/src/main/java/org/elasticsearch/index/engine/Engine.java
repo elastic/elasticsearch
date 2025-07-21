@@ -942,6 +942,9 @@ public abstract class Engine implements Closeable {
         return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
+    // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
+    protected void onSearcherCreation(String source, SearcherScope scope) {}
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
@@ -960,6 +963,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
+                    onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
                         acquire,
@@ -1012,6 +1016,7 @@ public abstract class Engine implements Closeable {
             SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
+            onSearcherCreation(source, scope);
             return new Searcher(
                 source,
                 searcher.getDirectoryReader(),

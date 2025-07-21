@@ -416,7 +416,24 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     public BlobPath shardBasePath(ShardId shardId) {
-        return getProjectObjectStore(shardId).basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id()));
+        return shardBasePath(getProjectObjectStore(shardId), shardId);
+    }
+
+    public BlobPath shardBasePath(ProjectId projectId, ShardId shardId) {
+        assert assertProjectIdAndShardIdConsistency(projectId, shardId);
+        return shardBasePath(getProjectObjectStore(projectId), shardId);
+    }
+
+    private BlobPath shardBasePath(BlobStoreRepository objectStore, ShardId shardId) {
+        return objectStore.basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id()));
+    }
+
+    // Reverse project lookup by the shardId should result into either the same projectId
+    // or null when the cluster state containing the index is not yet visible
+    public boolean assertProjectIdAndShardIdConsistency(ProjectId projectId, ShardId shardId) {
+        final ProjectId resolvedProjectId = resolveProjectIdOrNull(shardId.getIndex());
+        assert resolvedProjectId == null || resolvedProjectId.equals(projectId) : resolvedProjectId + "!=" + projectId;
+        return true;
     }
 
     /**
@@ -425,6 +442,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      */
     public BlobStore getProjectBlobStore(ShardId shardId) {
         return getProjectObjectStore(shardId).blobStore();
+    }
+
+    /**
+     * Get the project level object store for the specified {@code ProjectId}
+     */
+    public BlobStore getProjectBlobStore(ProjectId projectId) {
+        return getProjectObjectStore(projectId).blobStore();
     }
 
     // public for testing

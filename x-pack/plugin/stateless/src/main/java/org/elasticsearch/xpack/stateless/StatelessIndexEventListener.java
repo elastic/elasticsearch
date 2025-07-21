@@ -46,9 +46,12 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -85,6 +88,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final HollowShardsService hollowShardsService;
     private final SplitTargetService splitTargetService;
     private final SplitSourceService splitSourceService;
+    private final ProjectResolver projectResolver;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -95,7 +99,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         SharedBlobCacheWarmingService warmingService,
         HollowShardsService hollowShardsService,
         SplitTargetService splitTargetService,
-        SplitSourceService splitSourceService
+        SplitSourceService splitSourceService,
+        ProjectResolver projectResolver
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -106,6 +111,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.hollowShardsService = hollowShardsService;
         this.splitTargetService = splitTargetService;
         this.splitSourceService = splitSourceService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -115,14 +121,19 @@ class StatelessIndexEventListener implements IndexEventListener {
             store.incRef();
             boolean success = false;
             try {
+                final var projectId = projectResolver.getProjectId();
                 final var shardId = indexShard.shardId();
-                final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
-                final var shardBasePath = objectStoreService.shardBasePath(shardId);
-                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
-                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
+                assert objectStoreService.assertProjectIdAndShardIdConsistency(projectId, shardId);
+
+                final BlobStore blobStore = objectStoreService.getProjectBlobStore(projectId);
+                final BlobPath shardBasePath = objectStoreService.shardBasePath(projectId, shardId);
                 final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
                     ? null
                     : blobStore.blobContainer(shardBasePath);
+
+                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
+                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
+
                 var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
                 if (indexShard.routingEntry().isSearchable()) {
                     beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);

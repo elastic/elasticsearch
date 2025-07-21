@@ -44,14 +44,20 @@ public class PerNodeShardSnapshotCounter {
                     return;
                 }
                 for (var shardSnapshotStatus : entry.shards().values()) {
-                    // TODO: consider more states as active, e.g. Abort on data node?
-                    if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.INIT) {
+                    if (isRunningOnDataNode(shardSnapshotStatus)) {
                         perNodeCounts.computeIfPresent(shardSnapshotStatus.nodeId(), (nodeId, count) -> count + 1);
                     }
                 }
             });
             this.perNodeCounts = perNodeCounts;
         }
+    }
+
+    private static boolean isRunningOnDataNode(SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus) {
+        return shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.INIT
+            || (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.ABORTED && shardSnapshotStatus.reason() != null
+            // TODO: find a better way to check for abort on data nodes
+                && shardSnapshotStatus.reason().startsWith("assigned-queued aborted") == false);
     }
 
     public boolean tryStartShardSnapshotOnNode(String nodeId) {

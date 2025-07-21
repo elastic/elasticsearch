@@ -2305,6 +2305,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             && snapshotIdsRequiringCleanup.contains(existing.snapshot().getSnapshotId())) {
                             // snapshot is started - mark every non completed shard as aborted
                             final SnapshotsInProgress.Entry abortedEntry = existing.abort(
+                                currentState.nodes().getLocalNodeId(),
                                 ((shardId, shardSnapshotStatus) -> completeAbortedAssignedQueuedRunnables.add(
                                     () -> innerUpdateSnapshotState(
                                         existing.snapshot(),
@@ -3820,9 +3821,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     assert updatedShardSnapshotStatus.isActive() == false : updatedShardSnapshotStatus;
                 }
 
-                if (shardSnapshotStatusUpdate.isClone() == false
-                    && existing.state() == ShardState.INIT // TODO: this is not right, should consider aborted ones on data nodes as well
-                    && updatedShardSnapshotStatus.state() != ShardState.INIT) {
+                if (shardSnapshotStatusUpdate.isClone() == false && changeReleasesDataNode(existing, updatedShardSnapshotStatus)) {
                     perNodeShardSnapshotCounter.completeShardSnapshotOnNode(updatedShardSnapshotStatus.nodeId());
                 }
                 logger.trace(
@@ -3834,6 +3833,18 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 changedCount++;
                 newShardSnapshotStatusesBuilder.put(shardSnapshotId, updatedShardSnapshotStatus);
                 executedUpdates.add(shardSnapshotStatusUpdate);
+            }
+
+            private boolean changeReleasesDataNode(ShardSnapshotStatus previous, ShardSnapshotStatus current) {
+                if (previous.state() == ShardState.INIT) {
+                    return current.state().completed() || current.state() == ShardState.PAUSED_FOR_NODE_REMOVAL;
+                }
+                // TODO find a better to check for abort on data nodes
+                if (previous.state() == ShardState.ABORTED
+                    && (previous.reason() == null || previous.reason().startsWith("assigned-queued aborted") == false)) {
+                    return current.state().completed();
+                }
+                return false;
             }
 
             private void tryStartNextTaskAfterCloneUpdated(RepositoryShardId repoShardId, ShardSnapshotStatus updatedState) {

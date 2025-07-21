@@ -1231,7 +1231,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort(BiConsumer<ShardId, ShardSnapshotStatus> abortedAssignedQueuedShardConsumer) {
+        public Entry abort(String localNodeId, BiConsumer<ShardId, ShardSnapshotStatus> abortedAssignedQueuedShardConsumer) {
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
@@ -1262,7 +1262,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         // Accumulate the updates needed to complete the aborted QUEUED with generation shard snapshots
                         abortedAssignedQueuedShardConsumer.accept(
                             shardEntry.getKey(),
-                            new ShardSnapshotStatus(null, ShardState.FAILED, status.generation, reason)
+                            new ShardSnapshotStatus(localNodeId, ShardState.FAILED, status.generation, reason)
                         );
                     }
                 }

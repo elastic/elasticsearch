@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -368,7 +369,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             return options;
         }
 
-        Match.populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), OPTIONS);
+        Options.populateMap((MapExpression) options(), options, source(), THIRD, OPTIONS);
         return options;
     }
 

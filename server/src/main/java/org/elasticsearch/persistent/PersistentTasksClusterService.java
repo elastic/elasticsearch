@@ -171,9 +171,9 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 assert (projectId == null && taskExecutor.scope() == PersistentTasksExecutor.Scope.CLUSTER)
                     || (projectId != null && taskExecutor.scope() == PersistentTasksExecutor.Scope.PROJECT)
                     : "inconsistent project-id [" + projectId + "] and task scope [" + taskExecutor.scope() + "]";
-                taskExecutor.validate(taskParams, currentState);
+                taskExecutor.validate(taskParams, currentState, projectId);
 
-                Assignment assignment = createAssignment(taskName, taskParams, currentState);
+                Assignment assignment = createAssignment(taskName, taskParams, currentState, projectId);
                 logger.debug("creating {} persistent task [{}] with assignment [{}]", taskTypeString(projectId), taskName, assignment);
                 return builder.addTask(taskId, taskName, taskParams, assignment).buildAndUpdate(currentState, projectId);
             }
@@ -449,7 +449,8 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     private <Params extends PersistentTaskParams> Assignment createAssignment(
         final String taskName,
         final Params taskParams,
-        final ClusterState currentState
+        final ClusterState currentState,
+        @Nullable final ProjectId projectId
     ) {
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
 
@@ -468,7 +469,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         // Task assignment should not rely on node order
         Randomness.shuffle(candidateNodes);
 
-        final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
+        final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState, projectId);
         assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
         assert (assignment.getExecutorNode() == null
             || currentState.metadata().nodeShutdowns().contains(assignment.getExecutorNode()) == false)
@@ -540,8 +541,8 @@ public final class PersistentTasksClusterService implements ClusterStateListener
      * persistent tasks changed.
      */
     boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {
-        final List<PersistentTasks> allTasks = PersistentTasks.getAllTasks(event.state()).map(Tuple::v2).toList();
-        if (allTasks.isEmpty()) {
+        var projectIdToTasksIterator = PersistentTasks.getAllTasks(event.state()).iterator();
+        if (projectIdToTasksIterator.hasNext() == false) {
             return false;
         }
 
@@ -553,10 +554,16 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             || event.metadataChanged()
             || masterChanged) {
 
-            for (PersistentTasks tasks : allTasks) {
-                for (PersistentTask<?> task : tasks.tasks()) {
+            while (projectIdToTasksIterator.hasNext()) {
+                var projectIdToTasks = projectIdToTasksIterator.next();
+                for (PersistentTask<?> task : projectIdToTasks.v2().tasks()) {
                     if (needsReassignment(task.getAssignment(), event.state().nodes())) {
-                        Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), event.state());
+                        Assignment assignment = createAssignment(
+                            task.getTaskName(),
+                            task.getParams(),
+                            event.state(),
+                            projectIdToTasks.v1()
+                        );
                         if (Objects.equals(assignment, task.getAssignment()) == false) {
                             return true;
                         }
@@ -602,7 +609,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             // We need to check if removed nodes were running any of the tasks and reassign them
             for (PersistentTask<?> task : tasks.tasks()) {
                 if (needsReassignment(task.getAssignment(), nodes)) {
-                    Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState);
+                    Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState, projectId);
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace(
                             "reassigning {} task {} from node {} to node {}",

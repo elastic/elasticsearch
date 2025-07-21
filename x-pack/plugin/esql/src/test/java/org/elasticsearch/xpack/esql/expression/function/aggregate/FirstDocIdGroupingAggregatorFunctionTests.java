@@ -69,14 +69,16 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }
+        var groupSpecs = List.of(new BlockHash.GroupSpec(1, ElementType.INT));
         var aggregatorFactory = new FirstDocIdGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
             AggregatorMode.INITIAL,
             List.of(0)
         );
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            groupSpecs,
             List.of(aggregatorFactory),
             () -> BlockHash.build(
-                List.of(new BlockHash.GroupSpec(1, ElementType.INT)),
+                groupSpecs,
                 driverContext.blockFactory(),
                 randomIntBetween(1, 1024),
                 randomBoolean()

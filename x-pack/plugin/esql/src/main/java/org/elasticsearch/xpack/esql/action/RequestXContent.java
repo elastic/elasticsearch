@@ -77,6 +77,7 @@ final class RequestXContent {
     static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
+    private static final ParseField APPROMIXATE_FIELD = new ParseField("approximate");
     static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
@@ -109,6 +110,7 @@ final class RequestXContent {
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::approximate, APPROMIXATE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
         parser.declareBoolean(EsqlQueryRequest::includeCCSMetadata, INCLUDE_CCS_METADATA_FIELD);
         parser.declareBoolean(EsqlQueryRequest::includeExecutionMetadata, INCLUDE_EXECUTION_METADATA_FIELD);

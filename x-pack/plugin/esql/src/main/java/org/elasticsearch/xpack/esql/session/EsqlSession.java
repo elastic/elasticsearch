@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -297,6 +298,7 @@ public class EsqlSession {
                                 foldContext,
                                 minimumVersion,
                                 planTimeProfile,
+                                logicalPlanOptimizer,
                                 l
                             )
                         )
@@ -332,6 +334,7 @@ public class EsqlSession {
         FoldContext foldContext,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -367,6 +370,7 @@ public class EsqlSession {
                 planRunner,
                 executionInfo,
                 request,
+                logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 planTimeProfile,
                 listener
@@ -381,6 +385,7 @@ public class EsqlSession {
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -407,9 +412,28 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else {
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            // execute main plan
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+            if (request.approximate()) {
+                Approximate approximate = new Approximate(optimizedPlan);
+                runner.run(
+                    logicalPlanToPhysicalPlan(optimizedPlan(approximate.countPlan(), logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    listener.delegateFailureAndWrap(
+                        (countListener, countResult) -> runner.run(
+                            logicalPlanToPhysicalPlan(optimizedPlan(approximate.approximatePlan(countResult), logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile),
+                            configuration,
+                            foldContext,
+                            planTimeProfile,
+                            listener
+                        )
+                    )
+                );
+            } else {
+                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+                // execute main plan
+                runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+            }
         }
     }
 

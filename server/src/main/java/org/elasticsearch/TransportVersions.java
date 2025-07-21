@@ -344,6 +344,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED = def(9_123_0_00);
     public static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = def(9_124_0_00);
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
+    public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

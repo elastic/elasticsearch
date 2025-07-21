@@ -9,40 +9,33 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectFloatMap;
+import com.carrotsearch.hppc.ObjectDoubleHashMap;
+import com.carrotsearch.hppc.ObjectDoubleMap;
 
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class WriteLoadPerShardSimulator {
 
-    private final ObjectFloatMap<String> simulatedWriteLoadDeltas;
+    private final ObjectDoubleMap<String> simulatedWriteLoadDeltas;
     private final RoutingAllocation routingAllocation;
-    private final ObjectFloatMap<ShardId> writeLoadsPerShard;
+    private final Map<ShardId, Double> writeLoadsPerShard;
 
     public WriteLoadPerShardSimulator(RoutingAllocation routingAllocation) {
         this.routingAllocation = routingAllocation;
-        this.simulatedWriteLoadDeltas = new ObjectFloatHashMap<>();
-        writeLoadsPerShard = estimateWriteLoadsPerShard(routingAllocation);
+        this.simulatedWriteLoadDeltas = new ObjectDoubleHashMap<>();
+        writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
-        final float writeLoadForShard = writeLoadsPerShard.get(shardRouting.shardId());
-        if (writeLoadForShard > 0.0) {
+        final Double writeLoadForShard = writeLoadsPerShard.get(shardRouting.shardId());
+        if (writeLoadForShard != null) {
             if (shardRouting.relocatingNodeId() != null) {
                 // relocating
                 simulatedWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
@@ -76,76 +69,15 @@ public class WriteLoadPerShardSimulator {
 
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
         NodeUsageStatsForThreadPools value,
-        float writeLoadDelta
+        double writeLoadDelta
     ) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             writeThreadPoolStats.totalThreadPoolThreads(),
-            writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats.totalThreadPoolThreads()),
+            (float) (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats
+                .totalThreadPoolThreads())),
             writeThreadPoolStats.averageThreadPoolQueueLatencyMillis()
         );
-    }
-
-    // Everything below this line can probably go once we are publishing shard-write-load estimates to the master
-
-    private static ObjectFloatMap<ShardId> estimateWriteLoadsPerShard(RoutingAllocation allocation) {
-        final Map<ShardId, Average> writeLoadPerShard = new HashMap<>();
-        final Set<String> writeIndexNames = getWriteIndexNames(allocation);
-        final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = allocation.clusterInfo()
-            .getNodeUsageStatsForThreadPools();
-        for (final Map.Entry<String, NodeUsageStatsForThreadPools> usageStatsForThreadPoolsEntry : nodeUsageStatsForThreadPools
-            .entrySet()) {
-            final NodeUsageStatsForThreadPools value = usageStatsForThreadPoolsEntry.getValue();
-            final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
-                .get(ThreadPool.Names.WRITE);
-            if (writeThreadPoolStats == null) {
-                // No stats from this node yet
-                continue;
-            }
-            float writeUtilisation = writeThreadPoolStats.averageThreadPoolUtilization() * writeThreadPoolStats.totalThreadPoolThreads();
-
-            final String nodeId = usageStatsForThreadPoolsEntry.getKey();
-            final RoutingNode node = allocation.routingNodes().node(nodeId);
-            final Set<ShardId> writeShardsOnNode = new HashSet<>();
-            for (final ShardRouting shardRouting : node) {
-                if (shardRouting.role() != ShardRouting.Role.SEARCH_ONLY && writeIndexNames.contains(shardRouting.index().getName())) {
-                    writeShardsOnNode.add(shardRouting.shardId());
-                }
-            }
-            writeShardsOnNode.forEach(
-                shardId -> writeLoadPerShard.computeIfAbsent(shardId, k -> new Average()).add(writeUtilisation / writeShardsOnNode.size())
-            );
-        }
-        final ObjectFloatMap<ShardId> writeLoads = new ObjectFloatHashMap<>(writeLoadPerShard.size());
-        writeLoadPerShard.forEach((shardId, average) -> writeLoads.put(shardId, average.get()));
-        return writeLoads;
-    }
-
-    private static Set<String> getWriteIndexNames(RoutingAllocation allocation) {
-        return allocation.metadata()
-            .projects()
-            .values()
-            .stream()
-            .map(ProjectMetadata::getIndicesLookup)
-            .flatMap(indicesLookup -> indicesLookup.values().stream())
-            .map(IndexAbstraction::getWriteIndex)
-            .filter(Objects::nonNull)
-            .map(Index::getName)
-            .collect(Collectors.toUnmodifiableSet());
-    }
-
-    private static final class Average {
-        int count;
-        float sum;
-
-        public void add(float value) {
-            count++;
-            sum += value;
-        }
-
-        public float get() {
-            return sum / count;
-        }
     }
 }

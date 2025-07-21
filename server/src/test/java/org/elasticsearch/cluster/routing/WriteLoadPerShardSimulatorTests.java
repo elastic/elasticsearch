@@ -13,15 +13,22 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -33,6 +40,7 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
 
     private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
     };
+    public static final String[] INDICES = { "indexOne", "indexTwo", "indexThree" };
 
     /**
      * We should not adjust the values if there's no movement
@@ -40,7 +48,7 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
     public void testNoShardMovement() {
         final var originalNode0WriteLoadStats = randomUsageStats();
         final var originalNode1WriteLoadStats = randomUsageStats();
-        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats);
+        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats, Set.of());
 
         final var writeLoadPerShardSimulator = new WriteLoadPerShardSimulator(allocation);
         final var calculatedNodeUsageStates = writeLoadPerShardSimulator.nodeUsageStatsForThreadPools();
@@ -58,7 +66,7 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
     public void testMovementOfAShardWillReduceThreadPoolUtilisation() {
         final var originalNode0WriteLoadStats = randomUsageStats();
         final var originalNode1WriteLoadStats = randomUsageStats();
-        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats);
+        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats, Set.of());
         final var writeLoadPerShardSimulator = new WriteLoadPerShardSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
@@ -83,7 +91,7 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
     public void testMovementFollowedByMovementBackWillNotChangeAnything() {
         final var originalNode0WriteLoadStats = randomUsageStats();
         final var originalNode1WriteLoadStats = randomUsageStats();
-        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats);
+        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats, Set.of());
         final var writeLoadPerShardSimulator = new WriteLoadPerShardSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
@@ -122,7 +130,11 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
     public void testMovementBetweenNodesWithNoThreadPoolStats() {
         final var originalNode0WriteLoadStats = randomBoolean() ? randomUsageStats() : null;
         final var originalNode1WriteLoadStats = randomBoolean() ? randomUsageStats() : null;
-        final var allocation = createRoutingAllocation(originalNode0WriteLoadStats, originalNode1WriteLoadStats);
+        final var allocation = createRoutingAllocation(
+            originalNode0WriteLoadStats,
+            originalNode1WriteLoadStats,
+            new HashSet<>(randomSubsetOf(Arrays.asList(INDICES)))
+        );
         final var writeLoadPerShardSimulator = new WriteLoadPerShardSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
@@ -153,7 +165,8 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
 
     private RoutingAllocation createRoutingAllocation(
         NodeUsageStatsForThreadPools.ThreadPoolUsageStats node0WriteLoadStats,
-        NodeUsageStatsForThreadPools.ThreadPoolUsageStats node1WriteLoadStats
+        NodeUsageStatsForThreadPools.ThreadPoolUsageStats node1WriteLoadStats,
+        Set<String> indicesWithNoWriteLoad
     ) {
         final Map<String, NodeUsageStatsForThreadPools> nodeUsageStats = new HashMap<>();
         if (node0WriteLoadStats != null) {
@@ -163,16 +176,29 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
             nodeUsageStats.put("node_1", new NodeUsageStatsForThreadPools("node_1", Map.of("write", node1WriteLoadStats)));
         }
 
+        final ClusterState clusterState = createClusterState();
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .nodeUsageStatsForThreadPools(nodeUsageStats)
+            .shardWriteLoads(
+                clusterState.metadata()
+                    .getProject(ProjectId.DEFAULT)
+                    .stream()
+                    .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
+                    .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
+                    .collect(Collectors.toUnmodifiableMap(shardId -> shardId, shardId -> randomDoubleBetween(0.1, 5.0, true)))
+            )
+            .build();
+
         return new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            createClusterState(),
-            ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStats).build(),
+            clusterState,
+            clusterInfo,
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
         ).mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {
-        return ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { "indexOne", "indexTwo", "indexThree" }, 3, 0);
+        return ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(INDICES, 3, 0);
     }
 }

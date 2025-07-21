@@ -179,7 +179,12 @@ public class SampleOperator implements Operator {
 
         Status(StreamInput streamInput) throws IOException {
             this(
-                streamInput.readVLong(), streamInput.readVLong(), streamInput.readVInt(), streamInput.readVLong(), streamInput.readVLong());
+                streamInput.readVLong(),
+                streamInput.readVLong(),
+                streamInput.readVInt(),
+                streamInput.readVLong(),
+                streamInput.readVLong()
+            );
         }
 
         @Override

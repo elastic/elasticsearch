@@ -1277,11 +1277,6 @@ public class EsqlCapabilities {
         NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
 
         /**
-         * Fail if all shards fail
-         */
-        FAIL_IF_ALL_SHARDS_FAIL(Build.current().isSnapshot()),
-
-        /**
          * Cosine vector similarity function
          */
         COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),

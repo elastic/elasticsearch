@@ -223,6 +223,18 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testNamedVersions() {
         assertEquals(
+            new TransportVersion("esql-split-on-big-values", 9116000, null),
+            TransportVersion.fromName("esql-split-on-big-values")
+        );
+        assertEquals(
+            new TransportVersion("esql-split-on-big-values", 9112001, null),
+            TransportVersion.fromName("esql-split-on-big-values").nextPatchVersion()
+        );
+        assertEquals(
+            new TransportVersion("esql-split-on-big-values", 8841063, null),
+            TransportVersion.fromName("esql-split-on-big-values").nextPatchVersion().nextPatchVersion()
+        );
+        assertEquals(
             new TransportVersion("ml-inference-azure-ai-studio-rerank-added", 9123000, null),
             TransportVersion.fromName("ml-inference-azure-ai-studio-rerank-added")
         );

@@ -46,6 +46,12 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
         return this;
     }
 
+    @Override
+    public EsqlQueryRequestBuilder approximate(boolean approximate) {
+        request.approximate(approximate);
+        return this;
+    }
+
     public EsqlQueryRequestBuilder pragmas(QueryPragmas pragmas) {
         request.pragmas(pragmas);
         return this;

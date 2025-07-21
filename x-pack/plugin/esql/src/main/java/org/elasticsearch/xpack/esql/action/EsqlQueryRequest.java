@@ -48,6 +48,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean includeCCSMetadata;
     private Locale locale;
     private QueryBuilder filter;
+    private boolean approximate;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
@@ -165,6 +166,16 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Override
     public QueryBuilder filter() {
         return filter;
+    }
+
+    public EsqlQueryRequest approximate(boolean approximate) {
+        this.approximate = approximate;
+        return this;
+    }
+
+    @Override
+    public boolean approximate() {
+        return approximate;
     }
 
     public EsqlQueryRequest pragmas(QueryPragmas pragmas) {

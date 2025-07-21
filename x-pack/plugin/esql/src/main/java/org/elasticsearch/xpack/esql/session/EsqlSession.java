@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.approximate.Approximate;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -243,9 +244,22 @@ public class EsqlSession {
             // code-path to execute subplans
             executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
         } else {
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-            // execute main plan
-            runner.run(physicalPlan, listener);
+            if (request.approximate()) {
+                Approximate approximate = new Approximate(optimizedPlan);
+                runner.run(
+                    logicalPlanToPhysicalPlan(optimizedPlan(approximate.countPlan()), request),
+                    listener.delegateFailureAndWrap(
+                        (countListener, countResult) -> runner.run(
+                            logicalPlanToPhysicalPlan(optimizedPlan(approximate.approximatePlan(countResult)), request),
+                            listener
+                        )
+                    )
+                );
+            } else {
+                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+                // execute main plan
+                runner.run(physicalPlan, listener);
+            }
         }
     }
 

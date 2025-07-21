@@ -48,9 +48,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/116781
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561

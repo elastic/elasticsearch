@@ -222,4 +222,32 @@ final class ValuesBytesRefAggregators {
             }
         }
     }
+
+    static void combineIntermediateInputValues(
+        ValuesBytesRefAggregator.GroupingState state,
+        int positionOffset,
+        IntBlock groupIds,
+        BytesRefBlock values
+    ) {
+        final BytesRef scratch = new BytesRef();
+        for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+            if (groupIds.isNull(groupPosition)) {
+                continue;
+            }
+            int groupStart = groupIds.getFirstValueIndex(groupPosition);
+            int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+            for (int g = groupStart; g < groupEnd; g++) {
+                if (values.isNull(groupPosition + positionOffset)) {
+                    continue;
+                }
+                int groupId = groupIds.getInt(g);
+                int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+                int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+                for (int v = valuesStart; v < valuesEnd; v++) {
+                    var bytes = values.getBytesRef(v, scratch);
+                    state.addValue(groupId, bytes);
+                }
+            }
+        }
+    }
 }

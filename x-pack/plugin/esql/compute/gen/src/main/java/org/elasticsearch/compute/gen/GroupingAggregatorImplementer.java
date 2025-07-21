@@ -58,6 +58,7 @@ import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_A
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_ARRAY_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BIG_ARRAY_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
@@ -615,7 +616,8 @@ public class GroupingAggregatorImplementer {
             requireName("combineIntermediate"),
             requireArgs(
                 Stream.concat(
-                    Stream.of(aggState.declaredType(), TypeName.INT, INT_VECTOR), // aggState, positionOffset, groupIds
+                    // aggState, positionOffset, groupIds
+                    Stream.of(aggState.declaredType(), TypeName.INT, groupsIsBlock ? INT_BLOCK : INT_VECTOR),
                     intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::combineArgType)
                 ).map(Methods::requireType).toArray(Methods.TypeMatcher[]::new)
             )
@@ -626,7 +628,9 @@ public class GroupingAggregatorImplementer {
                 .collect(Collectors.joining(", "));
             builder.addStatement("$T.combineIntermediate(state, positionOffset, groups, " + states + ")", declarationType);
         } else {
-            if (intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+            if (intermediateState.stream()
+                .map(AggregatorImplementer.IntermediateStateDesc::elementType)
+                .anyMatch(n -> n.equals("BYTES_REF"))) {
                 builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
             }
             builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");

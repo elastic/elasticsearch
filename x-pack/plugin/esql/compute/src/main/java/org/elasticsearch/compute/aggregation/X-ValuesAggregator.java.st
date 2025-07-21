@@ -118,6 +118,10 @@ $if(BytesRef)$
         ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntBlock groups, $Type$Block values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
+    }
+
 $else$
     public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);

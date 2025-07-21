@@ -108,12 +108,29 @@ public final class NlpHelpers {
     }
 
     /**
-     * Applies SPLADE max pooling to the input vector.
+     * Calculates the SPLADE value for a given input.
      * @param value
      * @return
      */
-    static double spladeMaxPooling(double value) {
+    static double calculateSpladeValue(double value) {
         return Math.log(1 + Math.max(0, value));
+    }
+
+    /**
+     * Applies SPLADE max pooling.
+     * @param embedding Embeddings from the model. Dimensions: [num_tokens][num_vocabulary]
+     * @return pooled[num_vocabulary]
+     */
+    static double[] spladeMaxPooling(double[][] embedding) {
+        int numTokens = embedding.length;
+        int numVocabulary = embedding[0].length;
+        double[] pooled = new double[embedding[0].length];
+        for (int tokenIndex = 0; tokenIndex < numTokens; tokenIndex++) {
+            for (int vocabIndex = 0; vocabIndex < embedding[tokenIndex].length; vocabIndex++) {
+                pooled[vocabIndex] = Math.max(pooled[vocabIndex], calculateSpladeValue(embedding[tokenIndex][vocabIndex]));
+            }
+        }
+        return pooled;
     }
 
     public static class ScoreAndIndex {

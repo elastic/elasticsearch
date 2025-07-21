@@ -83,9 +83,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
 
             // For SPLADE models, the second dimension of the inference result is for each token in the input.
             var weightedTokens = new ArrayList<WeightedToken>();
-            for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
-                spladeVectorToTokenWeights(weightedTokens, pyTorchResult.getInferenceResult()[0][i], tokenization, replacementVocab);
-            }
+            spladeVectorToTokenWeights(weightedTokens, pyTorchResult.getInferenceResult()[0], tokenization, replacementVocab);
             weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
             return new TextExpansionResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
@@ -137,23 +135,20 @@ public class TextExpansionProcessor extends NlpTask.Processor {
      * The SPLADE model uses max pooling, so we apply that to the scores.
      *
      * @param weightedTokens The list to populate with weighted tokens. Updated in place.
-     * @param vector The SPLADE vector.
+     * @param embedding The SPLADE embedding ([token][vocab]).
      * @param tokenization The tokenization result containing the vocabulary.
      * @param replacementVocab A map of token IDs to their replacements, if any.
      */
     static void spladeVectorToTokenWeights(
         List<WeightedToken> weightedTokens,
-        double[] vector,
+        double[][] embedding,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
     ) {
-        // Anything with a score > 0.0 is retained.
-        for (int i = 0; i < vector.length; i++) {
-            if (vector[i] > 0.0) {
-                double maxPool = NlpHelpers.spladeMaxPooling(vector[i]);
-                if (maxPool > 0.0) {
-                    weightedTokens.add(new WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) maxPool));
-                }
+        double[] spladeResult = NlpHelpers.spladeMaxPooling(embedding);
+        for (int i = 0; i < spladeResult.length; i++) {
+            if (spladeResult[i] > 0.0) {
+                weightedTokens.add(new WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) spladeResult[i]));
             }
         }
     }

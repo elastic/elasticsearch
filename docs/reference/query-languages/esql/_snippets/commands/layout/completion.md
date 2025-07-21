@@ -5,8 +5,7 @@ serverless: preview
 stack: preview 9.1.0
 ```
 
-The `COMPLETION` processing command provides a general-purpose interface for
-text generation using a Large Language Model (LLM) in ES|QL.
+`COMPLETION` provides a general-purpose interface for text generation using a Large Language Model (LLM) in ES|QL.
 
 **Syntax**
 
@@ -31,7 +30,7 @@ COMPLETION [column =] prompt WITH inference_id
 
 **Description**
 
-The `COMPLETION` processing command provides a general-purpose interface for
+The `COMPLETION`  command provides a general-purpose interface for
 text generation using a Large Language Model (LLM) in ES|QL.
 
 `COMPLETION`supports a wide range of text generation tasks. Depending on your

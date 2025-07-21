@@ -382,55 +382,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    /**
-     * Pretends to be the {@link OrdinalsGroupingOperator} but always delegates to the
-     * {@link HashAggregationOperator}.
-     */
-    private class TestOrdinalsGroupingAggregationOperatorFactory implements Operator.OperatorFactory {
-        private final int groupByChannel;
-        private final List<GroupingAggregator.Factory> aggregators;
-        private final ElementType groupElementType;
-        private final BigArrays bigArrays;
-        private final Attribute attribute;
-
-        TestOrdinalsGroupingAggregationOperatorFactory(
-            int channelIndex,
-            List<GroupingAggregator.Factory> aggregatorFactories,
-            ElementType groupElementType,
-            BigArrays bigArrays,
-            Attribute attribute
-        ) {
-            this.groupByChannel = channelIndex;
-            this.aggregators = aggregatorFactories;
-            this.groupElementType = groupElementType;
-            this.bigArrays = bigArrays;
-            this.attribute = attribute;
-        }
-
-        @Override
-        public Operator get(DriverContext driverContext) {
-            Random random = Randomness.get();
-            int pageSize = random.nextBoolean() ? randomIntBetween(random, 1, 16) : randomIntBetween(random, 1, 10 * 1024);
-            List<BlockHash.GroupSpec> groups = List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType));
-            return new TestHashAggregationOperator(
-                groups,
-                aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), pageSize, false),
-                attribute,
-                driverContext
-            );
-        }
-
-        @Override
-        public String describe() {
-            return "TestHashAggregationOperator(mode = "
-                + "<not-needed>"
-                + ", aggs = "
-                + aggregators.stream().map(Describable::describe).collect(joining(", "))
-                + ")";
-        }
-    }
-
     private Block extractBlockForColumn(
         DocBlock docBlock,
         DataType dataType,

@@ -7,18 +7,24 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,6 +44,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -293,7 +301,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding = DatetimeEmptyBucketGenerator.determineRounding(
+            Rounding.Prepared preparedRounding = getDateRounding(
                 field,
                 buckets,
                 from,
@@ -303,7 +311,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double roundTo = NumericEmptyBucketGenerator.determineRounding(buckets, from, to, toEvaluator.foldCtx());
+            double roundTo = determineRounding(buckets, from, to, toEvaluator.foldCtx());
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
@@ -333,17 +341,31 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
      */
     public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            return DatetimeEmptyBucketGenerator.determineRounding(field, buckets, from, to, foldCtx);
+            return getDateRounding(field, buckets, from, to, foldCtx);
         } else {
             return null;
         }
     }
 
-    private Rounding.Prepared getDateRounding(FoldContext foldContext) {
-        return getDateRounding(foldContext, null, null);
+    private static Rounding.Prepared getDateRounding(
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        FoldContext foldContext
+    ) {
+        return getDateRounding(field, buckets, from, to, foldContext, null, null);
     }
 
-    private Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
+    private static Rounding.Prepared getDateRounding(
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        FoldContext foldContext,
+        Long min,
+        Long max
+    ) {
         assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
         if (buckets.dataType().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();
@@ -390,7 +412,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
     }
 
-    private double pickRounding(int buckets, double from, double to) {
+    static double determineRounding(Expression buckets, Expression from, Expression to, FoldContext foldContext) {
+        if (from != null) {
+            int b = ((Number) buckets.fold(foldContext)).intValue();
+            double f = ((Number) from.fold(foldContext)).doubleValue();
+            double t = ((Number) to.fold(foldContext)).doubleValue();
+            return pickRounding(b, f, t);
+        } else {
+            return ((Number) buckets.fold(foldContext)).doubleValue();
+        }
+    }
+
+    private static double pickRounding(int buckets, double from, double to) {
         double precise = (to - from) / buckets;
         double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
         double halfPower = nextPowerOfTen / 2;
@@ -488,6 +521,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             .add(to != null ? isFoldable(to, operation, FOURTH) : null);
     }
 
+    private static long foldToLong(FoldContext ctx, Expression e) {
+        Object value = Foldables.valueOf(ctx, e);
+        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+    }
+
     @Override
     public DataType dataType() {
         if (field.dataType().isNumeric()) {
@@ -554,7 +592,61 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             field(),
             buckets(),
             searchStats,
-            (interval, minValue, maxValue) -> getDateRounding(FoldContext.small(), minValue, maxValue)
+            (interval, minValue, maxValue) -> getDateRounding(field, buckets, from, to, FoldContext.small(), minValue, maxValue)
         );
+    }
+
+    record DatetimeEmptyBucketGenerator(long from, long to, Rounding.Prepared rounding) implements BlockHash.EmptyBucketGenerator {
+
+        DatetimeEmptyBucketGenerator(Expression field, Expression buckets, Expression from, Expression to, FoldContext foldContext) {
+            this(foldToLong(foldContext, from), foldToLong(foldContext, to), getDateRounding(field, buckets, from, to, foldContext));
+        }
+
+        @Override
+        public int getEmptyBucketCount() {
+            int i = 0;
+            for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
+                i++;
+            }
+            return i;
+        }
+
+        @Override
+        public void generate(Block.Builder blockBuilder) {
+            for (long bucket = rounding.round(from); bucket < to; bucket = rounding.nextRoundingValue(bucket)) {
+                ((LongBlock.Builder) blockBuilder).appendLong(bucket);
+            }
+        }
+    }
+
+    record NumericEmptyBucketGenerator(double from, double to, double roundTo) implements BlockHash.EmptyBucketGenerator {
+
+        NumericEmptyBucketGenerator(Expression buckets, Expression from, Expression to, FoldContext foldContext) {
+            this(
+                ((Number) from.fold(foldContext)).doubleValue(),
+                ((Number) to.fold(foldContext)).doubleValue(),
+                determineRounding(buckets, from, to, foldContext)
+            );
+        }
+
+        @Override
+        public int getEmptyBucketCount() {
+            int i = 0;
+            for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(bucket + roundTo, 2)) {
+                i++;
+            }
+            return i;
+        }
+
+        @Override
+        public void generate(Block.Builder blockBuilder) {
+            for (double bucket = round(Math.floor(from / roundTo) * roundTo, 2); bucket < to; bucket = round(bucket + roundTo, 2)) {
+                ((DoubleBlock.Builder) blockBuilder).appendDouble(bucket);
+            }
+        }
+
+        private static double round(double value, int n) {
+            return new BigDecimal(value).setScale(n, RoundingMode.HALF_UP).doubleValue();
+        }
     }
 }

@@ -146,21 +146,20 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public record GroupSpec(
         int channel,
         ElementType elementType,
-        boolean isCategorize,
         @Nullable CategorizeDef categorizeDef,
         @Nullable TopNDef topNDef,
         @Nullable EmptyBucketGenerator emptyBucketGenerator
     ) {
         public GroupSpec(int channel, ElementType elementType) {
-            this(channel, elementType, null);
+            this(channel, elementType, null, null, null);
         }
 
         public GroupSpec(int channel, ElementType elementType, CategorizeDef categorizeDef) {
-            this(channel, elementType, categorizeDef, null);
+            this(channel, elementType, categorizeDef, null, null);
         }
 
         public GroupSpec(int channel, ElementType elementType, EmptyBucketGenerator emptyBucketGenerator) {
-            this(channel, elementType, false, null, emptyBucketGenerator);
+            this(channel, elementType, null, null, emptyBucketGenerator);
         }
 
         public boolean isCategorize() {

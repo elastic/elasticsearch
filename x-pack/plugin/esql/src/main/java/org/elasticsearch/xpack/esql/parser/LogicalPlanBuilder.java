@@ -634,6 +634,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
+        var matchFieldsCount = joinFields.size();
+        if (matchFieldsCount > 1) {
+            Set<String> matchFieldNames = new LinkedHashSet<>();
+            for (Attribute field : joinFields) {
+                if (matchFieldNames.add(field.name()) == false) {
+                    throw new ParsingException(
+                        field.source(),
+                        "JOIN ON clause does not support multiple fields with the same name, found multiple instances of [{}]",
+                        field.name()
+                    );
+                }
+
+            }
+        }
+
         return p -> {
             boolean hasRemotes = p.anyMatch(node -> {
                 if (node instanceof UnresolvedRelation r) {

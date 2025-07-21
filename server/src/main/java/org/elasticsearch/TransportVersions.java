@@ -346,7 +346,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_LLAMA_ADDED = def(9_125_0_00);
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = def(9_126_0_00);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

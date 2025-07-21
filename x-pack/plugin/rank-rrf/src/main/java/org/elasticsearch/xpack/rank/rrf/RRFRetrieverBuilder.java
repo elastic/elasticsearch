@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -22,7 +24,9 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder.RetrieverSource;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -88,7 +92,20 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RRFRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (XContentParser p, RetrieverParserContext c) -> {
+            List<String> fields = new ArrayList<>();
+            if (p.currentToken() == null) {
+                p.nextToken();
+            }
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                String field = p.text();
+                if (field.contains("^")) {
+                    throw new ElasticsearchParseException("[" + NAME + "] does not support per-field weights in [fields]");
+                }
+                fields.add(field);
+            }
+            return fields;
+        }, FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RankBuilder.RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);
@@ -288,17 +305,18 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             );
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
-                // TODO: This is a incomplete solution as it does not address other incomplete copy issues
-                // (such as dropping the retriever name and min score)
-                List<RetrieverSource> sources = new ArrayList<>();
-                float[] weights = new float[fieldsInnerRetrievers.size()];
+                int size = fieldsInnerRetrievers.size();
+                List<RetrieverSource> sources = new ArrayList<>(size);
+                float[] weights = new float[size];
                 Arrays.fill(weights, RRFRetrieverComponent.DEFAULT_WEIGHT);
-                for (int i = 0; i < fieldsInnerRetrievers.size(); i++) {
+                for (int i = 0; i < size; i++) {
                     sources.add(RetrieverSource.from(fieldsInnerRetrievers.get(i)));
                     weights[i] = RRFRetrieverComponent.DEFAULT_WEIGHT;
                 }
                 rewritten = new RRFRetrieverBuilder(sources, null, null, rankWindowSize, rankConstant, weights);
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
+            } else {
+                return new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
 

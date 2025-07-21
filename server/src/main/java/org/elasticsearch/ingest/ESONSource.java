@@ -443,7 +443,10 @@ public class ESONSource {
 
             @Override
             public Object getValue() {
-                if (shouldComputeValue && valueComputed == false) {
+                if (shouldComputeValue == false) {
+                    // assert valueComputed == false;
+                    return type;
+                } else if (valueComputed == false) {
                     if (type == null) {
                         cachedValue = null;
                     } else if (type instanceof Mutation mutation) {

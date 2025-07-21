@@ -250,15 +250,17 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     // Helper method to materialize the current value on demand
     private Object getCurrentValue() {
+        // TODO: Could probably optimize to not box all the numbers
         if (valueComputed == false) {
-            currentValue = materializeValue(currentEsonType);
+            currentValue = materializeValue();
             valueComputed = true;
         }
         return currentValue;
     }
 
     // Helper method to materialize a value from an ESON type
-    private Object materializeValue(ESONSource.Type esonType) {
+    private Object materializeValue() {
+        ESONSource.Type esonType = currentEsonType;
         if (esonType == null) {
             return null;
         } else if (esonType instanceof ESONSource.ESONObject obj) {
@@ -394,11 +396,13 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public Object objectText() throws IOException {
+        getCurrentValue();
         return currentValue;
     }
 
     @Override
     public Object objectBytes() throws IOException {
+        getCurrentValue();
         return currentValue;
     }
 
@@ -424,6 +428,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public Number numberValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Number num) {
             return num;
         }
@@ -432,6 +437,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public NumberType numberType() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Integer) {
             return NumberType.INT;
         } else if (currentValue instanceof Long) {
@@ -446,6 +452,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Boolean bool) {
             return bool;
         }
@@ -454,6 +461,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     protected short doShortValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.shortValue();
         }
@@ -462,6 +470,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     protected int doIntValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.intValue();
         }
@@ -470,6 +479,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     protected long doLongValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.longValue();
         }
@@ -478,6 +488,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     protected float doFloatValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.floatValue();
         }
@@ -486,6 +497,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     protected double doDoubleValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.doubleValue();
         }
@@ -494,6 +506,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public byte[] binaryValue() throws IOException {
+        getCurrentValue();
         if (currentValue instanceof byte[] bytes) {
             return bytes;
         }

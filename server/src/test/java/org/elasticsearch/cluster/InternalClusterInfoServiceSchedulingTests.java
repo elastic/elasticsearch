@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.allocation.NodeUsageStatsForThreadPoolsMonitor;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -98,8 +98,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             mockEstimatedHeapUsageCollector,
             mockNodeUsageStatsForThreadPoolsCollector
         );
-        final NodeUsageStatsForThreadPoolsMonitor usageMonitor = spy(
-            new NodeUsageStatsForThreadPoolsMonitor(
+        final WriteLoadConstraintMonitor usageMonitor = spy(
+            new WriteLoadConstraintMonitor(
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,

@@ -29,14 +29,14 @@ import java.util.function.Supplier;
  *
  * TODO (ES-11992): implement
  */
-public class NodeUsageStatsForThreadPoolsMonitor {
-    private static final Logger logger = LogManager.getLogger(NodeUsageStatsForThreadPoolsMonitor.class);
+public class WriteLoadConstraintMonitor {
+    private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
 
-    public NodeUsageStatsForThreadPoolsMonitor(
+    public WriteLoadConstraintMonitor(
         ClusterSettings clusterSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,

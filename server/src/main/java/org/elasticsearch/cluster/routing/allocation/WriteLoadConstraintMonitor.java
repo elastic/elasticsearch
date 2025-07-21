@@ -24,7 +24,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Monitors the node-level thread pool usage across the cluster and initiates (coming soon) a rebalancing round (via
+ * Monitors the node-level write thread pool usage across the cluster and initiates (coming soon) a rebalancing round (via
  * {@link RerouteService#reroute}) whenever a node crosses the node-level write load thresholds.
  *
  * TODO (ES-11992): implement

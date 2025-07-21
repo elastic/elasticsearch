@@ -237,7 +237,14 @@ public class SampleOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.onOrAfter(TransportVersions.ESQL_SAMPLE_OPERATOR_STATUS)
+                || version.isPatchFrom(TransportVersions.ESQL_SAMPLE_OPERATOR_STATUS_9_1);
         }
     }
 }

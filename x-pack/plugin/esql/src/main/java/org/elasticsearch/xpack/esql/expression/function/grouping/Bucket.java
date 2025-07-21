@@ -301,13 +301,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding = getDateRounding(
-                field,
-                buckets,
-                from,
-                to,
-                toEvaluator.foldCtx()
-            );
+            Rounding.Prepared preparedRounding = getDateRounding(field, buckets, from, to, toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {

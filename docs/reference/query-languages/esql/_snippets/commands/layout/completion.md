@@ -18,23 +18,23 @@ COMPLETION [column =] prompt WITH inference_id
 `column`
 :   (Optional) The name of the output column containing the LLM's response.
     If not specified, the results will be stored in a column named `completion`.
-    If the specified column already exists, it will be overwritten with the new completion results.
+    If the specified column already exists, it will be overwritten with the new results.
 
 `prompt`
-:   The input text or expression that will be used as the prompt for the completion.
+:   The input text or expression used to prompt the LLM.
     This can be a string literal or a reference to a column containing text.
 
 `inference_id`
-:   The ID of the inference endpoint to use for text completion.
+:   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
 **Description**
 
 The `COMPLETION`  command provides a general-purpose interface for
-text generation using a Large Language Model (LLM) in ES|QL.
+text generation tasks using a Large Language Model (LLM) in ES|QL.
 
-`COMPLETION`supports a wide range of text generation tasks. Depending on your
-prompt and the model you use, you can perform arbitrary text generation,
+`COMPLETION` supports a wide range of text generation tasks. Depending on your
+prompt and the model you use, you can perform arbitrary text generation tasks
 including:
 
 - Question answering
@@ -42,7 +42,6 @@ including:
 - Translation
 - Content rewriting
 - Creative generation
-- ...
 
 The command works with any LLM deployed to
 the [Elasticsearch inference API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)

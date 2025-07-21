@@ -5,7 +5,7 @@ serverless: preview
 stack: preview 9.1.0
 ```
 
-`COMPLETION` provides a general-purpose interface for text generation using a Large Language Model (LLM) in ES|QL.
+The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.
 
 **Syntax**
 

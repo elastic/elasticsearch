@@ -796,7 +796,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     SparseVectorFieldMapper.SparseVectorIndexOptions applied = sparseVectorFieldMapper.fieldType().getIndexOptions();
                     SparseVectorFieldMapper.SparseVectorIndexOptions expected = expectedIndexOptions == null
                         ? SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
-                        : (SparseVectorFieldMapper.SparseVectorIndexOptions)expectedIndexOptions.indexOptions();
+                        : (SparseVectorFieldMapper.SparseVectorIndexOptions) expectedIndexOptions.indexOptions();
                     assertEquals(expected, applied);
                 }
                 case TEXT_EMBEDDING -> {

@@ -30,6 +30,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -163,7 +164,11 @@ public class SageMakerService implements InferenceService {
         }
 
         if (timeout == null) {
-            timeout = clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
+            if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
+                timeout = clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
+            } else {
+                timeout = InferenceAction.Request.DEFAULT_TIMEOUT;
+            }
         }
 
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);

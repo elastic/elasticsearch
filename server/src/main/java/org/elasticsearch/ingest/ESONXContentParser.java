@@ -24,6 +24,7 @@ import java.nio.CharBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -64,23 +65,35 @@ public class ESONXContentParser extends AbstractXContentParser {
     private boolean closed = false;
 
     private static class ParseContext {
-        final Type type;
-        final Iterator<?> iterator;
-        final Object rawObject; // Keep reference to raw ESON object for optimization
+        private final Type type;
+        private final Iterator<?> iterator;
+        private final boolean isMutation;
         boolean expectingValue = false;
 
         // For objects - use non-materializing iterator
         ParseContext(ESONSource.ESONObject obj) {
             this.type = Type.OBJECT;
             this.iterator = obj.entrySet(false).iterator();
-            this.rawObject = obj;
+            this.isMutation = false;
         }
 
         // For arrays - use non-materializing iterator
         ParseContext(ESONSource.ESONArray arr) {
             this.type = Type.ARRAY;
             this.iterator = arr.iterator(false);
-            this.rawObject = arr;
+            this.isMutation = false;
+        }
+
+        ParseContext(Map<String, Object> map) {
+            this.type = Type.OBJECT;
+            this.iterator = map.entrySet().iterator();
+            this.isMutation = true;
+        }
+
+        ParseContext(List<Object> list) {
+            this.type = Type.ARRAY;
+            this.iterator = list.iterator();
+            this.isMutation = true;
         }
 
         enum Type {
@@ -100,6 +113,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         this.values = root.objectValues().get();
         // Start with the root object context
         this.currentContext = new ParseContext(root);
+        contextStack.addFirst(currentContext);
         this.xContentType = xContentType;
         this.currentToken = null; // Will be set to START_OBJECT on first nextToken()
     }
@@ -123,7 +137,6 @@ public class ESONXContentParser extends AbstractXContentParser {
         if (currentToken == null) {
             // First call - return START_OBJECT for root
             currentToken = Token.START_OBJECT;
-            contextStack.addFirst(currentContext);
             return currentToken;
         }
 
@@ -150,16 +163,20 @@ public class ESONXContentParser extends AbstractXContentParser {
         } else {
             // Try to get next field - now working with raw types
             @SuppressWarnings("unchecked")
-            Iterator<Map.Entry<String, ESONSource.Type>> objIter = (Iterator<Map.Entry<String, ESONSource.Type>>) currentContext.iterator;
+            Iterator<Map.Entry<String, Object>> objIter = (Iterator<Map.Entry<String, Object>>) currentContext.iterator;
 
             if (objIter.hasNext()) {
-                Map.Entry<String, ESONSource.Type> entry = objIter.next();
-                currentFieldName = entry.getKey();
-                currentEsonType = entry.getValue();
-
                 // Reset value computation state
                 currentValue = null;
                 valueComputed = false;
+
+                Map.Entry<String, Object> entry = objIter.next();
+                currentFieldName = entry.getKey();
+                if (currentContext.isMutation) {
+                    currentEsonType = new ESONSource.Mutation(entry.getValue());
+                } else {
+                    currentEsonType = (ESONSource.Type) entry.getValue();
+                }
 
                 currentContext.expectingValue = true;
                 currentToken = Token.FIELD_NAME;
@@ -173,14 +190,19 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     private Token advanceArrayToken() {
         @SuppressWarnings("unchecked")
-        Iterator<ESONSource.Type> arrIter = (Iterator<ESONSource.Type>) currentContext.iterator;
+        Iterator<Object> arrIter = (Iterator<Object>) currentContext.iterator;
 
         if (arrIter.hasNext()) {
-            currentEsonType = arrIter.next();
-
             // Reset value computation state
             currentValue = null;
             valueComputed = false;
+
+            Object next = arrIter.next();
+            if (currentContext.isMutation) {
+                currentEsonType = new ESONSource.Mutation(next);
+            } else {
+                currentEsonType = (ESONSource.Type) next;
+            }
 
             return emitValue(currentEsonType);
         } else {
@@ -196,18 +218,19 @@ public class ESONXContentParser extends AbstractXContentParser {
         return currentToken;
     }
 
+    @SuppressWarnings("unchecked")
     private Token emitValue(ESONSource.Type esonType) {
         if (esonType == null) {
             currentToken = Token.VALUE_NULL;
         } else if (esonType instanceof ESONSource.ESONObject obj) {
             // Push new object context
-            contextStack.addFirst(currentContext);
             currentContext = new ParseContext(obj);
+            contextStack.addFirst(currentContext);
             currentToken = Token.START_OBJECT;
         } else if (esonType instanceof ESONSource.ESONArray arr) {
             // Push new array context
-            contextStack.addFirst(currentContext);
             currentContext = new ParseContext(arr);
+            contextStack.addFirst(currentContext);
             currentToken = Token.START_ARRAY;
         } else if (esonType instanceof ESONSource.FixedValue fixedVal) {
             currentToken = Token.VALUE_NUMBER;
@@ -233,13 +256,13 @@ public class ESONXContentParser extends AbstractXContentParser {
                 currentToken = Token.VALUE_BOOLEAN;
             } else if (mutatedValue instanceof byte[]) {
                 currentToken = Token.VALUE_EMBEDDED_OBJECT;
-            } else if (mutatedValue instanceof ESONSource.ESONObject obj) {
+            } else if (mutatedValue instanceof Map) {
+                currentContext = new ParseContext((Map<String, Object>) mutatedValue);
                 contextStack.addFirst(currentContext);
-                currentContext = new ParseContext(obj);
                 currentToken = Token.START_OBJECT;
-            } else if (mutatedValue instanceof ESONSource.ESONArray arr) {
+            } else if (mutatedValue instanceof List) {
+                currentContext = new ParseContext((List<Object>) mutatedValue);
                 contextStack.addFirst(currentContext);
-                currentContext = new ParseContext(arr);
                 currentToken = Token.START_ARRAY;
             } else {
                 throw new IllegalStateException("Unknown mutation value type: " + mutatedValue.getClass());

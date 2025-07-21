@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -47,7 +46,6 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -61,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -139,8 +138,7 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-
-    private volatile DataPartitioning defaultDataPartitioning;
+    private final PhysicalSettings physicalSettings;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -179,7 +177,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
-        clusterService.getClusterSettings().initializeAndWatch(EsqlPlugin.DEFAULT_DATA_PARTITIONING, v -> this.defaultDataPartitioning = v);
+        this.physicalSettings = new PhysicalSettings(clusterService);
     }
 
     public void execute(
@@ -549,9 +547,6 @@ public class ComputeService {
      * which doesn't consider the failures from the remote clusters when skip_unavailable is true.
      */
     static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
-        if (EsqlCapabilities.Cap.FAIL_IF_ALL_SHARDS_FAIL.isEnabled() == false) {
-            return;
-        }
         // do not fail if any final result has results
         if (finalResults.stream().anyMatch(p -> p.getPositionCount() > 0)) {
             return;
@@ -612,7 +607,7 @@ public class ComputeService {
             context.foldCtx(),
             contexts,
             searchService.getIndicesService().getAnalysis(),
-            defaultDataPartitioning
+            physicalSettings
         );
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

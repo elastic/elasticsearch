@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.nio.charset.StandardCharsets;
@@ -78,7 +79,7 @@ public class ErrorResponse {
      * @return an ErrorResponse instance
      */
     public static ErrorResponse fromString(String response) {
-        if (Objects.nonNull(response) && response.isBlank() == false) {
+        if (Strings.isNullOrBlank(response) == false) {
             return new ErrorResponse(response);
         } else {
             return ErrorResponse.UNDEFINED_ERROR;

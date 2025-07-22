@@ -194,7 +194,7 @@ This section lists the privileges that you can assign to a role.
 :   All cluster read-only operations, like cluster health and state, hot threads, node info, node and cluster stats, and pending cluster tasks.
 
 `monitor_data_stream_global_retention`
-:   This privilege has no effect.
+:   This privilege has no effect.[8.16]
 
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.

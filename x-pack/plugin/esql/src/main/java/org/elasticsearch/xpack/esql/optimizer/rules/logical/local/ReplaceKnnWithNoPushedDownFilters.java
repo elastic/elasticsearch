@@ -42,11 +42,11 @@ import static org.elasticsearch.xpack.esql.planner.PlannerUtils.usesScoring;
 /**
  * Break TopN back into Limit + OrderBy to allow the order rules to kick in.
  */
-public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRules.OptimizerRule<Filter> {
+public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerRule<Filter> {
 
     public static final String EXACT_SCORE_ATTR_NAME = "knn_score";
 
-    public ReplaceKnnWithNoPushedDownFiltersWithEvalTopN() {
+    public ReplaceKnnWithNoPushedDownFilters() {
         super(UP);
     }
 
@@ -69,13 +69,13 @@ public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRule
                 .toList();
             // Use the original filter, changing knn to exact queries
             scoringPlan = filter.with(
-                filter.condition().transformDown(Knn.class, ReplaceKnnWithNoPushedDownFiltersWithEvalTopN::replaceKnnByExactQuery)
+                filter.condition().transformDown(Knn.class, ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery)
             );
         } else {
             // Replace knn with scoring expressions of exact queries
             List<Expression> exactQueries = knnQueries.get()
                 .stream()
-                .map(ReplaceKnnWithNoPushedDownFiltersWithEvalTopN::replaceKnnByExactQuery)
+                .map(ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery)
                 .toList();
             assert exactQueries.isEmpty() == false;
 

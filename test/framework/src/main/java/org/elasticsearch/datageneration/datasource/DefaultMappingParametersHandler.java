@@ -261,7 +261,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> matchOnlyTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> matchOnlyTextMapping(
+        boolean hasParent,
+        DataSourceRequest.LeafMappingParametersGenerator request
+    ) {
         return () -> {
             var mapping = new HashMap<String, Object>();
             if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {

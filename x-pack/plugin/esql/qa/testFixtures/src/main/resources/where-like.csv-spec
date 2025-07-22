@@ -534,6 +534,114 @@ emp_no:integer | first_name:keyword
 10055          | Georgy    
 ;
 
+likeListWithUpperAllLower
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("geor*", "wei*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+likeListWithUpperAllUpper
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("GEOR*", "WEI*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10040          | Weiyi
+10055          | Georgy
+;
+
+likeListWithUpperMixedCase
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("GeOr*", "wEiY*", "bErNi")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+likeListWithUpperMultiplePatternsMixedCase
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("geor*", "WEIYI*", "bErnI*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10040          | Weiyi
+;
+
+likeListWithUpperNoMatch
+required_capability: like_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) LIKE ("notaname*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+rlikeListWithUpperAllLower
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("geor.*", "wei.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+rlikeListWithUpperAllUpper
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("GEOR.*", "WEI.*")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10040          | Weiyi
+10055          | Georgy
+;
+
+rlikeListWithUpperMixedCase
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("GeOr.*", "wEiY.*", "bErNi")
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
+rlikeListWithUpperMultiplePatternsMixedCase
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("geor*", "WEIYI.*", "bErnI.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+10040          | Weiyi
+;
+
+rlikeListWithUpperNoMatch
+required_capability: rlike_with_list_of_patterns
+FROM employees 
+| WHERE TO_UPPER(first_name) RLIKE ("notaname.*") 
+| KEEP emp_no, first_name 
+| SORT emp_no;
+
+emp_no:integer | first_name:keyword
+;
+
 rlikeListEmptyArgWildcard
 required_capability: rlike_with_list_of_patterns
 FROM employees 
@@ -1335,4 +1443,27 @@ ROW x = "abc" | EVAL bool = x RLIKE "#"
 
 x:keyword | bool:boolean
 abc       | false
+;
+
+rlikeWithLowerTurnedInsensitiveUnicode#[skip:-8.12.99]
+FROM airport_city_boundaries
+| WHERE TO_UPPER(region) RLIKE ".*Л.*" and abbrev == "FRU"
+| KEEP region
+| LIMIT 1
+;
+
+region:text
+Свердлов району
+;
+
+rlikeListWithLowerTurnedInsensitiveUnicode
+required_capability: rlike_with_list_of_patterns
+FROM airport_city_boundaries
+| WHERE TO_UPPER(region) RLIKE (".*Л.*", ".*NOT EXISTS.*") and abbrev == "FRU"
+| KEEP region
+| LIMIT 1
+;
+
+region:text
+Свердлов району
 ;

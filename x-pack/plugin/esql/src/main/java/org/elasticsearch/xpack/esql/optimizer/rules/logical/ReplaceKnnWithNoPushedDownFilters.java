@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.vector.ExactNN;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
@@ -56,6 +58,20 @@ public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerR
         Holder<List<Knn>> knnQueries = new Holder<>(new ArrayList<>());
         Expression conditionWithoutKnns = condition.transformDown(Knn.class, knn -> replaceNonPushableKnnByTrue(knn, knnQueries));
         if (conditionWithoutKnns.equals(condition)) {
+            return filter;
+        }
+
+        // Check that knn is not part of a disjunction
+        Holder<Boolean> hasNonPushableDisjunctions = new Holder<>(false);
+        filter.condition().forEachDown(Or.class, or -> {
+            or.forEachDown(Knn.class, knn -> {
+                Collection<Expression> nonPushableFilters = knn.nonPushableFilters();
+                if (nonPushableFilters.isEmpty() == false) {
+                    hasNonPushableDisjunctions.set(true);
+                }
+            });
+        });
+        if (hasNonPushableDisjunctions.get()) {
             return filter;
         }
 

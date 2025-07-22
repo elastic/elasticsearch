@@ -40,7 +40,17 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 
 /**
- * Replaces KNN queries with non pushable prefilters used in filters
+ * Replaces KNN queries with non pushable prefilters used in filters.
+ *
+ * A query like:
+ * WHERE knn(field1, [..], 10) AND non-pushable-filter
+ *
+ * Will be replaced with:
+ * | EVAL knn_score = SCORE(exact_nn(field1, [..]))
+ * | WHERE non-pushable-filter
+ * | TOPN 10 knn_score DESC
+ * | WHERE knn_score > 0
+ * | DROP knn_score
  */
 public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerRule<Filter> {
 
@@ -75,10 +85,7 @@ public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerR
         }
 
         // Replace knn with scoring expressions of exact queries
-        List<Expression> exactQueries = knnQueries.get()
-            .stream()
-            .map(ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery)
-            .toList();
+        List<Expression> exactQueries = knnQueries.get().stream().map(ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery).toList();
         assert exactQueries.isEmpty() == false;
 
         // Create an Eval for scoring the exact queries

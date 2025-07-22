@@ -161,7 +161,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
+                    SnapshotHistoryStore.logErrorOrWarning(
+                        clusterService.state(),
+                        () -> format("failed to create snapshot for snapshot lifecycle policy [{}]", policyMetadata.getPolicy().getId()),
+                        e
+                    );
                     final long timestamp = Instant.now().toEpochMilli();
                     submitUnbatchedTask(
                         clusterService,

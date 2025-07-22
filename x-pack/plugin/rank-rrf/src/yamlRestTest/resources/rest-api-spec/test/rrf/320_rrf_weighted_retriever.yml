@@ -1,5 +1,7 @@
 setup:
   - requires:
+      cluster_features: [ "rrf_retriever.weighted_support" ]
+      reason: "RRF retriever Weighted support"
       test_runner_features: [ "contains" ]
   - do:
       indices.create:

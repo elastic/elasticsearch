@@ -1285,8 +1285,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         AssertWarnings assertWarnings,
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
+        var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
         Boolean profileEnabled = requestObject.profile;
-        if (profileLogger != null) {
+        if (isProfileSafe && profileLogger != null) {
             requestObject.profile(true);
         }
         Request request = prepareRequestWithOptions(requestObject, SYNC);
@@ -1318,8 +1319,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         AssertWarnings assertWarnings,
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
+        var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
         Boolean profileEnabled = requestObject.profile;
-        if (profileLogger != null) {
+        if (isProfileSafe && profileLogger != null) {
             requestObject.profile(true);
         }
         addAsyncParameters(requestObject, keepOnCompletion);

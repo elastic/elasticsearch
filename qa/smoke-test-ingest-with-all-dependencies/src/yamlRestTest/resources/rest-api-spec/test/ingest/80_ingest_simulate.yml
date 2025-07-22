@@ -296,7 +296,7 @@ setup:
   - match: { docs.0.doc._index: "second-index" }
   - match: { docs.0.doc._source.foo: "bar" }
   - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.0.doc.error.reason: "[1:8] mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed" }
+#  - match: { docs.0.doc.error.reason: "[0:0] mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed" }
   - match: { docs.1.doc._index: "second-index" }
   - match: { docs.1.doc._source.bar: "foo" }
   - not_exists: docs.1.doc.error

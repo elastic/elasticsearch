@@ -321,6 +321,10 @@ public class ESONSource {
         // TODO: test remove
         @Override
         public Set<Entry<String, Object>> entrySet() {
+            return entrySet(true);
+        }
+
+        public Set<Entry<String, Object>> entrySet(boolean shouldComputeValue) {
             return new AbstractSet<>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
@@ -335,7 +339,7 @@ public class ESONSource {
                         @Override
                         public Entry<String, Object> next() {
                             Map.Entry<String, Type> mapEntry = mapIterator.next();
-                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue());
+                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue(), shouldComputeValue);
                         }
 
                         @Override
@@ -421,11 +425,15 @@ public class ESONSource {
 
         private class LazyEntry implements Entry<String, Object> {
             private final String key;
+            private final Type type;
+            private final boolean shouldComputeValue;
             private Object cachedValue;
             private boolean valueComputed = false;
 
-            LazyEntry(String key, Type type) {
+            LazyEntry(String key, Type type, boolean shouldComputeValue) {
                 this.key = key;
+                this.type = type;
+                this.shouldComputeValue = shouldComputeValue;
             }
 
             @Override
@@ -435,8 +443,17 @@ public class ESONSource {
 
             @Override
             public Object getValue() {
-                if (valueComputed == false) {
-                    cachedValue = ESONObject.this.get(key); // Use the object's get method to handle modifications
+                if (shouldComputeValue == false) {
+                    // assert valueComputed == false;
+                    return type;
+                } else if (valueComputed == false) {
+                    if (type == null) {
+                        cachedValue = null;
+                    } else if (type instanceof Mutation mutation) {
+                        cachedValue = mutation.object();
+                    } else {
+                        cachedValue = convertTypeToValue(type);
+                    }
                     valueComputed = true;
                 }
                 return cachedValue;
@@ -445,7 +462,9 @@ public class ESONSource {
             @Override
             public Object setValue(Object value) {
                 Object oldValue = ESONObject.this.put(key, value);
-                cachedValue = value;
+                if (shouldComputeValue) {
+                    cachedValue = value;
+                }
                 return oldValue;
             }
 
@@ -490,6 +509,18 @@ public class ESONSource {
         public ESONArray(List<Type> elements, Supplier<Values> arrayValues) {
             this.elements = elements;
             this.arrayValues = arrayValues;
+        }
+
+        public Supplier<Values> arrayValues() {
+            return arrayValues;
+        }
+
+        public Iterator<?> iterator(boolean shouldMaterialize) {
+            if (shouldMaterialize) {
+                return super.iterator();
+            } else {
+                return elements.iterator();
+            }
         }
 
         @Override

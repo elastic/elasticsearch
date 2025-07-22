@@ -159,7 +159,8 @@ public class ClusterInfoSimulator {
             dataPath,
             Map.of(),
             estimatedHeapUsages,
-            nodeThreadPoolUsageStats
+            nodeThreadPoolUsageStats,
+            allocation.clusterInfo().getShardWriteLoads()
         );
     }
 }

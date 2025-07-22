@@ -50,6 +50,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
@@ -86,43 +87,53 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         List<LookupIdx> lookupIndices = lookupIndices();
         List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
         CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies);
-        EsqlQueryGenerator.QueryExecuted previousResult = null;
+
         for (int i = 0; i < ITERATIONS; i++) {
-            List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
-            CommandGenerator commandGenerator = EsqlQueryGenerator.sourceCommand();
-            CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), mappingInfo);
-            String command = desc.commandString();
-            EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
-            if (result.exception() != null) {
-                checkException(result);
-                continue;
-            }
-            if (checkResults(List.of(), commandGenerator, desc, null, result).success() == false) {
-                continue;
-            }
-            previousResult = result;
-            previousCommands.add(desc);
-            for (int j = 0; j < MAX_DEPTH; j++) {
-                if (result.outputSchema().isEmpty()) {
-                    break;
+            var exec = new EsqlQueryGenerator.Executor() {
+                @Override
+                public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
+                    previousCommands.add(current);
+                    final String command = current.commandString();
+
+                    final EsqlQueryGenerator.QueryExecuted result = previousResult == null
+                        ? execute(command, 0)
+                        : execute(previousResult.query() + command, previousResult.depth());
+                    previousResult = result;
+
+                    final boolean hasException = result.exception() != null;
+                    if (hasException || checkResults(List.of(), generator, current, previousResult, result).success() == false) {
+                        if (hasException) {
+                            checkException(result);
+                        }
+                        continueExecuting = false;
+                        currentSchema = List.of();
+                    } else {
+                        continueExecuting = true;
+                        currentSchema = result.outputSchema();
+                    }
                 }
-                commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
-                desc = commandGenerator.generate(previousCommands, result.outputSchema(), mappingInfo);
-                if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
-                    continue;
+
+                @Override
+                public List<CommandGenerator.CommandDescription> previousCommands() {
+                    return previousCommands;
                 }
-                command = desc.commandString();
-                result = execute(result.query() + command, result.depth() + 1);
-                if (result.exception() != null) {
-                    checkException(result);
-                    break;
+
+                @Override
+                public boolean continueExecuting() {
+                    return continueExecuting;
                 }
-                if (checkResults(previousCommands, commandGenerator, desc, previousResult, result).success() == false) {
-                    break;
+
+                @Override
+                public List<EsqlQueryGenerator.Column> currentSchema() {
+                    return currentSchema;
                 }
-                previousCommands.add(desc);
-                previousResult = result;
-            }
+
+                boolean continueExecuting;
+                List<EsqlQueryGenerator.Column> currentSchema;
+                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                EsqlQueryGenerator.QueryExecuted previousResult;
+            };
+            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec);
         }
     }
 
@@ -162,7 +173,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
+    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
             Map<String, Object> a = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
@@ -182,7 +193,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
+    private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
         List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
         if (cols == null) {
             return null;

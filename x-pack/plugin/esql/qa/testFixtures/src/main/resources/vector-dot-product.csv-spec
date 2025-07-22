@@ -5,7 +5,6 @@
  
 // tag::vector-dot-product-similarity[]
  from colors
- | where color != "black" 
  | eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
  | sort similarity desc, color asc 
 // end::vector-dot-product-similarity[]

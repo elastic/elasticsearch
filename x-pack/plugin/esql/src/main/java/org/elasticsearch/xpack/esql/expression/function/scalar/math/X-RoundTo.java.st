@@ -35,11 +35,16 @@ class RoundTo$Type$ {
             case 2 -> new RoundTo$Type$2Evaluator.Factory(source, field, f[0], f[1]);
             case 3 -> new RoundTo$Type$3Evaluator.Factory(source, field, f[0], f[1], f[2]);
             case 4 -> new RoundTo$Type$4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
+            case 5 -> new RoundTo$Type$5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
+            case 6 -> new RoundTo$Type$6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
+            case 7 -> new RoundTo$Type$7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
+            case 8 -> new RoundTo$Type$8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+            case 9 -> new RoundTo$Type$9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+            case 10 -> new RoundTo$Type$10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
             /*
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            case 5, 6, 7, 8, 9, 10 -> new RoundTo$Type$LinearSearchEvaluator.Factory(source, field, f);
             default -> new RoundTo$Type$BinarySearchEvaluator.Factory(source, field, f);
         };
     };
@@ -101,5 +106,151 @@ class RoundTo$Type$ {
             return p2;
         }
         return p3;
+    }
+
+    @Evaluator(extraName = "5")
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p3) {
+            return p2;
+        }
+        if (field < p4) {
+            return p3;
+        }
+        return p4;
+    }
+
+    @Evaluator(extraName = "6")
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p4) {
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p5) {
+            return p4;
+        }
+        return p5;
+    }
+
+    @Evaluator(extraName = "7")
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        return p6;
+    }
+
+    @Evaluator(extraName = "8")
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        return p7;
+    }
+
+    @Evaluator(extraName = "9")
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7, @Fixed $type$ p8) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p6) {
+            if (field < p5) {
+                return p4;
+            }
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        return p8;
+    }
+    @Evaluator(extraName = "10")
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7, @Fixed $type$ p8, @Fixed $type$ p9) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p7) {
+            if (field < p5) {
+                return p4;
+            }
+            if (field < p6) {
+                return p5;
+            }
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        if (field < p9) {
+            return p8;
+        }
+        return p9;
     }
 }

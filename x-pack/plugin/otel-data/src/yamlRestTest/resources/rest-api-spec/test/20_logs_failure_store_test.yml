@@ -1,0 +1,73 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: logs-generic.otel-default
+        ignore: 404
+---
+"Test logs-*.otel-* data streams have failure store enabled by default":
+  # Index a valid document (string message).
+  - do:
+      index:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          '@timestamp': '2023-01-01T12:00:00Z'
+          severity_text: "INFO"
+          text: "Application started successfully"
+  - match: { result: created }
+
+  # Assert empty failure store.
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - match: { data_streams.0.name: logs-generic.otel-default }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 0 }
+
+  # Index a document with naming alias, causing an error.
+  - do:
+      index:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          '@timestamp': '2023-01-01T12:01:00Z'
+          severity_text: "ERROR"
+          message: "Application started successfully"
+  - match: { result: 'created' }
+  - match: { failure_store: used}
+
+  # Assert failure store containing 1 item.
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - length: { data_streams.0.failure_store.indices: 1 }
+
+  # Assert valid document.
+  - do:
+      search:
+        index: logs-generic.otel-default::data
+        body:
+          query:
+            match_all: {}
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.severity_text: "INFO" }
+  - match: { hits.hits.0._source.text: "Application started successfully" }
+
+  # Assert invalid document.
+  - do:
+      search:
+        index: logs-generic.otel-default::failures
+        body:
+          query:
+            match_all: {}
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.document.source.severity_text: "ERROR" }
+  - match: { hits.hits.0._source.document.source.message: "Application started successfully" }
+  - match: { hits.hits.0._source.error.type: "document_parsing_exception" }

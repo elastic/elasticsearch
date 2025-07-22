@@ -53,16 +53,16 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public static class CorrectFakeVersion {
-        public static final TransportVersion V_0_00_01 = new TransportVersion(199);
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3);
-        public static final TransportVersion V_0_000_004 = new TransportVersion(4);
+        public static final TransportVersion V_0_00_01 = new TransportVersion(null, 199, null);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(null, 2, null);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(null, 3, null);
+        public static final TransportVersion V_0_000_004 = new TransportVersion(null, 4, null);
     }
 
     public static class DuplicatedIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1);
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
-        public static final TransportVersion V_0_000_003 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_001 = new TransportVersion(null, 1, null);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(null, 2, null);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(null, 2, null);
     }
 
     public void testStaticTransportVersionChecks() {
@@ -219,25 +219,5 @@ public class TransportVersionTests extends ESTestCase {
             }
             previous = next;
         }
-    }
-
-    public void testNamedVersions() {
-        assertEquals(
-            new TransportVersion("esql-split-on-big-values", 9116000, null),
-            TransportVersion.fromName("esql-split-on-big-values")
-        );
-        assertEquals(
-            new TransportVersion("esql-split-on-big-values", 9112001, null),
-            TransportVersion.fromName("esql-split-on-big-values").nextPatchVersion()
-        );
-        assertEquals(
-            new TransportVersion("esql-split-on-big-values", 8841063, null),
-            TransportVersion.fromName("esql-split-on-big-values").nextPatchVersion().nextPatchVersion()
-        );
-        assertEquals(
-            new TransportVersion("ml-inference-azure-ai-studio-rerank-added", 9123000, null),
-            TransportVersion.fromName("ml-inference-azure-ai-studio-rerank-added")
-        );
-        assertEquals(new TransportVersion("esql-topn-timings", 9128000, null), TransportVersion.fromName("esql-topn-timings"));
     }
 }

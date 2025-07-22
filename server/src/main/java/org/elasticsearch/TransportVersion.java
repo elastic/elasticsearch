@@ -69,33 +69,7 @@ import java.util.stream.Collectors;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public class TransportVersion implements VersionId<TransportVersion> {
-
-    private final String name;
-    private final int id;
-    private final TransportVersion nextPatchVersion;
-
-    public TransportVersion(int id) {
-        this(null, id, null);
-    }
-
-    public TransportVersion(String name, int id, TransportVersion patchVersion) {
-        this.name = name;
-        this.id = id;
-        this.nextPatchVersion = patchVersion;
-    }
-
-    public String name() {
-        return name;
-    }
-
-    public int id() {
-        return id;
-    }
-
-    public TransportVersion nextPatchVersion() {
-        return nextPatchVersion;
-    }
+public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField IDS = new ParseField("ids");
@@ -288,7 +262,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
 
     @Override
     public String toString() {
-        return "" + id;
+        return Integer.toString(id);
     }
 
     private static class VersionsHolder {
@@ -332,38 +306,56 @@ public class TransportVersion implements VersionId<TransportVersion> {
         private static Map<String, TransportVersion> loadTransportVersionsByName() {
             Map<String, TransportVersion> transportVersions = new HashMap<>();
 
-            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + "-LATEST.json";
-            int latestId;
+            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".json";
+            int latestId = -1;
             try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
-                TransportVersion latest = fromXContent(inputStream, Integer.MAX_VALUE);
-                if (latest == null) {
-                    throw new IllegalStateException(
-                        "invalid latest transport version for release version [" + Version.CURRENT.major + "." + Version.CURRENT.minor + "]"
-                    );
+                // this check is required until bootstrapping for the new transport versions format is completed;
+                // when load is false, we will only use the transport versions in the legacy format;
+                // load becomes false if we don't find the latest or manifest files required for the new format
+                if (inputStream != null) {
+                    TransportVersion latest = fromXContent(inputStream, Integer.MAX_VALUE);
+                    if (latest == null) {
+                        throw new IllegalStateException(
+                            "invalid latest transport version for release version ["
+                                + Version.CURRENT.major
+                                + "."
+                                + Version.CURRENT.minor
+                                + "]"
+                        );
+                    }
+                    latestId = latest.id();
                 }
-                latestId = latest.id();
             } catch (IOException ioe) {
                 throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
             }
 
-            String manifestLocation = "/transport/generated/generated-transport-versions-files-manifest.txt";
-            List<String> versionFileNames;
-            try (InputStream transportVersionsManifest = TransportVersion.class.getResourceAsStream(manifestLocation)) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(transportVersionsManifest, StandardCharsets.UTF_8));
-                versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
-            } catch (IOException ioe) {
-                throw new UncheckedIOException("transport version manifest file not found at [" + manifestLocation + "]", ioe);
-            }
-
-            for (String name : versionFileNames) {
-                String versionLocation = "/transport/generated/" + name;
-                try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
-                    TransportVersion transportVersion = TransportVersion.fromXContent(inputStream, latestId);
-                    if (transportVersion != null) {
-                        transportVersions.put(transportVersion.name(), transportVersion);
+            String manifestLocation = "/transport/constant/constant-transport-versions-files-manifest.txt";
+            List<String> versionFileNames = null;
+            if (latestId > -1) {
+                try (InputStream inputStream = TransportVersion.class.getResourceAsStream(manifestLocation)) {
+                    if (inputStream == null) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                        versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
                     }
                 } catch (IOException ioe) {
-                    throw new UncheckedIOException("transport version set file not found at [ " + versionLocation + "]", ioe);
+                    throw new UncheckedIOException("transport version manifest file not found at [" + manifestLocation + "]", ioe);
+                }
+            }
+
+            if (versionFileNames != null) {
+                for (String name : versionFileNames) {
+                    String versionLocation = "/transport/constant/" + name;
+                    try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
+                        if (inputStream == null) {
+                            throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");
+                        }
+                        TransportVersion transportVersion = TransportVersion.fromXContent(inputStream, latestId);
+                        if (transportVersion != null) {
+                            transportVersions.put(transportVersion.name(), transportVersion);
+                        }
+                    } catch (IOException ioe) {
+                        throw new UncheckedIOException("transport version file not found at [ " + versionLocation + "]", ioe);
+                    }
                 }
             }
 

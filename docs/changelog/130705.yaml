@@ -1,5 +1,0 @@
-pr: 130705
-summary: Fix `BytesRef2BlockHash`
-area: ES|QL
-type: bug
-issues: []

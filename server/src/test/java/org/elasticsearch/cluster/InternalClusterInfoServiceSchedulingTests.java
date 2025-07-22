@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.cluster.InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -84,9 +85,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
-        final ThreadPoolUsageCollector mockNodeUsageStatsForThreadPoolsCollector = spy(
-            new StubThreadPoolUsageCollector()
-                                                                                      );
+        final ThreadPoolUsageCollector mockNodeUsageStatsForThreadPoolsCollector = spy(new StubThreadPoolUsageCollector());
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
             clusterService,
@@ -138,7 +137,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
-            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(any());
+            verify(mockNodeUsageStatsForThreadPoolsCollector).collectUsageStats(eq(ThreadPool.Names.WRITE), any());
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -165,11 +164,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
     /**
      * Simple for test {@link ThreadPoolUsageCollector} implementation that returns an empty map of nodeId string to
-     * {@link NodeUsageStatsForThreadPools}.
+     * {@link ThreadPoolUsage}.
      */
     private static class StubThreadPoolUsageCollector implements ThreadPoolUsageCollector {
         @Override
-        public void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
+        public void collectUsageStats(String threadPoolName, ActionListener<Map<String, ThreadPoolUsage>> listener) {
             listener.onResponse(Map.of());
         }
     }

@@ -29,11 +29,11 @@ public class WriteLoadConstraintSettings {
          */
         DISABLED,
         /**
-         * Only the low-threshold is enabled (write-load will not trigger rebalance)
+         * Enables only for shard (re)allocations, but not balancing.
          */
-        LOW_ONLY,
+        ALLOCATOR_ONLY,
         /**
-         * The decider is enabled
+         * Enables for allocations and balancing.
          */
         ENABLED
     }

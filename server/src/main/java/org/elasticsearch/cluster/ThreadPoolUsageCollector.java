@@ -22,12 +22,15 @@ public interface ThreadPoolUsageCollector {
     /**
      * This will be used when there is no NodeUsageLoadCollector available.
      */
-    ThreadPoolUsageCollector EMPTY = listener -> listener.onResponse(Map.of());
+    static ThreadPoolUsageCollector noop() {
+        return (name, listener) -> listener.onResponse(Map.of());
+    }
 
     /**
-     * Collects the write load estimates from the cluster.
+     * Collects usage for given thread-pool and sampling setting.
      *
      * @param listener The listener to receive the write load results.
      */
-    void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener);
+    void collectUsageStats(String threadPoolName, ActionListener<Map<String, ThreadPoolUsage>> listener);
+
 }

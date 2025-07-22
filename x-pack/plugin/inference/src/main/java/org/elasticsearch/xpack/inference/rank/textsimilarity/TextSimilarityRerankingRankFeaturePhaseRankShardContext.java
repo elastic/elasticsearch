@@ -88,6 +88,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                 int tokenSizeLimit = snippetRankInput.tokenSizeLimit();
                 int fragmentSize = tokenSizeLimit * TOKEN_SIZE_LIMIT_MULTIPLIER;
                 highlightBuilder.fragmentSize(fragmentSize);
+                highlightBuilder.noMatchSize(fragmentSize);
                 SearchHighlightContext searchHighlightContext = highlightBuilder.build(context.getSearchExecutionContext());
                 context.highlight(searchHighlightContext);
             } catch (IOException e) {

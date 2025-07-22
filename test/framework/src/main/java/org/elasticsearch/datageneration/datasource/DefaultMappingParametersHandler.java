@@ -51,7 +51,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case CONSTANT_KEYWORD -> constantKeywordMapping();
             case WILDCARD -> wildcardMapping(false, request);
             case MATCH_ONLY_TEXT -> matchOnlyTextMapping(false, request);
-            case PATTERNED_TEXT -> patternedTextMapping(false, request);
         });
     }
 
@@ -257,13 +256,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
             if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("fields", stringSubField(FieldType.PATTERNED_TEXT, request));
+                mapping.put("fields", stringSubField(FieldType.WILDCARD, request));
             }
             return mapping;
         };
     }
 
-    private Supplier<Map<String, Object>> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Map<String, Object> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
         /**
          * text -> keyword, wildcard
          * match_only_text -> keyword, wildcard
@@ -272,25 +271,22 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
          * wildcard -> keyword, text, match_only_text, patterned_text
          *
          */
-        return () -> {
-            var subFields = new HashMap<FieldType, Supplier<Map<String, Object>>>();
-            subFields.put(FieldType.KEYWORD, () -> {
-                var mapping = keywordMapping(true, request).get();
-                mapping.remove("copy_to");
-                return mapping;
-            });
-            subFields.put(FieldType.TEXT, () -> wildcardMapping(true, request).get());
-            subFields.put(FieldType.MATCH_ONLY_TEXT, () -> matchOnlyTextMapping(true, request).get());
-            subFields.put(FieldType.WILDCARD, () -> wildcardMapping(true, request).get());
-            subFields.put(FieldType.PATTERNED_TEXT, () -> matchOnlyTextMapping(true, request).get());
+        var subFields = new HashMap<FieldType, Supplier<Map<String, Object>>>();
+        subFields.put(FieldType.KEYWORD, () -> {
+            var mapping = keywordMapping(true, request).get();
+            mapping.remove("copy_to");
+            return mapping;
+        });
+        subFields.put(FieldType.TEXT, () -> textMapping(true, request).get());
+        subFields.put(FieldType.MATCH_ONLY_TEXT, () -> matchOnlyTextMapping(true, request).get());
+        subFields.put(FieldType.WILDCARD, () -> wildcardMapping(true, request).get());
 
-            var options = subFields.entrySet().stream().filter(e -> e.getKey().equals(parent) == false).toList();
-            var child = ESTestCase.randomFrom(options);
-            FieldType childType = child.getKey();
-            var childValue = child.getValue().get();
-            childValue.put("type", childType.toString());
-            return Map.of("subfield_" + childType, childValue);
-        };
+        var options = subFields.entrySet().stream().filter(e -> e.getKey().equals(parent) == false).toList();
+        var child = ESTestCase.randomFrom(options);
+        FieldType childType = child.getKey();
+        var childValue = child.getValue().get();
+        childValue.put("type", childType.toString());
+        return Map.of("subfield_" + childType, childValue);
     }
 
     private Supplier<Map<String, Object>> matchOnlyTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
@@ -298,16 +294,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             var mapping = new HashMap<String, Object>();
             if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("fields", stringSubField(FieldType.MATCH_ONLY_TEXT, request));
-            }
-            return mapping;
-        };
-    }
-
-    private Supplier<Map<String, Object>> patternedTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
-        return () -> {
-            var mapping = new HashMap<String, Object>();
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("fields", stringSubField(FieldType.PATTERNED_TEXT, request));
             }
             return mapping;
         };

@@ -53,7 +53,6 @@ public enum FieldType {
     CONSTANT_KEYWORD("constant_keyword"),
     WILDCARD("wildcard"),
     MATCH_ONLY_TEXT("match_only_text");
-//    PATTERNED_TEXT("patterned_text");
 
     private final String name;
 
@@ -82,7 +81,6 @@ public enum FieldType {
             case CONSTANT_KEYWORD -> new ConstantKeywordFieldDataGenerator();
             case WILDCARD -> new WildcardFieldDataGenerator(dataSource);
             case MATCH_ONLY_TEXT -> new MatchOnlyTextFieldDataGenerator(dataSource);
-//            case PATTERNED_TEXT -> new PatternedTextFieldDataGenerator(dataSource);
         };
     }
 
@@ -107,7 +105,6 @@ public enum FieldType {
             case "constant_keyword" -> FieldType.CONSTANT_KEYWORD;
             case "wildcard" -> FieldType.WILDCARD;
             case "match_only_text" -> FieldType.MATCH_ONLY_TEXT;
-//            case "patterned_text" -> FieldType.PATTERNED_TEXT;
             default -> null;
         };
     }

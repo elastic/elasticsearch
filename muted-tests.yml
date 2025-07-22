@@ -505,6 +505,9 @@ tests:
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testOpenPITOnIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131695
+- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
+  method: testLookupJoinAliasesSkipOld
+  issue: https://github.com/elastic/elasticsearch/issues/131697
 
 # Examples:
 #

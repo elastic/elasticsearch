@@ -98,8 +98,8 @@ public class Ai21Service extends SenderService {
     ) {
         var actionCreator = new Ai21ActionCreator(getSender(), getServiceComponents());
 
-        if (Objects.requireNonNull(model) instanceof Ai21ChatCompletionModel mistralChatCompletionModel) {
-            mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+        if (Objects.requireNonNull(model) instanceof Ai21ChatCompletionModel ai21ChatCompletionModel) {
+            ai21ChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
@@ -225,6 +225,12 @@ public class Ai21Service extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ML_INFERENCE_AI21_COMPLETION_ADDED;
+    }
+
+    @Override
+    public boolean hideFromConfigurationApi() {
+        // The AI21 service is very configurable so we're going to hide it from being exposed in the service API.
+        return true;
     }
 
     @Override

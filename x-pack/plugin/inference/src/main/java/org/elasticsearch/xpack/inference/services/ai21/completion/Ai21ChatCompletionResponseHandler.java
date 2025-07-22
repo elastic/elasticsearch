@@ -20,8 +20,8 @@ import java.util.Locale;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Handles streaming chat completion responses and error parsing for Mistral inference endpoints.
- * Adapts the OpenAI handler to support Mistral's error schema.
+ * Handles streaming chat completion responses and error parsing for AI21 inference endpoints.
+ * Adapts the OpenAI handler to support AI21's error schema.
  */
 public class Ai21ChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 

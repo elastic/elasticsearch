@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
@@ -403,6 +404,7 @@ public class InferencePlugin extends Plugin
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
             context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
             context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)

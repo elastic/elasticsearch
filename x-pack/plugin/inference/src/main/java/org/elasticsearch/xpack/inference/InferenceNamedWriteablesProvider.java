@@ -107,6 +107,8 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
@@ -176,6 +178,7 @@ public class InferenceNamedWriteablesProvider {
         addJinaAINamedWriteables(namedWriteables);
         addVoyageAINamedWriteables(namedWriteables);
         addCustomNamedWriteables(namedWriteables);
+        addLlamaNamedWriteables(namedWriteables);
         addAi21NamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
@@ -276,8 +279,25 @@ public class InferenceNamedWriteablesProvider {
                 MistralChatCompletionServiceSettings::new
             )
         );
+        // no task settings for Mistral
+    }
 
-        // note - no task settings for Mistral tasks...
+    private static void addLlamaNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                LlamaEmbeddingsServiceSettings.NAME,
+                LlamaEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                LlamaChatCompletionServiceSettings.NAME,
+                LlamaChatCompletionServiceSettings::new
+            )
+        );
+        // no task settings for Llama
     }
 
     private static void addAi21NamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -288,8 +308,7 @@ public class InferenceNamedWriteablesProvider {
                 Ai21ChatCompletionServiceSettings::new
             )
         );
-
-        // note - no task settings for AI21 tasks...
+        // no task settings for AI21
     }
 
     private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

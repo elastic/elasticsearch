@@ -277,7 +277,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean optimizedText(OutputStream out) throws IOException {
+    public boolean optimizedTextToStream(OutputStream out) throws IOException {
         XContentString.UTF8Bytes bytes = optimizedText().bytes();
         out.write(bytes.bytes(), bytes.offset(), bytes.length());
         return true;

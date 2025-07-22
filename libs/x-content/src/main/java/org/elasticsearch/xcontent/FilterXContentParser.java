@@ -106,8 +106,8 @@ public abstract class FilterXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean optimizedText(OutputStream out) throws IOException {
-        return delegate().optimizedText(out);
+    public boolean optimizedTextToStream(OutputStream out) throws IOException {
+        return delegate().optimizedTextToStream(out);
     }
 
     public XContentString optimizedTextOrNull() throws IOException {

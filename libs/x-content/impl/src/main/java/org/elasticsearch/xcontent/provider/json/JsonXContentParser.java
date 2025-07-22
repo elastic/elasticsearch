@@ -133,7 +133,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public boolean optimizedText(OutputStream out) throws IOException {
+    public boolean optimizedTextToStream(OutputStream out) throws IOException {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }
@@ -141,7 +141,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (parser instanceof ESUTF8StreamJsonParser esParser) {
             return esParser.writeUTF8TextToStream(out);
         } else {
-            return super.optimizedText(out);
+            return super.optimizedTextToStream(out);
         }
     }
 

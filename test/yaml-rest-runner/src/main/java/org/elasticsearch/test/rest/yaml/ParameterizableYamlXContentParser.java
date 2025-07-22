@@ -151,8 +151,8 @@ public class ParameterizableYamlXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean optimizedText(OutputStream out) throws IOException {
-        return delegate.optimizedText(out);
+    public boolean optimizedTextToStream(OutputStream out) throws IOException {
+        return delegate.optimizedTextToStream(out);
     }
 
     @Override

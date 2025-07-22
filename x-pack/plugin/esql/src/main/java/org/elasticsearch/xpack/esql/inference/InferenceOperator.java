@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -38,22 +37,15 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     /**
      * Constructs a new {@code InferenceOperator}.
      *
-     * @param driverContext            The driver context.
-     * @param threadContext            The thread context for executing async inference.
-     * @param inferenceRunnerFactory   Factory for creating inference runners.
-     * @param inferenceExecutionConfig Configuration for inference execution.
-     * @param inferenceId              The ID of the inference model to use.
+     * @param driverContext       The driver context.
+     * @param inferenceRunner     Inference runner used to execute inference requests.
+     * @param inferenceId         The ID of the inference model to use.
+     * @param maxOutstandingPages The number of concurrent pages to process in parallel.
      */
-    public InferenceOperator(
-        DriverContext driverContext,
-        ThreadContext threadContext,
-        InferenceRunner.Factory inferenceRunnerFactory,
-        InferenceExecutionConfig inferenceExecutionConfig,
-        String inferenceId
-    ) {
-        super(driverContext, threadContext, inferenceExecutionConfig.workers());
+    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, String inferenceId, int maxOutstandingPages) {
+        super(driverContext, inferenceRunner.threadPool().getThreadContext(), maxOutstandingPages);
         this.blockFactory = driverContext.blockFactory();
-        this.inferenceRunner = inferenceRunnerFactory.create(inferenceExecutionConfig);
+        this.inferenceRunner = inferenceRunner;
         this.inferenceId = inferenceId;
     }
 

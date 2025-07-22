@@ -678,7 +678,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        // We set timeout to 20s as we've seen this test time out on some busy workers.
+        // We set timeout to 20s as we've seen this test time out on some busy maxOutstandingBulkRequests.
         request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=20s");
         request.setJsonEntity(Strings.format("""
             {

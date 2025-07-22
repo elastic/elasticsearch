@@ -144,7 +144,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
         };
 
-        return InferenceRunner.factory(client, threadPool);
+        return InferenceRunner.factory(client);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

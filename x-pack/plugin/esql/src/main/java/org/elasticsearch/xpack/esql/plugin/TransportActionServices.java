@@ -15,9 +15,9 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.inference.InferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 
 public class TransportActionServices {
     private final TransportService transportService;
@@ -105,16 +105,16 @@ public class TransportActionServices {
      * @return A configured inference runner capable of executing inference requests
      */
     public InferenceRunner inferenceRunner() {
-        return inferenceRunner(InferenceExecutionConfig.DEFAULT);
+        return inferenceRunner(InferenceRunnerConfig.DEFAULT);
     }
 
     /**
      * Creates an inference runner with the specified execution configuration.
      *
-     * @param inferenceExecutionConfig Configuration specifying concurrency limits and execution parameters
+     * @param inferenceRunnerConfig Configuration specifying concurrency limits and execution parameters
      * @return A configured inference runner capable of executing inference requests
      */
-    public InferenceRunner inferenceRunner(InferenceExecutionConfig inferenceExecutionConfig) {
-        return inferenceRunnerFactory.create(inferenceExecutionConfig);
+    public InferenceRunner inferenceRunner(InferenceRunnerConfig inferenceRunnerConfig) {
+        return inferenceRunnerFactory.create(inferenceRunnerConfig);
     }
 }

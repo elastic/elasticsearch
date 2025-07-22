@@ -79,7 +79,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     // and that xpack.ml.use_auto_machine_memory_percent is false.
     // It also assumes that 30% of RAM on the test machine is sufficient
     // to run a 200MB job but not a 50000MB job. (If we move to 256GB CI
-    // workers then it will need to be adjusted.)
+    // maxOutstandingBulkRequests then it will need to be adjusted.)
     public void testMLAutoscalingCapacity() throws Exception {
         SortedMap<String, Settings> deciders = new TreeMap<>();
         deciders.put(
@@ -194,7 +194,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     // and that xpack.ml.use_auto_machine_memory_percent is false.
     // It also assumes that 30% of RAM on the test machine is sufficient
     // to run a 200MB job but not a 50000MB model. (If we move to 512GB CI
-    // workers then it will need to be adjusted.)
+    // maxOutstandingBulkRequests then it will need to be adjusted.)
     @AwaitsFix(bugUrl = "Cannot be fixed until we move estimation to config and not rely on definition length only")
     public void testMLAutoscalingForLargeModelAssignment() {
         String modelId = "really_big_model";

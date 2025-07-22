@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -15,9 +14,9 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.inference.InferenceExecutionConfig;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.stream.IntStream;
@@ -32,12 +31,12 @@ public class CompletionOperator extends InferenceOperator {
 
     public CompletionOperator(
         DriverContext driverContext,
-        ThreadContext threadContext,
-        InferenceRunner.Factory inferenceRunnerFactory,
+        InferenceRunner inferenceRunner,
         String inferenceId,
-        ExpressionEvaluator promptEvaluator
+        ExpressionEvaluator promptEvaluator,
+        int maxOutstandingPages
     ) {
-        super(driverContext, threadContext, inferenceRunnerFactory, InferenceExecutionConfig.DEFAULT, inferenceId);
+        super(driverContext, inferenceRunner, inferenceId, maxOutstandingPages);
         this.promptEvaluator = promptEvaluator;
     }
 
@@ -104,10 +103,10 @@ public class CompletionOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new CompletionOperator(
                 driverContext,
-                threadPool.getThreadContext(),
-                inferenceRunnerFactory,
+                inferenceRunnerFactory.create(InferenceRunnerConfig.DEFAULT),
                 inferenceId,
-                promptEvaluatorFactory.get(driverContext)
+                promptEvaluatorFactory.get(driverContext),
+                InferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()
             );
         }
     }

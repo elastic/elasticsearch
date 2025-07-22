@@ -44,19 +44,23 @@ public interface InferenceRunner {
      */
     void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener);
 
-    static Factory factory(Client client, ThreadPool threadPool) {
-        return new ThrottledInferenceRunner.Factory(client, threadPool);
+    /**
+     * Returns the thread pool associated with this inference runner.
+     */
+    ThreadPool threadPool();
+
+    static Factory factory(Client client) {
+        return new ThrottledInferenceRunner.Factory(client);
     }
 
     interface Factory {
         /**
          * Creates a new inference runner with the specified execution configuration.
          *
-         * @param inferenceExecutionConfig Configuration defining concurrency limits and execution parameters
+         * @param inferenceRunnerConfig Configuration defining concurrency limits and execution parameters
          * @return A configured inference runner implementation
          */
-        InferenceRunner create(InferenceExecutionConfig inferenceExecutionConfig);
+        InferenceRunner create(InferenceRunnerConfig inferenceRunnerConfig);
 
     }
-
 }

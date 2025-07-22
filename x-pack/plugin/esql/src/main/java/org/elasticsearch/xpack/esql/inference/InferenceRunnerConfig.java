@@ -15,15 +15,15 @@ package org.elasticsearch.xpack.esql.inference;
  * that can be queued or processed simultaneously.
  * </p>
  *
- * @param workers                The number of worker threads for inference execution
- * @param maxOutstandingRequests The maximum number of concurrent inference requests allowed
+ * @param maxOutstandingBulkRequests The maximum number of concurrent bulk inference requests allowed
+ * @param maxOutstandingRequests     The maximum number of concurrent inference requests allowed
  */
-public record InferenceExecutionConfig(int workers, int maxOutstandingRequests) {
+public record InferenceRunnerConfig(int maxOutstandingRequests, int maxOutstandingBulkRequests) {
 
     /**
      * Default number of worker threads for inference execution.
      */
-    public static final int DEFAULT_WORKERS = 10;
+    public static final int DEFAULT_MAX_OUTSTANDING_BULK_REQUESTS = 10;
 
     /** Default maximum number of outstanding inference requests. */
     public static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 50;
@@ -31,10 +31,17 @@ public record InferenceExecutionConfig(int workers, int maxOutstandingRequests) 
     /**
      * Default configuration instance using standard values for most use cases.
      */
-    public static final InferenceExecutionConfig DEFAULT = new InferenceExecutionConfig(DEFAULT_WORKERS, DEFAULT_MAX_OUTSTANDING_REQUESTS);
+    public static final InferenceRunnerConfig DEFAULT = new InferenceRunnerConfig(
+        DEFAULT_MAX_OUTSTANDING_REQUESTS,
+        DEFAULT_MAX_OUTSTANDING_BULK_REQUESTS
+    );
 
-    public InferenceExecutionConfig {
-        if (workers <= 0) throw new IllegalArgumentException("workers must be positive");
+    public InferenceRunnerConfig {
         if (maxOutstandingRequests <= 0) throw new IllegalArgumentException("maxOutstandingRequests must be positive");
+        if (maxOutstandingBulkRequests <= 0) throw new IllegalArgumentException("maxOutstandingBulkRequests must be positive");
+
+        if (maxOutstandingBulkRequests > maxOutstandingRequests) {
+            maxOutstandingBulkRequests = maxOutstandingRequests;
+        }
     }
 }

@@ -334,7 +334,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         return List.of(
-            // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
+            // TODO: Maybe have two types of threadpools for maxOutstandingBulkRequests: one for CPU-bound and one for I/O-bound tasks.
             // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
             new FixedExecutorBuilder(
                 settings,

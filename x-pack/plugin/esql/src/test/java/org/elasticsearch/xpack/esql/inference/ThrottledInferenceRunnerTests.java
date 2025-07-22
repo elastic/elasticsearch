@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -132,7 +133,7 @@ public class ThrottledInferenceRunnerTests extends ESTestCase {
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
 
-        inferenceRunnerFactory(mock(Client.class)).create(randomBulkExecutionConfig()).executeBulk(requestIterator, listener);
+        inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig()).executeBulk(requestIterator, listener);
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), empty())));
     }
@@ -187,7 +188,7 @@ public class ThrottledInferenceRunnerTests extends ESTestCase {
     }
 
     private InferenceRunner.Factory inferenceRunnerFactory(Client client) {
-        return InferenceRunner.factory(client, threadPool);
+        return InferenceRunner.factory(client);
     }
 
     private InferenceAction.Request mockInferenceRequest() {
@@ -200,8 +201,8 @@ public class ThrottledInferenceRunnerTests extends ESTestCase {
         return response;
     }
 
-    private InferenceExecutionConfig randomBulkExecutionConfig() {
-        return new InferenceExecutionConfig(between(1, 100), between(1, 100));
+    private InferenceRunnerConfig randomBulkExecutionConfig() {
+        return new InferenceRunnerConfig(between(1, 100), between(1, 100));
     }
 
     private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {

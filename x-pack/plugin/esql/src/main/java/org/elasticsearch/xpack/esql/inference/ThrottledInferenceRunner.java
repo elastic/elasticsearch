@@ -50,11 +50,10 @@ class ThrottledInferenceRunner implements InferenceRunner {
      * Constructs a new throttled inference runner with the specified configuration.
      *
      * @param client          The Elasticsearch client for executing inference requests
-     * @param executorService The executor service for running inference tasks
      * @param maxRunningTasks The maximum number of concurrent inference requests allowed
      */
-    ThrottledInferenceRunner(Client client, ExecutorService executorService, int maxRunningTasks) {
-        this.executorService = executorService;
+    ThrottledInferenceRunner(Client client, int maxRunningTasks) {
+        this.executorService = executorService(client.threadPool());
         this.permits = new Semaphore(maxRunningTasks);
         this.client = client;
         this.pendingRequestsQueue = new ArrayBlockingQueue<>(maxRunningTasks);
@@ -74,6 +73,11 @@ class ThrottledInferenceRunner implements InferenceRunner {
 
     public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
         bulkInferenceRunner.execute(requests, listener);
+    }
+
+    @Override
+    public ThreadPool threadPool() {
+        return client.threadPool();
     }
 
     /**
@@ -143,23 +147,23 @@ class ThrottledInferenceRunner implements InferenceRunner {
     }
 
     /**
+     * Returns the executor service for ESQL worker threads.
+     *
+     * @param threadPool Thread pool to use to run inference tasks
+     * @return The executor service for ESQL worker threads
+     */
+    private static ExecutorService executorService(ThreadPool threadPool) {
+        return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+    }
+
+    /**
      * Factory for throttled inference runners.
      */
-    record Factory(Client client, ThreadPool threadPool) implements InferenceRunner.Factory {
+    record Factory(Client client) implements InferenceRunner.Factory {
 
         @Override
-        public InferenceRunner create(InferenceExecutionConfig inferenceExecutionConfig) {
-            return new ThrottledInferenceRunner(client, executorService(threadPool), inferenceExecutionConfig.maxOutstandingRequests());
-        }
-
-        /**
-         * Extracts the ESQL worker thread pool executor from the thread pool.
-         *
-         * @param threadPool The thread pool containing the ESQL worker executor
-         * @return The executor service for ESQL worker threads
-         */
-        private ExecutorService executorService(ThreadPool threadPool) {
-            return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+        public InferenceRunner create(InferenceRunnerConfig inferenceRunnerConfig) {
+            return new ThrottledInferenceRunner(client, inferenceRunnerConfig.maxOutstandingRequests());
         }
     }
 }

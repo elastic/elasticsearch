@@ -195,7 +195,6 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
     //
     // Pre-optimizer and inference runner setup
     //
-
     /**
      * Creates a LogicalPlanPreOptimizer with the specified embedding model.
      *
@@ -233,6 +232,11 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
             @Override
             public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
                 listener.onFailure(new UnsupportedOperationException("executeBulk is not supported in this test"));
+            }
+
+            @Override
+            public ThreadPool threadPool() {
+                return threadPool;
             }
         };
     }

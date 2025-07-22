@@ -140,9 +140,9 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
-        // By default, ES|QL uses all workers in the esql_worker threadpool to execute drivers on data nodes.
+        // By default, ES|QL uses all maxOutstandingBulkRequests in the esql_worker threadpool to execute drivers on data nodes.
         // If a node is both data and coordinator, and all drivers are blocked by the allowEmitting latch,
-        // there are no workers left to execute the final driver or fetch pages from remote clusters.
+        // there are no maxOutstandingBulkRequests left to execute the final driver or fetch pages from remote clusters.
         // This can prevent remote clusters from being marked as successful on the coordinator, even if they
         // have completed. To avoid this, we reserve at least one worker for the final driver and page fetching.
         // A single worker is enough, as these two tasks can be paused and yielded.

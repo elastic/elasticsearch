@@ -44,7 +44,7 @@ public class TransportVersions {
         if (id < IDS.last()) {
             throw new IllegalArgumentException("Version id " + id + " is not defined in the right location. Keep constants sorted");
         }
-        return new TransportVersion(id);
+        return new TransportVersion(null, id, null);
     }
 
     // TODO: ES-10337 we can remove all transport versions earlier than 8.18

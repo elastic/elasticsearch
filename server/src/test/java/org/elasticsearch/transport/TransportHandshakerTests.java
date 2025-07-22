@@ -258,11 +258,11 @@ public class TransportHandshakerTests extends ESTestCase {
     private static TransportVersion getRandomIncompatibleTransportVersion() {
         return randomBoolean()
             // either older than MINIMUM_COMPATIBLE
-            ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
+            ? new TransportVersion(null, between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1), null)
             // or between MINIMUM_COMPATIBLE and current but not known
             : randomValueOtherThanMany(
                 TransportVersion::isKnown,
-                () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
+                () -> new TransportVersion(null, between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()), null)
             );
     }
 

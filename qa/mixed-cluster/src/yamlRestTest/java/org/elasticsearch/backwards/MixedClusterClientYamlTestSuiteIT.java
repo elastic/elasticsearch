@@ -28,6 +28,8 @@ public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .withNode(n -> n.version(System.getProperty("tests.old_cluster_version")))
+        .withNode(n -> n.version(System.getProperty("tests.old_cluster_version")))
+        .withNode(n -> n.version(Version.CURRENT.toString()))
         .withNode(n -> n.version(Version.CURRENT.toString()))
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

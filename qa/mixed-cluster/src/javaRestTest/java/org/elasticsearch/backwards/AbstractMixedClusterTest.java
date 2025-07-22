@@ -15,17 +15,21 @@ import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 
 public abstract class AbstractMixedClusterTest extends ESRestTestCase {
     protected static final String BWC_NODES_VERSION = System.getProperty("tests.old_cluster_version");
 
-    @ClassRule
+    public static TemporaryFolder repo = new TemporaryFolder();
+
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .withNode(n -> n.version(System.getProperty("tests.old_cluster_version")))
         .withNode(n -> n.version(System.getProperty("tests.old_cluster_version")))
         .withNode(n -> n.version(Version.CURRENT.toString()))
         .withNode(n -> n.version(Version.CURRENT.toString()))
+        .setting("path.repo", () -> repo.getRoot().getAbsolutePath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         // There is a chance we have more master changes than "normal", so to avoid this test from failing, we increase the
@@ -39,6 +43,9 @@ public abstract class AbstractMixedClusterTest extends ESRestTestCase {
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .build();
+
+    @ClassRule
+    public static RuleChain ruleChain = RuleChain.outerRule(repo).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

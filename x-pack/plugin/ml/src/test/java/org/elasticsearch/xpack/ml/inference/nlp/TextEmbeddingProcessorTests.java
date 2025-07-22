@@ -86,7 +86,14 @@ public class TextEmbeddingProcessorTests extends ESTestCase {
             var input = "";
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TextExpansionProcessorTests.TEST_CASED_VOCAB, tokenization, 0);
-            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true, TextExpansionConfig.EXPANSION_TYPE_ELSER);
+            var inferenceResult = TextExpansionProcessor.processResult(
+                tokenizationResult,
+                pytorchResult,
+                Map.of(),
+                "foo",
+                true,
+                TextExpansionConfig.EXPANSION_TYPE_ELSER
+            );
             assertThat(inferenceResult, instanceOf(MlChunkedTextExpansionResults.class));
 
             var chunkedResult = (MlChunkedTextExpansionResults) inferenceResult;

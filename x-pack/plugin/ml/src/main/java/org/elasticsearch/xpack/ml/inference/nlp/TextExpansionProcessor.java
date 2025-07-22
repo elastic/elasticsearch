@@ -137,7 +137,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
      * @param tokenization The tokenization result containing the vocabulary.
      * @param replacementVocab A map of token IDs to their replacements, if any.
      */
-    static List<WeightedToken>  spladeVectorToTokenWeights(
+    static List<WeightedToken> spladeVectorToTokenWeights(
         double[][] embedding,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
@@ -151,7 +151,6 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         }
         return weightedTokens;
     }
-
 
     static List<WeightedToken> sparseVectorToTokenWeights(
         double[] vector,

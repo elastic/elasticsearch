@@ -71,11 +71,8 @@ public class TextExpansionProcessorTests extends ESTestCase {
     }
 
     public void testProcessResultForSplade() {
-        double[][][] pytorchResult = new double[][][] { {
-            { 0.0, 1.0, 1.0, 3.0, 0.0, -1.0, 0.0 },
-            { 0.0, 0.0, 2.0, 3.0, 3.0, -2.0, 0.0 },
-            { 0.0, 0.0, 0.0, 0.0, 4.0, -3.0, 0.0 }
-        } };
+        double[][][] pytorchResult = new double[][][] {
+            { { 0.0, 1.0, 1.0, 3.0, 0.0, -1.0, 0.0 }, { 0.0, 0.0, 2.0, 3.0, 3.0, -2.0, 0.0 }, { 0.0, 0.0, 0.0, 0.0, 4.0, -3.0, 0.0 } } };
 
         TokenizationResult tokenizationResult = new BertTokenizationResult(List.of("a", "b", "c", "d", "e", "f", "g"), List.of(), 0);
 
@@ -167,7 +164,14 @@ public class TextExpansionProcessorTests extends ESTestCase {
             var input = "Elasticsearch darts champion little red is fun car";
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
-            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true, TextExpansionConfig.EXPANSION_TYPE_ELSER);
+            var inferenceResult = TextExpansionProcessor.processResult(
+                tokenizationResult,
+                pytorchResult,
+                Map.of(),
+                "foo",
+                true,
+                TextExpansionConfig.EXPANSION_TYPE_ELSER
+            );
             assertThat(inferenceResult, instanceOf(MlChunkedTextExpansionResults.class));
 
             var chunkedResult = (MlChunkedTextExpansionResults) inferenceResult;
@@ -191,7 +195,14 @@ public class TextExpansionProcessorTests extends ESTestCase {
             var input = "";
             var tokenization = tokenizer.tokenize(input, Tokenization.Truncate.NONE, 0, 0, null);
             var tokenizationResult = new BertTokenizationResult(TEST_CASED_VOCAB, tokenization, 0);
-            var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, pytorchResult, Map.of(), "foo", true, TextExpansionConfig.EXPANSION_TYPE_ELSER);
+            var inferenceResult = TextExpansionProcessor.processResult(
+                tokenizationResult,
+                pytorchResult,
+                Map.of(),
+                "foo",
+                true,
+                TextExpansionConfig.EXPANSION_TYPE_ELSER
+            );
             assertThat(inferenceResult, instanceOf(MlChunkedTextExpansionResults.class));
 
             var chunkedResult = (MlChunkedTextExpansionResults) inferenceResult;

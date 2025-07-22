@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.services.mistral.response;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-
-import java.nio.charset.StandardCharsets;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
 
 /**
  * Represents an error response entity for Mistral inference services.
@@ -65,10 +65,14 @@ import java.nio.charset.StandardCharsets;
  * }
  * </code></pre>
  */
-public class MistralErrorResponse extends ErrorResponse {
+public class MistralErrorResponse extends UnifiedChatCompletionErrorResponse {
+    private static final String MISTRAL_ERROR = "mistral_error";
 
-    public MistralErrorResponse(String message) {
-        super(message);
+    public static final UnifiedChatCompletionErrorParserContract ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithStringify(MISTRAL_ERROR);
+
+    private MistralErrorResponse(String message) {
+        super(message, MISTRAL_ERROR, null, null);
     }
 
     /**
@@ -79,14 +83,7 @@ public class MistralErrorResponse extends ErrorResponse {
      * @param response the HttpResult containing the error response
      * @return an ErrorResponse instance
      */
-    public static ErrorResponse fromResponse(HttpResult response) {
-        try {
-            String errorMessage = new String(response.body(), StandardCharsets.UTF_8);
-            return new MistralErrorResponse(errorMessage);
-        } catch (Exception e) {
-            // swallow the error
-        }
-
-        return ErrorResponse.UNDEFINED_ERROR;
+    public static UnifiedChatCompletionErrorResponse fromResponse(HttpResult response) {
+        return ERROR_PARSER.parse(response);
     }
 }

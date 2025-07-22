@@ -8,18 +8,16 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParser;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxErrorResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
+
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxErrorResponseEntity.WATSONX_ERROR_PARSER;
 
 /**
  * Handles streaming chat completion responses and error parsing for Watsonx inference endpoints.
  * Adapts the OpenAI handler to support Watsonx's error schema.
  */
 public class IbmWatsonUnifiedChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
-
-    private static final UnifiedChatCompletionErrorParser WATSONX_ERROR_PARSER =
-        new IbmWatsonxErrorResponseEntity.IbmWatsonxStreamingErrorParser();
 
     public IbmWatsonUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse, WATSONX_ERROR_PARSER);

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ChatCompletionErrorResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParser;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -46,7 +46,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         String requestType,
         ResponseParser parseFunction,
         Function<HttpResult, ErrorResponse> errorParseFunction,
-        UnifiedChatCompletionErrorParser unifiedChatCompletionErrorParser
+        UnifiedChatCompletionErrorParserContract unifiedChatCompletionErrorParser
     ) {
         super(requestType, parseFunction, errorParseFunction);
         this.chatCompletionErrorResponseHandler = new ChatCompletionErrorResponseHandler(unifiedChatCompletionErrorParser);

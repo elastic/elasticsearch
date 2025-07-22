@@ -10,18 +10,14 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParser;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 import java.util.Optional;
-
-import static org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse.createHttpResultXContentParserFunction;
-import static org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse.createStringXContentParserFunction;
-import static org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse.executeObjectParser;
 
 /**
  * Handles streaming chat completion responses and error parsing for Hugging Face inference endpoints.
@@ -30,26 +26,11 @@ import static org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatC
 public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
     private static final String HUGGING_FACE_ERROR = "hugging_face_error";
-    private static final HuggingFaceStreamingErrorParser HUGGING_FACE_ERROR_PARSER = new HuggingFaceStreamingErrorParser();
+    private static final UnifiedChatCompletionErrorParserContract HUGGING_FACE_ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithObjectParser(StreamingHuggingFaceErrorResponseEntity.ERROR_PARSER);
 
     public HuggingFaceChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, HuggingFaceErrorResponseEntity::fromResponse, HUGGING_FACE_ERROR_PARSER);
-    }
-
-    private static class HuggingFaceStreamingErrorParser implements UnifiedChatCompletionErrorParser {
-
-        @Override
-        public UnifiedChatCompletionErrorResponse parse(HttpResult result) {
-            return executeObjectParser(
-                StreamingHuggingFaceErrorResponseEntity.ERROR_PARSER,
-                createHttpResultXContentParserFunction(result)
-            );
-        }
-
-        @Override
-        public UnifiedChatCompletionErrorResponse parse(String response) {
-            return executeObjectParser(StreamingHuggingFaceErrorResponseEntity.ERROR_PARSER, createStringXContentParserFunction(response));
-        }
     }
 
     /**

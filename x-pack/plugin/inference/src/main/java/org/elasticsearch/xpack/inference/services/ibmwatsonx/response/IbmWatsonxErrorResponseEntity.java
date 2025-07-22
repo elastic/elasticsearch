@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.response;
 
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParser;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,26 +20,15 @@ import java.util.Optional;
 
 public class IbmWatsonxErrorResponseEntity extends UnifiedChatCompletionErrorResponse {
     private static final String WATSONX_ERROR = "watsonx_error";
+    public static final UnifiedChatCompletionErrorParserContract WATSONX_ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithGenericParser(IbmWatsonxErrorResponseEntity::doParse);
 
     private IbmWatsonxErrorResponseEntity(String errorMessage) {
         super(errorMessage, WATSONX_ERROR, null, null);
     }
 
-    public static class IbmWatsonxStreamingErrorParser implements UnifiedChatCompletionErrorParser {
-
-        @Override
-        public UnifiedChatCompletionErrorResponse parse(HttpResult result) {
-            return fromResponse(result);
-        }
-
-        @Override
-        public UnifiedChatCompletionErrorResponse parse(String response) {
-            return executeGenericParser(IbmWatsonxErrorResponseEntity::doParse, createStringXContentParserFunction(response));
-        }
-    }
-
     public static UnifiedChatCompletionErrorResponse fromResponse(HttpResult result) {
-        return executeGenericParser(IbmWatsonxErrorResponseEntity::doParse, createHttpResultXContentParserFunction(result));
+        return WATSONX_ERROR_PARSER.parse(result);
     }
 
     private static Optional<UnifiedChatCompletionErrorResponse> doParse(XContentParser parser) throws IOException {

@@ -22,9 +22,9 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 public class ChatCompletionErrorResponseHandler {
     private static final String STREAM_ERROR = "stream_error";
 
-    private final UnifiedChatCompletionErrorParser unifiedChatCompletionErrorParser;
+    private final UnifiedChatCompletionErrorParserContract unifiedChatCompletionErrorParser;
 
-    public ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorParser errorParser) {
+    public ChatCompletionErrorResponseHandler(UnifiedChatCompletionErrorParserContract errorParser) {
         this.unifiedChatCompletionErrorParser = Objects.requireNonNull(errorParser);
     }
 

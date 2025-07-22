@@ -231,7 +231,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     }
                 }
 
-                updatedNodeStats.sort(Comparator.comparing(n -> n.getNode() != null ? n.getNode().getId() : ""));
+                updatedNodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
                 updatedAssignmentStats.add(
                     new AssignmentStats(
                         stat.getDeploymentId(),
@@ -261,16 +261,18 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 List<AssignmentStats.NodeStats> nodeStats = new ArrayList<>();
 
                 for (var routingEntry : nonStartedEntries.getValue().entrySet()) {
-                    nodeStats.add(
-                        AssignmentStats.NodeStats.forNotStartedState(
-                            nodes.get(routingEntry.getKey()),
-                            routingEntry.getValue().getState(),
-                            routingEntry.getValue().getReason()
-                        )
-                    );
+                    if (nodes.nodeExists(routingEntry.getKey())) {
+                        nodeStats.add(
+                            AssignmentStats.NodeStats.forNotStartedState(
+                                nodes.get(routingEntry.getKey()),
+                                routingEntry.getValue().getState(),
+                                routingEntry.getValue().getReason()
+                            )
+                        );
+                    }
                 }
 
-                nodeStats.sort(Comparator.comparing(n -> n.getNode() != null ? n.getNode().getId() : ""));
+                nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
                 updatedAssignmentStats.add(
                     new AssignmentStats(

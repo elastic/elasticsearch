@@ -173,6 +173,7 @@ class TrainedModelAssignmentRebalancer {
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
                 return new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
+                    assignment.getModelId(),
                     assignment.getTaskParams().getModelBytes(),
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
@@ -190,6 +191,7 @@ class TrainedModelAssignmentRebalancer {
             planDeployments.add(
                 new AssignmentPlan.Deployment(
                     taskParams.getDeploymentId(),
+                    taskParams.getModelId(),
                     taskParams.getModelBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
@@ -230,6 +232,7 @@ class TrainedModelAssignmentRebalancer {
             .map(
                 assignment -> new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
+                    assignment.getModelId(),
                     assignment.getTaskParams().getModelBytes(),
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
@@ -247,6 +250,7 @@ class TrainedModelAssignmentRebalancer {
             planDeployments.add(
                 new AssignmentPlan.Deployment(
                     taskParams.getDeploymentId(),
+                    taskParams.getModelId(),
                     taskParams.getModelBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),

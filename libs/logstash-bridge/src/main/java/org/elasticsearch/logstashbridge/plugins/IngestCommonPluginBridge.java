@@ -14,6 +14,9 @@ import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 
 import java.util.Map;
 
+/**
+ * An external bridge for {@link IngestCommonPlugin}
+ */
 public class IngestCommonPluginBridge implements IngestPluginBridge {
 
     private final IngestCommonPlugin delegate;
@@ -24,6 +27,6 @@ public class IngestCommonPluginBridge implements IngestPluginBridge {
 
     @Override
     public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
-        return StableBridgeAPI.wrap(this.delegate.getProcessors(parameters.unwrap()), ProcessorBridge.Factory::wrap);
+        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorBridge.Factory::fromInternal);
     }
 }

@@ -36,13 +36,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> implements Closeable {
-    public ScriptServiceBridge wrap(final ScriptService delegate) {
+/**
+ * An external bridge for {@link ScriptService}
+ */
+public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptService> implements Closeable {
+    public ScriptServiceBridge fromInternal(final ScriptService delegate) {
         return new ScriptServiceBridge(delegate);
     }
 
     public ScriptServiceBridge(final SettingsBridge settingsBridge, final LongSupplier timeProvider) throws IOException {
-        super(getScriptService(settingsBridge.unwrap(), timeProvider));
+        super(getScriptService(settingsBridge.toInternal(), timeProvider));
     }
 
     public ScriptServiceBridge(ScriptService delegate) {
@@ -103,6 +106,6 @@ public class ScriptServiceBridge extends StableBridgeAPI.Proxy<ScriptService> im
 
     @Override
     public void close() throws IOException {
-        this.delegate.close();
+        this.internalDelegate.close();
     }
 }

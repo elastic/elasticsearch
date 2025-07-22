@@ -14,15 +14,18 @@ import org.elasticsearch.xpack.redact.RedactProcessor;
 
 import java.util.Map;
 
+/**
+ * An external bridge for {@link org.elasticsearch.xpack.redact.RedactPlugin}
+ */
 public class RedactPluginBridge implements IngestPluginBridge {
     @Override
     public Map<String, ProcessorBridge.Factory> getProcessors(ProcessorBridge.Parameters parameters) {
         // Provide a TRIAL license state to the redact processor
-        final XPackLicenseState trialLicenseState = new XPackLicenseState(parameters.unwrap().relativeTimeSupplier);
+        final XPackLicenseState trialLicenseState = new XPackLicenseState(parameters.toInternal().relativeTimeSupplier);
 
         return Map.of(
             RedactProcessor.TYPE,
-            ProcessorBridge.Factory.wrap(new RedactProcessor.Factory(trialLicenseState, parameters.unwrap().matcherWatchdog))
+            ProcessorBridge.Factory.fromInternal(new RedactProcessor.Factory(trialLicenseState, parameters.toInternal().matcherWatchdog))
         );
     }
 }

@@ -137,7 +137,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud/*'].join(',')
     }
   }
 
@@ -173,7 +173,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
+      excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud/*'])
     }
     systemProperty 'tests.rest.blacklist', excludeList.join(',')
   }
@@ -194,7 +194,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud/*'].join(',')
     }
   }
 
@@ -213,7 +213,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud/*'].join(',')
     }
   }
 

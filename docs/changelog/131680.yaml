@@ -1,0 +1,5 @@
+pr: 131680
+summary: Grant server read/write permissions on shared data path "path.shared_data"
+area: Infra/Entitlements
+type: bug
+issues: []

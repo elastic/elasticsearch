@@ -2015,7 +2015,13 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, clusterService, Settings.EMPTY);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            clusterService,
+            Settings.EMPTY,
+            inferenceStats
+        );
         var service = new ElasticsearchInternalService(context);
 
         var model = new MultilingualE5SmallModel(

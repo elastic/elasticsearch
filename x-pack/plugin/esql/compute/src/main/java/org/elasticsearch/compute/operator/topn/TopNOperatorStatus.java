@@ -20,13 +20,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.ESQL_TOPN_TIMINGS;
+
 public class TopNOperatorStatus implements Operator.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Operator.Status.class,
         "topn",
         TopNOperatorStatus::new
     );
-    public static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql-topn-timings");
+    //public static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql-topn-timings");
     private final long receiveNanos;
     private final long emitNanos;
     private final int occupiedRows;
@@ -57,7 +59,7 @@ public class TopNOperatorStatus implements Operator.Status {
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
+        if (in.getTransportVersion().onOrAfter(ESQL_TOPN_TIMINGS)) {
             this.receiveNanos = in.readVLong();
             this.emitNanos = in.readVLong();
         } else {
@@ -82,7 +84,7 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
+        if (out.getTransportVersion().onOrAfter(ESQL_TOPN_TIMINGS)) {
             out.writeVLong(receiveNanos);
             out.writeVLong(emitNanos);
         }

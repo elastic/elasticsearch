@@ -258,7 +258,7 @@ public class TransportVersion implements VersionId<TransportVersion> {
         }
         TransportVersion nextPatchVersion = version.nextPatchVersion;
         while (nextPatchVersion != null) {
-            if (isPatchFrom(version)) {
+            if (isPatchFrom(nextPatchVersion)) {
                 return true;
             }
             nextPatchVersion = nextPatchVersion.nextPatchVersion;

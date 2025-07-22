@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -93,7 +94,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.fromName("ml-inference-azure-ai-studio-rerank-added");
+        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;//TransportVersion.fromName("ml-inference-azure-ai-studio-rerank-added");
     }
 
     @Override

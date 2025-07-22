@@ -1,0 +1,28 @@
+[[release-notes-8.17.9]]
+== {es} version 8.17.9
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.9]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Add cancellation checks to `FilterByFilter` aggregator {es-pull}130452[#130452]
+
+ES|QL::
+* Avoid O(N^2) in VALUES with ordinals grouping {es-pull}130576[#130576]
+* Avoid dropping aggregate groupings in local plans {es-pull}129370[#129370] (issues: {es-issue}129811[#129811], {es-issue}128054[#128054])
+* Fix `BytesRef2BlockHash` {es-pull}130705[#130705]
+
+Search::
+* Fix msearch request parsing when index expression is null {es-pull}130776[#130776] (issue: {es-issue}129631[#129631])
+
+[[upgrade-8.17.9]]
+[float]
+=== Upgrades
+
+Packaging::
+* Update default docker base image to Ubuntu 24.04 {es-pull}130277[#130277]
+
+

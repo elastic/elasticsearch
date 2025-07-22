@@ -67,7 +67,6 @@ similarity:double
  required_capability: dot_product_vector_similarity_function
  
  from colors
- | where color != "black" 
  | eval similarity = round(v_dot_product(rgb_vector, [0, 255, 255]), 3) 
  | stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
  ;

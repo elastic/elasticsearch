@@ -544,6 +544,7 @@ public class ScopedSettingsTests extends ESTestCase {
         results.clear();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106283")
     public void testAffixUpdateConsumerWithAlias() {
         Setting.AffixSetting<String> prefixSetting = Setting.prefixKeySetting(
             "prefix.",

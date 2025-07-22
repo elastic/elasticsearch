@@ -205,7 +205,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             List<LookupFromIndexOperator.MatchConfig> matchFields = null;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
-                matchFields = in.readCollectionAsList(LookupFromIndexOperator.MatchConfig::new);
+                matchFields = planIn.readCollectionAsList(LookupFromIndexOperator.MatchConfig::new);
             } else {
                 // For older versions, we only support a single match field.
                 matchFields = new ArrayList<>(1);
@@ -250,7 +250,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeString(source.text());
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
-                out.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
+                planOut.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
             }
         }
 

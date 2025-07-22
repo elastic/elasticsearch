@@ -367,6 +367,7 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     boolean isTriviallyAllowed(Class<?> requestingClass) {
+        // note: do not log exceptions in here, this could interfere with loading of additionally necessary classes such as ThrowableProxy
         if (requestingClass == null) {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
@@ -376,13 +377,10 @@ public class PolicyManager {
             return true;
         }
         if (isTrustedSystemClass(requestingClass)) {
-            // note: logging prior to allowing trusted system classes can fail if loading of new classes is necessary
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
-        if (generalLogger.isTraceEnabled()) {
-            generalLogger.trace("Stack trace if entitlement not trivially allowed", new Exception());
-        }
+        generalLogger.trace("Entitlement not trivially allowed");
         return false;
     }
 

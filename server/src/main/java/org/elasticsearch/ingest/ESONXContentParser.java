@@ -366,7 +366,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public boolean optimizedText(OutputStream out) throws IOException {
+    public boolean optimizedTextToStream(OutputStream out) throws IOException {
         // For strings, try to write raw bytes directly without materializing the string
         if (currentEsonType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
             try {

@@ -278,14 +278,14 @@ lookup-no-key:
   - contains: { error.reason: "Unknown column [key] in right side of join" }
 
 ---
-basic join on two columns:
+basic join on two fields:
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ lookup_join_on_multiple_indices ]
-      reason: "uses LOOKUP JOIN on two columns"
+          capabilities: [ lookup_join_on_multiple_fields ]
+      reason: "uses LOOKUP JOIN on two fields"
   - do:
       esql.query:
         body:

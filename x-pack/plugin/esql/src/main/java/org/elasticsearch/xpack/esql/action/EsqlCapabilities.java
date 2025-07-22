@@ -1282,9 +1282,9 @@ public class EsqlCapabilities {
         COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
-         * Support for lookup join on multiple indices.
+         * Support for lookup join on multiple fields.
          */
-        LOOKUP_JOIN_ON_MULTIPLE_INDICES,
+        LOOKUP_JOIN_ON_MULTIPLE_FIELDS,
         /**
          * Support for the options field of CATEGORIZE.
          */

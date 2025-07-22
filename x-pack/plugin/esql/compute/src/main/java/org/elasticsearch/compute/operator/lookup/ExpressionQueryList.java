@@ -33,6 +33,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryList queryList : queryLists) {
             Query q = queryList.getQuery(position);
+            if (q == null) {
+                // if any of the matchFields are null, it means there is no match for this position
+                // A AND NULL is always NULL, so we can skip this position
+                return null;
+            }
             builder.add(q, BooleanClause.Occur.FILTER);
         }
         return builder.build();

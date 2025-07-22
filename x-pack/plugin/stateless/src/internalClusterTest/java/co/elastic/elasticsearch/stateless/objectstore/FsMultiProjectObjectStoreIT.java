@@ -35,7 +35,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,10 +44,6 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestIssueLogging(
-    issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/4161",
-    value = "co.elastic.elasticsearch.serverless.multiproject.MultiProjectFileSettingsService:DEBUG"
-)
 @LuceneTestCase.SuppressFileSystems(value = { "ExtrasFS" })
 public class FsMultiProjectObjectStoreIT extends FsObjectStoreTests {
 

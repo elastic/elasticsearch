@@ -155,7 +155,8 @@ public class SearchCommitPrefetcher {
         ActionListener<Void> listener
     ) {
         if (prefetchEnabled == false
-            // We only want to prefetch commits for shards actively serving searches
+            // We only want to prefetch commits for shards actively serving searches so skip
+            // if no searchers have been acquired for a while.
             || timeSinceLastSearcherWasAcquiredInMillis > prefetchSearchIdleTimeInMillis) {
             logger.debug(
                 "{} Skipping prefetch commit notification enabled=[{}], "

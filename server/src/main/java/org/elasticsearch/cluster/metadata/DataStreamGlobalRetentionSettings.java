@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.AbstractContextlessScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,7 @@ public class DataStreamGlobalRetentionSettings {
     @Nullable
     private volatile TimeValue failuresDefaultRetention;
     /** We cache the global retention objects, volatile is sufficient we only "write" this values in the settings appliers which
-     * are executed by {@link org.elasticsearch.common.settings.AbstractContextlessScopedSettings#applySettings(Settings)} which is synchronised.
+     * are executed by {@link AbstractContextlessScopedSettings#applySettings(Settings)} which is synchronised.
      */
     @Nullable
     private volatile DataStreamGlobalRetention dataGlobalRetention;

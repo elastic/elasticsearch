@@ -32,6 +32,7 @@ import java.util.Map;
 import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
@@ -189,15 +190,13 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test
             | WHERE knn(vector, %s, 5) AND length(keyword) > 5 AND length(keyword) <= 10
-            | KEEP id, vector, keyword
             | SORT id ASC
             | LIMIT 20
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "vector", "keyword"));
-            assertColumnTypes(resp.columns(), List.of("integer", "dense_vector", "keyword"));
-
+            // No added columns
+            assertThat(resp.columns().size(), equalTo(4));
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(5, valuesList.size());
         }

@@ -79,19 +79,12 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
             optional = true,
             description = "The minimum similarity required for a document to be considered a match. "
                 + "The similarity value calculated relates to the raw similarity used, not the document score."
-        )
-        Expression minimumSimilarity
+        ) Expression minimumSimilarity
     ) {
         this(source, field, query, minimumSimilarity, null);
     }
 
-    public ExactNN(
-        Source source,
-        Expression field,
-        Expression query,
-        Expression minimumSimilarity,
-        QueryBuilder queryBuilder
-    ) {
+    public ExactNN(Source source, Expression field, Expression query, Expression minimumSimilarity, QueryBuilder queryBuilder) {
         super(source, query, minimumSimilarity == null ? List.of(field, query) : List.of(field, query, minimumSimilarity), queryBuilder);
         this.field = field;
         this.minimumSimilarity = minimumSimilarity;
@@ -130,8 +123,7 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        return isNotNull(minimumSimilarity(), sourceText(), THIRD)
-            .and(isNumeric(minimumSimilarity(), sourceText(), THIRD));
+        return isNotNull(minimumSimilarity(), sourceText(), THIRD).and(isNumeric(minimumSimilarity(), sourceText(), THIRD));
     }
 
     @Override

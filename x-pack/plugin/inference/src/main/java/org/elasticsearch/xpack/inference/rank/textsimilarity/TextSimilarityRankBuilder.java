@@ -266,7 +266,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     /**
      * @return The token size limit to apply to this rerank context.
-     * TODO This should be pulled from the inference endpoint when available, not hardcoded.
+     * TODO: This should be pulled from the inference endpoint when available, not hardcoded.
      */
     public static Integer tokenSizeLimit(String inferenceId) {
         if (inferenceId.equals(DEFAULT_RERANK_ID) || inferenceId.equals(RERANKER_ID)) {

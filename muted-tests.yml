@@ -502,6 +502,9 @@ tests:
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testSearchIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131693
+- class: org.elasticsearch.search.SearchWithIndexBlocksIT
+  method: testOpenPITOnIndicesWithIndexRefreshBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/131695
 
 # Examples:
 #

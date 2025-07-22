@@ -29,6 +29,8 @@ public final class VectorWritables {
 
         if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
             entries.add(Knn.ENTRY);
+            // ExactNN is needed as a KNN optimization
+            entries.add(ExactNN.ENTRY);
         }
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(CosineSimilarity.ENTRY);

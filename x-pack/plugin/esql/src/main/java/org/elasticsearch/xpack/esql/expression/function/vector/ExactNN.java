@@ -185,7 +185,7 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        Expression minimumSimilarity = in.readNamedWriteable(Expression.class);
+        Expression minimumSimilarity = in.readOptionalNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         return new ExactNN(source, field, query, minimumSimilarity, queryBuilder);
     }
@@ -195,7 +195,7 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        out.writeNamedWriteable(minimumSimilarity());
+        out.writeOptionalNamedWriteable(minimumSimilarity());
         out.writeOptionalNamedWriteable(queryBuilder());
     }
 

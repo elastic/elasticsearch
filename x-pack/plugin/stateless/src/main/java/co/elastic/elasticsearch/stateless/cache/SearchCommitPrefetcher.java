@@ -275,7 +275,7 @@ public class SearchCommitPrefetcher {
                 // If fetching from the blob store, we try to fetch the entire region.
                 var adjustedRangeToPrefetch = cacheBlobReader.getRange(
                     rangeToPrefetch.start(),
-                    Math.toIntExact(totalDataToPrefetchInBytes),
+                    totalDataToPrefetchInBytes < Integer.MAX_VALUE ? Math.toIntExact(totalDataToPrefetchInBytes) : Integer.MAX_VALUE,
                     totalDataToPrefetchInBytes
                 );
 

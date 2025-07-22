@@ -1,15 +1,18 @@
 // TBUCKET-specific tests
 
-docsGettingStartedBucketStatsByMedian#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-// tag::gs-bucket-stats-by-median[]
+docsTBucketByTimeDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+// tag::docsTBucketByTimeDuration[]
 FROM sample_data
-| KEEP @timestamp, event_duration
-| STATS median_duration = MEDIAN(event_duration) BY bucket = TBUCKET(@timestamp, "1 hour")
-// end::gs-bucket-stats-by-median[]
-| SORT bucket
+| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(30 minutes)
+| SORT min
+// end::docsTBucketByTimeDuration[]
 ;
 
-median_duration:double | bucket:date
-3107561.0              |2023-10-23T12:00:00.000Z
-1756467.0              |2023-10-23T13:00:00.000Z
+// tag::docsTBucketByTimeDuration-result[]
+          min:date      |          max:date      |         bucket:date
+2023-10-23T12:27:28.948Z|2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
+2023-10-23T13:55:01.543Z|2023-10-23T13:55:01.543Z|2023-10-23T13:30:00.000Z
+// end::docsTBucketByTimeDuration-result[]
 ;

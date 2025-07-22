@@ -2,5 +2,5 @@
 
 **Description**
 
-Computes the MD5 hash of the input (if the MD5 hash is available on the JVM).
+Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets must be provided directly.
 

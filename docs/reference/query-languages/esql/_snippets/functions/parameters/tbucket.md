@@ -2,6 +2,6 @@
 
 **Parameters**
 
-`query`
-:   Boolean expression that contains full text function(s) to be scored.
+`buckets`
+:   Desired bucket size.
 

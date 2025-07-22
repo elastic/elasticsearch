@@ -16,10 +16,13 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,17 +34,14 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.maybeSubstituteWithRoundTo;
 import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 
 /**
- * Splits dates and numbers into a given number of buckets. There are two ways to invoke
- * this function: with a user-provided span (explicit invocation mode), or a span derived
- * from a number of desired buckets (as a hint) and a range (auto mode).
- * In the former case, two parameters will be provided, in the latter four.
+ * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
 public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
@@ -51,32 +51,31 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "TBucket", TBucket::new);
 
-    private final Expression field;
+    private final Expression timestamp;
     private final Expression buckets;
 
     @FunctionInfo(
-        returnType = { "double", "date", "date_nanos" },
+        returnType = { "date" },
         description = """
-            Creates groups of values - buckets - out of a datetime or numeric input.
-            The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
-        examples = {},
+            Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets must be provided directly.""",
+        examples = { @Example(description = """
+            Provide a bucket size as an argument.""", file = "tbucket", tag = "docsTBucketByTimeDuration", explanation = """
+            ::::{note}
+            When providing the bucket size, it must be a time duration or date period.
+            Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
+            ::::""") },
         type = FunctionType.GROUPING
     )
     public TBucket(
         Source source,
-        @Param(
-            name = "field",
-            type = { "integer", "long", "double", "date", "date_nanos" },
-            description = "Numeric or date expression from which to derive buckets."
-        ) Expression field,
-        @Param(
-            name = "buckets",
-            type = { "integer", "long", "double", "date_period", "time_duration" },
-            description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
-        ) Expression buckets
+        @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets
     ) {
-        super(source, List.of(field, buckets));
-        this.field = field;
+        this(source, new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD), buckets);
+    }
+
+    public TBucket(Source source, Expression timestamp, Expression buckets) {
+        super(source, List.of(timestamp, buckets));
+        this.timestamp = timestamp;
         this.buckets = buckets;
     }
 
@@ -87,7 +86,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(timestamp);
         out.writeNamedWriteable(buckets);
     }
 
@@ -97,16 +96,14 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx(), null, null);
-        return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
+    public boolean foldable() {
+        return timestamp.foldable() && buckets.foldable();
     }
 
-    /**
-     * Returns the date rounding from this bucket function if the target field is a date type; otherwise, returns null.
-     */
-    public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
-        return getDateRounding(foldCtx, null, null);
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx(), null, null);
+        return DateTrunc.evaluator(timestamp.dataType(), source(), toEvaluator.apply(timestamp), preparedRounding);
     }
 
     private Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
@@ -119,18 +116,18 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(buckets, DataType::isTemporalAmount, sourceText(), SECOND, "date_period", "time_duration");
+        return isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration");
     }
 
     @Override
     public void postOptimizationVerification(Failures failures) {
         String operation = sourceText();
-        failures.add(isFoldable(buckets, operation, SECOND));
+        failures.add(isFoldable(buckets, operation, DEFAULT));
     }
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return timestamp.dataType();
     }
 
     @Override
@@ -140,11 +137,11 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TBucket::new, field, buckets);
+        return NodeInfo.create(this, TBucket::new, timestamp, buckets);
     }
 
     public Expression field() {
-        return field;
+        return timestamp;
     }
 
     public Expression buckets() {
@@ -153,7 +150,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + "}";
+        return "TBucket{buckets=" + buckets + "}";
     }
 
     @Override

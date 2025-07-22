@@ -306,7 +306,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(TBucket.class, TBucket::new, "tbucket") },
+                def(TBucket.class, uni(TBucket::new), "tbucket") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two

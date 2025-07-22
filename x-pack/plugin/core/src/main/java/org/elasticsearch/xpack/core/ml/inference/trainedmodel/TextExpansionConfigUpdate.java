@@ -119,7 +119,9 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
         return resultsField;
     }
 
-    public String getExpansionType() { return expansionType; }
+    public String getExpansionType() {
+        return expansionType;
+    }
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {

@@ -64,7 +64,11 @@ public class TextExpansionConfigUpdateTests extends AbstractNlpConfigUpdateTestC
 
     @Override
     Tuple<Map<String, Object>, TextExpansionConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
-        TextExpansionConfigUpdate expected = new TextExpansionConfigUpdate("ml-results", TextExpansionConfig.EXPANSION_TYPE_ELSER, expectedTokenization);
+        TextExpansionConfigUpdate expected = new TextExpansionConfigUpdate(
+            "ml-results",
+            TextExpansionConfig.EXPANSION_TYPE_ELSER,
+            expectedTokenization
+        );
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.IndexVersion;
@@ -1285,7 +1284,6 @@ public abstract class AbstractDenseVectorFieldMapperTestcase extends MapperTestC
     // that do provide fielddata. TODO: resolve this inconsistency!
     @Override
     public void testAggregatableConsistency() {}
-
 
     @Override
     protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {

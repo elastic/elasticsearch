@@ -651,6 +651,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     case 0 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
                         @Override
                         public void accept(ActionListener<OptionalBytesReference> listener) {
+                            // All register operations have completed by this point so getRegister is safe
                             getBlobContainer().getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, listener);
                         }
 

@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -673,6 +675,26 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
+    /*
+     *Limit[1000[INTEGER],false]
+     * \_Filter[RLikeList(first_name{f}#4, "("VALÜ*", "TEST*")", true)]
+     *  \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     */
+    public void testReplaceUpperStringCasinqWithInsensitiveRLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE (\"VALÜ*\", \"TEST*\")");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rLikeList = as(filter.condition(), RLikeList.class);
+        var field = as(rLikeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(2, rLikeList.pattern().patternList().size());
+        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("VALÜ*"));
+        assertThat(rLikeList.pattern().patternList().get(1).pattern(), is("TEST*"));
+        assertThat(rLikeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
     // same plan as above, but lower case pattern
     public void testReplaceLowerStringCasingWithInsensitiveRLike() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE \"valü*\"");
@@ -684,6 +706,35 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(field.fieldName().string(), is("first_name"));
         assertThat(rlike.pattern().pattern(), is("valü*"));
         assertThat(rlike.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern and list of patterns
+    public void testReplaceLowerStringCasingWithInsensitiveRLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"valü*\", \"test*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rLikeList = as(filter.condition(), RLikeList.class);
+        var field = as(rLikeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(2, rLikeList.pattern().patternList().size());
+        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(rLikeList.pattern().patternList().get(1).pattern(), is("test*"));
+        assertThat(rLikeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but lower case pattern and list of patterns, one of which is upper case
+    public void testReplaceLowerStringCasingWithMixedCaseRLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"valü*\", \"TEST*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var rLikeList = as(filter.condition(), RLikeList.class);
+        var field = as(rLikeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(1, rLikeList.pattern().patternList().size());
+        assertThat(rLikeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(rLikeList.caseInsensitive(), is(true));
         var source = as(filter.child(), EsRelation.class);
     }
 
@@ -712,6 +763,37 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
+    // same plan as in testReplaceUpperStringCasingWithInsensitiveRLikeList, but with LIKE instead of RLIKE
+    public void testReplaceUpperStringCasingWithInsensitiveLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) LIKE (\"VALÜ*\", \"TEST*\")");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var likeList = as(filter.condition(), WildcardLikeList.class);
+        var field = as(likeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        assertEquals(2, likeList.pattern().patternList().size());
+        assertThat(likeList.pattern().patternList().get(0).pattern(), is("VALÜ*"));
+        assertThat(likeList.pattern().patternList().get(1).pattern(), is("TEST*"));
+        assertThat(likeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    // same plan as above, but mixed case pattern and list of patterns
+    public void testReplaceLowerStringCasingWithMixedCaseLikeList() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"TEST*\", \"valü*\", \"vaLü*\")");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var likeList = as(filter.condition(), WildcardLikeList.class);
+        var field = as(likeList.field(), FieldAttribute.class);
+        assertThat(field.fieldName().string(), is("first_name"));
+        // only the all lowercase pattern is kept, the mixed case and all uppercase patterns are ignored
+        assertEquals(1, likeList.pattern().patternList().size());
+        assertThat(likeList.pattern().patternList().get(0).pattern(), is("valü*"));
+        assertThat(likeList.caseInsensitive(), is(true));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
     // same plan as above, but lower case pattern
     public void testReplaceLowerStringCasingWithInsensitiveLike() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"valü*\"");
@@ -732,6 +814,28 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testReplaceStringCasingAndLikeWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndLikeListWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"VALÜ*\", \"TEST*\")");
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
+     *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     */
+    public void testReplaceStringCasingAndRLikeListWithLocalRelation() {
+        var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"VALÜ*\", \"TEST*\")");
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));

@@ -3645,7 +3645,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | FORK (where true) (where true) (where true) (where true)
                    (where true) (where true) (where true) (where true)
                    (where true)
-            """, "Fork requires less than 8 branches");
+            """, "FORK supports up to 8 branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");

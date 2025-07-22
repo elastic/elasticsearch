@@ -106,9 +106,7 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("request body is required", e.getMessage());
         e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", singletonMap("source", "{}")).contentParser());
         assertEquals("request body is required", e.getMessage());
-        try (XContentParser parser = contentRestRequest("{}", emptyMap()).contentParser()) {
-            assertEquals(emptyMap(), parser.map());
-        }
+        assertEquals(emptyMap(), contentRestRequest("{}", emptyMap()).contentParser().map());
         e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap(), emptyMap()).contentParser());
         assertEquals("request body is required", e.getMessage());
     }
@@ -204,21 +202,12 @@ public class RestRequestTests extends ESTestCase {
             () -> contentRestRequest("", emptyMap()).contentOrSourceParamParser()
         );
         assertEquals("request body or source parameter is required", e.getMessage());
-
-        try (XContentParser parser = contentRestRequest("{}", emptyMap()).contentOrSourceParamParser()) {
-            assertEquals(emptyMap(), parser.map());
-        }
-
-        try (XContentParser parser = contentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser()) {
-            assertEquals(emptyMap(), parser.map());
-        }
-
-        try (
-            XContentParser parser = contentRestRequest("", Map.of("source", "{}", "source_content_type", "application/json"))
-                .contentOrSourceParamParser()
-        ) {
-            assertEquals(emptyMap(), parser.map());
-        }
+        assertEquals(emptyMap(), contentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
+        assertEquals(emptyMap(), contentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser().map());
+        assertEquals(
+            emptyMap(),
+            contentRestRequest("", Map.of("source", "{}", "source_content_type", "application/json")).contentOrSourceParamParser().map()
+        );
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {

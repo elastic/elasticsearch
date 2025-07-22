@@ -489,3 +489,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=msearch/10_basic/Least impact smoke test}
   issue: https://github.com/elastic/elasticsearch/issues/131561
+- class: org.elasticsearch.gradle.LoggedExecFuncTest
+  method: failed tasks output logged to console when spooling true
+  issue: https://github.com/elastic/elasticsearch/issues/119509

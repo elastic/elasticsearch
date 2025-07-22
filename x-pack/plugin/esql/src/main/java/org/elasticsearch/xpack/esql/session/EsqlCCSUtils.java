@@ -330,6 +330,8 @@ public class EsqlCCSUtils {
         assert patterns.size() == 1 : "Only single index pattern is supported";
         try {
             var groupedIndices = indicesGrouper.groupIndices(
+                // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
+                // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
                 patterns.getFirst().indexPattern()

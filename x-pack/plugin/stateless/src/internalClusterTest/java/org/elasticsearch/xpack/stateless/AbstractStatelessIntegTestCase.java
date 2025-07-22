@@ -116,6 +116,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1181,7 +1183,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"), projectSettingsJson);
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"), projectSecretsJson);
-        Files.writeString(fileSettingsService.watchedFile(), settingsJson);
+        writeAndMoveSettingsJsonAtomically(settingsJson, fileSettingsService);
 
         // Ensure the project exist
         assertBusy(() -> {
@@ -1234,6 +1236,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         );
         xContentBuilder.endObject();
         return Strings.toString(xContentBuilder);
+    }
+
+    private void writeAndMoveSettingsJsonAtomically(String settingsJson, FileSettingsService fileSettingsService) throws IOException {
+        final Path tempFilePath = createTempFile();
+        logger.info("--> writing settings json [{}] to [{}]", settingsJson, tempFilePath);
+        Files.writeString(tempFilePath, settingsJson);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private String addProjectIdToSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)

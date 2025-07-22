@@ -27,7 +27,6 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -72,7 +71,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
-    private final RerankSnippetInput rerankSnippetInput;
+    private final SnippetConfig snippetConfig;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -81,7 +80,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         int rankWindowSize,
         Float minScore,
         boolean failuresAllowed,
-        RerankSnippetInput rerankSnippetInput
+        SnippetConfig snippetConfig
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -89,7 +88,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
-        this.rerankSnippetInput = rerankSnippetInput;
+        this.snippetConfig = snippetConfig;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -106,9 +105,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             this.failuresAllowed = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            this.rerankSnippetInput = in.readOptionalWriteable(RerankSnippetInput::new);
+            this.snippetConfig = in.readOptionalWriteable(SnippetConfig::new);
         } else {
-            this.rerankSnippetInput = null;
+            this.snippetConfig = null;
         }
     }
 
@@ -134,7 +133,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             out.writeBoolean(failuresAllowed);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            out.writeOptionalWriteable(rerankSnippetInput);
+            out.writeOptionalWriteable(snippetConfig);
         }
     }
 
@@ -151,16 +150,16 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
         }
-        if (rerankSnippetInput != null) {
-            builder.field(SNIPPETS_FIELD.getPreferredName(), rerankSnippetInput);
+        if (snippetConfig != null) {
+            builder.field(SNIPPETS_FIELD.getPreferredName(), snippetConfig);
         }
     }
 
     @Override
     public RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         TextSimilarityRankBuilder rewritten = this;
-        if (rerankSnippetInput != null) {
-            QueryBuilder snippetQueryBuilder = rerankSnippetInput.snippetQueryBuilder();
+        if (snippetConfig != null) {
+            QueryBuilder snippetQueryBuilder = snippetConfig.snippetQueryBuilder();
             if (snippetQueryBuilder == null) {
                 rewritten = new TextSimilarityRankBuilder(
                     field,
@@ -169,10 +168,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
                     rankWindowSize(),
                     minScore,
                     failuresAllowed,
-                    new RerankSnippetInput(
-                        rerankSnippetInput.numSnippets(),
-                        rerankSnippetInput.inferenceText(),
-                        rerankSnippetInput.tokenSizeLimit(),
+                    new SnippetConfig(
+                        snippetConfig.numSnippets(),
+                        snippetConfig.inferenceText(),
+                        snippetConfig.tokenSizeLimit(),
                         new MatchQueryBuilder(field, inferenceText)
                     )
                 );
@@ -186,10 +185,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
                         rankWindowSize(),
                         minScore,
                         failuresAllowed,
-                        new RerankSnippetInput(
-                            rerankSnippetInput.numSnippets(),
-                            rerankSnippetInput.inferenceText(),
-                            rerankSnippetInput.tokenSizeLimit(),
+                        new SnippetConfig(
+                            snippetConfig.numSnippets(),
+                            snippetConfig.inferenceText(),
+                            snippetConfig.tokenSizeLimit(),
                             rewrittenSnippetQueryBuilder
                         )
                     );
@@ -244,7 +243,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, rerankSnippetInput);
+        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, snippetConfig);
     }
 
     @Override
@@ -258,9 +257,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceText,
             minScore,
             failuresAllowed,
-            rerankSnippetInput != null
-                ? new RerankSnippetInput(rerankSnippetInput.numSnippets, inferenceText, tokenSizeLimit(inferenceId))
-                : null
+            snippetConfig != null ? new SnippetConfig(snippetConfig.numSnippets, inferenceText, tokenSizeLimit(inferenceId)) : null
         );
     }
 
@@ -303,12 +300,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore)
             && failuresAllowed == that.failuresAllowed
-            && Objects.equals(rerankSnippetInput, that.rerankSnippetInput);
+            && Objects.equals(snippetConfig, that.snippetConfig);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, rerankSnippetInput);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, snippetConfig);
     }
 
     @Override

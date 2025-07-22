@@ -19,7 +19,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.Text;
 
@@ -28,17 +27,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.rank.feature.RerankSnippetInput.DEFAULT_NUM_SNIPPETS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.SnippetConfig.DEFAULT_NUM_SNIPPETS;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
-    private final RerankSnippetInput snippetRankInput;
+    private final SnippetConfig snippetRankInput;
 
     // Rough approximation of token size vs. characters in highlight fragments.
     // TODO: highlighter should be able to set fragment size by token not length
     private static final int TOKEN_SIZE_LIMIT_MULTIPLIER = 5;
 
-    public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable RerankSnippetInput snippetRankInput) {
+    public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable SnippetConfig snippetRankInput) {
         super(field);
         this.snippetRankInput = snippetRankInput;
     }

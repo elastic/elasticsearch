@@ -28,7 +28,6 @@ import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -178,9 +177,9 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             Float minScore,
             boolean failuresAllowed,
             String throwingType,
-            RerankSnippetInput rerankSnippetInput
+            SnippetConfig snippetConfig
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, rerankSnippetInput);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippetConfig);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 

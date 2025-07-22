@@ -555,7 +555,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(projectId, l, request, Instant::now),
+                new PutPipelineClusterStateUpdateTask(projectId, l, request),
                 request.masterNodeTimeout()
             );
         }));
@@ -580,8 +580,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /** Check whether updating a potentially existing pipeline will be a NOP.
-     * Will return <code>false</code> if request contains system-properties like `{created,modified}_date,
-     * these should be rejected later.`*/
+     * Will return <code>false</code> if request contains system-properties like created or modified_date,
+     * these should be rejected later.*/
     public static boolean isNoOpPipelineUpdate(ProjectMetadata metadata, PutPipelineRequest request) {
         IngestMetadata currentIngestMetadata = metadata.custom(IngestMetadata.TYPE);
         if (request.getVersion() == null
@@ -700,6 +700,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         private final PutPipelineRequest request;
         private final InstantSource instantSource;
 
+        // constructor allowing for injection of InstantSource/time for testing
         PutPipelineClusterStateUpdateTask(
             final ProjectId projectId,
             final ActionListener<AcknowledgedResponse> listener,
@@ -711,19 +712,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             this.instantSource = instantSource;
         }
 
+        PutPipelineClusterStateUpdateTask(
+            final ProjectId projectId,
+            final ActionListener<AcknowledgedResponse> listener,
+            final PutPipelineRequest request
+        ) {
+            this(projectId, listener, request, Instant::now);
+        }
+
         /**
          * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
          */
         public PutPipelineClusterStateUpdateTask(ProjectId projectId, PutPipelineRequest request) {
-            this(projectId, null, request, Instant::now);
+            this(projectId, null, request);
         }
 
         @Override
         public IngestMetadata execute(IngestMetadata currentIngestMetadata, Collection<IndexMetadata> allIndexMetadata) {
-            final Map<String, PipelineConfiguration> existingPipelines = currentIngestMetadata == null
+            final Map<String, PipelineConfiguration> pipelines = currentIngestMetadata == null
                 ? new HashMap<>(1)
                 : new HashMap<>(currentIngestMetadata.getPipelines());
-            final PipelineConfiguration existingPipeline = existingPipelines.get(request.getId());
+            final PipelineConfiguration existingPipeline = pipelines.get(request.getId());
             final Map<String, Object> newPipelineConfig = XContentHelper.convertToMap(request.getSource(), true, request.getXContentType())
                 .v2();
 
@@ -785,8 +794,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             newPipelineConfig.put(Pipeline.MODIFIED_DATE_KEY, iso8601WithMillisNow);
 
-            existingPipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
-            return new IngestMetadata(existingPipelines);
+            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
+            return new IngestMetadata(pipelines);
         }
     }
 

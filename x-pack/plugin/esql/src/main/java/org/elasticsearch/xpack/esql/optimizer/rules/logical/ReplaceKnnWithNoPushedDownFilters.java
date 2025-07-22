@@ -46,8 +46,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
  * WHERE knn(field1, [..], 10) AND non-pushable-filter
  *
  * Will be replaced with:
- * | EVAL knn_score = SCORE(exact_nn(field1, [..]))
  * | WHERE non-pushable-filter
+ * | EVAL knn_score = SCORE(exact_nn(field1, [..]))
  * | TOPN 10 knn_score DESC
  * | WHERE knn_score > 0
  * | DROP knn_score
@@ -96,7 +96,7 @@ public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerR
         // Sort on the scores, limit on the minimum k from the queries
         TopN topN = createTopN(scoreAttrs, knnQueries.get(), scoringPlan);
 
-        // Filter on scores > 0. We could filter earlier, but could be combined with the existing filter and _score would not be updated
+        // Filter on scores > 0
         Filter scoreFilter = createScoreFilter(scoreAttrs, topN);
 
         // Drop the scores

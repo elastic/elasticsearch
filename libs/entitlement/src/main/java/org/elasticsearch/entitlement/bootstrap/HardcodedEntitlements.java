@@ -37,6 +37,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LI
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LOGS;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.MODULES;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PLUGINS;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_DATA;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
@@ -57,6 +58,7 @@ class HardcodedEntitlements {
             FilesEntitlement.FileData.ofBaseDirPath(LOGS, READ_WRITE),
             FilesEntitlement.FileData.ofBaseDirPath(LIB, READ),
             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE),
+            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
             FilesEntitlement.FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
             // exclusive settings file
             FilesEntitlement.FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ_WRITE).withExclusive(true),

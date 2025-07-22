@@ -34,7 +34,7 @@ For the most up-to-date API details, refer to [Search APIs](https://www.elastic.
 ::::
 
 
-You can use RRF as part of a [search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) to combine and rank documents using separate sets of top documents (result sets) from a combination of [child retrievers](/reference/elasticsearch/rest-apis/retrievers.md) using an [RRF retriever](/reference/elasticsearch/rest-apis/retrievers.md#rrf-retriever). A minimum of **two** child retrievers is required for ranking.
+You can use RRF as part of a [search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) to combine and rank documents using separate sets of top documents (result sets) from a combination of [child retrievers](/reference/elasticsearch/rest-apis/retrievers.md) using an [RRF retriever](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md). A minimum of **two** child retrievers is required for ranking.
 
 An RRF retriever is an optional object defined as part of a search request’s [retriever parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-retriever). The RRF retriever object contains the following parameters:
 

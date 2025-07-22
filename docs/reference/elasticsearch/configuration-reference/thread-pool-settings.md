@@ -37,6 +37,7 @@ $$$search-throttled$$$`search_throttled`
 
   :::{note}
   In {{stack}} 9.0 and earlier, the `write` thread pool was also used for bulk requests.
+  In {{stack}} 9.1 and earlier, the queue_size was 10000.
   :::
 
 `write_coordination` {applies_to}`stack: ga 9.1`
@@ -78,7 +79,7 @@ $$$search-throttled$$$`search_throttled`
 `system_write`
 :   For write operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
-`system_write_coordination`
+`system_write_coordination` {applies_to}`stack: ga 9.1`
 :   For bulk request coordination operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
 `system_critical_read`

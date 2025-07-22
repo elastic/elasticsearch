@@ -57,7 +57,7 @@ public record PathLookupImpl(
         return switch (baseDir) {
             case USER_HOME -> Stream.of(homeDir);
             case DATA -> Arrays.stream(dataDirs);
-            case SHARED_DATA -> Stream.of(sharedDataDir);
+            case SHARED_DATA -> Stream.ofNullable(sharedDataDir);
             case SHARED_REPO -> Arrays.stream(sharedRepoDirs);
             case CONFIG -> Stream.of(configDir);
             case LIB -> Stream.of(libDir);

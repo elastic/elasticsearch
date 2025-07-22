@@ -86,12 +86,12 @@ public class TestEntitlementBootstrap {
         Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
         Path configDir = configPath != null ? configPath : homeDir.resolve("config");
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
-        Path sharedDataDir = sharedDataDir(settings);
+        Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
         logger.debug("Registering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
-        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.add(sharedDataDir)));
+        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(repoDirs)));
         policyManager.reset();
     }
@@ -103,12 +103,12 @@ public class TestEntitlementBootstrap {
         Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
         Path configDir = configPath != null ? configPath : homeDir.resolve("config");
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
-        Path sharedDataDir = sharedDataDir(settings);
+        Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
         logger.debug("Unregistering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
-        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.remove(sharedDataDir)));
+        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(repoDirs)));
         policyManager.reset();
     }
@@ -120,9 +120,9 @@ public class TestEntitlementBootstrap {
             : dataDirs.stream().map(TestEntitlementBootstrap::absolutePath).toList();
     }
 
-    private static Path sharedDataDir(Settings settings) {
+    private static Collection<Path> sharedDataDir(Settings settings) {
         String sharedDataDir = PATH_SHARED_DATA_SETTING.get(settings);
-        return Strings.hasText(sharedDataDir) ? absolutePath(sharedDataDir) : null;
+        return Strings.hasText(sharedDataDir) ? List.of(absolutePath(sharedDataDir)) : List.of();
     }
 
     private static Collection<Path> repoDirs(Settings settings) {

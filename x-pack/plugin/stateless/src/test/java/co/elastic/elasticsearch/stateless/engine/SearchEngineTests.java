@@ -659,6 +659,33 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         );
     }
 
+    public void testLastAcquiredSearcherTimestampIsRecorded() throws IOException {
+        final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
+        final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            searchTaskQueue.advanceTime();
+
+            try (var ignored = searchEngine.acquireSearcher("test")) {
+                assertThat(searchEngine.getLastSearcherAcquiredTime(), is(0L));
+            }
+
+            try (var ignored = searchEngine.acquireSearcher(randomFrom(Engine.CAN_MATCH_SEARCH_SOURCE, Engine.SEARCH_SOURCE))) {
+                assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
+            }
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
     private StatelessCompoundCommit buildCompoundCommit(ShardId shardId, long primaryTerm, long ccGen) {
         return StatelessCompoundCommitTestUtils.randomCompoundCommit(shardId, new PrimaryTermAndGeneration(primaryTerm, ccGen));
     }

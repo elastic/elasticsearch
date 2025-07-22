@@ -33,6 +33,9 @@ public final class VectorWritables {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(CosineSimilarity.ENTRY);
         }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(DotProduct.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

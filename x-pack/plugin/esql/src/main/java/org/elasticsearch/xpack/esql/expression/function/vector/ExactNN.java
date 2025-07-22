@@ -53,7 +53,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
  */
 public class ExactNN extends FullTextFunction implements OptionalArgument, VectorFunction, PostAnalysisPlanVerificationAware {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", ExactNN::readFrom);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ExactNN",
+        ExactNN::readFrom
+    );
 
     private final Expression field;
     private final Expression minimumSimilarity;
@@ -197,14 +201,14 @@ public class ExactNN extends FullTextFunction implements OptionalArgument, Vecto
 
     @Override
     public boolean equals(Object o) {
-        // Knn does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two Knn functions
+        // ExactNN does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
+        // ignore options when comparing two ExactNN functions
         if (o == null || getClass() != o.getClass()) return false;
-        ExactNN knn = (ExactNN) o;
-        return Objects.equals(field(), knn.field())
-            && Objects.equals(query(), knn.query())
-            && Objects.equals(minimumSimilarity(), knn.minimumSimilarity())
-            && Objects.equals(queryBuilder(), knn.queryBuilder());
+        ExactNN exact = (ExactNN) o;
+        return Objects.equals(field(), exact.field())
+            && Objects.equals(query(), exact.query())
+            && Objects.equals(minimumSimilarity(), exact.minimumSimilarity())
+            && Objects.equals(queryBuilder(), exact.queryBuilder());
     }
 
     @Override

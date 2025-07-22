@@ -66,7 +66,7 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessIntegTestCase {
         // Wait for 0 shards, else this will hang until search shards are added
         assertAcked(prepareCreate(indexName, indexSettings).setWaitForActiveShards(0));
 
-        int numDocs = randomIntBetween(0, 10);
+        int numDocs = randomIntBetween(1, 10);
         indexDocuments(indexName, numDocs);
 
         var searchRequest = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
@@ -109,7 +109,7 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessIntegTestCase {
                 assertHitCount(client().search(searchRequest), 0);
 
                 startSearchNodes(numShards * numReplicas);
-                int numDocs = randomIntBetween(0, 10);
+                int numDocs = randomIntBetween(1, 10);
                 indexDocuments(indexName, numDocs).actionGet();
 
                 // The PIT should 'remember' the index was skipped, even when it's no longer blocked

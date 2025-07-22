@@ -83,7 +83,7 @@ class NodeServiceProvider {
         final ThreadPoolUsageCollector nodeUsageStatsForThreadPoolsCollector = pluginsService.loadSingletonServiceProvider(
             ThreadPoolUsageCollector.class,
             () -> ThreadPoolUsageCollector.EMPTY
-                                                                                                                          );
+        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             clusterService,

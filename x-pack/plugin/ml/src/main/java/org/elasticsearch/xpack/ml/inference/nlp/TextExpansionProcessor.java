@@ -82,8 +82,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
             }
 
             // For SPLADE models, the second dimension of the inference result is for each token in the input.
-            var weightedTokens = new ArrayList<WeightedToken>();
-            spladeVectorToTokenWeights(weightedTokens, pyTorchResult.getInferenceResult()[0], tokenization, replacementVocab);
+            var weightedTokens = spladeVectorToTokenWeights(pyTorchResult.getInferenceResult()[0], tokenization, replacementVocab);
             weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
             return new TextExpansionResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
@@ -134,23 +133,23 @@ public class TextExpansionProcessor extends NlpTask.Processor {
      * Converts a SPLADE vector to a list of weighted tokens.
      * The SPLADE model uses max pooling, so we apply that to the scores.
      *
-     * @param weightedTokens The list to populate with weighted tokens. Updated in place.
      * @param embedding The SPLADE embedding ([token][vocab]).
      * @param tokenization The tokenization result containing the vocabulary.
      * @param replacementVocab A map of token IDs to their replacements, if any.
      */
-    static void spladeVectorToTokenWeights(
-        List<WeightedToken> weightedTokens,
+    static List<WeightedToken>  spladeVectorToTokenWeights(
         double[][] embedding,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
     ) {
-        double[] spladeResult = NlpHelpers.spladeMaxPooling(embedding);
-        for (int i = 0; i < spladeResult.length; i++) {
-            if (spladeResult[i] > 0.0) {
-                weightedTokens.add(new WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) spladeResult[i]));
+        List<WeightedToken> weightedTokens = new ArrayList<>();
+        double[] spladeResults = NlpHelpers.spladeMaxPooling(embedding);
+        for (int i = 0; i < spladeResults.length; i++) {
+            if (spladeResults[i] > 0.0) {
+                weightedTokens.add(new WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) spladeResults[i]));
             }
         }
+        return weightedTokens;
     }
 
 

@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MlHiddenIndicesFullClusterRestartIT extends MlFullClusterRestartTestCase {
 
     private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
     private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS = List.of(

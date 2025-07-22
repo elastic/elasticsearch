@@ -20,5 +20,10 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     maxParallelForks = 1
+
+    // Disable ML tests for incompatible systems
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      systemProperty 'tests.ml.skip', 'true'
+    }
   }
 }

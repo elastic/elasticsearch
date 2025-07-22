@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -31,18 +32,20 @@ import java.util.Map;
  * appear after the first round of folding.
  */
 public class InferenceFunctionConstantFolding implements PreOptimizerRule {
-    private final InferenceRunner inferenceRunner;
+    private final InferenceRunner.Factory inferenceRunnerFactory;
     private final FoldContext foldContext;
 
     /**
      * Creates a new instance of the InferenceFunctionConstantFolding rule.
      *
-     * @param inferenceRunner the inference runner to use for evaluating inference functions
-     * @param foldContext     the fold context to use for evaluating inference functions
+     * @param inferenceRunnerFactory the inference runner to use for evaluating inference functions
      */
-    public InferenceFunctionConstantFolding(InferenceRunner inferenceRunner, FoldContext foldContext) {
-        this.inferenceRunner = inferenceRunner;
-        this.foldContext = foldContext;
+    public InferenceFunctionConstantFolding(
+        InferenceRunner.Factory inferenceRunnerFactory,
+        LogicalPreOptimizerContext preOptimizerContext
+    ) {
+        this.inferenceRunnerFactory = inferenceRunnerFactory;
+        this.foldContext = preOptimizerContext.foldCtx();
     }
 
     /**
@@ -139,6 +142,6 @@ public class InferenceFunctionConstantFolding implements PreOptimizerRule {
      * @param listener          the listener to notify when the evaluation is complete
      */
     private void foldInferenceFunction(InferenceFunction<?> inferenceFunction, ActionListener<Expression> listener) {
-        inferenceFunction.inferenceEvaluatorFactory().get(inferenceRunner).eval(foldContext, listener);
+        inferenceFunction.inferenceEvaluatorFactory().get(inferenceRunnerFactory).eval(foldContext, listener);
     }
 }

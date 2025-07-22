@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
@@ -105,7 +104,7 @@ public class InferenceFunctionConstantFoldingTests extends AbstractLogicalPlanPr
      */
     private LogicalPlan inferenceFunctionConstantFolding(LogicalPlan plan) {
         PlainActionFuture<LogicalPlan> preOptimized = new PlainActionFuture<>();
-        new InferenceFunctionConstantFolding(mockedInferenceRunner(embeddingModel), FoldContext.small()).apply(plan, preOptimized);
+        new InferenceFunctionConstantFolding(mockedInferenceRunnerFactory(embeddingModel), preOptimizerContext()).apply(plan, preOptimized);
         return preOptimized.actionGet();
     }
 }

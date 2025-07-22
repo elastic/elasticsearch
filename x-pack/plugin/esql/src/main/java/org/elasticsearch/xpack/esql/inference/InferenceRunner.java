@@ -53,6 +53,7 @@ public interface InferenceRunner {
         return new ThrottledInferenceRunner.Factory(client);
     }
 
+    @FunctionalInterface
     interface Factory {
         /**
          * Creates a new inference runner with the specified execution configuration.

@@ -16,6 +16,6 @@ public interface InferenceFunctionEvaluator {
     void eval(FoldContext foldContext, ActionListener<Expression> listener);
 
     interface Factory {
-        InferenceFunctionEvaluator get(InferenceRunner inferenceRunner);
+        InferenceFunctionEvaluator get(InferenceRunner.Factory inferenceRunnerFactory);
     }
 }

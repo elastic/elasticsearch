@@ -202,8 +202,7 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
      * @return a pre-optimizer configured with the specified model
      */
     protected LogicalPlanPreOptimizer preOptimizer(TestEmbeddingModel textEmbeddingModel) {
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small());
-        return new LogicalPlanPreOptimizer(mockTransportActionServices(textEmbeddingModel), preOptimizerContext);
+        return new LogicalPlanPreOptimizer(mockTransportActionServices(textEmbeddingModel), preOptimizerContext());
     }
 
     /**
@@ -212,8 +211,8 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
      * @param textEmbeddingModel the embedding model to use
      * @return a mock inference runner
      */
-    protected InferenceRunner mockedInferenceRunner(TestEmbeddingModel textEmbeddingModel) {
-        return new InferenceRunner() {
+    protected InferenceRunner.Factory mockedInferenceRunnerFactory(TestEmbeddingModel textEmbeddingModel) {
+        return (inferenceExecutionConfig) -> new InferenceRunner() {
             @Override
             public void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
                 try {
@@ -231,7 +230,7 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
 
             @Override
             public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
-                listener.onFailure(new UnsupportedOperationException("executeBulk is not supported in this test"));
+                execute(requests.next(), listener.map(r -> List.of(r)));
             }
 
             @Override
@@ -239,6 +238,10 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
                 return threadPool;
             }
         };
+    }
+
+    protected LogicalPreOptimizerContext preOptimizerContext() {
+        return new LogicalPreOptimizerContext(FoldContext.small());
     }
 
     /**
@@ -249,7 +252,7 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
      */
     private TransportActionServices mockTransportActionServices(TestEmbeddingModel textEmbeddingModel) {
         TransportActionServices services = mock(TransportActionServices.class);
-        when(services.inferenceRunner()).thenReturn(mockedInferenceRunner(textEmbeddingModel));
+        when(services.inferenceRunnerFactory()).thenReturn(mockedInferenceRunnerFactory(textEmbeddingModel));
         return services;
     }
 

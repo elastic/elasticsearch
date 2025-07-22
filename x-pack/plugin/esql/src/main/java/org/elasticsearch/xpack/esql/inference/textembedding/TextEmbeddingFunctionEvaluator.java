@@ -8,72 +8,87 @@
 package org.elasticsearch.xpack.esql.inference.textembedding;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.planner.Layout;
 
-import java.util.ArrayList;
-import java.util.List;
+import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 
 public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluator {
 
-    private final InferenceRunner inferenceRunner;
+    private final InferenceRunner.Factory inferenceRunnerFactory;
 
     private final TextEmbedding f;
 
-    public TextEmbeddingFunctionEvaluator(TextEmbedding f, InferenceRunner inferenceRunner) {
+    public TextEmbeddingFunctionEvaluator(TextEmbedding f, InferenceRunner.Factory inferenceRunnerFactory) {
+        this.inferenceRunnerFactory = inferenceRunnerFactory;
         this.f = f;
-        this.inferenceRunner = inferenceRunner;
     }
 
     @Override
     public void eval(FoldContext foldContext, ActionListener<Expression> listener) {
-        assert f.inferenceId() != null && f.inferenceId().foldable() : "inferenceId should not be null and be foldable";
-        assert f.inputText() != null && f.inputText().foldable() : "inputText should not be null and be foldable";
 
-        String inferenceId = BytesRefs.toString(f.inferenceId().fold(foldContext));
-        String inputText = BytesRefs.toString(f.inputText().fold(foldContext));
+        // Create a driver context to track the inference function execution
+        CircuitBreaker breaker = foldContext.circuitBreakerView(f.source());
+        BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                if (name.equals(CircuitBreaker.REQUEST) == false) {
+                    throw new UnsupportedOperationException();
+                }
+                return breaker;
+            }
 
-        inferenceRunner.execute(inferenceRequest(inferenceId, inputText), listener.map(this::parseInferenceResponse));
-    }
+            @Override
+            public AllCircuitBreakerStats stats() {
+                throw new UnsupportedOperationException();
+            }
 
-    private InferenceAction.Request inferenceRequest(String inferenceId, String inputText) {
-        return InferenceAction.Request.builder(inferenceId, TaskType.TEXT_EMBEDDING).setInput(List.of(inputText)).build();
-    }
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                throw new UnsupportedOperationException();
+            }
+        }, CircuitBreaker.REQUEST).withCircuitBreaking();
+        DriverContext driverCtx = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
 
-    private Literal parseInferenceResponse(InferenceAction.Response response) {
-        if (response.getResults() instanceof TextEmbeddingResults<?> textEmbeddingResults) {
-            return parseInferenceResponse(textEmbeddingResults);
+        Layout layout = new Layout.Builder().append(new Alias(f.inputText().source(), "inputText", f.inputText())).build();
+
+        // Create an inference operator to execute the inference function
+        Operator textEmbeddingOperator = new TextEmbeddingOperator.Factory(
+            inferenceRunnerFactory,
+            BytesRefs.toString(f.inferenceId().fold(foldContext)),
+            EvalMapper.toEvaluator(foldContext, f.inputText(), layout)
+        ).get(driverCtx);
+
+        try {
+            driverCtx.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
+                Page outputPage = textEmbeddingOperator.getOutput();
+                if (outputPage != null) {
+                    l.onResponse(new Literal(f.source(), toJavaObject(outputPage.getBlock(0), 0), f.dataType()));
+                }
+            }));
+            textEmbeddingOperator.addInput(new Page(fromArrayRow(driverCtx.blockFactory(), f.inputText().fold(foldContext))));
+            driverCtx.finish();
+
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
-        throw new IllegalArgumentException("Inference response should be of type TextEmbeddingResults");
-    }
-
-    private Literal parseInferenceResponse(TextEmbeddingResults<?> result) {
-        List<Float> embeddingList = new ArrayList<>(result.getFirstEmbeddingSize());
-        for (float value : getEmbeddingValues(result)) {
-            embeddingList.add(value);
-        }
-
-        return new Literal(f.source(), embeddingList, DataType.DENSE_VECTOR);
-    }
-
-    private float[] getEmbeddingValues(TextEmbeddingResults<?> result) {
-        return switch (result) {
-            case TextEmbeddingFloatResults floatEmbeddingResults -> floatEmbeddingResults.embeddings().get(0).values();
-            case TextEmbeddingByteResults bytesEmbeddingResults -> bytesEmbeddingResults.embeddings().get(0).toFloatArray();
-            case TextEmbeddingBitResults bitsEmbeddingResults -> bitsEmbeddingResults.embeddings().get(0).toFloatArray();
-            default -> throw new IllegalArgumentException("Inference response should be of type TextEmbeddingResults");
-        };
     }
 }

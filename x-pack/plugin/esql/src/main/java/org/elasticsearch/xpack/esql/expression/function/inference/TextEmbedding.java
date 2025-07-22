@@ -133,7 +133,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @Override
     public InferenceFunctionEvaluator.Factory inferenceEvaluatorFactory() {
-        return inferenceRunner -> new TextEmbeddingFunctionEvaluator(this, inferenceRunner);
+        return (inferenceRunnerFactory) -> new TextEmbeddingFunctionEvaluator(this, inferenceRunnerFactory);
     }
 
     @Override

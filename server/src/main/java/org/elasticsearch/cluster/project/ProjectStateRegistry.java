@@ -54,6 +54,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     // A counter that is incremented each time one or more projects are marked for deletion.
     private final long projectsMarkedForDeletionGeneration;
 
+    public static ProjectStateRegistry get(ClusterState clusterState) {
+        return clusterState.custom(TYPE, EMPTY);
+    }
+
     public ProjectStateRegistry(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
             projectsEntries = in.readMap(ProjectId::readFrom, Entry::readFrom);
@@ -95,6 +99,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     public Settings getProjectSettings(ProjectId projectId) {
         return projectsEntries.getOrDefault(projectId, EMPTY_ENTRY).settings;
+    }
+
+    public Set<ProjectId> getProjectsMarkedForDeletion() {
+        return projectsMarkedForDeletion;
     }
 
     public boolean isProjectMarkedForDeletion(ProjectId projectId) {

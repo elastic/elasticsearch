@@ -36,8 +36,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        params.add(new Object[] { "v_cosine", VectorSimilarityFunction.COSINE });
-        params.add(new Object[] { "v_dot_product", VectorSimilarityFunction.DOT_PRODUCT });
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_cosine", VectorSimilarityFunction.COSINE });
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_dot_product", VectorSimilarityFunction.DOT_PRODUCT });
+        }
 
         return params;
     }

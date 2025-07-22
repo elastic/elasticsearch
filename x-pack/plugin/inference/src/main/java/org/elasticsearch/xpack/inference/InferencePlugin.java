@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
@@ -140,7 +142,6 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfi
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -149,10 +150,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.inference.CustomServiceFeatureFlag.CUSTOM_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 
@@ -313,7 +312,8 @@ public class InferencePlugin extends Plugin
                     serviceComponents.get(),
                     inferenceServiceSettings,
                     modelRegistry.get(),
-                    authorizationHandler
+                    authorizationHandler,
+                    context
                 ),
                 context -> new SageMakerService(
                     new SageMakerModelBuilder(sageMakerSchemas),
@@ -323,16 +323,22 @@ public class InferencePlugin extends Plugin
                     ),
                     sageMakerSchemas,
                     services.threadPool(),
-                    sageMakerConfigurations::getOrCompute
+                    sageMakerConfigurations::getOrCompute,
+                    context
                 )
             )
         );
+
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var inferenceStats = InferenceStats.create(meterRegistry);
+        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
             services.threadPool(),
             services.clusterService(),
-            settings
+            settings,
+            inferenceStats
         );
 
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
@@ -343,10 +349,6 @@ public class InferencePlugin extends Plugin
             service.defaultConfigIds().forEach(modelRegistry.get()::addDefaultIds);
         }
         inferenceServiceRegistry.set(serviceRegistry);
-
-        var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = InferenceStats.create(meterRegistry);
-        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
 
         var actionFilter = new ShardBulkInferenceActionFilter(
             services.clusterService(),
@@ -384,31 +386,27 @@ public class InferencePlugin extends Plugin
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-        List<InferenceServiceExtension.Factory> conditionalServices = CUSTOM_SERVICE_FEATURE_FLAG.isEnabled()
-            ? List.of(context -> new CustomService(httpFactory.get(), serviceComponents.get()))
-            : List.of();
-
-        List<InferenceServiceExtension.Factory> availableServices = List.of(
-            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
-            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
-            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new MistralService(httpFactory.get(), serviceComponents.get()),
-            context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
-            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
-            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
-            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
-            context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
-            ElasticsearchInternalService::new
+        return List.of(
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
+            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
+            ElasticsearchInternalService::new,
+            context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
-
-        return Stream.concat(availableServices.stream(), conditionalServices.stream()).toList();
     }
 
     @Override

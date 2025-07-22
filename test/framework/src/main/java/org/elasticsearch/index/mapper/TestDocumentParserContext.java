@@ -58,7 +58,6 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 s -> null,
                 s -> null,
                 s -> null,
-                s -> null,
                 IndexVersion.current(),
                 () -> TransportVersion.current(),
                 () -> null,

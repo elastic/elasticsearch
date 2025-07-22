@@ -21,6 +21,7 @@ import software.amazon.awssdk.regions.Region;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -246,7 +247,10 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             s3Service.start();
             final String endpointOverride = "http://first";
             final Settings settings = Settings.builder().put("endpoint", endpointOverride).build();
-            final AmazonS3Reference reference = s3Service.client(new RepositoryMetadata("first", "s3", settings));
+            final AmazonS3Reference reference = s3Service.client(
+                randomFrom(ProjectId.DEFAULT, null),
+                new RepositoryMetadata("first", "s3", settings)
+            );
 
             assertEquals(endpointOverride, reference.client().serviceClientConfiguration().endpointOverride().get().toString());
             assertEquals("es-test-region", reference.client().serviceClientConfiguration().region().toString());

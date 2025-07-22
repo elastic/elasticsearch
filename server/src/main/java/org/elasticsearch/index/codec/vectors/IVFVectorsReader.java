@@ -89,13 +89,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidQueryScorer getCentroidScorer(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] target,
-        IndexInput clusters
-    ) throws IOException;
+    abstract CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+        throws IOException;
 
     private static IndexInput openDataInput(
         SegmentReadState state,
@@ -145,19 +140,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
-        final long centroidOffset = input.readLong();
-        final long centroidLength = input.readLong();
-        final int numPostingLists = input.readVInt();
-        final long[] postingListOffsets = new long[numPostingLists];
-        for (int i = 0; i < numPostingLists; i++) {
-            postingListOffsets[i] = input.readLong();
-        }
-        final float[] globalCentroid = new float[info.getVectorDimension()];
-        float globalCentroidDp = 0;
-        if (numPostingLists > 0) {
-            input.readFloats(globalCentroid, 0, globalCentroid.length);
-            globalCentroidDp = Float.intBitsToFloat(input.readInt());
-        }
         if (similarityFunction != info.getVectorSimilarityFunction()) {
             throw new IllegalStateException(
                 "Inconsistent vector similarity function for field=\""
@@ -168,12 +150,21 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     + info.getVectorSimilarityFunction()
             );
         }
+        final int numCentroids = input.readInt();
+        final long centroidOffset = input.readLong();
+        final long centroidLength = input.readLong();
+        final float[] globalCentroid = new float[info.getVectorDimension()];
+        float globalCentroidDp = 0;
+        if (centroidLength > 0) {
+            input.readFloats(globalCentroid, 0, globalCentroid.length);
+            globalCentroidDp = Float.intBitsToFloat(input.readInt());
+        }
         return new FieldEntry(
             similarityFunction,
             vectorEncoding,
+            numCentroids,
             centroidOffset,
             centroidLength,
-            postingListOffsets,
             globalCentroid,
             globalCentroidDp
         );
@@ -247,10 +238,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         FieldEntry entry = fields.get(fieldInfo.number);
         CentroidQueryScorer centroidQueryScorer = getCentroidScorer(
             fieldInfo,
-            entry.postingListOffsets.length,
+            entry.numCentroids,
             entry.centroidSlice(ivfCentroids),
-            target,
-            ivfClusters
+            target
         );
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
@@ -276,7 +266,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             int centroidOrdinal = centroidQueue.pop();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
+            expectedDocs += scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
             actualDocs += scorer.visit(knnCollector);
         }
         if (acceptDocs != null) {
@@ -285,7 +275,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 int centroidOrdinal = centroidQueue.pop();
-                scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
+                scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
                 actualDocs += scorer.visit(knnCollector);
             }
         }
@@ -319,9 +309,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     protected record FieldEntry(
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
+        int numCentroids,
         long centroidOffset,
         long centroidLength,
-        long[] postingListOffsets,
         float[] globalCentroid,
         float globalCentroidDp
     ) {
@@ -336,16 +326,16 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     interface CentroidQueryScorer {
         int size();
 
-        float[] centroid(int centroidOrdinal) throws IOException;
+        long postingListOffset(int centroidOrdinal) throws IOException;
 
-        float score(int centroidOrdinal) throws IOException;
+        void bulkScore(NeighborQueue queue) throws IOException;
     }
 
     interface PostingVisitor {
         // TODO maybe we can not specifically pass the centroid...
 
         /** returns the number of documents in the posting list */
-        int resetPostingsScorer(int centroidOrdinal, float[] centroid) throws IOException;
+        int resetPostingsScorer(long offset) throws IOException;
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;

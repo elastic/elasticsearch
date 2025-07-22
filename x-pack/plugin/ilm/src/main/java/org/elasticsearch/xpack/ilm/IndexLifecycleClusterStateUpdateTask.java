@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -24,11 +25,13 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     private final ListenableFuture<Void> listener = new ListenableFuture<>();
 
+    /** We need to store the project ID along with the index because an index might get deleted, but we still want to run the step */
+    protected final ProjectId projectId;
     protected final Index index;
-
     protected final Step.StepKey currentStepKey;
 
-    protected IndexLifecycleClusterStateUpdateTask(Index index, Step.StepKey currentStepKey) {
+    protected IndexLifecycleClusterStateUpdateTask(ProjectId projectId, Index index, Step.StepKey currentStepKey) {
+        this.projectId = projectId;
         this.index = index;
         this.currentStepKey = currentStepKey;
     }

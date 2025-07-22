@@ -126,7 +126,10 @@ public class OSQScorerBenchmark {
                 in.readFloats(corrections, 0, corrections.length);
                 int addition = Short.toUnsignedInt(in.readShort());
                 float score = scorer.score(
-                    result,
+                    result.lowerInterval(),
+                    result.upperInterval(),
+                    result.quantizedComponentSum(),
+                    result.additionalCorrection(),
                     VectorSimilarityFunction.EUCLIDEAN,
                     centroidDp,
                     corrections[0],
@@ -150,7 +153,10 @@ public class OSQScorerBenchmark {
                 in.readFloats(corrections, 0, corrections.length);
                 int addition = Short.toUnsignedInt(in.readShort());
                 float score = scorer.score(
-                    result,
+                    result.lowerInterval(),
+                    result.upperInterval(),
+                    result.quantizedComponentSum(),
+                    result.additionalCorrection(),
                     VectorSimilarityFunction.EUCLIDEAN,
                     centroidDp,
                     corrections[0],
@@ -175,7 +181,10 @@ public class OSQScorerBenchmark {
                     in.readFloats(corrections, 0, corrections.length);
                     int addition = Short.toUnsignedInt(in.readShort());
                     float score = scorer.score(
-                        result,
+                        result.lowerInterval(),
+                        result.upperInterval(),
+                        result.quantizedComponentSum(),
+                        result.additionalCorrection(),
                         VectorSimilarityFunction.EUCLIDEAN,
                         centroidDp,
                         corrections[0],
@@ -196,7 +205,16 @@ public class OSQScorerBenchmark {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i += 16) {
-                scorer.scoreBulk(binaryQueries[j], result, VectorSimilarityFunction.EUCLIDEAN, centroidDp, scratchScores);
+                scorer.scoreBulk(
+                    binaryQueries[j],
+                    result.lowerInterval(),
+                    result.upperInterval(),
+                    result.quantizedComponentSum(),
+                    result.additionalCorrection(),
+                    VectorSimilarityFunction.EUCLIDEAN,
+                    centroidDp,
+                    scratchScores
+                );
                 bh.consume(scratchScores);
             }
         }

@@ -177,7 +177,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
                         );
                         return;
                     }
-                    indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, concreteTargetKey.get());
+                    indexLifecycleService.maybeRunAsyncAction(newProjectState, newIndexMetadata, concreteTargetKey.get());
                 }
             }
         );

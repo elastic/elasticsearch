@@ -97,14 +97,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new TestRegistryWithCustomPlugin(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            NamedXContentRegistry.EMPTY,
-            TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())
-        );
+        registry = new TestRegistryWithCustomPlugin(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After
@@ -942,7 +935,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override

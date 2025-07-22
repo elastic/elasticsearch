@@ -49,7 +49,6 @@ public class MappingParserTests extends MapperServiceTestCase {
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
-            mapperRegistry::getDenseVectorIndexType,
             indexSettings.getIndexVersionCreated(),
             () -> transportVersion,
             () -> {

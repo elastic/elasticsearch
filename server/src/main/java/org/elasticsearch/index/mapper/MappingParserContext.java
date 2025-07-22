@@ -17,7 +17,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
@@ -34,7 +33,6 @@ public class MappingParserContext {
     private final Function<String, SimilarityProvider> similarityLookupService;
     private final Function<String, Mapper.TypeParser> typeParsers;
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
-    private final Function<String, DenseVectorFieldMapper.VectorIndexType> denseVectorIndexType;
     private final IndexVersion indexVersionCreated;
     private final Supplier<TransportVersion> clusterTransportVersion;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
@@ -50,7 +48,6 @@ public class MappingParserContext {
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
-        Function<String, DenseVectorFieldMapper.VectorIndexType> denseVectorIndexType,
         IndexVersion indexVersionCreated,
         Supplier<TransportVersion> clusterTransportVersion,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
@@ -63,7 +60,6 @@ public class MappingParserContext {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
-        this.denseVectorIndexType = denseVectorIndexType;
         this.indexVersionCreated = indexVersionCreated;
         this.clusterTransportVersion = clusterTransportVersion;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
@@ -101,10 +97,6 @@ public class MappingParserContext {
 
     public RuntimeField.Parser runtimeFieldParser(String type) {
         return runtimeFieldParsers.apply(type);
-    }
-
-    public DenseVectorFieldMapper.VectorIndexType denseVectorIndexType(String type) {
-        return denseVectorIndexType.apply(type);
     }
 
     public IndexVersion indexVersionCreated() {
@@ -171,7 +163,6 @@ public class MappingParserContext {
                 in.similarityLookupService,
                 in.typeParsers,
                 in.runtimeFieldParsers,
-                null, // TODO: serialization
                 in.indexVersionCreated,
                 in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
@@ -202,7 +193,6 @@ public class MappingParserContext {
                 in.similarityLookupService,
                 in.typeParsers,
                 in.runtimeFieldParsers,
-                null, // TODO: serialization
                 in.indexVersionCreated,
                 in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,

@@ -14,10 +14,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.AbstractDenseVectorFieldMapperTestcase;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.junit.Before;
@@ -27,8 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.gpu.GPUPlugin.GPU_FORMAT;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapperTestcase {
@@ -44,45 +39,15 @@ public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapp
         return Collections.singletonList(plugin);
     }
 
-    public void testGPUParsing() throws IOException {
-        DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 128);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "gpu");
-            b.endObject();
-        }));
-        var denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
-        var indexOptions = denseVectorFieldMapper.fieldType().getIndexOptions();
-        var name = indexOptions.type().name();
-        assertThat(name, equalTo("gpu"));
-        // TODO: finish tests
-    }
-
-    public void testGPUParsingFailureInRelease() {
-        assumeTrue("feature flag [gpu_format] must be enabled", GPU_FORMAT.isEnabled() == false);
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(
-                    b -> b.field("type", "dense_vector").field("dims", dims).startObject("index_options").field("type", "gpu").endObject()
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("Unknown vector index options"));
-    }
-
     public void testKnnGPUVectorsFormat() throws IOException {
-        final int dims = randomIntBetween(64, 4096);
+        final int dims = randomIntBetween(128, 4096);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", dims);
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
-            b.field("type", "gpu");
+            b.field("type", "hnsw");
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);

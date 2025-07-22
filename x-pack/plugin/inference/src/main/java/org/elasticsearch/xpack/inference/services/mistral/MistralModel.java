@@ -10,19 +10,21 @@ package org.elasticsearch.xpack.inference.services.mistral;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Objects;
 
 /**
  * Represents a Mistral model that can be used for inference tasks.
  * This class extends RateLimitGroupingModel to handle rate limiting based on model and API key.
  */
 public abstract class MistralModel extends RateLimitGroupingModel {
-    protected String model;
     protected URI uri;
     protected RateLimitSettings rateLimitSettings;
 
@@ -32,10 +34,6 @@ public abstract class MistralModel extends RateLimitGroupingModel {
 
     protected MistralModel(RateLimitGroupingModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-    }
-
-    public String model() {
-        return this.model;
     }
 
     public URI uri() {
@@ -49,7 +47,7 @@ public abstract class MistralModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return 0;
+        return Objects.hash(getServiceSettings().modelId(), getSecretSettings().apiKey());
     }
 
     // Needed for testing only
@@ -65,4 +63,6 @@ public abstract class MistralModel extends RateLimitGroupingModel {
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
+
+    public abstract ExecutableAction accept(MistralActionVisitor creator);
 }

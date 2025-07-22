@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMap
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -477,6 +478,61 @@ public class ServiceUtilsTests extends ESTestCase {
         assertFalse(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
         assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractOptionalList_CreatesList() {
+        var validation = new ValidationException();
+        var list = List.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        Map<String, Object> map = modifiableMap(Map.of("key", list));
+        assertEquals(list, extractOptionalList(map, "key", String.class, validation));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+        assertNull(extractOptionalList(map, "abc", String.class, validation));
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsNotAList() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsNotAListOfTheCorrectType() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(1, 2)));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldContainsMixedTypeValues() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(1, "a")));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
     }
 
     public void testExtractOptionalPositiveInt() {

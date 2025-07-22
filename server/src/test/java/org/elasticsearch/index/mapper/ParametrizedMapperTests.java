@@ -263,7 +263,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             return null;
         },
             name -> null,
-            type -> null,
             version,
             () -> transportVersion,
             () -> null,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -34,6 +36,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests.relation;
 
@@ -74,12 +77,30 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
         ),
         new PushDownLimitTestCase<>(
             Completion.class,
-            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(TEXT), randomLiteral(TEXT), attr),
+            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(KEYWORD), randomLiteral(KEYWORD), attr),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());
                 assertEquals(basePlan.prompt(), optimizedPlan.prompt());
                 assertEquals(basePlan.targetField(), optimizedPlan.targetField());
+            }
+        ),
+        new PushDownLimitTestCase<>(
+            Rerank.class,
+            (plan, attr) -> new Rerank(
+                EMPTY,
+                plan,
+                randomLiteral(KEYWORD),
+                randomLiteral(KEYWORD),
+                randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(KEYWORD))),
+                attr
+            ),
+            (basePlan, optimizedPlan) -> {
+                assertEquals(basePlan.source(), optimizedPlan.source());
+                assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());
+                assertEquals(basePlan.queryText(), optimizedPlan.queryText());
+                assertEquals(basePlan.rerankFields(), optimizedPlan.rerankFields());
+                assertEquals(basePlan.scoreAttribute(), optimizedPlan.scoreAttribute());
             }
         )
     );
@@ -87,7 +108,7 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
     private static final List<PushDownLimitTestCase<? extends UnaryPlan>> NON_PUSHABLE_LIMIT_TEST_CASES = List.of(
         new PushDownLimitTestCase<>(
             Filter.class,
-            (plan, attr) -> new Filter(EMPTY, plan, new Equals(EMPTY, attr, new Literal(EMPTY, "right", TEXT))),
+            (plan, attr) -> new Filter(EMPTY, plan, new Equals(EMPTY, attr, new Literal(EMPTY, BytesRefs.toBytesRef("right"), TEXT))),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.condition(), optimizedPlan.condition());

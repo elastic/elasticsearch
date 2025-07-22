@@ -95,13 +95,11 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        var denseVectorIndexTypes = getDenseVectorIndexTypes(mapperPlugins);
         this.mapperRegistry = new MapperRegistry(
-            getMappers(mapperPlugins, denseVectorIndexTypes),
+            getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
-            getFieldFilter(mapperPlugins),
-            denseVectorIndexTypes
+            getFieldFilter(mapperPlugins)
         );
     }
 
@@ -181,10 +179,7 @@ public class IndicesModule extends AbstractModule {
         );
     }
 
-    public static Map<String, Mapper.TypeParser> getMappers(
-        List<MapperPlugin> mapperPlugins,
-        Map<String, DenseVectorFieldMapper.VectorIndexType> denseVectorIndexTypes
-    ) {
+    public static Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
 
         // builtin mappers
@@ -213,7 +208,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(PassThroughObjectMapper.CONTENT_TYPE, new PassThroughObjectMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
 
-        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, DenseVectorFieldMapper.parser(denseVectorIndexTypes::get));
+        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, DenseVectorFieldMapper.PARSER);
         mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, SparseVectorFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
@@ -224,21 +219,6 @@ public class IndicesModule extends AbstractModule {
             }
         }
         return Collections.unmodifiableMap(mappers);
-    }
-
-    private static Map<String, DenseVectorFieldMapper.VectorIndexType> getDenseVectorIndexTypes(List<MapperPlugin> mapperPlugins) {
-        Map<String, DenseVectorFieldMapper.VectorIndexType> indexTypes = new LinkedHashMap<>(
-            DenseVectorFieldMapper.allBasicVectorIndexTypes()
-        );
-
-        for (MapperPlugin mapperPlugin : mapperPlugins) {
-            for (var entry : mapperPlugin.getDenseVectorIndexTypes().entrySet()) {
-                if (indexTypes.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("DenseVectorIndexType [" + entry.getKey() + "] is already registered");
-                }
-            }
-        }
-        return Collections.unmodifiableMap(indexTypes);
     }
 
     private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {

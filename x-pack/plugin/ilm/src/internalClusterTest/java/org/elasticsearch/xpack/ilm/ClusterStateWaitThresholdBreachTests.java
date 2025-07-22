@@ -141,7 +141,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                final var projectState = currentState.projectState();
                 return new MoveToNextStepUpdateTask(
+                    projectState.projectId(),
                     managedIndexMetadata.getIndex(),
                     policy,
                     currentStepKey,
@@ -149,7 +151,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
                     nowWayBackInThePastSupplier,
                     indexLifecycleService.getPolicyRegistry(),
                     state -> {}
-                ).execute(currentState.projectState());
+                ).execute(projectState);
             }
 
             @Override

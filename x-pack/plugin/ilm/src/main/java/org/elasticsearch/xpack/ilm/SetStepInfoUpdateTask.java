@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,8 +32,8 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     private final String policy;
     private final ToXContentObject stepInfo;
 
-    public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        super(index, currentStepKey);
+    public SetStepInfoUpdateTask(ProjectId projectId, Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
+        super(projectId, index, currentStepKey);
         this.policy = policy;
         this.stepInfo = stepInfo;
     }

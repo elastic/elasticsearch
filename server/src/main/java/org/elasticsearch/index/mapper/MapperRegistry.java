@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 
@@ -32,14 +31,12 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
     private final Function<String, FieldPredicate> fieldFilter;
-    private final Map<String, DenseVectorFieldMapper.VectorIndexType> denseVectorIndexTypes;
 
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Function<String, FieldPredicate> fieldFilter,
-        Map<String, DenseVectorFieldMapper.VectorIndexType> denseVectorIndexTypes
+        Function<String, FieldPredicate> fieldFilter
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -53,7 +50,6 @@ public final class MapperRegistry {
         metadata5x.put(LegacyTypeFieldMapper.NAME, LegacyTypeFieldMapper.PARSER);
         this.metadataMapperParsers5x = metadata5x;
         this.fieldFilter = fieldFilter;
-        this.denseVectorIndexTypes = Collections.unmodifiableMap(denseVectorIndexTypes);
     }
 
     /**
@@ -103,12 +99,5 @@ public final class MapperRegistry {
      */
     public Function<String, FieldPredicate> getFieldFilter() {
         return fieldFilter;
-    }
-
-    /**
-     * Returns ...
-     */
-    public DenseVectorFieldMapper.VectorIndexType getDenseVectorIndexType(String type) {
-        return denseVectorIndexTypes.get(type);
     }
 }

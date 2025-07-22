@@ -98,6 +98,7 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -283,6 +284,7 @@ public class IndicesService extends AbstractLifecycleComponent
     final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
 
     @Override
     protected void doStart() {
@@ -358,6 +360,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.requestCacheKeyDifferentiator = builder.requestCacheKeyDifferentiator;
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
+        this.mergeMetrics = builder.mergeMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -801,7 +804,8 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
-            searchStatsSettings
+            searchStatsSettings,
+            mergeMetrics
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -900,7 +904,8 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
-            searchStatsSettings
+            searchStatsSettings,
+            mergeMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -945,6 +950,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     public void createShard(
+        final ProjectId projectId,
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -963,26 +969,29 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(
-            recoveryState,
-            recoveryTargetService,
-            postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
-            repositoriesService,
-            (mapping, listener) -> {
-                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                    : "mapping update consumer only required by local shards recovery";
-                AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                    // concrete index - no name clash, it uses uuid
-                    .setConcreteIndex(shardRouting.index())
-                    .source(mapping.source().string(), XContentType.JSON);
-                client.execute(
-                    TransportAutoPutMappingAction.TYPE,
-                    putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                    new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-                );
-            },
-            this,
-            clusterStateVersion
+        projectResolver.executeOnProject(
+            projectId,
+            () -> indexShard.startRecovery(
+                recoveryState,
+                recoveryTargetService,
+                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
+                repositoriesService,
+                (mapping, listener) -> {
+                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                        : "mapping update consumer only required by local shards recovery";
+                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                        // concrete index - no name clash, it uses uuid
+                        .setConcreteIndex(shardRouting.index())
+                        .source(mapping.source().string(), XContentType.JSON);
+                    client.execute(
+                        TransportAutoPutMappingAction.TYPE,
+                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                    );
+                },
+                this,
+                clusterStateVersion
+            )
         );
     }
 

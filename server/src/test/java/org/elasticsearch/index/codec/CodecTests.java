@@ -128,8 +128,7 @@ public class CodecTests extends ESTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.emptyMap(),
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Collections.emptyMap()
+            MapperPlugin.NOOP_FIELD_FILTER
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         MapperService service = new MapperService(

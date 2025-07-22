@@ -299,13 +299,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             Settings.EMPTY,
             null,
             xContentRegistry(),
-            new MapperRegistry(
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                MapperPlugin.NOOP_FIELD_FILTER,
-                Collections.emptyMap()
-            ),
+            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             MapperMetrics.NOOP

@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ public class MedianAbsoluteDeviationLongGroupingAggregatorFunctionTests extends 
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new TupleBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
+        return new TupleLongLongBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override

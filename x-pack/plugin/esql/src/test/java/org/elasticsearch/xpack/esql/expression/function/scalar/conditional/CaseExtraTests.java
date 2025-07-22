@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -305,7 +306,11 @@ public class CaseExtraTests extends ESTestCase {
             if (arg instanceof Expression e) {
                 return e;
             }
-            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, DataType.fromJava(arg));
+            DataType dataType = DataType.fromJava(arg);
+            if (arg instanceof String) {
+                arg = BytesRefs.toBytesRef(arg);
+            }
+            return new Literal(Source.synthetic(arg == null ? "null" : BytesRefs.toString(arg)), arg, dataType);
         }).toList();
         return new Case(Source.synthetic("<case>"), exps.get(0), exps.subList(1, exps.size()));
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -259,7 +260,7 @@ public class RestoreServiceTests extends ESTestCase {
         }
 
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
-        when(repositoriesService.getRepositories()).thenReturn(repositories);
+        when(repositoriesService.getProjectRepositories(eq(ProjectId.DEFAULT))).thenReturn(repositories);
         final AtomicBoolean completed = new AtomicBoolean();
         RestoreService.refreshRepositoryUuids(
             true,

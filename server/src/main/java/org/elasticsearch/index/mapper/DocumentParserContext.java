@@ -19,7 +19,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -286,10 +285,6 @@ public abstract class DocumentParserContext {
 
     public final RootObjectMapper root() {
         return this.mappingLookup.getMapping().getRoot();
-    }
-
-    public final DenseVectorFieldMapper.VectorIndexType denseVectorIndexType(String type) {
-        return mappingParserContext.denseVectorIndexType(type);
     }
 
     public final ObjectMapper parent() {

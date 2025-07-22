@@ -2,7 +2,7 @@
 "Test GPU vector operations":
   - do:
       indices.create:
-        index: gpu_vectors
+        index: my_vectors
         body:
           mappings:
             properties:
@@ -11,11 +11,11 @@
                 dims: 128
                 similarity: l2_norm
                 index_options:
-                  type: gpu
+                  type: hnsw
 
   - do:
       bulk:
-        index: gpu_vectors
+        index: my_vectors
         refresh: true
         body:
           - index:
@@ -34,7 +34,7 @@
 
   - do:
       search:
-        index: gpu_vectors
+        index: my_vectors
         body:
           knn:
             field: embedding

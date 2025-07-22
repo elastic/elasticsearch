@@ -335,10 +335,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public String text() throws IOException {
         Object value = getCurrentValue();
-        if (value instanceof String str) {
-            return str;
-        }
-        throw new IllegalStateException("Current token is not a string value");
+        return value.toString();
     }
 
     @Override

@@ -407,6 +407,7 @@ flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hn
 flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
 ```
 :::
+::::
 
 For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase. For the scalar quantized formats  `int8_flat`, `int4_flat`, `int8_hnsw` and `int4_hnsw` the `confidence_interval` must always be consistent (once defined, it cannot change).
 

@@ -93,9 +93,8 @@ public class IngestDocumentBridge extends StableBridgeAPI.ProxyInternal<IngestDo
     }
 
     public void executePipeline(final PipelineBridge pipelineBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-        this.internalDelegate.executePipeline(pipelineBridge.toInternal(),
-                                              (ingestDocument, e) -> {
-                                                  handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e);
-                                              });
+        this.internalDelegate.executePipeline(pipelineBridge.toInternal(), (ingestDocument, e) -> {
+            handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e);
+        });
     }
 }

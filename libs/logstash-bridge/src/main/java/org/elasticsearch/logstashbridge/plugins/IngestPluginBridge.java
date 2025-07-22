@@ -36,8 +36,10 @@ public interface IngestPluginBridge {
         }
 
         public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
-            return StableBridgeAPI.fromInternal(this.internalDelegate.getProcessors(parameters.toInternal()),
-                                                ProcessorBridge.Factory::fromInternal);
+            return StableBridgeAPI.fromInternal(
+                this.internalDelegate.getProcessors(parameters.toInternal()),
+                ProcessorBridge.Factory::fromInternal
+            );
         }
 
         @Override

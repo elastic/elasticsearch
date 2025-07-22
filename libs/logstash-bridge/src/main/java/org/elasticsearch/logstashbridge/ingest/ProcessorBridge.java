@@ -120,8 +120,10 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
 
             @Override
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                AbstractExternal.this.execute(IngestDocumentBridge.fromInternalNullable(ingestDocument),
-                                              (idb, e) -> handler.accept(idb.toInternal(), e));
+                AbstractExternal.this.execute(
+                    IngestDocumentBridge.fromInternalNullable(ingestDocument),
+                    (idb, e) -> handler.accept(idb.toInternal(), e)
+                );
             }
 
             @Override

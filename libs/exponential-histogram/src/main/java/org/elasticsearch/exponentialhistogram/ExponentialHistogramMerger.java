@@ -70,7 +70,7 @@ public class ExponentialHistogramMerger {
         return result;
     }
 
-    // TODO: this algorithm is very efficient if b has roughly as many buckets as a
+    // TODO(b/128622): this algorithm is very efficient if b has roughly as many buckets as a
     // However, if b is much smaller we still have to iterate over all buckets of a which is very wasteful
     // This can be optimized by buffering multiple histograms to accumulate first,
     // then in O(log(b)) turn them into a single, merged histogram

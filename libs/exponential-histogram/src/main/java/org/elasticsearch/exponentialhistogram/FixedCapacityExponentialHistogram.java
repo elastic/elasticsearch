@@ -19,8 +19,6 @@ import java.util.OptionalLong;
  */
 public final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
-    // TODO: maybe switch to BigArrays?
-
     // These arrays represent both the positive and the negative buckets.
     // They store all negative buckets first, in ascending index order, followed by all positive buckets, also in ascending index order.
     private final long[] bucketIndices;

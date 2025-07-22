@@ -81,6 +81,7 @@ public class MultiClustersIT extends ESRestTestCase {
     final String lookupIndexLocal = "test-lookup-index-local";
     final String lookupIndexRemote = "test-lookup-index-remote";
     final String lookupAlias = "test-lookup-index";
+    private Boolean shouldCheckShardCounts = null;
 
     @Before
     public void setUpIndices() throws Exception {
@@ -209,6 +210,17 @@ public class MultiClustersIT extends ESRestTestCase {
         } else {
             return RestEsqlTestCase.runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
         }
+    }
+
+    private boolean checkShardCounts() {
+        if (shouldCheckShardCounts == null) {
+            try {
+                shouldCheckShardCounts = capabilitiesSupportedNewAndOld(List.of("correct_skipped_shard_count"));
+            } catch (IOException e) {
+                shouldCheckShardCounts = false;
+            }
+        }
+        return shouldCheckShardCounts;
     }
 
     private <C, V> void assertResultMapWithCapabilities(
@@ -345,11 +357,12 @@ public class MultiClustersIT extends ESRestTestCase {
                 .entry("skipped", greaterThanOrEqualTo(0))
                 .entry("failed", 0)
         );
-        assertThat(
-            (int) remoteClusterShards.get("successful") + (int) remoteClusterShards.get("skipped"),
-            equalTo(remoteClusterShards.get("total"))
-        );
-
+        if (checkShardCounts()) {
+            assertThat(
+                (int) remoteClusterShards.get("successful") + (int) remoteClusterShards.get("skipped"),
+                equalTo(remoteClusterShards.get("total"))
+            );
+        }
         if (remoteOnly == false) {
             @SuppressWarnings("unchecked")
             Map<String, Object> localCluster = (Map<String, Object>) details.get("(local)");
@@ -367,10 +380,12 @@ public class MultiClustersIT extends ESRestTestCase {
                     .entry("skipped", greaterThanOrEqualTo(0))
                     .entry("failed", 0)
             );
-            assertThat(
-                (int) localClusterShards.get("successful") + (int) localClusterShards.get("skipped"),
-                equalTo(localClusterShards.get("total"))
-            );
+            if (checkShardCounts()) {
+                assertThat(
+                    (int) localClusterShards.get("successful") + (int) localClusterShards.get("skipped"),
+                    equalTo(localClusterShards.get("total"))
+                );
+            }
         }
     }
 

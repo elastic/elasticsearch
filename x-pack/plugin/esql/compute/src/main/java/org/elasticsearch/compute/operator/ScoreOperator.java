@@ -46,9 +46,9 @@ public class ScoreOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        assert page.getBlockCount() >= 2 : "Expected at least 2 blocks, got " + page.getBlockCount();
-        assert page.getBlock(0).asVector() instanceof DocVector : "Expected a DocVector, got " + page.getBlock(0).asVector();
-        assert page.getBlock(1).asVector() instanceof DoubleVector : "Expected a DoubleVector, got " + page.getBlock(1).asVector();
+        assert page.getBlockCount() > scoreBlockPosition : "Expected to get a score block in position " + scoreBlockPosition;
+        assert page.getBlock(scoreBlockPosition).asVector() instanceof DoubleVector
+            : "Expected a DoubleVector as a score block, got " + page.getBlock(scoreBlockPosition).asVector();
 
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {

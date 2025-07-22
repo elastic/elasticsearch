@@ -30,6 +30,16 @@ import java.util.Map;
  * <p>
  * The rule processes inference functions recursively, handling newly revealed functions that might
  * appear after the first round of folding.
+ *
+ * Example:
+ * <pre>
+ * // Before optimization:
+ * FROM documents | WHERE KNN(field, TEXT_EMBEDDING('constant text', 'model-id'), 10)
+ *
+ * // After optimization:
+ * // (The TEXT_EMBEDDING function is replaced with its computed dense vector)
+ * FROM documents | WHERE KNN(field, [0.1, 0.2, ...], 10)
+ * </pre>
  */
 public class InferenceFunctionConstantFolding implements PreOptimizerRule {
     private final InferenceRunner.Factory inferenceRunnerFactory;
@@ -38,7 +48,8 @@ public class InferenceFunctionConstantFolding implements PreOptimizerRule {
     /**
      * Creates a new instance of the InferenceFunctionConstantFolding rule.
      *
-     * @param inferenceRunnerFactory the inference runner to use for evaluating inference functions
+     * @param inferenceRunnerFactory the factory for creating an inference runner
+     * @param preOptimizerContext the pre-optimizer context containing folding configuration
      */
     public InferenceFunctionConstantFolding(
         InferenceRunner.Factory inferenceRunnerFactory,
@@ -79,13 +90,15 @@ public class InferenceFunctionConstantFolding implements PreOptimizerRule {
             return;
         }
 
-        // This is a map of inference functions to their results.
+        // Map each inference function to its computed result
         // We will use this map to replace the inference functions in the plan.
         Map<InferenceFunction<?>, Expression> inferenceFunctionsToResults = new HashMap<>();
 
-        // Prepare a listener that will be called when all inference functions are done.
-        // This listener will replace the inference functions in the plan with their results and then recursively fold the remaining
-        // inference functions.
+        // Create a listener that will be notified when all inference functions have been evaluated
+        // This listener will:
+        // 1. Replace each inference function with its computed result in the plan
+        // 2. Recursively process the transformed plan to handle any new constant expressions
+        // that may have been revealed by the first round of folding
         CountDownActionListener completionListener = new CountDownActionListener(
             inferenceFunctions.size(),
             listener.delegateFailureIgnoreResponseAndWrap(l -> {

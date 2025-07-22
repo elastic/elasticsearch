@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceResolver}.
+ * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceRunner}.
  * <p>
  * The {@code InferenceOperator} integrates with the compute framework  supports throttled bulk execution of inference requests. It
  * transforms input {@link Page} into inference requests, asynchronously executes them, and converts the responses into a new {@link Page}.

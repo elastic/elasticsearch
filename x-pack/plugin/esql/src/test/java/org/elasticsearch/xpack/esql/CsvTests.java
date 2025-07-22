@@ -710,7 +710,6 @@ public class CsvTests extends ESTestCase {
             blockFactory,
             randomNodeSettings(),
             configuration,
-            threadPool,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),
             mock(EnrichLookupService.class),

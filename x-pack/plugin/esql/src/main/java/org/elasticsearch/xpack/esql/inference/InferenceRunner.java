@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Interface for executing individual and bulk inference requests with concurrency control.
@@ -33,16 +34,25 @@ public interface InferenceRunner {
     void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener);
 
     /**
-     * Executes multiple inference requests in bulk with coordinated processing.
-     * <p>
-     * This method provides efficient batch processing of inference requests while maintaining
-     * ordering and providing consolidated results or error handling.
-     * </p>
+     * Executes multiple inference requests in bulk and collects all responses.
      *
-     * @param requests An iterator over the inference requests to be executed in bulk
-     * @param listener Callback listener for the list of inference responses or error
+     * @param requests An iterator over the inference requests to execute
+     * @param listener Called with the list of all responses in request order
      */
     void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener);
+
+    /**
+     * Executes multiple inference requests in bulk with streaming responses handling.
+     *
+     * @param requests           An iterator over the inference requests to execute
+     * @param responseConsumer   Called for each successful inference response
+     * @param completionListener Called when all requests are complete or if any error occurs
+     */
+    void executeBulk(
+        BulkInferenceRequestIterator requests,
+        Consumer<InferenceAction.Response> responseConsumer,
+        ActionListener<Void> completionListener
+    );
 
     /**
      * Returns the thread pool associated with this inference runner.
@@ -53,6 +63,9 @@ public interface InferenceRunner {
         return new ThrottledInferenceRunner.Factory(client);
     }
 
+    /**
+     * Factory interface for creating {@link InferenceRunner} instances.
+     */
     @FunctionalInterface
     interface Factory {
         /**

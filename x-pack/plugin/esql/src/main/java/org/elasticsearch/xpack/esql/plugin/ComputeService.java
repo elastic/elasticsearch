@@ -618,7 +618,6 @@ public class ComputeService {
                 blockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
-                transportService.getThreadPool(),
                 context.exchangeSourceSupplier(),
                 context.exchangeSinkSupplier(),
                 enrichLookupService,

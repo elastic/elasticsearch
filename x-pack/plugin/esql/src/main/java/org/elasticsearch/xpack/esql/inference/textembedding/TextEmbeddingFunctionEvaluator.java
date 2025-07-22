@@ -31,12 +31,24 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 
+/**
+ * Evaluates text embedding functions by executing them through the inference service.
+ * <p>
+ * This class handles the execution of text embedding operations, managing resources
+ * like circuit breakers and memory allocation during the inference process.
+ */
 public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluator {
 
     private final InferenceRunner.Factory inferenceRunnerFactory;
 
     private final TextEmbedding f;
 
+    /**
+     * Creates a new text embedding function evaluator.
+     *
+     * @param f The text embedding function to evaluate
+     * @param inferenceRunnerFactory Factory for creating inference runners
+     */
     public TextEmbeddingFunctionEvaluator(TextEmbedding f, InferenceRunner.Factory inferenceRunnerFactory) {
         this.inferenceRunnerFactory = inferenceRunnerFactory;
         this.f = f;
@@ -45,7 +57,8 @@ public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluato
     @Override
     public void eval(FoldContext foldContext, ActionListener<Expression> listener) {
 
-        // Create a driver context to track the inference function execution
+        // Set up circuit breaker and big arrays for memory management
+        // The circuit breaker prevents out of memory errors by tracking memory usage
         CircuitBreaker breaker = foldContext.circuitBreakerView(f.source());
         BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
             @Override
@@ -70,7 +83,8 @@ public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluato
 
         Layout layout = new Layout.Builder().append(new Alias(f.inputText().source(), "inputText", f.inputText())).build();
 
-        // Create an inference operator to execute the inference function
+        // Create and configure the text embedding operator
+        // This operator will handle the actual execution of the embedding model
         Operator textEmbeddingOperator = new TextEmbeddingOperator.Factory(
             inferenceRunnerFactory,
             BytesRefs.toString(f.inferenceId().fold(foldContext)),

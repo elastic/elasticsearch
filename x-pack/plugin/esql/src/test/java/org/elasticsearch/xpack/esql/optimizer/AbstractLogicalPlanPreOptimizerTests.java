@@ -38,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
@@ -231,6 +232,18 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
             @Override
             public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
                 execute(requests.next(), listener.map(r -> List.of(r)));
+            }
+
+            @Override
+            public void executeBulk(
+                BulkInferenceRequestIterator requests,
+                Consumer<InferenceAction.Response> responseConsumer,
+                ActionListener<Void> completionListener
+            ) {
+                execute(requests.next(), completionListener.delegateFailureAndWrap((l, r) -> {
+                    responseConsumer.accept(r);
+                    l.onResponse(null);
+                }));
             }
 
             @Override

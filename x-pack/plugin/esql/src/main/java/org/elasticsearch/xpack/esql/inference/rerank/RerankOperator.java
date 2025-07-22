@@ -14,7 +14,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
@@ -101,7 +100,6 @@ public class RerankOperator extends InferenceOperator {
      */
     public record Factory(
         InferenceRunner.Factory inferenceRunnerFactory,
-        ThreadPool threadPool,
         String inferenceId,
         String queryText,
         ExpressionEvaluator.Factory rowEncoderFactory,

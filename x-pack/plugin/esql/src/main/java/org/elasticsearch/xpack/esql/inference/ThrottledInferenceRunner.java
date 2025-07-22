@@ -12,15 +12,18 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionState;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkResponseHandler;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -32,11 +35,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * permit system. When all permits are exhausted, additional requests are queued and
  * executed as permits become available.
  * </p>
- * <p>
- * The implementation supports both individual and bulk inference execution, with bulk
- * operations coordinated through a {@link BulkInferenceRunner} that maintains request
- * ordering and response collection.
- * </p>
+
  */
 class ThrottledInferenceRunner implements InferenceRunner {
 
@@ -44,7 +43,6 @@ class ThrottledInferenceRunner implements InferenceRunner {
     private final ExecutorService executorService;
     private final BlockingQueue<AbstractRunnable> pendingRequestsQueue;
     private final Semaphore permits;
-    private final BulkInferenceRunner bulkInferenceRunner;
 
     /**
      * Constructs a new throttled inference runner with the specified configuration.
@@ -57,7 +55,6 @@ class ThrottledInferenceRunner implements InferenceRunner {
         this.permits = new Semaphore(maxRunningTasks);
         this.client = client;
         this.pendingRequestsQueue = new ArrayBlockingQueue<>(maxRunningTasks);
-        this.bulkInferenceRunner = new BulkInferenceRunner(this);
     }
 
     /**
@@ -71,8 +68,59 @@ class ThrottledInferenceRunner implements InferenceRunner {
         executePendingRequests();
     }
 
+    /**
+     * Executes multiple inference requests in bulk and collects all responses.
+     *
+     * @param requests An iterator over the inference requests to execute
+     * @param listener Called with the list of all responses in request order
+     */
     public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
-        bulkInferenceRunner.execute(requests, listener);
+        List<InferenceAction.Response> responses = new ArrayList<>(requests.estimatedSize());
+        executeBulk(requests, responses::add, listener.map(ignored -> responses));
+    }
+
+    /**
+     * Executes multiple inference requests in bulk with streaming response handling.
+     *
+     * @param requests           An iterator over the inference requests to execute
+     * @param responseConsumer   Called for each successful inference response
+     * @param completionListener Called when all requests are complete or if any error occurs
+     */
+    public void executeBulk(
+        BulkInferenceRequestIterator requests,
+        Consumer<InferenceAction.Response> responseConsumer,
+        ActionListener<Void> completionListener
+    ) {
+        if (requests.hasNext() == false) {
+            completionListener.onResponse(null);
+            return;
+        }
+
+        final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
+        final BulkResponseHandler responseHandler = new BulkResponseHandler(bulkExecutionState, responseConsumer, completionListener);
+
+        while (bulkExecutionState.finished() == false && requests.hasNext()) {
+            InferenceAction.Request request = requests.next();
+            long seqNo = bulkExecutionState.generateSeqNo();
+
+            if (requests.hasNext() == false) {
+                bulkExecutionState.finish();
+            }
+
+            ActionListener<InferenceAction.Response> inferenceResponseListener = ActionListener.runAfter(
+                ActionListener.wrap(
+                    r -> bulkExecutionState.onInferenceResponse(seqNo, r),
+                    e -> bulkExecutionState.onInferenceException(seqNo, e)
+                ),
+                responseHandler::persistPendingResponses
+            );
+
+            if (request == null) {
+                inferenceResponseListener.onResponse(null);
+            } else {
+                execute(request, inferenceResponseListener);
+            }
+        }
     }
 
     @Override

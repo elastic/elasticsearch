@@ -364,10 +364,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
         // Fallback: materialize value and convert to bytes
         Object value = getCurrentValue();
-        if (value instanceof String str) {
-            return new Text(str);
-        }
-        throw new IllegalStateException("Current token is not a string value");
+        return new Text(value.toString());
     }
 
     @Override

@@ -344,6 +344,24 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean matchQueryYieldsCandidateMatchesForEquality(String name) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name);
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (false == t.matchQueryYieldsCandidateMatchesForEquality()) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {

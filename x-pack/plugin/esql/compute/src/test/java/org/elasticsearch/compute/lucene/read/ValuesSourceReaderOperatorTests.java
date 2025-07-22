@@ -1591,6 +1591,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             null,
             Map.of(),
             false,
+            false,
             false
         );
     }
@@ -1604,6 +1605,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             delegate,
             Map.of(),
+            false,
             false,
             false
         );

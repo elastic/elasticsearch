@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -71,7 +72,16 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    /**
+     * Can the synthetic _source delegate perform {@code ==} on the provided string?
+     */
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
+
+    /**
+     * Does a {@link MatchQueryBuilder} produce a complete list of all possible documents
+     * that <strong>might</strong> be {@code ==} to the value passed to the query.
+     */
+    boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr);
 
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
@@ -163,6 +173,11 @@ public interface LucenePushdownPredicates {
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return false;
             }
+
+            @Override
+            public boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr) {
+                return false;
+            }
         };
     }
 
@@ -207,6 +222,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
+            }
+
+            @Override
+            public boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr) {
+                return stats.matchQueryYieldsCandidateMatchesForEquality(attr.field().getName());
             }
         };
     }

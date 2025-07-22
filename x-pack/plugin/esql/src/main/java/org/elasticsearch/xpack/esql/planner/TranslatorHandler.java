@@ -33,13 +33,15 @@ public final class TranslatorHandler {
     public Query asQuery(LucenePushdownPredicates predicates, Expression e) {
         if (e instanceof TranslationAware ta) {
             Query query = ta.asQuery(predicates, this);
-            return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
+            return ta instanceof TranslationAware.SingleValueTranslationAware sv
+                ? forceToSingleValueQuery(sv.singleValueField(), query)
+                : query;
         }
 
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
-    private static Query wrapFunctionQuery(Expression field, Query query) {
+    public Query forceToSingleValueQuery(Expression field, Query query) {
         if (query instanceof SingleValueQuery) {
             // Already wrapped
             return query;

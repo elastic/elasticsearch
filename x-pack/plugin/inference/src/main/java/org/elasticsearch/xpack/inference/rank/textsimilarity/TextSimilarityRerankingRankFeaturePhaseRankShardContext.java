@@ -35,7 +35,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     private final RerankSnippetInput snippetRankInput;
 
     // Rough approximation of token size vs. characters in highlight fragments.
-    // TODO highlighter should be able to set fragment size by token not length
+    // TODO: highlighter should be able to set fragment size by token not length
     private static final int TOKEN_SIZE_LIMIT_MULTIPLIER = 5;
 
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable RerankSnippetInput snippetRankInput) {

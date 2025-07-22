@@ -35,11 +35,16 @@ class RoundToInt {
             case 2 -> new RoundToInt2Evaluator.Factory(source, field, f[0], f[1]);
             case 3 -> new RoundToInt3Evaluator.Factory(source, field, f[0], f[1], f[2]);
             case 4 -> new RoundToInt4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
+            case 5 -> new RoundToInt5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
+            case 6 -> new RoundToInt6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
+            case 7 -> new RoundToInt7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
+            case 8 -> new RoundToInt8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+            case 9 -> new RoundToInt9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+            case 10 -> new RoundToInt10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
             /*
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            case 5, 6, 7, 8, 9, 10 -> new RoundToIntLinearSearchEvaluator.Factory(source, field, f);
             default -> new RoundToIntBinarySearchEvaluator.Factory(source, field, f);
         };
     };
@@ -101,5 +106,185 @@ class RoundToInt {
             return p2;
         }
         return p3;
+    }
+
+    @Evaluator(extraName = "5")
+    static int process(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p3) {
+            return p2;
+        }
+        if (field < p4) {
+            return p3;
+        }
+        return p4;
+    }
+
+    @Evaluator(extraName = "6")
+    static int process(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4, @Fixed int p5) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p4) {
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p5) {
+            return p4;
+        }
+        return p5;
+    }
+
+    @Evaluator(extraName = "7")
+    static int process(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4, @Fixed int p5, @Fixed int p6) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        return p6;
+    }
+
+    @Evaluator(extraName = "8")
+    static int process(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6,
+        @Fixed int p7
+    ) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        return p7;
+    }
+
+    @Evaluator(extraName = "9")
+    static int process(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6,
+        @Fixed int p7,
+        @Fixed int p8
+    ) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p6) {
+            if (field < p5) {
+                return p4;
+            }
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        return p8;
+    }
+
+    @Evaluator(extraName = "10")
+    static int process(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6,
+        @Fixed int p7,
+        @Fixed int p8,
+        @Fixed int p9
+    ) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p7) {
+            if (field < p5) {
+                return p4;
+            }
+            if (field < p6) {
+                return p5;
+            }
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        if (field < p9) {
+            return p8;
+        }
+        return p9;
     }
 }

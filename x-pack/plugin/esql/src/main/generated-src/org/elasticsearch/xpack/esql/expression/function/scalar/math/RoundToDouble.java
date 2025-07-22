@@ -35,11 +35,16 @@ class RoundToDouble {
             case 2 -> new RoundToDouble2Evaluator.Factory(source, field, f[0], f[1]);
             case 3 -> new RoundToDouble3Evaluator.Factory(source, field, f[0], f[1], f[2]);
             case 4 -> new RoundToDouble4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
+            case 5 -> new RoundToDouble5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
+            case 6 -> new RoundToDouble6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
+            case 7 -> new RoundToDouble7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
+            case 8 -> new RoundToDouble8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+            case 9 -> new RoundToDouble9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
+            case 10 -> new RoundToDouble10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
             /*
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            case 5, 6, 7, 8, 9, 10 -> new RoundToDoubleLinearSearchEvaluator.Factory(source, field, f);
             default -> new RoundToDoubleBinarySearchEvaluator.Factory(source, field, f);
         };
     };
@@ -101,5 +106,202 @@ class RoundToDouble {
             return p2;
         }
         return p3;
+    }
+
+    @Evaluator(extraName = "5")
+    static double process(double field, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3, @Fixed double p4) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p3) {
+            return p2;
+        }
+        if (field < p4) {
+            return p3;
+        }
+        return p4;
+    }
+
+    @Evaluator(extraName = "6")
+    static double process(
+        double field,
+        @Fixed double p0,
+        @Fixed double p1,
+        @Fixed double p2,
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5
+    ) {
+        if (field < p2) {
+            if (field < p1) {
+                return p0;
+            }
+            return p1;
+        }
+        if (field < p4) {
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p5) {
+            return p4;
+        }
+        return p5;
+    }
+
+    @Evaluator(extraName = "7")
+    static double process(
+        double field,
+        @Fixed double p0,
+        @Fixed double p1,
+        @Fixed double p2,
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6
+    ) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        return p6;
+    }
+
+    @Evaluator(extraName = "8")
+    static double process(
+        double field,
+        @Fixed double p0,
+        @Fixed double p1,
+        @Fixed double p2,
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6,
+        @Fixed double p7
+    ) {
+        if (field < p3) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            return p2;
+        }
+        if (field < p5) {
+            if (field < p4) {
+                return p3;
+            }
+            return p4;
+        }
+        if (field < p6) {
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        return p7;
+    }
+
+    @Evaluator(extraName = "9")
+    static double process(
+        double field,
+        @Fixed double p0,
+        @Fixed double p1,
+        @Fixed double p2,
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6,
+        @Fixed double p7,
+        @Fixed double p8
+    ) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p6) {
+            if (field < p5) {
+                return p4;
+            }
+            return p5;
+        }
+        if (field < p7) {
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        return p8;
+    }
+
+    @Evaluator(extraName = "10")
+    static double process(
+        double field,
+        @Fixed double p0,
+        @Fixed double p1,
+        @Fixed double p2,
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6,
+        @Fixed double p7,
+        @Fixed double p8,
+        @Fixed double p9
+    ) {
+        if (field < p4) {
+            if (field < p1) {
+                return p0;
+            }
+            if (field < p2) {
+                return p1;
+            }
+            if (field < p3) {
+                return p2;
+            }
+            return p3;
+        }
+        if (field < p7) {
+            if (field < p5) {
+                return p4;
+            }
+            if (field < p6) {
+                return p5;
+            }
+            return p6;
+        }
+        if (field < p8) {
+            return p7;
+        }
+        if (field < p9) {
+            return p8;
+        }
+        return p9;
     }
 }

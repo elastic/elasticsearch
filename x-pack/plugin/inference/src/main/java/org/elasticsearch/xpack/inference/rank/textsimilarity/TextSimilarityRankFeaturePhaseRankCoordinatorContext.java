@@ -15,7 +15,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.SnippetRankInput;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -41,7 +41,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected final String inferenceId;
     protected final String inferenceText;
     protected final Float minScore;
-    protected final SnippetRankInput snippetRankInput;
+    protected final RerankSnippetInput rerankSnippetInput;
 
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
@@ -52,14 +52,14 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceText,
         Float minScore,
         boolean failuresAllowed,
-        @Nullable SnippetRankInput snippetRankInput
+        @Nullable RerankSnippetInput rerankSnippetInput
     ) {
         super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.minScore = minScore;
-        this.snippetRankInput = snippetRankInput;
+        this.rerankSnippetInput = rerankSnippetInput;
     }
 
     @Override
@@ -81,7 +81,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 l.onResponse(originalScores);
             } else {
                 final float[] scores;
-                if (this.snippetRankInput != null) {
+                if (this.rerankSnippetInput != null) {
                     scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
                 } else {
                     scores = extractScoresFromRankedDocs(rankedDocs);

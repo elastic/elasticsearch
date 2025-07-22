@@ -27,8 +27,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
-import org.elasticsearch.search.rank.feature.SnippetRankInput;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -73,7 +72,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
-    private final SnippetRankInput snippetRankInput;
+    private final RerankSnippetInput rerankSnippetInput;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -82,7 +81,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         int rankWindowSize,
         Float minScore,
         boolean failuresAllowed,
-        SnippetRankInput snippetRankInput
+        RerankSnippetInput rerankSnippetInput
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -90,7 +89,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
-        this.snippetRankInput = snippetRankInput;
+        this.rerankSnippetInput = rerankSnippetInput;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -107,9 +106,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             this.failuresAllowed = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            this.snippetRankInput = in.readOptionalWriteable(SnippetRankInput::new);
+            this.rerankSnippetInput = in.readOptionalWriteable(RerankSnippetInput::new);
         } else {
-            this.snippetRankInput = null;
+            this.rerankSnippetInput = null;
         }
     }
 
@@ -135,7 +134,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             out.writeBoolean(failuresAllowed);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            out.writeOptionalWriteable(snippetRankInput);
+            out.writeOptionalWriteable(rerankSnippetInput);
         }
     }
 
@@ -152,17 +151,16 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
         }
-        if (snippetRankInput != null) {
-            builder.field(SNIPPETS_FIELD.getPreferredName(), snippetRankInput);
+        if (rerankSnippetInput != null) {
+            builder.field(SNIPPETS_FIELD.getPreferredName(), rerankSnippetInput);
         }
     }
 
     @Override
     public RankBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         TextSimilarityRankBuilder rewritten = this;
-        RerankSnippetConfig snippets = snippetRankInput != null ? snippetRankInput.snippets() : null;
-        if (snippets != null) {
-            QueryBuilder snippetQueryBuilder = snippets.snippetQueryBuilder();
+        if (rerankSnippetInput != null) {
+            QueryBuilder snippetQueryBuilder = rerankSnippetInput.snippetQueryBuilder();
             if (snippetQueryBuilder == null) {
                 rewritten = new TextSimilarityRankBuilder(
                     field,
@@ -171,10 +169,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
                     rankWindowSize(),
                     minScore,
                     failuresAllowed,
-                    new SnippetRankInput(
-                        new RerankSnippetConfig(snippets.numSnippets(), new MatchQueryBuilder(field, inferenceText)),
-                        snippetRankInput.inferenceText(),
-                        snippetRankInput.tokenSizeLimit()
+                    new RerankSnippetInput(
+                        rerankSnippetInput.numSnippets(),
+                        rerankSnippetInput.inferenceText(),
+                        rerankSnippetInput.tokenSizeLimit(),
+                        new MatchQueryBuilder(field, inferenceText)
                     )
                 );
             } else {
@@ -187,10 +186,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
                         rankWindowSize(),
                         minScore,
                         failuresAllowed,
-                        new SnippetRankInput(
-                            new RerankSnippetConfig(snippets.numSnippets(), rewrittenSnippetQueryBuilder),
-                            snippetRankInput.inferenceText(),
-                            snippetRankInput.tokenSizeLimit()
+                        new RerankSnippetInput(
+                            rerankSnippetInput.numSnippets(),
+                            rerankSnippetInput.inferenceText(),
+                            rerankSnippetInput.tokenSizeLimit(),
+                            rewrittenSnippetQueryBuilder
                         )
                     );
                 }
@@ -244,7 +244,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, snippetRankInput);
+        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, rerankSnippetInput);
     }
 
     @Override
@@ -258,7 +258,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceText,
             minScore,
             failuresAllowed,
-            snippetRankInput != null ? new SnippetRankInput(snippetRankInput.snippets(), inferenceText, tokenSizeLimit(inferenceId)) : null
+            rerankSnippetInput != null
+                ? new RerankSnippetInput(rerankSnippetInput.numSnippets, inferenceText, tokenSizeLimit(inferenceId))
+                : null
         );
     }
 
@@ -301,12 +303,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore)
             && failuresAllowed == that.failuresAllowed
-            && Objects.equals(snippetRankInput, that.snippetRankInput);
+            && Objects.equals(rerankSnippetInput, that.rerankSnippetInput);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, snippetRankInput);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, rerankSnippetInput);
     }
 
     @Override

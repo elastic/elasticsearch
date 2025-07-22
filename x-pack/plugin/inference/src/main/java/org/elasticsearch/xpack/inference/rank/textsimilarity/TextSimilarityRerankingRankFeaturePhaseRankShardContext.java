@@ -19,7 +19,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
-import org.elasticsearch.search.rank.feature.SnippetRankInput;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.Text;
 
@@ -28,17 +28,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.rank.feature.RerankSnippetConfig.DEFAULT_NUM_SNIPPETS;
+import static org.elasticsearch.search.rank.feature.RerankSnippetInput.DEFAULT_NUM_SNIPPETS;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
-    private final SnippetRankInput snippetRankInput;
+    private final RerankSnippetInput snippetRankInput;
 
     // Rough approximation of token size vs. characters in highlight fragments.
     // TODO highlighter should be able to set fragment size by token not length
     private static final int TOKEN_SIZE_LIMIT_MULTIPLIER = 5;
 
-    public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable SnippetRankInput snippetRankInput) {
+    public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable RerankSnippetInput snippetRankInput) {
         super(field);
         this.snippetRankInput = snippetRankInput;
     }
@@ -72,17 +72,15 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
 
     @Override
     public void prepareForFetch(SearchContext context) {
-        if (snippetRankInput != null && snippetRankInput.snippets() != null) {
+        if (snippetRankInput != null) {
             try {
                 HighlightBuilder highlightBuilder = new HighlightBuilder();
-                highlightBuilder.highlightQuery(snippetRankInput.snippets().snippetQueryBuilder());
+                highlightBuilder.highlightQuery(snippetRankInput.snippetQueryBuilder());
                 // Stripping pre/post tags as they're not useful for snippet creation
                 highlightBuilder.field(field).preTags("").postTags("");
                 // Return highest scoring fragments
                 highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                int numSnippets = snippetRankInput.snippets().numSnippets() != null
-                    ? snippetRankInput.snippets().numSnippets()
-                    : DEFAULT_NUM_SNIPPETS;
+                int numSnippets = snippetRankInput.numSnippets() != null ? snippetRankInput.numSnippets() : DEFAULT_NUM_SNIPPETS;
                 highlightBuilder.numOfFragments(numSnippets);
                 // Rely on the model to determine the fragment size
                 int tokenSizeLimit = snippetRankInput.tokenSizeLimit();

@@ -60,9 +60,9 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0)
+            random(),
+            TransportVersions.V_8_0_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0)
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
@@ -77,9 +77,9 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_8_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_12_0)
+            random(),
+            TransportVersions.V_8_8_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_12_0)
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
@@ -96,9 +96,9 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_12_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
+            random(),
+            TransportVersions.V_8_12_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
@@ -115,9 +115,9 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
-                TransportVersion.current()
+            random(),
+            TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
+            TransportVersion.current()
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 

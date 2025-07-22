@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
 public record ClusterBalanceStats(
@@ -242,9 +243,14 @@ public record ClusterBalanceStats(
                 }
             }
 
+            assert desiredBalance != null;
             Double nodeWeight = desiredBalance.weightsPerNode().isEmpty()
                 ? null
-                : desiredBalance.weightsPerNode().get(routingNode.node()).nodeWeight();
+                // Desired balance is computed asynchronously so its possible a new node from the latest cluster state
+                // hasn't been included yet
+                : Optional.ofNullable(desiredBalance.weightsPerNode().get(routingNode.node()))
+                    .map(DesiredBalanceMetrics.NodeWeightStats::nodeWeight)
+                    .orElse(null);
 
             return new NodeBalanceStats(
                 routingNode.nodeId(),

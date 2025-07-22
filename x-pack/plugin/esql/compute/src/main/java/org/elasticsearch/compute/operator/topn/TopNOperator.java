@@ -308,6 +308,9 @@ public class TopNOperator implements Operator, Accountable {
 
     private Iterator<Page> output;
 
+    private long receiveNanos;
+    private long emitNanos;
+
     /**
      * Count of pages that have been received by this operator.
      */
@@ -387,6 +390,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
+        long start = System.nanoTime();
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -422,13 +426,16 @@ public class TopNOperator implements Operator, Accountable {
             page.releaseBlocks();
             pagesReceived++;
             rowsReceived += page.getPositionCount();
+            receiveNanos += System.nanoTime() - start;
         }
     }
 
     @Override
     public void finish() {
         if (output == null) {
+            long start = System.nanoTime();
             output = toPages();
+            emitNanos += System.nanoTime() - start;
         }
     }
 
@@ -588,7 +595,16 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed(), pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        return new TopNOperatorStatus(
+            receiveNanos,
+            emitNanos,
+            inputQueue.size(),
+            ramBytesUsed(),
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted
+        );
     }
 
     @Override

@@ -210,7 +210,7 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    //  constructor allowing for injection of InstantSource/time for testing
+    // constructor allowing for injection of InstantSource/time for testing
     MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,

@@ -108,8 +108,9 @@ public interface InferenceService extends Closeable {
      * @param stream          Stream inference results
      * @param taskSettings    Settings in the request to override the model's defaults
      * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request. If null, uses the cluster level setting,
-     *                        Allows control over how long inference should wait if a model deployment is required
+     * @param timeout         The timeout for the request. Callers should normally pass in a timeout.
+     *                        Passing in null is specifically for query builders who do not have access to the cluster settings
+     *                        to determine the appropriate timeout value set by the user within semantic_text.
      * @param listener        Inference result listener
      */
     void infer(

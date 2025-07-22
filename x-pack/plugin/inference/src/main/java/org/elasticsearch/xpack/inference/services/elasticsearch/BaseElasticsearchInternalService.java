@@ -288,8 +288,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    protected TimeValue getConfiguredInferenceTimeout() {
-        return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
+    protected ClusterService getClusterService() {
+        return clusterService;
     }
 
     boolean isClusterInElasticCloud() {

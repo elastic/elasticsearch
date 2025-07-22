@@ -2504,6 +2504,10 @@ public class VerifierTests extends ESTestCase {
             checkVectorSimilarityFunctionsNullArgs("v_cosine(null, vector)", "first");
             checkVectorSimilarityFunctionsNullArgs("v_cosine(vector, null)", "second");
         }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)", "first");
+            checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)", "second");
+        }
     }
 
     private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {

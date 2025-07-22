@@ -302,7 +302,9 @@ public class SearchEngine extends Engine {
             listener.onResponse(null);
             return;
         }
-        long timeSinceLastSearcherWasAcquiredInMillis = engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime;
+        long timeSinceLastSearcherWasAcquiredInMillis = lastSearcherAcquiredTime == 0L
+            ? Long.MAX_VALUE // never acquired a searcher
+            : engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime;
         commitPrefetcher.maybePrefetchLatestCommit(
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
@@ -634,8 +636,20 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    protected void onSearcherCreation(String source, SearcherScope scope) {
+        super.onSearcherCreation(source, scope);
+        if (source.equals(CAN_MATCH_SEARCH_SOURCE) || source.equals(SEARCH_SOURCE)) {
+            lastSearcherAcquiredTime = engineConfig.getThreadPool().relativeTimeInMillis();
+        }
+    }
+
+    // visible for testing
+    long getLastSearcherAcquiredTime() {
+        return lastSearcherAcquiredTime;
+    }
+
+    @Override
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        lastSearcherAcquiredTime = engineConfig.getThreadPool().relativeTimeInMillis();
         return super.acquireSearcherSupplier(wrapper, scope);
     }
 

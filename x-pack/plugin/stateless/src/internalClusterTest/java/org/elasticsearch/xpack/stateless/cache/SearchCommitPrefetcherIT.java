@@ -35,6 +35,7 @@ import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -99,6 +101,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueHours(12))
+            // Online prewarming could create traffic in the prewarm pool
+            .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             // Ensure that there's enough room to cache the data
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(32))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
@@ -176,6 +180,76 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testSkipFetchingForSearchIdleIndices() throws Exception {
+        var prefetchNonUploadedCommits = randomBoolean();
+        var nodeSettings = Settings.builder()
+            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
+            // zero idle time means we skip prefetching for all indices, all the time
+            .put(SearchCommitPrefetcher.PREFETCH_SEARCH_IDLE_TIME_SETTING.getKey(), TimeValue.ZERO)
+            .build();
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
+        var indexName = randomIdentifier();
+
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+        var vBCCGen = latestCommitGeneration + 1;
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+        var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
+
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+
+        var numberOfCommits = randomIntBetween(5, 10);
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
+        String prewarmThreadPool = Stateless.PREWARM_THREAD_POOL;
+        // number of completed tasks in the prewarming threadpool before we start indexing
+        long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
+        // number of completed tasks in the refresh pool before we start indexing
+        long preIngestTasksShardReadPool = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
+        for (int j = 0; j < numberOfCommits; j++) {
+            // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
+            indexDocs(indexName, 10_000);
+            refresh(indexName);
+        }
+
+        var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
+
+        var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
+        if (uploadBCC) {
+            flush(indexName);
+        }
+        // wait for the refreshes to complete
+        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksShardReadPool);
+
+        // it's tricky to test that something does NOT happen (you can't wait for things to not happen)
+        // so we just submit a marker task to the prewarming thread pool and then check that it was the only task that ran in the pool
+        threadPool.executor(prewarmThreadPool)
+            .submit(
+                () -> logger.info(
+                    "--> marker task in the prewarming thread pool, should be the only task that runs in the pool as prefetching should be "
+                        + "skipped due to the index search idleness"
+                )
+            );
+        // wait for our marker task to be executed in the prewarming pool (if prefetching ran it would've been scheduled before our marker
+        // task so after the marker we can be sure that prefetching completed - hopefully didn't run in our test's case)
+        assertNoRunningAndQueueTasks(threadPool, prewarmThreadPool, preIngestTasksPrewarmingPool);
+        // the marker task should be the only task that ran in the prewarming pool
+        assertThat(getNumberOfCompletedTasks(threadPool, prewarmThreadPool), is(preIngestTasksPrewarmingPool + 1));
+
+        assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
+        assertThat(bytesReadFromIndexingNode.get(), is(greaterThan(0L)));
+        assertThat(bytesReadFromIndexingNode.get(), is(lessThan(bccTotalSizeInBytes)));
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
+    }
+
     public void testCommitPrefetching() throws Exception {
         var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
@@ -187,6 +261,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
+        // break the idle barrier so prefetching is not skipped
+        var searchRequest = prepareSearch(indexName);
+        assertNoFailures(searchRequest);
 
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = latestCommitGeneration + 1;
@@ -240,7 +317,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
-        var searchRequest = prepareSearch(indexName);
+        searchRequest = prepareSearch(indexName);
         if (randomBoolean()) {
             searchRequest.setQuery(new MatchAllQueryBuilder()).setSize(randomIntBetween(100, 10_000));
         } else {
@@ -262,6 +339,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
+        // break the idle barrier so prefetching is not skipped
+        var searchRequest = prepareSearch(indexName);
+        assertNoFailures(searchRequest);
 
         var shardId = new ShardId(resolveIndex(indexName), 0);
 
@@ -326,7 +406,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
-        var searchRequest = prepareSearch(indexName);
+        searchRequest = prepareSearch(indexName);
         if (randomBoolean()) {
             searchRequest.setQuery(new MatchAllQueryBuilder()).setSize(randomIntBetween(100, 10_000));
         } else {
@@ -349,6 +429,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
+        // break the idle barrier so prefetching is not skipped
+        var searchRequest = prepareSearch(indexName);
+        assertNoFailures(searchRequest);
 
         var initialCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var vBCCGen = initialCommitGeneration + 1;
@@ -416,6 +499,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
+        // break the idle barrier so prefetching is not skipped
+        var searchRequest = prepareSearch(indexName);
+        assertNoFailures(searchRequest);
 
         var initialCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
 
@@ -538,5 +624,30 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
                 ) {}
             };
         }
+    }
+
+    private static long getNumberOfCompletedTasks(ThreadPool threadPool, String shardReadThreadPool) {
+        final ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(shardReadThreadPool))
+            .findFirst()
+            .orElseThrow();
+        return stats.completed();
+    }
+
+    private static void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName, long previouslyObservedCompletedTasks)
+        throws Exception {
+        assertBusy(() -> {
+            final ThreadPoolStats.Stats stats = threadPool.stats()
+                .stats()
+                .stream()
+                .filter(s -> s.name().equals(executorName))
+                .findFirst()
+                .orElse(null);
+            assertThat(stats, is(notNullValue()));
+            assertThat(stats.completed(), greaterThan(previouslyObservedCompletedTasks));
+            assertThat(stats.active() + stats.queue(), is(0));
+        });
     }
 }

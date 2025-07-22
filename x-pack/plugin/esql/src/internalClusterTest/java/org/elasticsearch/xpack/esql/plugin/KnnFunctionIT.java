@@ -202,6 +202,26 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testKnnPrefiltersNotPushedDownWithScoring() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 1.0f);
+
+        // We retrieve 5 from knn, but must be prefiltered with the non-pushed down conjunction
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s, 5) AND length(keyword) > 5 AND length(keyword) <= 10
+            | SORT id ASC
+            | LIMIT 20
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            // No added columns
+            assertThat(resp.columns().size(), equalTo(5));
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
     @Before
     public void setup() throws IOException {
         assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());

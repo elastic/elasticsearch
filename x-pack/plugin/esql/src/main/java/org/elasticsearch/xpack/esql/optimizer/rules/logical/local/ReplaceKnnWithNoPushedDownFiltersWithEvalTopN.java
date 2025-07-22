@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -36,6 +37,7 @@ import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMI
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.usesScoring;
 
 /**
  * Break TopN back into Limit + OrderBy to allow the order rules to kick in.
@@ -58,21 +60,36 @@ public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRule
             return filter;
         }
 
-        // Replace knn with scoring expressions of exact queries
-        List<Expression> exactQueries = knnQueries.get()
-            .stream()
-            .map(ReplaceKnnWithNoPushedDownFiltersWithEvalTopN::replaceKnnByExactQuery)
-            .toList();
-        assert exactQueries.isEmpty() == false;
+        List<Attribute> scoreAttrs;
+        LogicalPlan scoringPlan;
+        if (usesScoring(filter)) {
+            scoreAttrs = filter.output()
+                .stream()
+                .filter(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE))
+                .toList();
+            // Use the original filter, changing knn to exact queries
+            scoringPlan = filter.with(
+                filter.condition().transformDown(Knn.class, ReplaceKnnWithNoPushedDownFiltersWithEvalTopN::replaceKnnByExactQuery)
+            );
+        } else {
+            // Replace knn with scoring expressions of exact queries
+            List<Expression> exactQueries = knnQueries.get()
+                .stream()
+                .map(ReplaceKnnWithNoPushedDownFiltersWithEvalTopN::replaceKnnByExactQuery)
+                .toList();
+            assert exactQueries.isEmpty() == false;
 
-        List<Alias> exactScoreAliases = exactScoreAliases(exactQueries);
-        Eval scoreEval = new Eval(EMPTY, filter.with(conditionWithoutKnns), exactScoreAliases);
+            // Create an Eval for scoring the exact queries
+            List<Alias> exactScoreAliases = exactQueryScoreAliases(exactQueries);
+            scoringPlan = new Eval(EMPTY, filter.with(conditionWithoutKnns), exactScoreAliases);
+            scoreAttrs = exactScoreAliases.stream().map(Alias::toAttribute).toList();
+        }
 
-        // Filter for all exact scores > 0
-        Filter scoreFilter = exactScoreFilter(exactScoreAliases, scoreEval);
+        // Sort on the scores, limit on the minimum k from the queries
+        TopN topN = createTopN(scoreAttrs, knnQueries.get(), scoringPlan);
 
-        // Sort on the scores, limit on the minimum k
-        return topN(exactScoreAliases, knnQueries.get(), scoreFilter);
+        // Filter on scores > 0. We could filter earlier, but could be combined with the existing filter and _score would not be updated
+        return createScoreFilter(scoreAttrs, topN);
     }
 
     private static Expression replaceKnnByExactQuery(Knn knn) {
@@ -86,7 +103,7 @@ public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRule
         );
     }
 
-    private static List<Alias> exactScoreAliases(List<Expression> exactQueries) {
+    private static List<Alias> exactQueryScoreAliases(List<Expression> exactQueries) {
         List<Alias> scoringAliases = new ArrayList<>();
         for (int i = 0; i < exactQueries.size(); i++) {
             String name = rawTemporaryName(EXACT_SCORE_ATTR_NAME, String.valueOf(i));
@@ -96,10 +113,9 @@ public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRule
         return scoringAliases;
     }
 
-    private static Filter exactScoreFilter(List<Alias> scoreAliases, Eval scoreEval) {
+    private static Filter createScoreFilter(List<Attribute> scoreAttrs, LogicalPlan planToFilter) {
         Expression scoreComparison = null;
-        for (Alias scoreAlias : scoreAliases) {
-            Attribute scoringAttr = scoreAlias.toAttribute();
+        for (Attribute scoringAttr : scoreAttrs) {
             GreaterThan gt = new GreaterThan(EMPTY, scoringAttr, new Literal(EMPTY, 0.0, DataType.DOUBLE));
             if (scoreComparison == null) {
                 scoreComparison = gt;
@@ -107,29 +123,27 @@ public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRule
                 scoreComparison = new And(EMPTY, gt, scoreComparison);
             }
         }
-        Filter scoreFilter = new Filter(EMPTY, scoreEval, scoreComparison);
-        return scoreFilter;
+
+        return new Filter(EMPTY, planToFilter, scoreComparison);
     }
 
     private static Expression replaceNonPushableKnnByTrue(Knn knn, Holder<List<Knn>> replaced) {
         if (knn.hasNonPushableFilters() == false) {
             return knn;
         }
-
         replaced.get().add(knn);
-
         return Literal.TRUE;
     }
 
-    private static TopN topN(List<Alias> scoreAliases, List<Knn> knnQueries, Filter scoreFilter) {
-        List<Order> orders = scoreAliases.stream()
-            .map(a -> new Order(EMPTY, a.toAttribute(), Order.OrderDirection.DESC, Order.NullsPosition.LAST))
+    private static TopN createTopN(List<Attribute> scoreAttrs, List<Knn> knnQueries, LogicalPlan scoringPlan) {
+        List<Order> orders = scoreAttrs.stream()
+            .map(a -> new Order(EMPTY, a, Order.OrderDirection.DESC, Order.NullsPosition.LAST))
             .toList();
         int minimumK = knnQueries.stream()
             .map(k -> ((KnnVectorQueryBuilder) k.queryBuilder()))
             .mapToInt(KnnVectorQueryBuilder::k)
             .min()
             .orElseThrow();
-        return new TopN(EMPTY, scoreFilter, orders, new Literal(EMPTY, minimumK, DataType.INTEGER));
+        return new TopN(EMPTY, scoringPlan, orders, new Literal(EMPTY, minimumK, DataType.INTEGER));
     }
 }

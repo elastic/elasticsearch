@@ -18,11 +18,11 @@ import java.util.Map;
  * <p>
  * Results are returned as a map of node ID to node usage stats.
  */
-public interface NodeUsageStatsForThreadPoolsCollector {
+public interface ThreadPoolUsageCollector {
     /**
      * This will be used when there is no NodeUsageLoadCollector available.
      */
-    NodeUsageStatsForThreadPoolsCollector EMPTY = listener -> listener.onResponse(Map.of());
+    ThreadPoolUsageCollector EMPTY = listener -> listener.onResponse(Map.of());
 
     /**
      * Collects the write load estimates from the cluster.

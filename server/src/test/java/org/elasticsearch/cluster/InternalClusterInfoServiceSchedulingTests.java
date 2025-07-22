@@ -84,9 +84,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
-        final NodeUsageStatsForThreadPoolsCollector mockNodeUsageStatsForThreadPoolsCollector = spy(
-            new StubNodeUsageStatsForThreadPoolsCollector()
-        );
+        final ThreadPoolUsageCollector mockNodeUsageStatsForThreadPoolsCollector = spy(
+            new StubThreadPoolUsageCollector()
+                                                                                      );
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
             clusterService,
@@ -164,10 +164,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     /**
-     * Simple for test {@link NodeUsageStatsForThreadPoolsCollector} implementation that returns an empty map of nodeId string to
+     * Simple for test {@link ThreadPoolUsageCollector} implementation that returns an empty map of nodeId string to
      * {@link NodeUsageStatsForThreadPools}.
      */
-    private static class StubNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
+    private static class StubThreadPoolUsageCollector implements ThreadPoolUsageCollector {
         @Override
         public void collectUsageStats(ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener) {
             listener.onResponse(Map.of());

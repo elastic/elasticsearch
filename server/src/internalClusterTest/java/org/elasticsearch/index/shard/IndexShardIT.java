@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
-import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
+import org.elasticsearch.cluster.ThreadPoolUsageCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -334,7 +334,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
 
-            /** Verify that each node has usage stats reported. The test {@link BogusNodeUsageStatsForThreadPoolsCollector} implementation
+            /** Verify that each node has usage stats reported. The test {@link BogusThreadPoolUsageCollector} implementation
              * generates random usage values */
             ClusterState state = getInstanceFromNode(ClusterService.class).state();
             assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
@@ -995,17 +995,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * A simple {@link NodeUsageStatsForThreadPoolsCollector} implementation that creates and returns random
+     * A simple {@link ThreadPoolUsageCollector} implementation that creates and returns random
      * {@link NodeUsageStatsForThreadPools} for each node in the cluster.
      * <p>
      * Note: there's an 'org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector' file that declares this implementation so that the
      * plugin system can pick it up and use it for the test set-up.
      */
-    public static class BogusNodeUsageStatsForThreadPoolsCollector implements NodeUsageStatsForThreadPoolsCollector {
+    public static class BogusThreadPoolUsageCollector implements ThreadPoolUsageCollector {
 
         private final BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin;
 
-        public BogusNodeUsageStatsForThreadPoolsCollector(BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin) {
+        public BogusThreadPoolUsageCollector(BogusNodeUsageStatsForThreadPoolsCollectorPlugin plugin) {
             this.plugin = plugin;
         }
 

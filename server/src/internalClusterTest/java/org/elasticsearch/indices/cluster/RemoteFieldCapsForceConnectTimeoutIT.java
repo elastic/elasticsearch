@@ -75,7 +75,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
             MockTransportService mts = (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, nodeName);
 
             mts.addConnectBehavior(
-                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, cluster(REMOTE_CLUSTER_1).getNodeNames()[0]),
+                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, (String) null),
                 ((transport, discoveryNode, profile, listener) -> {
                     try {
                         latch.await();
@@ -103,7 +103,13 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
             throw new AssertionError(e);
         } finally {
             var fieldCapsRequest = new FieldCapabilitiesRequest();
-            fieldCapsRequest.indices("*", "*:*");
+            /*
+             * We have a local and 2 remote clusters but will target only the remote that we stalled.
+             * This is because when the timeout kicks in, and we move on from the stalled remote, we do not want
+             * the error to be a top-level error. Rather, it must be present in the response object under "failures".
+             * All other errors are free to be top-level errors though.
+             */
+            fieldCapsRequest.indices(REMOTE_CLUSTER_1 + ":*");
             fieldCapsRequest.fields("foo", "bar", "baz");
             var result = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest));
 

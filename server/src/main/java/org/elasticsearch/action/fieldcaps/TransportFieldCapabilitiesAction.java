@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -398,7 +399,21 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
             }
         } else {
-            listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
+            // we have no responses at all, maybe because of errors
+            if (indexFailures.isEmpty() == false) {
+                /*
+                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
+                 * Instead, they should always be passed through the response object, as part of "failures".
+                 */
+                if (failures.stream().anyMatch(failure -> failure.getException() instanceof ElasticsearchTimeoutException)) {
+                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
+                } else {
+                    // throw back the first exception
+                    listener.onFailure(failures.get(0).getException());
+                }
+            } else {
+                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+            }
         }
     }
 

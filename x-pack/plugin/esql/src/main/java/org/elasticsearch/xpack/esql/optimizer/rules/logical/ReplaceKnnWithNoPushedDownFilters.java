@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -38,10 +38,9 @@ import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMI
 import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
-import static org.elasticsearch.xpack.esql.planner.PlannerUtils.usesScoring;
 
 /**
- * Break TopN back into Limit + OrderBy to allow the order rules to kick in.
+ * Replaces KNN queries with non pushable prefilters used in filters
  */
 public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerRule<Filter> {
 
@@ -75,36 +74,26 @@ public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerR
             return filter;
         }
 
-        List<Attribute> scoreAttrs;
-        LogicalPlan scoringPlan;
-        if (usesScoring(filter)) {
-            scoreAttrs = filter.output()
-                .stream()
-                .filter(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE))
-                .toList();
-            // Use the original filter, changing knn to exact queries
-            scoringPlan = filter.with(
-                filter.condition().transformDown(Knn.class, ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery)
-            );
-        } else {
-            // Replace knn with scoring expressions of exact queries
-            List<Expression> exactQueries = knnQueries.get()
-                .stream()
-                .map(ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery)
-                .toList();
-            assert exactQueries.isEmpty() == false;
+        // Replace knn with scoring expressions of exact queries
+        List<Expression> exactQueries = knnQueries.get()
+            .stream()
+            .map(ReplaceKnnWithNoPushedDownFilters::replaceKnnByExactQuery)
+            .toList();
+        assert exactQueries.isEmpty() == false;
 
-            // Create an Eval for scoring the exact queries
-            List<Alias> exactScoreAliases = exactQueryScoreAliases(exactQueries);
-            scoringPlan = new Eval(EMPTY, filter.with(conditionWithoutKnns), exactScoreAliases);
-            scoreAttrs = exactScoreAliases.stream().map(Alias::toAttribute).toList();
-        }
+        // Create an Eval for scoring the exact queries
+        List<Alias> exactScoreAliases = exactQueryScoreAliases(exactQueries);
+        LogicalPlan scoringPlan = new Eval(EMPTY, filter.with(conditionWithoutKnns), exactScoreAliases);
+        List<Attribute> scoreAttrs = exactScoreAliases.stream().map(Alias::toAttribute).toList();
 
         // Sort on the scores, limit on the minimum k from the queries
         TopN topN = createTopN(scoreAttrs, knnQueries.get(), scoringPlan);
 
         // Filter on scores > 0. We could filter earlier, but could be combined with the existing filter and _score would not be updated
-        return createScoreFilter(scoreAttrs, topN);
+        Filter scoreFilter = createScoreFilter(scoreAttrs, topN);
+
+        // Drop the scores
+        return new Project(EMPTY, scoreFilter, filter.output());
     }
 
     private static Expression replaceKnnByExactQuery(Knn knn) {

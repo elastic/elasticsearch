@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -8040,7 +8039,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where knn(dense_vector, [0.1, 0.2, 0.3], 5) and match(text, "hello") and length(keyword) > 10
             """);
 
-        var limit = as(plan, Limit.class);
+        var project = as(plan, Project.class);
+        assertFalse(project.projections().stream().anyMatch(p -> p.toString().contains(EXACT_SCORE_ATTR_NAME)));
+
+        var limit = as(project.child(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         // Next: Filter[$$knn_score$0 > 0.0]
@@ -8076,17 +8078,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var esRelation = as(prefilter.child(), EsRelation.class);
     }
 
-    public void testKnnWithNonPushablePrefiltersNoScoringMultipleKnn() {
+    public void testKnnWithNonPushablePrefiltersScoringMultipleKnn() {
         assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
         // Disjunctions with pushable conditions are allowed
         var plan = planTypes("""
-            from types
+            from types metadata _score
             | where knn(dense_vector, [0.1, 0.2, 0.3], 5) and knn(dense_vector, [0.4, 0.5, 0.6], 7)
             and match(text, "hello") and length(keyword) > 10
             """);
 
-        var limit = as(plan, Limit.class);
+        var project = as(plan, Project.class);
+        assertFalse(project.projections().stream().anyMatch(p -> p.toString().contains(EXACT_SCORE_ATTR_NAME)));
+
+        var limit = as(project.child(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         // Next: Filter[$$knn_score$1 > 0.0 AND $$knn_score$0 > 0.0]
@@ -8140,108 +8145,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         // Next: EsRelation[types]
         var esRelation = as(prefilter.child(), EsRelation.class);
-    }
-
-    public void testKnnWithNonPushablePrefiltersScoring() {
-        assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
-
-        // Disjunctions with pushable conditions are allowed
-        var plan = planTypes("""
-            from types metadata _score
-            | where knn(dense_vector, [0.1, 0.2, 0.3], 5) and match(text, "hello") and length(keyword) > 10
-            """);
-
-        // Top-level: Limit[1000[INTEGER],false]
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
-
-        // Next: Filter[_score > 0.0]
-        var filter = as(limit.child(), Filter.class);
-        var gt = as(filter.condition(), GreaterThan.class);
-        MetadataAttribute scoreAttr = as(gt.left(), MetadataAttribute.class);
-        assertThat(scoreAttr.name(), equalTo("_score"));
-        assertThat(gt.right().fold(FoldContext.small()), equalTo(0.0));
-
-        // Next: TopN[..., 5]
-        var topN = as(filter.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
-        assertThat(topN.order().getFirst().child(), equalTo(scoreAttr));
-
-        // Next: Filter[EXACTNN(...) AND MATCH(...) AND LENGTH(keyword) > 10]
-        var innerFilter = as(topN.child(), Filter.class);
-        var and1 = as(innerFilter.condition(), And.class);
-        var and2 = as(and1.left(), And.class);
-
-        var exactNN = as(and2.left(), ExactNN.class);
-        var field = as(exactNN.field(), FieldAttribute.class);
-        assertThat(field.name(), equalTo("dense_vector"));
-        assertThat(exactNN.query().toString(), equalTo("[0.1, 0.2, 0.3]"));
-        var match = as(and2.right(), Match.class);
-        var lenGt = as(and1.right(), GreaterThan.class);
-
-        assertThat(Expressions.name(lenGt.left()), containsString("length(keyword)"));
-        assertThat(lenGt.right().fold(FoldContext.small()), equalTo(10));
-
-        // Next: EsRelation[types]
-        var esRelation = as(innerFilter.child(), EsRelation.class);
-    }
-
-    public void testKnnWithNonPushablePrefiltersScoringMultipleKnns() {
-        assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
-
-        // Disjunctions with pushable conditions are allowed
-        var plan = planTypes("""
-            from types metadata _score
-            | where knn(dense_vector, [0.1, 0.2, 0.3], 5) and match(text, "hello") and length(keyword) > 10
-            and knn(dense_vector, [0.3, 0.4, 0.5], 7)
-            """);
-
-        // Top-level: Limit[1000[INTEGER],false]
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
-
-        // Next: Filter[_score > 0.0]
-        var filter = as(limit.child(), Filter.class);
-        var gt = as(filter.condition(), GreaterThan.class);
-        MetadataAttribute scoreAttr = as(gt.left(), MetadataAttribute.class);
-        assertThat(scoreAttr.name(), equalTo("_score"));
-        assertThat(gt.right().fold(FoldContext.small()), equalTo(0.0));
-
-        // Next: TopN[..., 5]
-        var topN = as(filter.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
-        assertThat(topN.order().getFirst().child(), equalTo(scoreAttr));
-
-        // Next: Filter[EXACTNN(...) AND MATCH(...) AND LENGTH(keyword) > 10 AND EXACTNN(...)]
-        var innerFilter = as(topN.child(), Filter.class);
-        // Should be a chain of ANDs
-        var and1 = as(innerFilter.condition(), And.class);
-        var and2 = as(and1.left(), And.class);
-        var and3 = as(and2.left(), And.class);
-
-        // First EXACTNN
-        var exactNN1 = as(and3.left(), ExactNN.class);
-        var field1 = as(exactNN1.field(), FieldAttribute.class);
-        assertThat(field1.name(), equalTo("dense_vector"));
-        assertThat(exactNN1.query().toString(), equalTo("[0.1, 0.2, 0.3]"));
-
-        // MATCH
-        var match = as(and3.right(), Match.class);
-
-        // LENGTH(keyword) > 10
-        var lenGt = as(and2.right(), GreaterThan.class);
-        assertThat(Expressions.name(lenGt.left()), containsString("length(keyword)"));
-        assertThat(lenGt.right().fold(FoldContext.small()), equalTo(10));
-
-        // Second EXACTNN
-        var exactNN2 = as(and1.right(), ExactNN.class);
-        var field2 = as(exactNN2.field(), FieldAttribute.class);
-        assertThat(field2.name(), equalTo("dense_vector"));
-        assertThat(exactNN2.query().toString(), equalTo("[0.3, 0.4, 0.5]"));
-
-        // Next: EsRelation[types]
-        var esRelation = as(innerFilter.child(), EsRelation.class);
-
     }
 
     public void testKnnInDisjunctionsWithNonPushablePrefilters() {

@@ -231,54 +231,68 @@ required_capability: knn_function_v4
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], 140) and composed_name == false
+| where knn(rgb_vector, [128,128,0], 10) and composed_name == false
 | sort _score desc, color asc
-| keep color, composed_name
-| limit 10
+| keep color
 ;
 
-color:text | composed_name:boolean
-olive      | false
-sienna     | false
-chocolate  | false
-peru       | false
-brown      | false
-firebrick  | false
-chartreuse | false
-gray       | false
-green      | false
-maroon     | false
+color:text
+olive
+sienna
+chocolate
+peru
+brown
+firebrick
+chartreuse
+green
+maroon
 ;
 
 testKnnWithNonPushableDisjunctions
 required_capability: knn_function_v4
 
 from colors metadata _score 
-| where knn(rgb_vector, [128,128,0], 140, {"similarity": 30}) or length(color) > 10 
+| where knn(rgb_vector, [128,128,0], 10) or length(color) > 10 
 | sort _score desc, color asc
 | keep color 
 ;
 
 color:text
 olive
+sienna
+chocolate
+peru
+golden rod
+brown
+firebrick
+chartreuse
+green
+maroon
 aqua marine
 lemon chiffon
 papaya whip
 ;
 
-testKnnWithNonPushableDisjunctionsOnComplexExpressions
+testKnnWithNonPushableConjunctionsOnComplexExpressions
 required_capability: knn_function_v4
 
 from colors metadata _score 
-| where (knn(rgb_vector, [128,128,0], 140, {"similarity": 70}) and length(color) < 10) or (knn(rgb_vector, [128,0,128], 140, {"similarity": 60}) and primary == false) 
+| where knn(rgb_vector, [128,128,0], 10) and length(color) < 7 and knn(rgb_vector, [128,0,128], 10) and primary == false 
 | sort _score desc, color asc
-| keep color, primary
+| keep color
 ;
 
-color:text   | primary:boolean
-olive        | false
-purple       | false
-indigo       | false
+color:text
+olive
+purple
+indigo
+sienna
+brown
+peru
+maroon
+navy
+tomato
+orange
 ;
 
 testKnnInStatsNonPushable

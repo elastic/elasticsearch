@@ -2732,7 +2732,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     mock(FileSettingsService.class),
                     threadPool,
                     originalIndexMetadata -> IndexMetadata.builder(originalIndexMetadata)
-                        .settings( // Set a property to something mild, outside its default
+                        .settings(
+                            // Set a property to something mild, outside its default
                             Settings.builder()
                                 .put(originalIndexMetadata.getSettings())
                                 .put(INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMinutes(2))

@@ -15,6 +15,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -35,6 +37,7 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
 
     private final Client client;
     private final SnapshotHistoryStore historyStore;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportExecuteSnapshotLifecycleAction(
@@ -43,7 +46,8 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
-        SnapshotHistoryStore historyStore
+        SnapshotHistoryStore historyStore,
+        ProjectResolver projectResolver
     ) {
         super(
             ExecuteSnapshotLifecycleAction.NAME,
@@ -57,6 +61,7 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
         );
         this.client = client;
         this.historyStore = historyStore;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -68,8 +73,9 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
     ) {
         try {
             final String policyId = request.getLifecycleId();
+            final ProjectId projectId = projectResolver.getProjectId();
             SnapshotLifecycleMetadata snapMeta = state.metadata()
-                .getProject()
+                .getProject(projectId)
                 .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             SnapshotLifecyclePolicyMetadata policyMetadata = snapMeta.getSnapshotConfigurations().get(policyId);
             if (policyMetadata == null) {
@@ -78,6 +84,7 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
             }
 
             final Optional<String> snapshotName = SnapshotLifecycleTask.maybeTakeSnapshot(
+                projectId,
                 SnapshotLifecycleService.getJobId(policyMetadata),
                 client,
                 clusterService,

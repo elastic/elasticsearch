@@ -10,7 +10,6 @@
 package org.elasticsearch.exponentialhistogram;
 
 import java.util.Arrays;
-import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 
@@ -83,11 +82,7 @@ public class ExponentialHistogramGenerator {
      * @return a new {@link ExponentialHistogram}
      */
     public static ExponentialHistogram createFor(double... values) {
-        ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(values.length);
-        for (double val : values) {
-            generator.add(val);
-        }
-        return generator.get();
+        return createFor(values.length, values);
     }
 
     /**
@@ -96,12 +91,14 @@ public class ExponentialHistogramGenerator {
      * relative error of less than {@code 2^(2^-MAX_SCALE) - 1}.
      *
      * @param bucketCount the maximum number of buckets
-     * @param values a stream of values to be added to the histogram
+     * @param values the values to be added to the histogram
      * @return a new {@link ExponentialHistogram}
      */
-    public static ExponentialHistogram createFor(int bucketCount, DoubleStream values) {
+    public static ExponentialHistogram createFor(int bucketCount, double... values) {
         ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(bucketCount);
-        values.forEach(generator::add);
+        for (double val : values) {
+            generator.add(val);
+        }
         return generator.get();
     }
 

@@ -265,7 +265,8 @@ public class ESONXContentParser extends AbstractXContentParser {
                 contextStack.addFirst(currentContext);
                 currentToken = Token.START_ARRAY;
             } else {
-                throw new IllegalStateException("Unknown mutation value type: " + mutatedValue.getClass());
+                // TODO: Fix. This is because we have a variety of custom writers. We would need to expose those.
+                currentToken = Token.VALUE_STRING;
             }
         } else {
             throw new IllegalStateException("Unknown ESON type: " + esonType.getClass());

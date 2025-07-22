@@ -22,6 +22,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -260,29 +261,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Map<String, Object> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
-        var subFields = new HashMap<FieldType, Supplier<Map<String, Object>>>();
-        subFields.put(FieldType.KEYWORD, () -> {
-            var mapping = keywordMapping(true, request).get();
-            mapping.remove("copy_to");
-            return mapping;
-        });
-        subFields.put(FieldType.TEXT, () -> textMapping(true, request).get());
-        subFields.put(FieldType.MATCH_ONLY_TEXT, () -> matchOnlyTextMapping(true, request).get());
-        subFields.put(FieldType.WILDCARD, () -> wildcardMapping(true, request).get());
-
-        var options = subFields.entrySet().stream().filter(e -> e.getKey().equals(parent) == false).toList();
-        var child = ESTestCase.randomFrom(options);
-        FieldType childType = child.getKey();
-        var childValue = child.getValue().get();
-        childValue.put("type", childType.toString());
-        return Map.of("subfield_" + childType, childValue);
-    }
-
-    private Supplier<Map<String, Object>> matchOnlyTextMapping(
-        boolean hasParent,
-        DataSourceRequest.LeafMappingParametersGenerator request
-    ) {
+    private Supplier<Map<String, Object>> matchOnlyTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
             var mapping = new HashMap<String, Object>();
             if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {
@@ -290,6 +269,26 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
             return mapping;
         };
+    }
+
+    private Map<String, Object> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
+
+        List<FieldType> stringTypes = List.of(FieldType.TEXT, FieldType.MATCH_ONLY_TEXT, FieldType.KEYWORD, FieldType.WILDCARD);
+        var childType = ESTestCase.randomValueOtherThan(parent, () -> ESTestCase.randomFrom(stringTypes));
+        var child = switch (childType) {
+            case TEXT -> textMapping(true, request).get();
+            case MATCH_ONLY_TEXT -> matchOnlyTextMapping(true, request).get();
+            case WILDCARD -> wildcardMapping(true, request).get();
+            case KEYWORD -> {
+                var mapping = keywordMapping(true, request).get();
+                mapping.remove("copy_to");
+                yield mapping;
+            }
+            default -> throw new AssertionError("unreachable");
+        };
+
+        child.put("type", childType.toString());
+        return Map.of("subfield_" + childType, child);
     }
 
     public static HashMap<String, Object> commonMappingParameters() {

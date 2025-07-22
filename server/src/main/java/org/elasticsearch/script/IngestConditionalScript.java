@@ -43,6 +43,14 @@ public abstract class IngestConditionalScript extends SourceMapFieldScript {
     }
 
     /**
+     * Provides backwards compatibility access to ctx
+     * @return the context map containing the source data
+     */
+    public Map<String, Object> getCtx() {
+        return ctxMap;
+    }
+
+    /**
      * Return the parameters for this script.
      * @return a map of parameters
      */

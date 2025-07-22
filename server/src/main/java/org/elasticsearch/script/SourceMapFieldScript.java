@@ -14,22 +14,13 @@ import org.elasticsearch.script.field.SourceMapField;
 import java.util.Map;
 
 /**
- * Abstract base class for scripts that read field values.
- * These scripts provide {@code ctx} for backwards compatibility and expose {@link Metadata}.
+ * Abstract base class for that exposes the non-mutable field APIs to scripts.
  */
 public abstract class SourceMapFieldScript {
     protected final Map<String, Object> ctxMap;
 
     public SourceMapFieldScript(Map<String, Object> ctxMap) {
         this.ctxMap = ctxMap;
-    }
-
-    /**
-     * Provides backwards compatibility access to ctx
-     * @return the context map containing the source data
-     */
-    public Map<String, Object> getCtx() {
-        return ctxMap;
     }
 
     /**

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,10 +37,6 @@ import java.util.function.BiPredicate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-@TestIssueLogging(
-    issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/4161",
-    value = "co.elastic.elasticsearch.serverless.multiproject.MultiProjectFileSettingsService:DEBUG"
-)
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
 public class S3MultiProjectObjectStoreIT extends S3ObjectStoreTests {
 

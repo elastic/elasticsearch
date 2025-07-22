@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceKnnWithNoPushedDownFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
@@ -156,7 +157,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSurrogateExpressions(),
-            new ReplaceOrderByExpressionWithEval()
+            new ReplaceOrderByExpressionWithEval(),
+            new PushDownConjunctionsToKnnPrefilters(),
+            new ReplaceKnnWithNoPushedDownFilters()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -193,7 +196,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
-            new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),
             new PushDownInferencePlan(),
             new PushDownEval(),

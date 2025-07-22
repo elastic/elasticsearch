@@ -5,12 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.ExactNN;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -139,11 +138,7 @@ public class ReplaceKnnWithNoPushedDownFilters extends OptimizerRules.OptimizerR
         List<Order> orders = scoreAttrs.stream()
             .map(a -> new Order(EMPTY, a, Order.OrderDirection.DESC, Order.NullsPosition.LAST))
             .toList();
-        int minimumK = knnQueries.stream()
-            .map(k -> ((KnnVectorQueryBuilder) k.queryBuilder()))
-            .mapToInt(KnnVectorQueryBuilder::k)
-            .min()
-            .orElseThrow();
+        int minimumK = knnQueries.stream().mapToInt(knn -> (Integer) knn.k().fold(FoldContext.small())).min().orElseThrow();
         return new TopN(EMPTY, scoringPlan, orders, new Literal(EMPTY, minimumK, DataType.INTEGER));
     }
 }

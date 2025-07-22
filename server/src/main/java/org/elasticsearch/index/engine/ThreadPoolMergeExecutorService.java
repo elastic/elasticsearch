@@ -554,6 +554,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
     static class MergeTaskPriorityBlockingQueue extends PriorityBlockingQueueWithBudget<MergeTask> {
         private static final Logger LOGGER = LogManager.getLogger(MergeTaskPriorityBlockingQueue.class);
+
         MergeTaskPriorityBlockingQueue() {
             // by default, start with 0 budget (so takes on this queue will always block until the first {@link #updateBudget} is invoked)
             // use the estimated *remaining* merge size as the budget function so that the disk space budget of elements is updated
@@ -675,7 +676,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 // update the budget of dequeued, but still in-use elements (these are the elements that are consuming budget)
                 unreleasedBudgetPerElement.replaceAll((e, v) -> v.updateBudgetEstimation(budgetFunction.applyAsLong(e.element())));
                 // the available budget is decreased by the budget of still in-use elements (dequeued elements that are still in-use)
-                this.availableBudget -= unreleasedBudgetPerElement.values().stream().mapToLong(i -> i.latestBudgetEstimationForElement).sum();
+                this.availableBudget -= unreleasedBudgetPerElement.values()
+                    .stream()
+                    .mapToLong(i -> i.latestBudgetEstimationForElement)
+                    .sum();
                 elementAvailable.signalAll();
                 postBudgetUpdate();
             } finally {

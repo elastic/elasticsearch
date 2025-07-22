@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -101,8 +102,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                     final String command = current.commandString();
 
                     final EsqlQueryGenerator.QueryExecuted result = previousResult == null
-                        ? execute(command, 0)
-                        : execute(previousResult.query() + command, previousResult.depth());
+                        ? execute(command, 0, profileLogger)
+                        : execute(previousResult.query() + command, previousResult.depth(), profileLogger);
                     previousResult = result;
 
                     final boolean hasException = result.exception() != null;
@@ -178,7 +179,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
+    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth, @Nullable ProfileLogger profileLogger) {
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),

@@ -36,7 +36,7 @@ public class ProfileLogger extends TestWatcher {
 
     private Object profile;
 
-    void extractProfile(Map<String, Object> jsonResponse, Boolean originalProfileParameter) {
+    public void extractProfile(Map<String, Object> jsonResponse, Boolean originalProfileParameter) {
         if (jsonResponse.containsKey("profile") == false) {
             return;
         }
@@ -46,6 +46,10 @@ public class ProfileLogger extends TestWatcher {
         if (Boolean.TRUE.equals(originalProfileParameter) == false) {
             jsonResponse.remove("profile");
         }
+    }
+
+    public void clearProfile() {
+        profile = null;
     }
 
     @Override

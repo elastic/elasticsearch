@@ -1285,11 +1285,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         AssertWarnings assertWarnings,
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
-        var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
         Boolean profileEnabled = requestObject.profile;
-        if (isProfileSafe && profileLogger != null) {
-            requestObject.profile(true);
-        }
+        prepareProfileLogger(requestObject, profileLogger);
         Request request = prepareRequestWithOptions(requestObject, SYNC);
 
         Response response = performRequest(request);
@@ -1319,11 +1316,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         AssertWarnings assertWarnings,
         @Nullable ProfileLogger profileLogger
     ) throws IOException {
-        var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
         Boolean profileEnabled = requestObject.profile;
-        if (isProfileSafe && profileLogger != null) {
-            requestObject.profile(true);
-        }
+        prepareProfileLogger(requestObject, profileLogger);
         addAsyncParameters(requestObject, keepOnCompletion);
         Request request = prepareRequestWithOptions(requestObject, ASYNC);
 
@@ -1410,6 +1404,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
+    }
+
+    private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
+        if (profileLogger != null) {
+            profileLogger.clearProfile();
+            var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
+            if (isProfileSafe) {
+                requestObject.profile(true);
+            }
+        }
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {

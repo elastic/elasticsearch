@@ -508,6 +508,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliasesSkipOld
   issue: https://github.com/elastic/elasticsearch/issues/131697
+- class: org.elasticsearch.search.SearchWithIndexBlocksIT
+  method: testMultiSearchIndicesWithIndexRefreshBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/131698
 
 # Examples:
 #

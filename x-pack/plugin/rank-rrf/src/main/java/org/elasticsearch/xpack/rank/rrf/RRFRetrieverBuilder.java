@@ -76,16 +76,14 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             int rankWindowSize = args[3] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
             int rankConstant = args[4] == null ? DEFAULT_RANK_CONSTANT : (int) args[4];
 
-            float[] weights = new float[retrieverComponents.size()];
-
-            int index = 0;
-            List<RetrieverSource> innerRetrievers = new ArrayList<>();
-            for (RRFRetrieverComponent component : retrieverComponents) {
-                innerRetrievers.add(RetrieverSource.from(component.retriever));
-                weights[index] = component.weight;
-                index++;
+            int n = retrieverComponents.size();
+            List<RetrieverSource> innerRetrievers = new ArrayList<>(n);
+            float[] weights = new float[n];
+            for (int i = 0; i < n; i++) {
+                RRFRetrieverComponent component = retrieverComponents.get(i);
+                innerRetrievers.add(RetrieverSource.from(component.retriever()));
+                weights[i] = component.weight();
             }
-
             return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, weights);
         }
     );

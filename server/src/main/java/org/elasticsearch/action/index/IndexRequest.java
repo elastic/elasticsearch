@@ -418,22 +418,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
-        if (useStructuredSource && source == null) {
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                structuredSource.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                source = BytesReference.bytes(builder);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
         return source;
     }
 
     public void setStructuredSource(ESONSource.ESONObject esonSource) {
-        this.source = null;
-        this.structuredSource = esonSource;
         this.useStructuredSource = true;
+        this.structuredSource = esonSource;
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            structuredSource.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public boolean isStructuredSource() {

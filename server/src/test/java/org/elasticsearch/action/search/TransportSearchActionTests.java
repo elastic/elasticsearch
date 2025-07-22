@@ -1831,4 +1831,35 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(ESTestCase.terminate(threadPool));
         }
     }
+
+    public void testIgnoreIndicesWithIndexRefreshBlock() {
+        int numIndices = randomIntBetween(1, 10);
+        String[] concreteIndices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            concreteIndices[i] = "index" + i;
+        }
+
+        List<String> shuffledIndices = Arrays.asList(concreteIndices);
+        Collections.shuffle(shuffledIndices, random());
+        concreteIndices = shuffledIndices.toArray(new String[0]);
+
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
+        int numBlockedIndices = randomIntBetween(0, numIndices);
+        for (int i = 0; i < numBlockedIndices; i++) {
+            blocksBuilder.addIndexBlock(projectId, concreteIndices[i], IndexMetadata.INDEX_REFRESH_BLOCK);
+        }
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .blocks(blocksBuilder)
+            .build();
+        final ProjectState projectState = clusterState.projectState(projectId);
+
+        String[] actual = TransportSearchAction.ignoreBlockedIndices(projectState, concreteIndices);
+        String[] expected = Arrays.stream(concreteIndices)
+            .filter(index -> clusterState.blocks().hasIndexBlock(projectId, index, IndexMetadata.INDEX_REFRESH_BLOCK) == false)
+            .toArray(String[]::new);
+
+        assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
 }
